@@ -46,16 +46,30 @@ func tick() -> void:
 
 ## Generates dig jobs from the current policy so play continues unattended.
 ## Pure function of grid state -> deterministic across offline/realtime.
+## Only workable jobs count toward the limit: stale designations on buried
+## cells must not starve the policy.
 func _auto_designate() -> void:
 	if dig_policy == UD.DigPolicy.NONE:
 		return
 	var limit := minions.size()
-	if jobs.size() >= limit:
+	var active := 0
+	for job in jobs:
+		if _has_walkable_neighbor(job.target):
+			active += 1
+	if active >= limit:
 		return
 	for cell in _policy_candidates():
-		if jobs.size() >= limit:
+		if active >= limit:
 			break
-		add_dig_job(cell)
+		if add_dig_job(cell):
+			active += 1
+
+
+func _has_walkable_neighbor(cell: Vector2i) -> bool:
+	for dir in UDPathfinder.DIRS:
+		if grid.is_walkable(cell + dir):
+			return true
+	return false
 
 
 func _policy_candidates() -> Array[Vector2i]:
@@ -110,6 +124,16 @@ func add_dig_job(target: Vector2i) -> bool:
 			return false
 	jobs.append(UDJob.create(target))
 	return true
+
+
+## Cancels an unstarted designation. Jobs a minion is already walking to
+## or digging stay (avoids stranding the minion mid-errand).
+func remove_dig_job(target: Vector2i) -> bool:
+	for job in jobs:
+		if job.target == target and job.claimed_by == -1:
+			jobs.erase(job)
+			return true
+	return false
 
 
 ## Builds a room whose footprint cells are all dug-out AIR. Deducts cost and

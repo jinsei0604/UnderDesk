@@ -111,6 +111,8 @@ func _gui_input(event: InputEvent) -> void:
 		match mouse.button_index:
 			MOUSE_BUTTON_LEFT:
 				_handle_click(mouse.position)
+			MOUSE_BUTTON_RIGHT:
+				_cancel_designation(mouse.position)
 			MOUSE_BUTTON_WHEEL_DOWN:
 				_scroll_by(1)
 			MOUSE_BUTTON_WHEEL_UP:
@@ -135,6 +137,12 @@ func _handle_click(click_pos: Vector2) -> void:
 				mode = Mode.DIG
 				_refresh_mode_buttons()
 				queue_redraw()
+
+
+func _cancel_designation(click_pos: Vector2) -> void:
+	var cell := _cell_at(click_pos)
+	if cell != UDMinion.NO_TARGET and sim.remove_dig_job(cell):
+		queue_redraw()
 
 
 func _scroll_by(rows: int) -> void:

@@ -47,6 +47,33 @@ func test_policy_is_deterministic() -> void:
 	assert_eq(JSON.stringify(a.to_dict()), JSON.stringify(b.to_dict()))
 
 
+func test_stale_unreachable_jobs_do_not_starve_policy() -> void:
+	# Regression: leftover designations on buried cells filled every job
+	# slot, so DOWN policy never generated work and minions sat idle.
+	var sim := UDSim.new_game(UDTestFixtures.strata(), 11)
+	for x in range(0, 9):
+		assert_true(sim.add_dig_job(Vector2i(x, 3)), "buried cell designated")
+	sim.dig_policy = UD.DigPolicy.DOWN
+	sim.advance(100)
+	assert_gt(int(sim.inventory[UD.RES_SOIL]), 0, "policy digs despite stale jobs")
+
+
+func test_remove_dig_job() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.strata(), 11)
+	sim.add_dig_job(Vector2i(5, 3))
+	assert_true(sim.remove_dig_job(Vector2i(5, 3)))
+	assert_eq(sim.jobs.size(), 0)
+	assert_false(sim.remove_dig_job(Vector2i(5, 3)), "already removed")
+
+
+func test_remove_dig_job_keeps_claimed_jobs() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.strata(), 11)
+	var target := Vector2i(UD.DEPOT_POS.x, 1)
+	sim.add_dig_job(target)
+	sim.advance(2)  # a minion claims and heads out
+	assert_false(sim.remove_dig_job(target), "claimed job is not cancellable")
+
+
 func test_policy_survives_save_roundtrip() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 5)
 	sim.dig_policy = UD.DigPolicy.WIDEN
