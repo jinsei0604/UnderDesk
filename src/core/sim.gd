@@ -14,6 +14,7 @@ var minions: Array[UDMinion] = []
 var jobs: Array[UDJob] = []
 var rooms: Array[Dictionary] = []  # { "id": String, "pos": Vector2i }
 var discovered_documents: Array[String] = []
+var dig_policy: UD.DigPolicy = UD.DigPolicy.NONE
 var _rng := RandomNumberGenerator.new()
 
 
@@ -38,8 +39,63 @@ func advance(ticks: int) -> void:
 
 func tick() -> void:
 	tick_count += 1
+	_auto_designate()
 	for minion in minions:
 		_step_minion(minion)
+
+
+## Generates dig jobs from the current policy so play continues unattended.
+## Pure function of grid state -> deterministic across offline/realtime.
+func _auto_designate() -> void:
+	if dig_policy == UD.DigPolicy.NONE:
+		return
+	var limit := minions.size()
+	if jobs.size() >= limit:
+		return
+	for cell in _policy_candidates():
+		if jobs.size() >= limit:
+			break
+		add_dig_job(cell)
+
+
+func _policy_candidates() -> Array[Vector2i]:
+	var candidates: Array[Vector2i] = []
+	var deepest := _deepest_air_row()
+	if deepest < 0:
+		return candidates
+	_ensure_rows(deepest + UD.GRID_EXPAND_ROWS)
+	for x in grid.width:
+		var air := Vector2i(x, deepest)
+		if not grid.is_walkable(air):
+			continue
+		match dig_policy:
+			UD.DigPolicy.DOWN:
+				var below := air + Vector2i(0, 1)
+				if grid.is_inside(below) and grid.terrain_at(below) != UD.Terrain.AIR:
+					candidates.append(below)
+			UD.DigPolicy.WIDEN:
+				for dx: int in [-1, 1]:
+					var side := air + Vector2i(dx, 0)
+					if grid.is_inside(side) and grid.terrain_at(side) != UD.Terrain.AIR:
+						candidates.append(side)
+	# Closest to the depot column first; ties resolve left-to-right.
+	candidates.sort_custom(
+		func(a: Vector2i, b: Vector2i) -> bool:
+			var da := absi(a.x - UD.DEPOT_POS.x)
+			var db := absi(b.x - UD.DEPOT_POS.x)
+			if da != db:
+				return da < db
+			return a.x < b.x
+	)
+	return candidates
+
+
+func _deepest_air_row() -> int:
+	for y in range(grid.height - 1, -1, -1):
+		for x in grid.width:
+			if grid.is_walkable(Vector2i(x, y)):
+				return y
+	return -1
 
 
 ## Designates a cell for digging. Returns false when the cell is not diggable
@@ -224,6 +280,7 @@ func to_dict() -> Dictionary:
 		"jobs": job_dicts,
 		"rooms": room_dicts,
 		"discovered_documents": discovered_documents.duplicate(),
+		"dig_policy": int(dig_policy),
 	}
 
 
@@ -246,4 +303,6 @@ static func from_dict(d: Dictionary, p_strata: UDStrataDB) -> UDSim:
 		sim.rooms.append({"id": rd["id"], "pos": Vector2i(int(p[0]), int(p[1]))})
 	for doc_id: Variant in d["discovered_documents"] as Array:
 		sim.discovered_documents.append(doc_id)
+	# Missing in pre-policy saves: default to NONE.
+	sim.dig_policy = int(d.get("dig_policy", 0)) as UD.DigPolicy
 	return sim

@@ -36,6 +36,9 @@ const ALL_RESOURCES: Array[String] = [
 	RES_SOIL, RES_STONE, RES_ORE, RES_MAGIC_STONE, RES_FOOD, RES_GOLD,
 ]
 
+## §4: dig commands are direction-level policies, not per-cell orders.
+enum DigPolicy { NONE = 0, DOWN = 1, WIDEN = 2 }
+
 const MINION_DIG_POWER: int = 1
 const INITIAL_MINION_COUNT: int = 3
 const MINION_MAX: int = 20

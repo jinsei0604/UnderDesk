@@ -13,6 +13,9 @@ UI_DIG,Dig
 UI_BUILD_DORM,Dorm
 UI_ARCHIVE,Archive
 UI_QUIT,Quit
+UI_AUTO_NONE,Auto: Off
+UI_AUTO_DOWN,Auto: Dig Down
+UI_AUTO_WIDEN,Auto: Widen
 UI_MODE_NORMAL,Windowed
 UI_MODE_RESIDENT,Dock
 UI_NEW_DOC,A new document was unearthed

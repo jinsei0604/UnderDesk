@@ -34,6 +34,7 @@ var offline_ticks_applied: int = 0
 var _archive_button: Button
 var _dig_button: Button
 var _dorm_button: Button
+var _policy_button: Button
 var _height_button: Button
 var _mode_button: Button
 var _locale_button: Button
@@ -114,6 +115,11 @@ func _gui_input(event: InputEvent) -> void:
 				_scroll_by(1)
 			MOUSE_BUTTON_WHEEL_UP:
 				_scroll_by(-1)
+	elif event is InputEventMouseMotion and mode == Mode.DIG:
+		# Drag-paint dig designations instead of clicking cells one by one.
+		var motion := event as InputEventMouseMotion
+		if motion.button_mask & MOUSE_BUTTON_MASK_LEFT:
+			_handle_click(motion.position)
 
 
 func _handle_click(click_pos: Vector2) -> void:
@@ -288,6 +294,8 @@ func _build_hud() -> void:
 	bar.add_child(_dorm_button)
 	_archive_button = _make_button("", _open_archive)
 	bar.add_child(_archive_button)
+	_policy_button = _make_button("", _cycle_dig_policy)
+	bar.add_child(_policy_button)
 	_height_button = _make_button("", _cycle_height)
 	bar.add_child(_height_button)
 	_mode_button = _make_button("", _toggle_window_mode)
@@ -329,12 +337,29 @@ func _refresh_archive_button() -> void:
 func _refresh_button_texts() -> void:
 	_dig_button.text = locale.text("UI_DIG")
 	_dorm_button.text = locale.text("UI_BUILD_DORM")
+	_policy_button.text = locale.text(_policy_label_key())
 	_height_button.text = "%dpx" % UD.WINDOW_HEIGHTS[settings.height_index]
 	_mode_button.text = locale.text("UI_MODE_NORMAL") if settings.resident_mode \
 		else locale.text("UI_MODE_RESIDENT")
 	_locale_button.text = _next_locale_code().to_upper()
 	_quit_button.text = locale.text("UI_QUIT")
 	_refresh_archive_button()
+
+
+func _cycle_dig_policy() -> void:
+	sim.dig_policy = ((int(sim.dig_policy) + 1) % UD.DigPolicy.size()) as UD.DigPolicy
+	_refresh_button_texts()
+	queue_redraw()
+
+
+func _policy_label_key() -> String:
+	match sim.dig_policy:
+		UD.DigPolicy.DOWN:
+			return "UI_AUTO_DOWN"
+		UD.DigPolicy.WIDEN:
+			return "UI_AUTO_WIDEN"
+		_:
+			return "UI_AUTO_NONE"
 
 
 func _next_locale_code() -> String:
