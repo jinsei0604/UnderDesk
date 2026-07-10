@@ -1,0 +1,11 @@
+{
+	"id": "bedrock",
+	"name_key": "STRATUM_BEDROCK",
+	"depth_from": 6,
+	"depth_to": 15,
+	"terrain": "ROCK",
+	"hardness": 5,
+	"yield": "stone",
+	"documents": ["doc_003"],
+	"document_chance": 0.06
+}

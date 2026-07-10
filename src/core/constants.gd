@@ -1,0 +1,52 @@
+class_name UD
+extends RefCounted
+## UNDERDESK core constants (§12-1: no magic numbers).
+
+const SAVE_VERSION: int = 1
+
+## Simulation tick length (§7.1: timer-driven, not per-frame).
+const TICK_SECONDS: float = 2.0
+## Offline catch-up cap: 24 hours of 2-second ticks (§7.1-4).
+const MAX_OFFLINE_TICKS: int = 43200
+
+const GRID_WIDTH: int = 60
+const GRID_INITIAL_HEIGHT: int = 8
+## Rows appended below when digging approaches the bottom.
+const GRID_EXPAND_ROWS: int = 4
+
+## Home depot on the surface row where minions deposit resources.
+const DEPOT_POS := Vector2i(30, 0)
+
+enum Terrain { AIR = 0, SOIL = 1, ROCK = 2 }
+
+## Maps data-file terrain names to enum values.
+const TERRAIN_BY_NAME: Dictionary = {
+	"AIR": Terrain.AIR,
+	"SOIL": Terrain.SOIL,
+	"ROCK": Terrain.ROCK,
+}
+
+const RES_SOIL: String = "soil"
+const RES_STONE: String = "stone"
+const RES_ORE: String = "ore"
+const RES_MAGIC_STONE: String = "magic_stone"
+const RES_FOOD: String = "food"
+const RES_GOLD: String = "gold"
+const ALL_RESOURCES: Array[String] = [
+	RES_SOIL, RES_STONE, RES_ORE, RES_MAGIC_STONE, RES_FOOD, RES_GOLD,
+]
+
+const MINION_DIG_POWER: int = 1
+const INITIAL_MINION_COUNT: int = 3
+const MINION_MAX: int = 20
+const MINION_NAMES: Array[String] = ["ピブ", "モグ", "ドット", "ゴロ", "キノ", "ザザ"]
+
+const AUTOSAVE_INTERVAL_SECONDS: float = 60.0
+const SAVE_BACKUP_GENERATIONS: int = 3
+
+## Resident-window fps budget (§7.1-2).
+const FPS_ACTIVE: int = 60
+const FPS_IDLE: int = 10
+
+const WINDOW_HEIGHTS: Array[int] = [120, 180, 240]
+const DEFAULT_WINDOW_HEIGHT_INDEX: int = 1

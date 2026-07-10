@@ -1,0 +1,23 @@
+key,text
+APP_TITLE,UNDERDESK
+STRATUM_TOPSOIL,Topsoil
+STRATUM_BEDROCK,Bedrock
+ROOM_DORM,Dormitory
+RES_SOIL,Soil
+RES_STONE,Stone
+RES_ORE,Ore
+RES_MAGIC_STONE,Magic Stone
+RES_FOOD,Food
+RES_GOLD,Gold
+UI_DIG,Dig
+UI_BUILD_DORM,Dorm
+UI_ARCHIVE,Archive
+UI_QUIT,Quit
+UI_NEW_DOC,A new document was unearthed
+UI_OFFLINE_REPORT,%d ticks passed while you were away
+DOC_001_TITLE,A Miner's Journal - I
+DOC_001_BODY,"Day three. The soil here is soft. The more you dig, the more you earn — good work, honest work. But the foreman says strange things. ""Train your ears before you train your depth,"" he tells us. Whatever that means. Last night, from somewhere far below the shaft, came a sound — not quite water, not quite breathing. An aquifer, everyone laughed. I laughed too."
+DOC_002_TITLE,An Old Letter
+DOC_002_BODY,"Dear brother. Thank you for the money. The site here is the same as ever. There is just one odd rule: ""Any stone tablet you find, hand it in unread."" They say the ones who read them are the ones who quit. The others laugh — you can't even read, you're the safest man in the pit. ...But brother. If a man cannot read, how is it that in his dreams he finds himself *reading* it anyway?"
+DOC_003_TITLE,Fragment of a Stone Tablet
+DOC_003_BODY,"[LEGIBLE SECTION] ...to appease it, we ceased our digging. Seven times we filled the shaft back in, and seven times we failed. Return the soil, stack the stones — it does not matter. The depth remembers. You may forget, but the hole does not. ...[REMAINDER LOST]"
