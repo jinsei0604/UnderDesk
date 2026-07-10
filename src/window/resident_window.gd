@@ -17,6 +17,21 @@ static func setup_resident(window: Window, height_index: int) -> void:
 	)
 
 
+static func setup_normal(window: Window) -> void:
+	window.borderless = false
+	window.always_on_top = false
+	window.size = UD.NORMAL_WINDOW_SIZE
+	window.move_to_center()
+
+
 ## §7.1-2: drop fps while the user works in another app.
 static func apply_focus_fps(focused: bool) -> void:
 	Engine.max_fps = UD.FPS_ACTIVE if focused else UD.FPS_IDLE
+
+
+## §7.1-3: stop rendering entirely while minimized; the simulation
+## timers keep running. Safe to call every tick.
+static func sync_render_loop(window: Window) -> void:
+	var minimized := DisplayServer.window_get_mode(window.get_window_id()) \
+		== DisplayServer.WINDOW_MODE_MINIMIZED
+	RenderingServer.render_loop_enabled = not minimized

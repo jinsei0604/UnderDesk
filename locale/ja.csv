@@ -13,6 +13,8 @@ UI_DIG,掘る
 UI_BUILD_DORM,宿舎
 UI_ARCHIVE,書庫
 UI_QUIT,終了
+UI_MODE_NORMAL,通常画面
+UI_MODE_RESIDENT,常駐に戻す
 UI_NEW_DOC,新しい文書が出土した
 UI_OFFLINE_REPORT,留守の間に %d ティック進行した
 DOC_001_TITLE,坑夫の手記・一

@@ -22,6 +22,7 @@ const COLOR_CARRY := Color(0.6, 0.42, 0.25)
 const COLOR_ROOM := Color(0.25, 0.55, 0.55, 0.85)
 
 var sim: UDSim
+var settings: UDSettings
 var locale: UDLocale
 var doc_db: UDDocumentDB
 var room_db: UDRoomDB
@@ -33,6 +34,10 @@ var offline_ticks_applied: int = 0
 var _archive_button: Button
 var _dig_button: Button
 var _dorm_button: Button
+var _height_button: Button
+var _mode_button: Button
+var _locale_button: Button
+var _quit_button: Button
 var _archive_dialog: AcceptDialog
 var _archive_list: ItemList
 var _archive_body: RichTextLabel
@@ -43,7 +48,8 @@ var _archive_doc_ids: Array[String] = []
 
 
 func _ready() -> void:
-	locale = UDLocale.load_locale("ja")
+	settings = UDSettings.load_settings()
+	locale = UDLocale.load_locale(settings.locale_code)
 	doc_db = UDDocumentDB.load_from_dir("res://data/documents")
 	room_db = UDRoomDB.load_from_dir("res://data/rooms")
 	var strata := UDStrataDB.load_from_dir("res://data/strata")
@@ -70,8 +76,8 @@ func _ready() -> void:
 
 	_build_hud()
 	_build_archive_dialog()
-	_refresh_archive_button()
-	UDResidentWindow.setup_resident(get_window(), UD.DEFAULT_WINDOW_HEIGHT_INDEX)
+	_refresh_button_texts()
+	_apply_window_mode()
 	queue_redraw()
 
 
@@ -82,12 +88,14 @@ func _notification(what: int) -> void:
 				UDSaveManager.save_game(sim)
 		NOTIFICATION_APPLICATION_FOCUS_IN:
 			UDResidentWindow.apply_focus_fps(true)
+			RenderingServer.render_loop_enabled = true
 		NOTIFICATION_APPLICATION_FOCUS_OUT:
 			UDResidentWindow.apply_focus_fps(false)
 
 
 func _on_tick() -> void:
 	sim.tick()
+	UDResidentWindow.sync_render_loop(get_window())
 	queue_redraw()
 
 
@@ -274,15 +282,20 @@ func _build_hud() -> void:
 	bar.position.y = 2
 	add_child(bar)
 
-	_dig_button = _make_button(locale.text("UI_DIG"), func() -> void: _set_mode(Mode.DIG))
+	_dig_button = _make_button("", func() -> void: _set_mode(Mode.DIG))
 	bar.add_child(_dig_button)
-	_dorm_button = _make_button(
-		locale.text("UI_BUILD_DORM"), func() -> void: _set_mode(Mode.BUILD_DORM)
-	)
+	_dorm_button = _make_button("", func() -> void: _set_mode(Mode.BUILD_DORM))
 	bar.add_child(_dorm_button)
-	_archive_button = _make_button(locale.text("UI_ARCHIVE"), _open_archive)
+	_archive_button = _make_button("", _open_archive)
 	bar.add_child(_archive_button)
-	bar.add_child(_make_button(locale.text("UI_QUIT"), _quit))
+	_height_button = _make_button("", _cycle_height)
+	bar.add_child(_height_button)
+	_mode_button = _make_button("", _toggle_window_mode)
+	bar.add_child(_mode_button)
+	_locale_button = _make_button("", _toggle_locale)
+	bar.add_child(_locale_button)
+	_quit_button = _make_button("", _quit)
+	bar.add_child(_quit_button)
 	_refresh_mode_buttons()
 
 
@@ -311,6 +324,53 @@ func _refresh_archive_button() -> void:
 	if not unread_docs.is_empty():
 		label += " (%d)" % unread_docs.size()
 	_archive_button.text = label
+
+
+func _refresh_button_texts() -> void:
+	_dig_button.text = locale.text("UI_DIG")
+	_dorm_button.text = locale.text("UI_BUILD_DORM")
+	_height_button.text = "%dpx" % UD.WINDOW_HEIGHTS[settings.height_index]
+	_mode_button.text = locale.text("UI_MODE_NORMAL") if settings.resident_mode \
+		else locale.text("UI_MODE_RESIDENT")
+	_locale_button.text = _next_locale_code().to_upper()
+	_quit_button.text = locale.text("UI_QUIT")
+	_refresh_archive_button()
+
+
+func _next_locale_code() -> String:
+	var index := UD.SUPPORTED_LOCALES.find(settings.locale_code)
+	return UD.SUPPORTED_LOCALES[(index + 1) % UD.SUPPORTED_LOCALES.size()]
+
+
+func _apply_window_mode() -> void:
+	if settings.resident_mode:
+		UDResidentWindow.setup_resident(get_window(), settings.height_index)
+	else:
+		UDResidentWindow.setup_normal(get_window())
+
+
+func _cycle_height() -> void:
+	settings.height_index = (settings.height_index + 1) % UD.WINDOW_HEIGHTS.size()
+	settings.save()
+	if settings.resident_mode:
+		UDResidentWindow.setup_resident(get_window(), settings.height_index)
+	_refresh_button_texts()
+
+
+func _toggle_window_mode() -> void:
+	settings.resident_mode = not settings.resident_mode
+	settings.save()
+	_apply_window_mode()
+	_refresh_button_texts()
+
+
+func _toggle_locale() -> void:
+	settings.locale_code = _next_locale_code()
+	settings.save()
+	locale = UDLocale.load_locale(settings.locale_code)
+	_archive_dialog.title = locale.text("UI_ARCHIVE")
+	_refresh_button_texts()
+	queue_redraw()
 
 
 func _build_archive_dialog() -> void:

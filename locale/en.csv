@@ -13,6 +13,8 @@ UI_DIG,Dig
 UI_BUILD_DORM,Dorm
 UI_ARCHIVE,Archive
 UI_QUIT,Quit
+UI_MODE_NORMAL,Windowed
+UI_MODE_RESIDENT,Dock
 UI_NEW_DOC,A new document was unearthed
 UI_OFFLINE_REPORT,%d ticks passed while you were away
 DOC_001_TITLE,A Miner's Journal - I
