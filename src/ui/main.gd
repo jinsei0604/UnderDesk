@@ -142,11 +142,12 @@ func _ready() -> void:
 	if payload.is_empty():
 		sim = UDSim.new_game(
 			strata_db, int(Time.get_unix_time_from_system()),
-			item_db.all_ids(), companion_defs
+			item_db.all_ids(), companion_defs, doc_db.conditions_by_id()
 		)
 	else:
 		sim = UDSim.from_dict(
-			payload["sim"], strata_db, item_db.all_ids(), companion_defs
+			payload["sim"], strata_db, item_db.all_ids(), companion_defs,
+			doc_db.conditions_by_id()
 		)
 	_connect_sim_signals()
 	if not payload.is_empty():

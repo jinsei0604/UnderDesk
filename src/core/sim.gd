@@ -31,6 +31,10 @@ var item_pool: Array[String] = []
 ## Definitions are injected like the strata DB, not serialized.
 var companions: Array[String] = []
 var companion_defs: Array = []  # [{ id, name_key, join_at_docs }]
+## Unlock conditions per document id (data/documents "conditions" field).
+## Injected like the strata DB and not serialized. A document whose
+## conditions are unmet stays underground until they hold (§7.3).
+var doc_conditions: Dictionary = {}  # doc id -> { min_docs, requires_* }
 ## Loot dug up but not yet tallied: resource id -> count. Filled on the
 ## spot when a dig completes (no hauling trips); converted to coins in
 ## one batch by collect_loot() when the player checks in.
@@ -49,11 +53,13 @@ static func new_game(
 	rng_seed: int,
 	p_item_pool: Array[String] = [],
 	p_companion_defs: Array = [],
+	p_doc_conditions: Dictionary = {},
 ) -> UDSim:
 	var sim := UDSim.new()
 	sim.strata = p_strata
 	sim.item_pool = p_item_pool
 	sim.companion_defs = p_companion_defs
+	sim.doc_conditions = p_doc_conditions
 	sim._rng.seed = rng_seed
 	sim.grid = UDGrid.new(UD.GRID_WIDTH)
 	for y in UD.GRID_INITIAL_HEIGHT:
@@ -441,7 +447,8 @@ static func prestige_reset(
 	assert(gain > 0)
 	# Seed the next run from the old RNG stream: deterministic lineage.
 	var sim := UDSim.new_game(
-		p_strata, old._rng.randi(), p_item_pool, old.companion_defs
+		p_strata, old._rng.randi(), p_item_pool, old.companion_defs,
+		old.doc_conditions
 	)
 	sim.crystals = old.crystals + gain
 	# Story progress persists: companions stay in the party.
@@ -485,13 +492,31 @@ func _roll_document(stratum: Dictionary) -> void:
 	var roll := _rng.randf()
 	var pool: Array = []
 	for doc_id: Variant in stratum.get("documents", []) as Array:
-		if not discovered_documents.has(doc_id):
+		if not discovered_documents.has(doc_id) and _doc_unlocked(str(doc_id)):
 			pool.append(doc_id)
 	if roll >= chance or pool.is_empty():
 		return
 	var doc_id: String = pool[_rng.randi_range(0, pool.size() - 1)]
 	discovered_documents.append(doc_id)
 	document_discovered.emit(doc_id)
+
+
+## True when every unlock condition on the document holds. Conditions are
+## a pure function of sim state, so gating stays deterministic and
+## offline-equivalent. Documents without conditions are always available.
+func _doc_unlocked(doc_id: String) -> bool:
+	if not doc_conditions.has(doc_id):
+		return true
+	var cond := doc_conditions[doc_id] as Dictionary
+	if discovered_documents.size() < int(cond.get("min_docs", 0)):
+		return false
+	for companion_id: Variant in cond.get("requires_companions", []) as Array:
+		if not companions.has(str(companion_id)):
+			return false
+	for item_id: Variant in cond.get("requires_items", []) as Array:
+		if not items.has(str(item_id)):
+			return false
+	return true
 
 
 ## Rare finds on dig completion: a chest always pays coins and also
@@ -571,11 +596,13 @@ static func from_dict(
 	p_strata: UDStrataDB,
 	p_item_pool: Array[String] = [],
 	p_companion_defs: Array = [],
+	p_doc_conditions: Dictionary = {},
 ) -> UDSim:
 	var sim := UDSim.new()
 	sim.strata = p_strata
 	sim.item_pool = p_item_pool
 	sim.companion_defs = p_companion_defs
+	sim.doc_conditions = p_doc_conditions
 	sim.tick_count = int(d["tick_count"])
 	sim._rng.seed = (d["rng_seed"] as String).to_int()
 	sim._rng.state = (d["rng_state"] as String).to_int()

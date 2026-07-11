@@ -38,6 +38,30 @@ func test_documents_and_locales_cross_reference() -> void:
 				"%s body translated" % doc_id)
 
 
+func test_document_foreshadow_metadata_is_well_formed() -> void:
+	# Optional story-bible fields (§5.1): validated here so scenario data
+	# can grow without code changes yet still fail loudly on typos.
+	var docs := UDDocumentDB.load_from_dir("res://data/documents")
+	assert_gt(docs.count(), 0, "documents shipped")
+	var foreshadow_pattern := RegEx.create_from_string("^F\\d{2}$")
+	for doc_id in docs.all_ids():
+		var doc := docs.get_doc(doc_id)
+		if doc.has("reveal_stage"):
+			assert_true(str(doc["reveal_stage"]) in UD.REVEAL_STAGES,
+				"%s reveal_stage is one of %s" % [doc_id, UD.REVEAL_STAGES])
+		if doc.has("foreshadow_ids"):
+			for fid: Variant in doc["foreshadow_ids"] as Array:
+				assert_ne(foreshadow_pattern.search(str(fid)), null,
+					"%s foreshadow id %s matches FNN" % [doc_id, fid])
+		if doc.has("companion_tag"):
+			assert_true(str(doc["companion_tag"]).length() > 0,
+				"%s companion_tag is non-empty" % doc_id)
+		if doc.has("conditions"):
+			for key: Variant in (doc["conditions"] as Dictionary).keys():
+				assert_true(str(key) in UD.DOC_CONDITION_KEYS,
+					"%s condition key %s is known" % [doc_id, key])
+
+
 func test_strata_document_ids_exist() -> void:
 	var docs := UDDocumentDB.load_from_dir("res://data/documents")
 	var strata_defs := UDDataLoader.load_json_dir("res://data/strata")

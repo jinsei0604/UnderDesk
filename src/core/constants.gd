@@ -99,3 +99,12 @@ const MINI_BOTTOM_MARGIN: int = 12
 const NORMAL_WINDOW_SIZE := Vector2i(1152, 648)
 
 const SUPPORTED_LOCALES: Array[String] = ["ja", "en"]
+
+## Foreshadowing metadata on documents (story bible §5.1). A document may
+## carry surface / mid / payoff variants of the same foreshadow thread.
+const REVEAL_STAGES: Array[String] = ["surface", "mid", "payoff"]
+## Optional unlock conditions on documents (§7.3 "ID＋条件"). All listed
+## requirements must hold before the document can be unearthed.
+const DOC_CONDITION_KEYS: Array[String] = [
+	"min_docs", "requires_companions", "requires_items",
+]

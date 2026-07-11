@@ -29,3 +29,22 @@ func get_doc(id: String) -> Dictionary:
 
 func count() -> int:
 	return _docs.size()
+
+
+func all_ids() -> Array[String]:
+	var ids: Array[String] = []
+	for id: Variant in _docs.keys():
+		ids.append(str(id))
+	ids.sort()
+	return ids
+
+
+## Unlock conditions keyed by document id, for injection into the sim
+## (only documents that declare conditions appear; the rest are ungated).
+func conditions_by_id() -> Dictionary:
+	var conditions: Dictionary = {}
+	for id: Variant in _docs.keys():
+		var doc := _docs[id] as Dictionary
+		if doc.has("conditions"):
+			conditions[str(id)] = doc["conditions"] as Dictionary
+	return conditions
