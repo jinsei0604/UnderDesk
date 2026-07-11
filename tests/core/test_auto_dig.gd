@@ -3,8 +3,14 @@ extends GutTest
 ## per-cell orders.
 
 
+func test_new_game_defaults_to_down_policy() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.strata(), 11)
+	assert_eq(sim.dig_policy, UD.DigPolicy.DOWN, "idle from minute one")
+
+
 func test_policy_none_generates_no_jobs() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 11)
+	sim.dig_policy = UD.DigPolicy.NONE
 	sim.advance(50)
 	assert_eq(sim.jobs.size(), 0)
 	assert_eq(int(sim.inventory[UD.RES_SOIL]), 0)

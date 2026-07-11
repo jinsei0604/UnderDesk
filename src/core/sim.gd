@@ -29,6 +29,8 @@ static func new_game(p_strata: UDStrataDB, rng_seed: int) -> UDSim:
 		sim.inventory[res] = 0
 	for i in UD.INITIAL_MINION_COUNT:
 		sim.minions.append(UDMinion.create(i, UD.DEPOT_POS))
+	# Idle games should idle from minute one: new dungeons dig on their own.
+	sim.dig_policy = UD.DigPolicy.DOWN
 	return sim
 
 

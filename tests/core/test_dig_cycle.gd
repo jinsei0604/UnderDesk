@@ -6,6 +6,7 @@ const MAX_TICKS: int = 60
 
 func test_full_dig_haul_cycle() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 42)
+	sim.dig_policy = UD.DigPolicy.NONE
 	var target := Vector2i(UD.DEPOT_POS.x, 1)
 	assert_true(sim.add_dig_job(target))
 
@@ -30,6 +31,7 @@ func test_dig_job_validation() -> void:
 
 func test_unreachable_job_stays_queued_without_breaking() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 42)
+	sim.dig_policy = UD.DigPolicy.NONE
 	assert_true(sim.add_dig_job(Vector2i(5, 3)), "buried cell can be designated")
 	sim.advance(20)
 	assert_eq(sim.jobs.size(), 1, "job waits until reachable (§5.1: no loss)")
@@ -51,6 +53,7 @@ func test_document_discovery_is_deterministic() -> void:
 	var sim_a := UDSim.new_game(UDTestFixtures.strata(1.0), 7)
 	var sim_b := UDSim.new_game(UDTestFixtures.strata(1.0), 7)
 	for sim: UDSim in [sim_a, sim_b]:
+		sim.dig_policy = UD.DigPolicy.NONE
 		sim.add_dig_job(Vector2i(UD.DEPOT_POS.x, 1))
 		sim.advance(30)
 	assert_eq(sim_a.discovered_documents.size(), 1, "chance 1.0 always drops")

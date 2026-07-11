@@ -19,6 +19,18 @@ const COLOR_GRID_LINE := Color(0.0, 0.0, 0.0, 0.25)
 const COLOR_JOB_MARK := Color(1.0, 0.85, 0.3, 0.55)
 const COLOR_DEPOT := Color(0.85, 0.3, 0.25)
 const COLOR_MINION := Color(0.95, 0.85, 0.4)
+## Slight per-minion tint variation: a crowd, not clones (§6).
+const MINION_COLORS: Array[Color] = [
+	Color(0.95, 0.85, 0.40),
+	Color(0.95, 0.65, 0.35),
+	Color(0.70, 0.90, 0.45),
+	Color(0.95, 0.60, 0.60),
+	Color(0.60, 0.85, 0.90),
+	Color(0.85, 0.70, 0.95),
+]
+## Deeper rows fade toward darkness (§6: lighting carries the mood).
+const DEPTH_FADE_PER_ROW: float = 0.015
+const DEPTH_FADE_FLOOR: float = 0.4
 const COLOR_CARRY := Color(0.6, 0.42, 0.25)
 const COLOR_ROOM := Color(0.25, 0.55, 0.55, 0.85)
 
@@ -268,7 +280,7 @@ func _draw_grid() -> void:
 				origin + Vector2(x * CELL_PX, (y - scroll_y) * CELL_PX),
 				Vector2(CELL_PX, CELL_PX)
 			)
-			draw_rect(rect, _terrain_color(sim.grid.terrain_at(cell)))
+			draw_rect(rect, _cell_color(sim.grid.terrain_at(cell), y))
 			draw_rect(rect, COLOR_GRID_LINE, false, 1.0)
 	_draw_rooms(origin)
 	_draw_jobs(origin)
@@ -276,16 +288,19 @@ func _draw_grid() -> void:
 	_draw_minions(origin)
 
 
-func _terrain_color(terrain: UD.Terrain) -> Color:
+func _cell_color(terrain: UD.Terrain, depth: int) -> Color:
+	var base: Color
 	match terrain:
 		UD.Terrain.SOIL:
-			return COLOR_SOIL
+			base = COLOR_SOIL
 		UD.Terrain.ROCK:
-			return COLOR_ROCK
+			base = COLOR_ROCK
 		UD.Terrain.WETROCK:
-			return COLOR_WETROCK
+			base = COLOR_WETROCK
 		_:
-			return COLOR_AIR
+			base = COLOR_AIR
+	var fade: float = maxf(DEPTH_FADE_FLOOR, 1.0 - depth * DEPTH_FADE_PER_ROW)
+	return base.darkened(1.0 - fade)
 
 
 func _cell_rect(origin: Vector2, cell: Vector2i) -> Rect2:
@@ -341,14 +356,18 @@ func _draw_minions(origin: Vector2) -> void:
 		if not _cell_visible(minion.pos):
 			continue
 		var rect := _cell_rect(origin, minion.pos)
+		# 1px bob while working, phase-shifted per minion: tiny but alive.
+		var bob := 0.0
+		if minion.state != UDMinion.State.IDLE:
+			bob = float((sim.tick_count + minion.id) % 2)
 		var body := Rect2(
-			rect.position + Vector2(MINION_INSET, MINION_INSET),
-			Vector2(CELL_PX - MINION_INSET * 2, CELL_PX - MINION_INSET * 2)
+			rect.position + Vector2(MINION_INSET, MINION_INSET + bob),
+			Vector2(CELL_PX - MINION_INSET * 2, CELL_PX - MINION_INSET * 2 - bob)
 		)
-		draw_rect(body, COLOR_MINION)
+		draw_rect(body, MINION_COLORS[minion.id % MINION_COLORS.size()])
 		if minion.carrying != "":
 			draw_rect(
-				Rect2(rect.position + Vector2(MINION_INSET, 0), Vector2(6, 4)),
+				Rect2(rect.position + Vector2(MINION_INSET, bob), Vector2(6, 4)),
 				COLOR_CARRY
 			)
 
