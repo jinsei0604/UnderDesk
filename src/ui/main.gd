@@ -53,7 +53,6 @@ var mode: Mode = Mode.DIG
 var _build_room_id: String = ""
 var scroll_y: int = 0
 var scroll_x: int = 0
-var _follow_id: int = -1
 var _anim_frame: int = 0
 var _tally_text: String = ""
 var _tally_until_tick: int = 0
@@ -67,8 +66,9 @@ const BUTTON_FONT_SIZE: int = 16
 const BUTTON_MIN_SIZE := Vector2(118, 44)
 const ACTIVE_BUTTON_TINT := Color(1.0, 0.85, 0.3)
 
-## Expanded view zoom: 3x pixels so the sprites read in full detail.
-const EXPANDED_CELL_PX: int = 48
+## Expanded view zoom: near-native sprite resolution, tunnel close-up
+## framing (about 7x5 cells in view).
+const EXPANDED_CELL_PX: int = 128
 ## UI-side sprite animation cadence (does not touch the simulation).
 const ANIM_FRAME_SECONDS: float = 0.4
 var unread_docs: Array[String] = []
@@ -204,36 +204,16 @@ func _on_tick() -> void:
 		sim.collect_loot()
 	_treasure_button.text = "%s(%d)" % [locale.text("UI_TREASURES"), sim.items.size()]
 	UDResidentWindow.sync_render_loop(get_window())
-	if settings.resident_mode:
-		_follow_camera()
+	_follow_camera()
 	queue_redraw()
 
 
-## The strip camera follows one worker, preferring whoever is digging:
-## a digger stands right beside the remaining solid blocks of its row,
-## so the visible row always contains both the minion and the dirt.
+## The camera anchors on the protagonist (minion 0): wherever they walk
+## or dig, the view follows.
 func _followed_minion() -> UDMinion:
-	var current: UDMinion = null
-	for minion in sim.minions:
-		if minion.id == _follow_id:
-			current = minion
-			break
-	if current != null and current.state == UDMinion.State.DIGGING:
-		return current
-	for minion in sim.minions:
-		if minion.state == UDMinion.State.DIGGING:
-			_follow_id = minion.id
-			return minion
-	if current != null and current.state != UDMinion.State.IDLE:
-		return current
-	for minion in sim.minions:
-		if minion.state != UDMinion.State.IDLE:
-			_follow_id = minion.id
-			return minion
-	if not sim.minions.is_empty():
-		_follow_id = sim.minions[0].id
-		return sim.minions[0]
-	return null
+	if sim.minions.is_empty():
+		return null
+	return sim.minions[0]
 
 
 func _follow_camera() -> void:
@@ -242,6 +222,9 @@ func _follow_camera() -> void:
 		return
 	var max_scroll: int = maxi(0, sim.grid.height - _visible_rows())
 	scroll_y = clampi(star.pos.y - _visible_rows() / 2, 0, max_scroll)
+	if not settings.resident_mode:
+		var max_scroll_x: int = maxi(0, sim.grid.width - _visible_cols())
+		scroll_x = clampi(star.pos.x - _visible_cols() / 2, 0, max_scroll_x)
 
 
 func _connect_sim_signals() -> void:
@@ -558,19 +541,23 @@ func _draw_minions(origin: Vector2) -> void:
 		var bob := 0.0
 		if minion.state != UDMinion.State.IDLE:
 			bob = float(((sim.tick_count + minion.id) % 2) * maxi(1, cell_px / 12))
-		var body := Rect2(
-			rect.position + Vector2(inset, inset + bob),
-			Vector2(cell_px - inset * 2, cell_px - inset * 2 - bob)
-		)
 		var art_key := art.minion_key(minion.id)
 		if art.has_art(art_key):
+			# Illustrated sprites carry their own margins: use the full cell.
+			var sprite_rect := Rect2(
+				rect.position + Vector2(0, bob), Vector2(cell_px, cell_px - bob)
+			)
 			var tex: Texture2D
 			if minion.state == UDMinion.State.IDLE or art.frame_count(art_key) <= 1:
 				tex = art.texture(art_key)
 			else:
 				tex = art.frame(art_key, _anim_frame + minion.id)
-			draw_texture_rect(tex, body, false)
+			draw_texture_rect(tex, sprite_rect, false)
 			continue
+		var body := Rect2(
+			rect.position + Vector2(inset, inset + bob),
+			Vector2(cell_px - inset * 2, cell_px - inset * 2 - bob)
+		)
 		draw_rect(body, MINION_COLORS[minion.id % MINION_COLORS.size()])
 		# Two dark eyes: placeholder charm until real sprites land (§6).
 		var eye := maxf(1.0, cell_px / 12.0)
@@ -728,17 +715,7 @@ func _expand() -> void:
 	settings.resident_mode = false
 	settings.save()
 	_apply_window_mode()
-	# Open the view centered on whoever is working.
-	var star := _followed_minion()
-	if star != null:
-		scroll_x = clampi(
-			star.pos.x - _visible_cols() / 2, 0,
-			maxi(0, sim.grid.width - _visible_cols())
-		)
-		scroll_y = clampi(
-			star.pos.y - _visible_rows() / 2, 0,
-			maxi(0, sim.grid.height - _visible_rows())
-		)
+	_follow_camera()
 	_refresh_button_texts()
 
 
@@ -965,7 +942,7 @@ func _on_bury_confirmed() -> void:
 	sim = UDSim.prestige_reset(sim, strata_db, item_db.all_ids())
 	_connect_sim_signals()
 	scroll_y = 0
-	_follow_id = -1
+	scroll_x = 0
 	_tally_text = ""
 	unread_docs.clear()
 	UDSaveManager.save_game(sim)

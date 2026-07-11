@@ -9,6 +9,9 @@ extends SceneTree
 ## where <config> selects a preset below.
 
 const BG_TOLERANCE := 0.075
+## In-game sprites are resampled to this size (matches the expanded
+## view's cell) so nearest-neighbor drawing stays crisp.
+const GAME_SPRITE_SIZE := 128
 
 ## preset -> { src, crops: { out_name: [x, y, w, h] } }
 const PRESETS := {
@@ -67,6 +70,8 @@ func _init() -> void:
 			print("EMPTY after trim: ", out_name)
 			continue
 		var squared := _square(trimmed)
+		if out_name.begins_with("minion_"):
+			squared.resize(GAME_SPRITE_SIZE, GAME_SPRITE_SIZE, Image.INTERPOLATE_LANCZOS)
 		var out_path := ProjectSettings.globalize_path("res://assets/art/%s.png" % out_name)
 		squared.save_png(out_path)
 		print("saved %s (%dx%d)" % [out_name, squared.get_width(), squared.get_height()])

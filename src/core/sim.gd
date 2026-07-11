@@ -130,15 +130,26 @@ func _policy_candidates() -> Array[Vector2i]:
 	_ensure_rows(deepest + UD.GRID_EXPAND_ROWS)
 	match dig_policy:
 		UD.DigPolicy.DOWN:
-			# Layer order: fully clear the shallowest unfinished row before
-			# descending, so no soil columns are left hanging beside the shaft.
+			# Serpentine tunnel: odd rows dig left-to-right, even rows dig
+			# back right-to-left, dropping one row at each end. Progress
+			# reads as horizontal tunnelling (per the reference image)
+			# while depth still advances through the strata.
 			for y in range(1, grid.height):
-				for x in grid.width:
+				var xs: Array[int] = []
+				if y % 2 == 1:
+					for x in grid.width:
+						xs.append(x)
+				else:
+					for x in range(grid.width - 1, -1, -1):
+						xs.append(x)
+				for x in xs:
 					var cell := Vector2i(x, y)
 					if grid.terrain_at(cell) != UD.Terrain.AIR:
 						candidates.append(cell)
+						if candidates.size() >= UD.MINION_MAX:
+							return candidates
 				if not candidates.is_empty():
-					break
+					return candidates
 		UD.DigPolicy.WIDEN:
 			for x in grid.width:
 				var air := Vector2i(x, deepest)
@@ -148,15 +159,14 @@ func _policy_candidates() -> Array[Vector2i]:
 					var side := air + Vector2i(dx, 0)
 					if grid.is_inside(side) and grid.terrain_at(side) != UD.Terrain.AIR:
 						candidates.append(side)
-	# Closest to the depot column first; ties resolve left-to-right.
-	candidates.sort_custom(
-		func(a: Vector2i, b: Vector2i) -> bool:
-			var da := absi(a.x - UD.DEPOT_POS.x)
-			var db := absi(b.x - UD.DEPOT_POS.x)
-			if da != db:
-				return da < db
-			return a.x < b.x
-	)
+			candidates.sort_custom(
+				func(a: Vector2i, b: Vector2i) -> bool:
+					var da := absi(a.x - UD.DEPOT_POS.x)
+					var db := absi(b.x - UD.DEPOT_POS.x)
+					if da != db:
+						return da < db
+					return a.x < b.x
+			)
 	return candidates
 
 
