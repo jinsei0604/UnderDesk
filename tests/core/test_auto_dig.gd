@@ -20,6 +20,7 @@ func test_policy_down_digs_unattended() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 11)
 	sim.dig_policy = UD.DigPolicy.DOWN
 	sim.advance(300)
+	sim.collect_loot()
 	assert_gt(int(sim.inventory[UD.RES_GOLD]), 5, "coins flow without clicks")
 
 
@@ -77,6 +78,7 @@ func test_stale_unreachable_jobs_do_not_starve_policy() -> void:
 		assert_true(sim.add_dig_job(Vector2i(x, 3)), "buried cell designated")
 	sim.dig_policy = UD.DigPolicy.DOWN
 	sim.advance(100)
+	sim.collect_loot()
 	assert_gt(int(sim.inventory[UD.RES_GOLD]), 0, "policy digs despite stale jobs")
 
 

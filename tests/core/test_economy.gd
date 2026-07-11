@@ -3,13 +3,33 @@ extends GutTest
 ## special finds (chests, nuggets) stay deterministic.
 
 
-func test_deposit_converts_soil_to_coins() -> void:
+func test_dig_bags_loot_and_collect_converts() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 42)
 	sim.dig_policy = UD.DigPolicy.NONE
 	sim.add_dig_job(Vector2i(UD.DEPOT_POS.x, 1))
 	sim.advance(30)
-	assert_eq(int(sim.inventory[UD.RES_SOIL]), 0, "raw soil is not stockpiled")
-	assert_true(int(sim.inventory[UD.RES_GOLD]) >= 1, "deposit paid in coins")
+	assert_eq(int(sim.pending_loot.get(UD.RES_SOIL, 0)), 1, "loot bagged on the spot")
+	var before := int(sim.inventory[UD.RES_GOLD])
+	var tally := sim.collect_loot()
+	assert_eq(int(tally["coins"]), int(UD.COIN_VALUES[UD.RES_SOIL]))
+	assert_eq(int(sim.inventory[UD.RES_GOLD]), before + 1)
+	assert_eq(sim.pending_loot_total(), 0, "bag emptied by the tally")
+	assert_eq(int(sim.collect_loot()["coins"]), 0, "second tally pays nothing")
+
+
+func test_pre_v3_hauling_minion_is_normalized() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
+	var d := sim.to_dict()
+	var minion_dict: Dictionary = (d["minions"] as Array)[0]
+	minion_dict["state"] = 3  # HAULING
+	minion_dict["carrying"] = UD.RES_STONE
+	var restored := UDSim.from_dict(
+		JSON.parse_string(JSON.stringify(d)), UDTestFixtures.strata()
+	)
+	assert_eq(restored.minions[0].state, UDMinion.State.IDLE)
+	assert_eq(restored.minions[0].carrying, "")
+	assert_eq(int(restored.pending_loot.get(UD.RES_STONE, 0)), 1,
+		"the hauled load went into the bag")
 
 
 func test_v1_save_migrates_stockpiles_to_coins() -> void:
@@ -63,6 +83,7 @@ func test_chest_with_empty_pool_pays_coins_without_crashing() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 777)
 	sim.dig_policy = UD.DigPolicy.DOWN
 	sim.advance(600)
+	sim.collect_loot()
 	assert_eq(sim.items.size(), 0, "no pool, no items")
 	assert_true(int(sim.inventory[UD.RES_GOLD]) > 0)
 

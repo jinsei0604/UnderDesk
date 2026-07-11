@@ -47,6 +47,10 @@ var mode: Mode = Mode.DIG
 var _build_room_id: String = ""
 var scroll_y: int = 0
 var _follow_id: int = -1
+var _tally_text: String = ""
+var _tally_until_tick: int = 0
+
+const TALLY_SHOW_TICKS: int = 5
 var unread_docs: Array[String] = []
 var offline_ticks_applied: int = 0
 
@@ -138,6 +142,9 @@ func _sync_daily() -> void:
 func _on_tick() -> void:
 	_sync_daily()
 	sim.tick()
+	if not settings.resident_mode:
+		# While the big window is open, loot converts as it is dug.
+		sim.collect_loot()
 	_treasure_button.text = "%s(%d)" % [locale.text("UI_TREASURES"), sim.items.size()]
 	UDResidentWindow.sync_render_loop(get_window())
 	if settings.resident_mode:
@@ -321,14 +328,21 @@ func _draw_hud() -> void:
 		font, Vector2(8, HUD_HEIGHT - 6), "  |  ".join(parts),
 		HORIZONTAL_ALIGNMENT_LEFT, -1, HUD_FONT_SIZE, COLOR_HUD_TEXT
 	)
+	if _tally_text != "" and sim.tick_count <= _tally_until_tick:
+		draw_string(
+			font, Vector2(8, HUD_HEIGHT + 20), _tally_text,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 16, STRIP_BADGE
+		)
 
 
 ## Translucent readout drawn over the cells; the strip has no HUD bar.
 ## Unread documents blink at the right edge (§5.1: icon blink only).
 func _draw_strip_overlay(font: Font) -> void:
-	var text := "$%d ▼%d ⛏%d" % [
-		int(sim.inventory[UD.RES_GOLD]), sim.deepest_air_row(), sim.minions.size(),
-	]
+	var coin_part := "$%d" % int(sim.inventory[UD.RES_GOLD])
+	var pending := sim.pending_loot_total()
+	if pending > 0:
+		coin_part += "(+%d)" % pending
+	var text := "%s ▼%d ⛏%d" % [coin_part, sim.deepest_air_row(), sim.minions.size()]
 	var text_width := font.get_string_size(
 		text, HORIZONTAL_ALIGNMENT_LEFT, -1, STRIP_FONT_SIZE
 	).x
@@ -447,12 +461,6 @@ func _draw_minions(origin: Vector2) -> void:
 			Vector2(eye, eye)), COLOR_BACKGROUND)
 		draw_rect(Rect2(Vector2(body.position.x + body.size.x * 0.65, eye_y),
 			Vector2(eye, eye)), COLOR_BACKGROUND)
-		if minion.carrying != "":
-			draw_rect(
-				Rect2(rect.position + Vector2(float(inset), bob),
-					Vector2(cell_px / 3.0, cell_px / 4.0)),
-				COLOR_CARRY
-			)
 
 
 func _build_hud() -> void:
@@ -568,10 +576,28 @@ func _apply_window_mode() -> void:
 
 
 func _expand() -> void:
+	# Checking in harvests everything the crew bagged while you were away.
+	var tally := sim.collect_loot()
+	if int(tally["coins"]) > 0:
+		_tally_text = _format_tally(tally)
+		_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS
 	settings.resident_mode = false
 	settings.save()
 	_apply_window_mode()
 	_refresh_button_texts()
+
+
+func _format_tally(tally: Dictionary) -> String:
+	var text := locale.text("UI_COLLECTED") % int(tally["coins"])
+	var breakdown: Array[String] = []
+	var counts: Dictionary = tally["counts"]
+	for res: Variant in counts.keys():
+		breakdown.append("%s×%d" % [
+			locale.text("RES_" + str(res).to_upper()), int(counts[res]),
+		])
+	if not breakdown.is_empty():
+		text += "（%s）" % "  ".join(breakdown)
+	return text
 
 
 func _collapse() -> void:

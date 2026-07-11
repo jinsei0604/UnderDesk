@@ -25,6 +25,10 @@ var daily_effect: String = ""
 ## like the strata DB and not serialized.
 var items: Array[String] = []
 var item_pool: Array[String] = []
+## Loot dug up but not yet tallied: resource id -> count. Filled on the
+## spot when a dig completes (no hauling trips); converted to coins in
+## one batch by collect_loot() when the player checks in.
+var pending_loot: Dictionary = {}
 var _rng := RandomNumberGenerator.new()
 
 
@@ -243,10 +247,8 @@ func _step_minion(minion: UDMinion) -> void:
 		UDMinion.State.DIGGING:
 			_dig(minion)
 		UDMinion.State.HAULING:
-			if not minion.path.is_empty():
-				minion.pos = minion.path.pop_front()
-			if minion.path.is_empty():
-				_deposit(minion)
+			# Legacy state from pre-v3 saves; normalized away on load.
+			minion.state = UDMinion.State.IDLE
 
 
 func _try_claim_job(minion: UDMinion) -> void:
@@ -281,10 +283,12 @@ func _dig(minion: UDMinion) -> void:
 	job.progress += dig_power()
 	if job.progress < strata.hardness_for_depth(job.target.y):
 		return
-	# Dig complete: open the cell, collect yield, roll for a document.
+	# Dig complete: open the cell, bag the yield on the spot, roll for
+	# a document. The minion moves straight on to its next job.
 	grid.set_terrain(job.target, UD.Terrain.AIR)
 	var stratum := strata.stratum_for_depth(job.target.y)
-	minion.carrying = stratum["yield"]
+	var yield_res: String = stratum["yield"]
+	pending_loot[yield_res] = int(pending_loot.get(yield_res, 0)) + 1
 	if daily_effect == "gold_per_dig":
 		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + 1
 	_roll_document(stratum)
@@ -293,20 +297,31 @@ func _dig(minion: UDMinion) -> void:
 	minion.job_target = UDMinion.NO_TARGET
 	_ensure_rows(job.target.y + UD.GRID_EXPAND_ROWS)
 	minion.path.clear()
-	var home := UDPathfinder.find_path(grid, minion.pos, UD.DEPOT_POS)
-	if home.size() > 1:
-		minion.path = home.slice(1)
-	minion.state = UDMinion.State.HAULING
-
-
-## Hauled resources convert straight to coins: the shop economy runs on
-## a single currency.
-func _deposit(minion: UDMinion) -> void:
-	if minion.carrying != "":
-		var value := int(UD.COIN_VALUES.get(minion.carrying, 1))
-		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + value
-		minion.carrying = ""
 	minion.state = UDMinion.State.IDLE
+
+
+## Tallies all pending loot into coins in one batch (player check-in).
+## Returns { "coins": int, "counts": Dictionary } for the UI report.
+func collect_loot() -> Dictionary:
+	var coins := 0
+	var counts: Dictionary = {}
+	for res: Variant in pending_loot.keys():
+		var count := int(pending_loot[res])
+		if count <= 0:
+			continue
+		counts[res] = count
+		coins += count * int(UD.COIN_VALUES.get(res, 1))
+	pending_loot.clear()
+	if coins > 0:
+		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + coins
+	return {"coins": coins, "counts": counts}
+
+
+func pending_loot_total() -> int:
+	var total := 0
+	for res: Variant in pending_loot.keys():
+		total += int(pending_loot[res])
+	return total
 
 
 ## Extra document drop chance from built altars and the daily anomaly.
@@ -401,6 +416,7 @@ func to_dict() -> Dictionary:
 		"daily_anomaly_id": daily_anomaly_id,
 		"daily_effect": daily_effect,
 		"items": items.duplicate(),
+		"pending_loot": pending_loot.duplicate(),
 	}
 
 
@@ -437,6 +453,17 @@ static func from_dict(
 	sim.daily_effect = str(d.get("daily_effect", ""))
 	for item_id: Variant in d.get("items", []) as Array:
 		sim.items.append(str(item_id))
+	for res: Variant in (d.get("pending_loot", {}) as Dictionary).keys():
+		sim.pending_loot[res] = int(d["pending_loot"][res])
+	# Pre-v3 saves may hold minions mid-haul: bag their load and free them.
+	for minion in sim.minions:
+		if minion.state == UDMinion.State.HAULING or minion.carrying != "":
+			if minion.carrying != "":
+				sim.pending_loot[minion.carrying] = \
+					int(sim.pending_loot.get(minion.carrying, 0)) + 1
+				minion.carrying = ""
+			minion.path.clear()
+			minion.state = UDMinion.State.IDLE
 	# v1 -> v2 migration (§12-7): stockpiled raw resources become coins.
 	if int(d.get("version", 1)) < 2:
 		for res: String in UD.ALL_RESOURCES:

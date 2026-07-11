@@ -34,6 +34,7 @@ UI_AUTO_WIDEN,Auto: Widen
 UI_COLLAPSE,Back to Taskbar
 UI_NEW_DOC,A new document was unearthed
 UI_DAILY,Today's Anomaly
+UI_COLLECTED,Collected +%d coins
 ANOMALY_LUSH_VEIN,Lush Ley Vein (documents more common)
 ANOMALY_SOFT_EARTH,Soft Earth (dig power +1)
 ANOMALY_GOLD_DUST,Gold Dust Wind (+1 gold per dig)
