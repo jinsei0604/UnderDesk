@@ -80,16 +80,22 @@ func _policy_candidates() -> Array[Vector2i]:
 	if deepest < 0:
 		return candidates
 	_ensure_rows(deepest + UD.GRID_EXPAND_ROWS)
-	for x in grid.width:
-		var air := Vector2i(x, deepest)
-		if not grid.is_walkable(air):
-			continue
-		match dig_policy:
-			UD.DigPolicy.DOWN:
-				var below := air + Vector2i(0, 1)
-				if grid.is_inside(below) and grid.terrain_at(below) != UD.Terrain.AIR:
-					candidates.append(below)
-			UD.DigPolicy.WIDEN:
+	match dig_policy:
+		UD.DigPolicy.DOWN:
+			# Layer order: fully clear the shallowest unfinished row before
+			# descending, so no soil columns are left hanging beside the shaft.
+			for y in range(1, grid.height):
+				for x in grid.width:
+					var cell := Vector2i(x, y)
+					if grid.terrain_at(cell) != UD.Terrain.AIR:
+						candidates.append(cell)
+				if not candidates.is_empty():
+					break
+		UD.DigPolicy.WIDEN:
+			for x in grid.width:
+				var air := Vector2i(x, deepest)
+				if not grid.is_walkable(air):
+					continue
 				for dx: int in [-1, 1]:
 					var side := air + Vector2i(dx, 0)
 					if grid.is_inside(side) and grid.terrain_at(side) != UD.Terrain.AIR:

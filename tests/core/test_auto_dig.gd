@@ -19,12 +19,28 @@ func test_policy_none_generates_no_jobs() -> void:
 func test_policy_down_digs_unattended() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 11)
 	sim.dig_policy = UD.DigPolicy.DOWN
-	var initial_height := sim.grid.height
 	sim.advance(300)
 	assert_gt(int(sim.inventory[UD.RES_SOIL]), 5, "resources flow without clicks")
-	assert_gt(sim.grid.height, initial_height, "shaft keeps deepening")
-	assert_false(sim.grid.is_walkable(Vector2i(0, 1)),
-		"digging stays focused near the depot, not across the whole map")
+
+
+func test_policy_down_clears_layer_by_layer() -> void:
+	# User feedback: straight-down digging left standing soil columns
+	# beside the shaft. Auto-dig must finish a whole row before descending.
+	var sim := UDSim.new_game(UDTestFixtures.strata(), 11)
+	sim.dig_policy = UD.DigPolicy.DOWN
+	sim.advance(300)
+	var row1_air := 0
+	for x in sim.grid.width:
+		if sim.grid.is_walkable(Vector2i(x, 1)):
+			row1_air += 1
+	assert_gt(row1_air, 0, "row 1 is being cleared")
+	# Row 1 is 60 cells: not finished in 300 ticks, so nothing deeper
+	# may have been dug yet.
+	assert_lt(row1_air, sim.grid.width, "row 1 not finished yet")
+	for y in range(2, sim.grid.height):
+		for x in sim.grid.width:
+			assert_false(sim.grid.is_walkable(Vector2i(x, y)),
+				"no digging below row 1 before it is complete")
 
 
 func test_policy_widen_expands_deepest_gallery() -> void:

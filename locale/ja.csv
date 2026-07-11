@@ -18,7 +18,7 @@ UI_BUILD_DORM,宿舎
 UI_ARCHIVE,書庫
 UI_QUIT,終了
 UI_AUTO_NONE,自動:なし
-UI_AUTO_DOWN,自動:下へ掘る
+UI_AUTO_DOWN,自動:一列ずつ掘る
 UI_AUTO_WIDEN,自動:横へ広げる
 UI_COLLAPSE,タスクバーへ戻る
 UI_NEW_DOC,新しい文書が出土した

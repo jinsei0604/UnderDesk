@@ -201,6 +201,14 @@ func _visible_rows() -> int:
 
 func _grid_origin() -> Vector2:
 	var grid_px_width := float(sim.grid.width * CELL_PX)
+	if settings.resident_mode:
+		# The mini strip is narrower than the grid: follow the crew.
+		var avg_x := 0.0
+		for minion in sim.minions:
+			avg_x += float(minion.pos.x)
+		avg_x /= maxf(1.0, float(sim.minions.size()))
+		var desired := size.x / 2.0 - (avg_x + 0.5) * CELL_PX
+		return Vector2(clampf(desired, minf(size.x - grid_px_width, 0.0), 0.0), 0.0)
 	return Vector2(maxf(0.0, (size.x - grid_px_width) / 2.0), _hud_offset())
 
 
@@ -253,13 +261,7 @@ func _draw_hud() -> void:
 ## Translucent readout drawn over the cells; the strip has no HUD bar.
 ## Unread documents blink at the right edge (§5.1: icon blink only).
 func _draw_strip_overlay(font: Font) -> void:
-	var text := "%s %d  %s %d  %s %d  ⛏%d  ▼%d" % [
-		locale.text("RES_SOIL"), int(sim.inventory[UD.RES_SOIL]),
-		locale.text("RES_STONE"), int(sim.inventory[UD.RES_STONE]),
-		locale.text("RES_ORE"), int(sim.inventory[UD.RES_ORE]),
-		sim.minions.size(),
-		sim.deepest_air_row(),
-	]
+	var text := "▼%d ⛏%d" % [sim.deepest_air_row(), sim.minions.size()]
 	var text_width := font.get_string_size(
 		text, HORIZONTAL_ALIGNMENT_LEFT, -1, STRIP_FONT_SIZE
 	).x

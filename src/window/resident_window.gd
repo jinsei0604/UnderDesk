@@ -11,12 +11,12 @@ static func setup_resident(window: Window, height_index: int) -> void:
 	window.always_on_top = true
 	var usable: Rect2i = DisplayServer.screen_get_usable_rect(window.current_screen)
 	window.min_size = Vector2i(0, 0)
-	window.size = Vector2i(usable.size.x, win_height)
+	window.size = Vector2i(UD.MINI_WINDOW_WIDTH, win_height)
 	# The OS may clamp the requested size; dock using the size we actually
 	# got so the strip never hangs off the bottom edge.
 	var actual: Vector2i = window.size
 	window.position = Vector2i(
-		usable.position.x,
+		usable.position.x + usable.size.x - actual.x - UD.MINI_RIGHT_MARGIN,
 		usable.position.y + usable.size.y - actual.y
 	)
 

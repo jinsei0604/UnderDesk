@@ -18,7 +18,7 @@ UI_BUILD_DORM,Dorm
 UI_ARCHIVE,Archive
 UI_QUIT,Quit
 UI_AUTO_NONE,Auto: Off
-UI_AUTO_DOWN,Auto: Dig Down
+UI_AUTO_DOWN,Auto: Layer by Layer
 UI_AUTO_WIDEN,Auto: Widen
 UI_COLLAPSE,Back to Taskbar
 UI_NEW_DOC,A new document was unearthed
