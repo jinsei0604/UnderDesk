@@ -22,6 +22,10 @@ UI_AUTO_DOWN,Auto: Layer by Layer
 UI_AUTO_WIDEN,Auto: Widen
 UI_COLLAPSE,Back to Taskbar
 UI_NEW_DOC,A new document was unearthed
+UI_DAILY,Today's Anomaly
+ANOMALY_LUSH_VEIN,Lush Ley Vein (documents more common)
+ANOMALY_SOFT_EARTH,Soft Earth (dig power +1)
+ANOMALY_GOLD_DUST,Gold Dust Wind (+1 gold per dig)
 UI_OFFLINE_REPORT,%d ticks passed while you were away
 DOC_001_TITLE,A Miner's Journal - I
 DOC_001_BODY,"Day three. The soil here is soft. The more you dig, the more you earn — good work, honest work. But the foreman says strange things. ""Train your ears before you train your depth,"" he tells us. Whatever that means. Last night, from somewhere far below the shaft, came a sound — not quite water, not quite breathing. An aquifer, everyone laughed. I laughed too."

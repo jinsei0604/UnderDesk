@@ -15,6 +15,11 @@ var jobs: Array[UDJob] = []
 var rooms: Array[Dictionary] = []  # { "id": String, "pos": Vector2i }
 var discovered_documents: Array[String] = []
 var dig_policy: UD.DigPolicy = UD.DigPolicy.NONE
+## Daily anomaly (§5.4). Applied as an explicit state change so offline
+## and realtime progression stay equivalent.
+var daily_date_key: String = ""
+var daily_anomaly_id: String = ""
+var daily_effect: String = ""
 var _rng := RandomNumberGenerator.new()
 
 
@@ -136,6 +141,17 @@ func add_dig_job(target: Vector2i) -> bool:
 	return true
 
 
+## Switches to the given day's anomaly. Returns false when that day is
+## already active.
+func apply_daily(date_key: String, anomaly: Dictionary) -> bool:
+	if daily_date_key == date_key:
+		return false
+	daily_date_key = date_key
+	daily_anomaly_id = str(anomaly.get("id", ""))
+	daily_effect = str(anomaly.get("effect", ""))
+	return true
+
+
 ## Cancels an unstarted designation. Jobs a minion is already walking to
 ## or digging stay (avoids stranding the minion mid-errand).
 func remove_dig_job(target: Vector2i) -> bool:
@@ -202,6 +218,8 @@ func dig_power() -> int:
 	for room in rooms:
 		if str(room.get("effect", "")) == "dig_power_add":
 			power += 1
+	if daily_effect == "dig_power_add":
+		power += 1
 	return power
 
 
@@ -259,6 +277,8 @@ func _dig(minion: UDMinion) -> void:
 	grid.set_terrain(job.target, UD.Terrain.AIR)
 	var stratum := strata.stratum_for_depth(job.target.y)
 	minion.carrying = stratum["yield"]
+	if daily_effect == "gold_per_dig":
+		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + 1
 	_roll_document(stratum)
 	jobs.erase(job)
 	minion.job_target = UDMinion.NO_TARGET
@@ -277,12 +297,14 @@ func _deposit(minion: UDMinion) -> void:
 	minion.state = UDMinion.State.IDLE
 
 
-## Extra document drop chance from built altars.
+## Extra document drop chance from built altars and the daily anomaly.
 func document_chance_bonus() -> float:
 	var bonus := 0.0
 	for room in rooms:
 		if str(room.get("effect", "")) == "doc_chance_add":
 			bonus += UD.DOC_CHANCE_PER_ALTAR
+	if daily_effect == "doc_chance_add":
+		bonus += UD.DAILY_DOC_CHANCE_BONUS
 	return bonus
 
 
@@ -344,6 +366,9 @@ func to_dict() -> Dictionary:
 		"rooms": room_dicts,
 		"discovered_documents": discovered_documents.duplicate(),
 		"dig_policy": int(dig_policy),
+		"daily_date_key": daily_date_key,
+		"daily_anomaly_id": daily_anomaly_id,
+		"daily_effect": daily_effect,
 	}
 
 
@@ -372,4 +397,7 @@ static func from_dict(d: Dictionary, p_strata: UDStrataDB) -> UDSim:
 		sim.discovered_documents.append(doc_id)
 	# Missing in pre-policy saves: default to NONE.
 	sim.dig_policy = int(d.get("dig_policy", 0)) as UD.DigPolicy
+	sim.daily_date_key = str(d.get("daily_date_key", ""))
+	sim.daily_anomaly_id = str(d.get("daily_anomaly_id", ""))
+	sim.daily_effect = str(d.get("daily_effect", ""))
 	return sim

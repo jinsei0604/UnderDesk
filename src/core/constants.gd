@@ -30,6 +30,8 @@ const TERRAIN_BY_NAME: Dictionary = {
 
 ## Each altar raises the document drop chance by this much (§5.3 pacing).
 const DOC_CHANCE_PER_ALTAR: float = 0.05
+## Extra document drop chance while the lush-vein daily anomaly is active.
+const DAILY_DOC_CHANCE_BONUS: float = 0.1
 
 const RES_SOIL: String = "soil"
 const RES_STONE: String = "stone"

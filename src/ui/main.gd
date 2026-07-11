@@ -40,6 +40,8 @@ var settings: UDSettings
 var locale: UDLocale
 var doc_db: UDDocumentDB
 var room_db: UDRoomDB
+var anomalies: Array = []
+var _anomaly_by_id: Dictionary = {}
 var mode: Mode = Mode.DIG
 var _build_room_id: String = ""
 var scroll_y: int = 0
@@ -69,6 +71,9 @@ func _ready() -> void:
 	locale = UDLocale.load_locale(settings.locale_code)
 	doc_db = UDDocumentDB.load_from_dir("res://data/documents")
 	room_db = UDRoomDB.load_from_dir("res://data/rooms")
+	anomalies = UDDataLoader.load_json_dir("res://data/anomalies")
+	for anomaly: Variant in anomalies:
+		_anomaly_by_id[(anomaly as Dictionary)["id"]] = anomaly
 	var strata := UDStrataDB.load_from_dir("res://data/strata")
 
 	var payload := UDSaveManager.load_game()
@@ -83,6 +88,7 @@ func _ready() -> void:
 			int(Time.get_unix_time_from_system())
 		)
 		sim.advance(offline_ticks_applied)
+	_sync_daily()
 
 	tick_timer.wait_time = UD.TICK_SECONDS
 	tick_timer.timeout.connect(_on_tick)
@@ -110,7 +116,18 @@ func _notification(what: int) -> void:
 			UDResidentWindow.apply_focus_fps(false)
 
 
+## Rolls the shared daily anomaly when the calendar day changes (§5.4).
+func _sync_daily() -> void:
+	var key := UDDaily.date_key(Time.get_date_dict_from_system())
+	if sim.daily_date_key == key:
+		return
+	var anomaly := UDDaily.anomaly_for_date_key(anomalies, key)
+	if not anomaly.is_empty():
+		sim.apply_daily(key, anomaly)
+
+
 func _on_tick() -> void:
+	_sync_daily()
 	sim.tick()
 	UDResidentWindow.sync_render_loop(get_window())
 	if settings.resident_mode:
@@ -250,6 +267,11 @@ func _draw_hud() -> void:
 		"⛏ %d" % sim.minions.size(),
 		"tick %d" % sim.tick_count,
 	]
+	if sim.daily_anomaly_id != "" and _anomaly_by_id.has(sim.daily_anomaly_id):
+		var anomaly: Dictionary = _anomaly_by_id[sim.daily_anomaly_id]
+		parts.append("%s: %s" % [
+			locale.text("UI_DAILY"), locale.text(anomaly["name_key"]),
+		])
 	if offline_ticks_applied > 0:
 		parts.append(locale.text("UI_OFFLINE_REPORT") % offline_ticks_applied)
 	draw_string(
