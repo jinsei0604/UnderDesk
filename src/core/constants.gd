@@ -89,12 +89,12 @@ const FPS_IDLE: int = 10
 ## for players who want a wider view of the dig.
 const WINDOW_HEIGHTS: Array[int] = [48, 120, 180, 240]
 const DEFAULT_WINDOW_HEIGHT_INDEX: int = 0
-## Mini strip footprint: sits at the bottom-right of the screen, in the
-## taskbar zone next to the tray (Taskbar Heroes style), instead of
-## spanning the full width and getting in the way.
+## Mini strip footprint: bottom-LEFT of the screen (the right side is
+## busy with volume / Wi-Fi tray icons), floating about 1cm above the
+## bottom edge so it does not sit on the taskbar itself.
 const MINI_WINDOW_WIDTH: int = 320
-## Physical pixels kept clear on the right for the tray icons and clock.
-const MINI_RIGHT_MARGIN: int = 220
+const MINI_LEFT_MARGIN: int = 16
+const MINI_BOTTOM_MARGIN: int = 40
 ## Centered window opened by clicking the strip: reading and management.
 const NORMAL_WINDOW_SIZE := Vector2i(1152, 648)
 

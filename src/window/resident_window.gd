@@ -16,8 +16,8 @@ static func setup_resident(window: Window, height_index: int) -> void:
 	# got so the strip never hangs off the bottom edge.
 	var actual: Vector2i = window.size
 	window.position = Vector2i(
-		usable.position.x + usable.size.x - actual.x - UD.MINI_RIGHT_MARGIN,
-		usable.position.y + usable.size.y - actual.y
+		usable.position.x + UD.MINI_LEFT_MARGIN,
+		usable.position.y + usable.size.y - actual.y - UD.MINI_BOTTOM_MARGIN
 	)
 
 
