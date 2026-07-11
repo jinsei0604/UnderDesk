@@ -2,7 +2,7 @@ class_name UD
 extends RefCounted
 ## UNDERDESK core constants (§12-1: no magic numbers).
 
-const SAVE_VERSION: int = 1
+const SAVE_VERSION: int = 2
 
 ## Simulation tick length (§7.1: timer-driven, not per-frame).
 const TICK_SECONDS: float = 2.0
@@ -45,6 +45,23 @@ const ALL_RESOURCES: Array[String] = [
 
 ## §4: dig commands are direction-level policies, not per-cell orders.
 enum DigPolicy { NONE = 0, DOWN = 1, WIDEN = 2 }
+
+## Economy: hauled resources convert to coins on deposit (shop currency).
+const COIN_VALUES: Dictionary = {
+	RES_SOIL: 1,
+	RES_STONE: 2,
+	RES_ORE: 5,
+	RES_MAGIC_STONE: 10,
+	RES_FOOD: 1,
+	RES_GOLD: 1,
+}
+
+## Special finds rolled on each completed dig.
+const CHEST_CHANCE: float = 0.02
+const NUGGET_CHANCE: float = 0.03
+const NUGGET_COINS: int = 25
+## Paid out when a chest drops but every item is already owned.
+const CHEST_FALLBACK_COINS: int = 10
 
 const MINION_DIG_POWER: int = 1
 const INITIAL_MINION_COUNT: int = 3

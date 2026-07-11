@@ -12,7 +12,18 @@ RES_STONE,Stone
 RES_ORE,Ore
 RES_MAGIC_STONE,Magic Stone
 RES_FOOD,Food
-RES_GOLD,Gold
+RES_GOLD,Coins
+UI_TREASURES,Treasures
+ITEM_OLD_LANTERN,An Old Lantern
+ITEM_OLD_LANTERN_DESC,"Put it out, and a light of the same brightness comes on somewhere deeper in the tunnels."
+ITEM_BRASS_COMPASS,A Brass Compass
+ITEM_BRASS_COMPASS_DESC,The needle always points down. The repairman insists it is not broken.
+ITEM_BONE_DICE,Bone Dice
+ITEM_BONE_DICE_DESC,"You could swear it keeps growing new faces, but it never counts past six."
+ITEM_SILVER_LOCKET,A Silver Locket
+ITEM_SILVER_LOCKET_DESC,"The portrait inside is blank. Day by day, the blank looks more like someone."
+ITEM_ODD_COIN,An Odd Coin
+ITEM_ODD_COIN_DESC,"Count it and the total changes. On days it increases, it is said to be in a good mood."
 UI_DIG,Dig
 UI_BUILD_DORM,Dorm
 UI_ARCHIVE,Archive

@@ -13,10 +13,11 @@ func test_full_dig_haul_cycle() -> void:
 	var done := false
 	for i in MAX_TICKS:
 		sim.tick()
-		if int(sim.inventory[UD.RES_SOIL]) == 1:
+		if int(sim.inventory[UD.RES_GOLD]) >= 1:
 			done = true
 			break
-	assert_true(done, "soil deposited within %d ticks" % MAX_TICKS)
+	assert_true(done, "coins deposited within %d ticks" % MAX_TICKS)
+	assert_eq(int(sim.inventory[UD.RES_SOIL]), 0, "raw soil converts to coins")
 	assert_eq(sim.grid.terrain_at(target), UD.Terrain.AIR, "cell was dug out")
 	assert_eq(sim.jobs.size(), 0, "job consumed")
 

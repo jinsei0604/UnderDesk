@@ -5,6 +5,7 @@ extends RefCounted
 ## and realtime progression share this exact code path (§7.1-4).
 
 signal document_discovered(doc_id: String)
+signal item_found(item_id: String)
 
 var tick_count: int = 0
 var grid: UDGrid
@@ -20,12 +21,19 @@ var dig_policy: UD.DigPolicy = UD.DigPolicy.NONE
 var daily_date_key: String = ""
 var daily_anomaly_id: String = ""
 var daily_effect: String = ""
+## Treasure-chest collectibles owned. The candidate pool is injected
+## like the strata DB and not serialized.
+var items: Array[String] = []
+var item_pool: Array[String] = []
 var _rng := RandomNumberGenerator.new()
 
 
-static func new_game(p_strata: UDStrataDB, rng_seed: int) -> UDSim:
+static func new_game(
+	p_strata: UDStrataDB, rng_seed: int, p_item_pool: Array[String] = []
+) -> UDSim:
 	var sim := UDSim.new()
 	sim.strata = p_strata
+	sim.item_pool = p_item_pool
 	sim._rng.seed = rng_seed
 	sim.grid = UDGrid.new(UD.GRID_WIDTH)
 	for y in UD.GRID_INITIAL_HEIGHT:
@@ -280,6 +288,7 @@ func _dig(minion: UDMinion) -> void:
 	if daily_effect == "gold_per_dig":
 		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + 1
 	_roll_document(stratum)
+	_roll_special_find()
 	jobs.erase(job)
 	minion.job_target = UDMinion.NO_TARGET
 	_ensure_rows(job.target.y + UD.GRID_EXPAND_ROWS)
@@ -290,9 +299,12 @@ func _dig(minion: UDMinion) -> void:
 	minion.state = UDMinion.State.HAULING
 
 
+## Hauled resources convert straight to coins: the shop economy runs on
+## a single currency.
 func _deposit(minion: UDMinion) -> void:
 	if minion.carrying != "":
-		inventory[minion.carrying] = int(inventory.get(minion.carrying, 0)) + 1
+		var value := int(UD.COIN_VALUES.get(minion.carrying, 1))
+		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + value
 		minion.carrying = ""
 	minion.state = UDMinion.State.IDLE
 
@@ -324,6 +336,26 @@ func _roll_document(stratum: Dictionary) -> void:
 	var doc_id: String = pool[_rng.randi_range(0, pool.size() - 1)]
 	discovered_documents.append(doc_id)
 	document_discovered.emit(doc_id)
+
+
+## Rare finds on dig completion: a chest holds a random unowned item,
+## a nugget pays far more than any hauled resource.
+func _roll_special_find() -> void:
+	var roll := _rng.randf()
+	if roll < UD.CHEST_CHANCE:
+		var pool: Array[String] = []
+		for item_id in item_pool:
+			if not items.has(item_id):
+				pool.append(item_id)
+		if pool.is_empty():
+			inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) \
+				+ UD.CHEST_FALLBACK_COINS
+		else:
+			var item_id: String = pool[_rng.randi_range(0, pool.size() - 1)]
+			items.append(item_id)
+			item_found.emit(item_id)
+	elif roll < UD.CHEST_CHANCE + UD.NUGGET_CHANCE:
+		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + UD.NUGGET_COINS
 
 
 func _job_for_target(target: Vector2i) -> UDJob:
@@ -369,12 +401,16 @@ func to_dict() -> Dictionary:
 		"daily_date_key": daily_date_key,
 		"daily_anomaly_id": daily_anomaly_id,
 		"daily_effect": daily_effect,
+		"items": items.duplicate(),
 	}
 
 
-static func from_dict(d: Dictionary, p_strata: UDStrataDB) -> UDSim:
+static func from_dict(
+	d: Dictionary, p_strata: UDStrataDB, p_item_pool: Array[String] = []
+) -> UDSim:
 	var sim := UDSim.new()
 	sim.strata = p_strata
+	sim.item_pool = p_item_pool
 	sim.tick_count = int(d["tick_count"])
 	sim._rng.seed = (d["rng_seed"] as String).to_int()
 	sim._rng.state = (d["rng_state"] as String).to_int()
@@ -400,4 +436,16 @@ static func from_dict(d: Dictionary, p_strata: UDStrataDB) -> UDSim:
 	sim.daily_date_key = str(d.get("daily_date_key", ""))
 	sim.daily_anomaly_id = str(d.get("daily_anomaly_id", ""))
 	sim.daily_effect = str(d.get("daily_effect", ""))
+	for item_id: Variant in d.get("items", []) as Array:
+		sim.items.append(str(item_id))
+	# v1 -> v2 migration (§12-7): stockpiled raw resources become coins.
+	if int(d.get("version", 1)) < 2:
+		for res: String in UD.ALL_RESOURCES:
+			if res == UD.RES_GOLD:
+				continue
+			var count := int(sim.inventory.get(res, 0))
+			if count > 0:
+				sim.inventory[UD.RES_GOLD] = int(sim.inventory.get(UD.RES_GOLD, 0)) \
+					+ count * int(UD.COIN_VALUES.get(res, 1))
+				sim.inventory[res] = 0
 	return sim

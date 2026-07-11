@@ -38,7 +38,8 @@ func test_gold_per_dig_effect() -> void:
 	sim.apply_daily("2026-07-11", {"id": "gold_dust", "name_key": "X", "effect": "gold_per_dig"})
 	sim.add_dig_job(Vector2i(UD.DEPOT_POS.x, 1))
 	sim.advance(30)
-	assert_eq(int(sim.inventory[UD.RES_GOLD]), 1, "one dig, one gold")
+	# One dig: +1 daily bonus, +1 from the hauled soil converting to coins.
+	assert_true(int(sim.inventory[UD.RES_GOLD]) >= 2, "daily bonus paid on dig")
 
 
 func test_dig_power_and_doc_chance_effects() -> void:

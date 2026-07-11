@@ -3,6 +3,6 @@
 	"name_key": "ROOM_TAVERN",
 	"width": 2,
 	"height": 1,
-	"cost": { "stone": 8 },
+	"cost": { "gold": 40 },
 	"effect": "dig_power_add"
 }

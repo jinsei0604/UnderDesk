@@ -40,6 +40,7 @@ var settings: UDSettings
 var locale: UDLocale
 var doc_db: UDDocumentDB
 var room_db: UDRoomDB
+var item_db: UDItemDB
 var anomalies: Array = []
 var _anomaly_by_id: Dictionary = {}
 var mode: Mode = Mode.DIG
@@ -61,6 +62,9 @@ var _archive_dialog: AcceptDialog
 var _archive_list: ItemList
 var _archive_body: RichTextLabel
 var _archive_doc_ids: Array[String] = []
+var _treasure_button: Button
+var _treasure_dialog: AcceptDialog
+var _treasure_list: ItemList
 
 @onready var tick_timer: Timer = $TickTimer
 @onready var autosave_timer: Timer = $AutosaveTimer
@@ -71,6 +75,7 @@ func _ready() -> void:
 	locale = UDLocale.load_locale(settings.locale_code)
 	doc_db = UDDocumentDB.load_from_dir("res://data/documents")
 	room_db = UDRoomDB.load_from_dir("res://data/rooms")
+	item_db = UDItemDB.load_from_dir("res://data/items")
 	anomalies = UDDataLoader.load_json_dir("res://data/anomalies")
 	for anomaly: Variant in anomalies:
 		_anomaly_by_id[(anomaly as Dictionary)["id"]] = anomaly
@@ -78,9 +83,11 @@ func _ready() -> void:
 
 	var payload := UDSaveManager.load_game()
 	if payload.is_empty():
-		sim = UDSim.new_game(strata, int(Time.get_unix_time_from_system()))
+		sim = UDSim.new_game(
+			strata, int(Time.get_unix_time_from_system()), item_db.all_ids()
+		)
 	else:
-		sim = UDSim.from_dict(payload["sim"], strata)
+		sim = UDSim.from_dict(payload["sim"], strata, item_db.all_ids())
 	sim.document_discovered.connect(_on_document_discovered)
 	if not payload.is_empty():
 		offline_ticks_applied = UDOffline.elapsed_ticks(
@@ -99,6 +106,7 @@ func _ready() -> void:
 
 	_build_hud()
 	_build_archive_dialog()
+	_build_treasure_dialog()
 	_refresh_button_texts()
 	_apply_window_mode()
 	queue_redraw()
@@ -129,6 +137,7 @@ func _sync_daily() -> void:
 func _on_tick() -> void:
 	_sync_daily()
 	sim.tick()
+	_treasure_button.text = "%s(%d)" % [locale.text("UI_TREASURES"), sim.items.size()]
 	UDResidentWindow.sync_render_loop(get_window())
 	if settings.resident_mode:
 		_follow_camera()
@@ -276,11 +285,10 @@ func _draw_hud() -> void:
 		return
 	var parts: Array[String] = [
 		locale.text("APP_TITLE"),
-		"%s %d" % [locale.text("RES_SOIL"), int(sim.inventory[UD.RES_SOIL])],
-		"%s %d" % [locale.text("RES_STONE"), int(sim.inventory[UD.RES_STONE])],
-		"%s %d" % [locale.text("RES_ORE"), int(sim.inventory[UD.RES_ORE])],
-		"%s %d" % [locale.text("RES_MAGIC_STONE"), int(sim.inventory[UD.RES_MAGIC_STONE])],
+		"%s %d" % [locale.text("RES_GOLD"), int(sim.inventory[UD.RES_GOLD])],
+		"%s %d/%d" % [locale.text("UI_TREASURES"), sim.items.size(), item_db.all_ids().size()],
 		"⛏ %d" % sim.minions.size(),
+		"▼ %d" % sim.deepest_air_row(),
 		"tick %d" % sim.tick_count,
 	]
 	if sim.daily_anomaly_id != "" and _anomaly_by_id.has(sim.daily_anomaly_id):
@@ -299,7 +307,9 @@ func _draw_hud() -> void:
 ## Translucent readout drawn over the cells; the strip has no HUD bar.
 ## Unread documents blink at the right edge (§5.1: icon blink only).
 func _draw_strip_overlay(font: Font) -> void:
-	var text := "▼%d ⛏%d" % [sim.deepest_air_row(), sim.minions.size()]
+	var text := "$%d ▼%d ⛏%d" % [
+		int(sim.inventory[UD.RES_GOLD]), sim.deepest_air_row(), sim.minions.size(),
+	]
 	var text_width := font.get_string_size(
 		text, HORIZONTAL_ALIGNMENT_LEFT, -1, STRIP_FONT_SIZE
 	).x
@@ -442,6 +452,8 @@ func _build_hud() -> void:
 		bar.add_child(button)
 	_archive_button = _make_button("", _open_archive)
 	bar.add_child(_archive_button)
+	_treasure_button = _make_button("", _open_treasures)
+	bar.add_child(_treasure_button)
 	_policy_button = _make_button("", _cycle_dig_policy)
 	bar.add_child(_policy_button)
 	_height_button = _make_button("", _cycle_height)
@@ -497,6 +509,7 @@ func _refresh_button_texts() -> void:
 	_policy_button.text = locale.text(_policy_label_key())
 	_height_button.text = "%dpx" % UD.WINDOW_HEIGHTS[settings.height_index]
 	_collapse_button.text = locale.text("UI_COLLAPSE")
+	_treasure_button.text = "%s(%d)" % [locale.text("UI_TREASURES"), sim.items.size()]
 	_locale_button.text = _next_locale_code().to_upper()
 	_quit_button.text = locale.text("UI_QUIT")
 	_refresh_archive_button()
@@ -586,6 +599,34 @@ func _build_archive_dialog() -> void:
 	split.add_child(_archive_body)
 	_archive_dialog.add_child(split)
 	add_child(_archive_dialog)
+
+
+func _build_treasure_dialog() -> void:
+	_treasure_dialog = AcceptDialog.new()
+	_treasure_dialog.title = locale.text("UI_TREASURES")
+	_treasure_dialog.min_size = Vector2i(560, 360)
+	_treasure_list = ItemList.new()
+	_treasure_list.custom_minimum_size = Vector2(520, 300)
+	_treasure_list.add_theme_font_size_override("font_size", 15)
+	_treasure_dialog.add_child(_treasure_list)
+	add_child(_treasure_dialog)
+
+
+func _open_treasures() -> void:
+	if settings.resident_mode:
+		_expand()
+	_treasure_list.clear()
+	for item_id in sim.items:
+		if not item_db.has_item(item_id):
+			continue
+		var item := item_db.get_item(item_id)
+		_treasure_list.add_item("%s — %s" % [
+			locale.text(item["name_key"]), locale.text(item["desc_key"]),
+		])
+	if sim.items.is_empty():
+		_treasure_list.add_item("---")
+	_treasure_dialog.title = locale.text("UI_TREASURES")
+	_treasure_dialog.popup_centered()
 
 
 func _open_archive() -> void:
