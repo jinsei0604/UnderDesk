@@ -54,6 +54,17 @@ var _build_room_id: String = ""
 var scroll_y: int = 0
 var scroll_x: int = 0
 var _anim_frame: int = 0
+var _facing: Dictionary = {}  # minion id -> -1 (left) / 1 (right)
+
+## Which way each character's source art faces (mirrored for the other
+## direction at draw time). Default is right (1).
+const MINION_NATIVE_FACING: Dictionary = {0: 1, 2: -1}
+
+## Normalized offsets for terrain-colored dig chips at the target cell.
+const DEBRIS_OFFSETS: Array[Vector2] = [
+	Vector2(0.15, 0.30), Vector2(0.55, 0.12), Vector2(0.75, 0.45),
+	Vector2(0.35, 0.60), Vector2(0.62, 0.78), Vector2(0.10, 0.72),
+]
 var _tally_text: String = ""
 var _tally_until_tick: int = 0
 
@@ -414,6 +425,42 @@ func _draw_hud() -> void:
 
 ## Translucent readout drawn over the cells; the strip has no HUD bar.
 ## Unread documents blink at the right edge (§5.1: icon blink only).
+## Walking or digging direction; the last horizontal direction sticks.
+func _minion_facing(minion: UDMinion) -> int:
+	var dir := 0
+	if minion.state == UDMinion.State.DIGGING \
+			and minion.job_target != UDMinion.NO_TARGET:
+		dir = signi(minion.job_target.x - minion.pos.x)
+	elif not minion.path.is_empty():
+		dir = signi(minion.path[0].x - minion.pos.x)
+	if dir != 0:
+		_facing[minion.id] = dir
+	return int(_facing.get(minion.id, 1))
+
+
+## Dig chips colored like the block actually being chewed (§ user
+## feedback: brown dust on gray rock reads wrong).
+func _draw_debris(origin: Vector2) -> void:
+	var chip := maxf(2.0, _cell_px() / 12.0)
+	for minion in sim.minions:
+		if minion.state != UDMinion.State.DIGGING:
+			continue
+		if minion.job_target == UDMinion.NO_TARGET \
+				or not sim.grid.is_inside(minion.job_target):
+			continue
+		var terrain := sim.grid.terrain_at(minion.job_target)
+		if terrain == UD.Terrain.AIR or not _cell_visible(minion.job_target):
+			continue
+		var rect := _cell_rect(origin, minion.job_target)
+		var base := _cell_color(terrain, minion.job_target.y)
+		for i in 3:
+			var off: Vector2 = DEBRIS_OFFSETS[(_anim_frame + i * 2) % DEBRIS_OFFSETS.size()]
+			draw_rect(
+				Rect2(rect.position + off * rect.size * 0.85, Vector2(chip, chip)),
+				base.lightened(0.12 + 0.1 * float(i))
+			)
+
+
 func _draw_strip_overlay(font: Font) -> void:
 	var coin_part := "$%d" % int(sim.inventory[UD.RES_GOLD])
 	var pending := sim.pending_loot_total()
@@ -453,6 +500,7 @@ func _draw_grid() -> void:
 	_draw_jobs(origin)
 	_draw_depot(origin)
 	_draw_minions(origin)
+	_draw_debris(origin)
 
 
 func _cell_color(terrain: UD.Terrain, depth: int) -> Color:
@@ -552,7 +600,16 @@ func _draw_minions(origin: Vector2) -> void:
 				tex = art.texture(art_key)
 			else:
 				tex = art.frame(art_key, _anim_frame + minion.id)
-			draw_texture_rect(tex, sprite_rect, false)
+			var native := int(MINION_NATIVE_FACING.get(minion.id, 1))
+			if _minion_facing(minion) != native:
+				# Mirror around the sprite's vertical center line.
+				draw_set_transform(
+					Vector2(sprite_rect.get_center().x * 2.0, 0.0), 0.0, Vector2(-1, 1)
+				)
+				draw_texture_rect(tex, sprite_rect, false)
+				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			else:
+				draw_texture_rect(tex, sprite_rect, false)
 			continue
 		var body := Rect2(
 			rect.position + Vector2(inset, inset + bob),

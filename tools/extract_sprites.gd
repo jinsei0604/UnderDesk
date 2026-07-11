@@ -13,6 +13,10 @@ const BG_TOLERANCE := 0.075
 ## view's cell) so nearest-neighbor drawing stays crisp.
 const GAME_SPRITE_SIZE := 128
 
+## Outputs flipped horizontally so every frame of a character faces the
+## same way (the game mirrors at draw time for the other direction).
+const FLIP_X_OUTPUTS: Array[String] = ["minion_0"]
+
 ## preset -> { src, crops: { out_name: [x, y, w, h] } }
 const PRESETS := {
 	"riko": {
@@ -32,13 +36,13 @@ const PRESETS := {
 		"crops": {
 			"minion_0": [50, 665, 135, 210],
 			"minion_0_f2": [245, 940, 185, 235],
-			"minion_0_f3": [445, 940, 160, 235],
+			"minion_0_f3": [650, 940, 150, 235],
 			"miner_walk2": [240, 665, 145, 210],
 			"miner_walk3": [440, 665, 140, 210],
 			"miner_walk4": [635, 665, 145, 210],
 			"miner_walk5": [840, 665, 160, 210],
 			"miner_dig1": [40, 915, 170, 260],
-			"miner_dig4": [650, 940, 150, 235],
+			"miner_dig3_dust": [445, 940, 160, 235],
 			"miner_dig5": [835, 940, 165, 235],
 			"miner_find": [1030, 940, 205, 235],
 		},
@@ -72,6 +76,8 @@ func _init() -> void:
 		var squared := _square(trimmed)
 		if out_name.begins_with("minion_"):
 			squared.resize(GAME_SPRITE_SIZE, GAME_SPRITE_SIZE, Image.INTERPOLATE_LANCZOS)
+		if FLIP_X_OUTPUTS.has(out_name):
+			squared.flip_x()
 		var out_path := ProjectSettings.globalize_path("res://assets/art/%s.png" % out_name)
 		squared.save_png(out_path)
 		print("saved %s (%dx%d)" % [out_name, squared.get_width(), squared.get_height()])
