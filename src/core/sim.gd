@@ -621,6 +621,24 @@ static func from_dict(
 		for job in sim.jobs:
 			job.claimed_by = -1
 			job.progress = 0
+	# Companions whose definitions were removed (placeholder characters)
+	# leave the party; the crew is rebuilt when the roster changed.
+	if not p_companion_defs.is_empty():
+		var known_ids: Array[String] = []
+		for def: Variant in p_companion_defs:
+			known_ids.append(str((def as Dictionary)["id"]))
+		var kept: Array[String] = []
+		for companion_id in sim.companions:
+			if known_ids.has(companion_id):
+				kept.append(companion_id)
+		if kept.size() != sim.companions.size() \
+				or sim.minions.size() != kept.size() + 1:
+			sim.companions = kept
+			sim.minions.clear()
+			for i in kept.size() + 1:
+				sim.minions.append(UDMinion.create(i, UD.DEPOT_POS))
+			for job in sim.jobs:
+				job.claimed_by = -1
 	# Pre-v3 saves may hold minions mid-haul: bag their load and free them.
 	for minion in sim.minions:
 		if minion.state == UDMinion.State.HAULING or minion.carrying != "":

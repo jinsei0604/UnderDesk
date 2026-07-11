@@ -66,6 +66,23 @@ func test_pre_v4_party_migrates_to_solo() -> void:
 	assert_eq(restored.jobs[0].claimed_by, -1, "stale claim released")
 
 
+func test_removed_companion_defs_prune_saved_party() -> void:
+	# Placeholder companions were deleted from data; saves that had them
+	# joined must shed them on load and rebuild the crew.
+	var sim := UDSim.new_game(UDTestFixtures.strata(), 1, [], _defs())
+	sim.companions.append("c1")
+	sim.companions.append("ghost")
+	sim.minions.append(UDMinion.create(1, UD.DEPOT_POS))
+	sim.minions.append(UDMinion.create(2, UD.DEPOT_POS))
+	var restored := UDSim.from_dict(
+		JSON.parse_string(JSON.stringify(sim.to_dict())),
+		UDTestFixtures.strata(), [], _defs()
+	)
+	assert_eq(restored.companions.size(), 1, "unknown companion removed")
+	assert_eq(restored.companions[0], "c1")
+	assert_eq(restored.minions.size(), 2, "party rebuilt to protagonist + c1")
+
+
 func test_prestige_keeps_companions() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 9, [], _defs())
 	sim.companions.append("c1")

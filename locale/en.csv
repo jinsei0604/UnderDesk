@@ -29,8 +29,7 @@ UI_BUILD_DORM,Dorm
 UI_ARCHIVE,Archive
 UI_QUIT,Quit
 UI_AUTO_NONE,Auto: Off
-UI_AUTO_DOWN,Auto: Layer by Layer
-UI_AUTO_WIDEN,Auto: Widen
+UI_AUTO_DOWN,Auto: On
 UI_COLLAPSE,Back to Taskbar
 UI_NEW_DOC,A new document was unearthed
 UI_DAILY,Today's Anomaly
@@ -52,10 +51,7 @@ PRESTIGE_START,Stockpile Vault
 PRESTIGE_START_DESC,Permanent: +100 starting coins
 PRESTIGE_SURVEY,Ley Sense
 PRESTIGE_SURVEY_DESC,Permanent: documents +5%
-COMPANION_1_NAME,Companion I (TBD)
 COMPANION_2_NAME,Riko
-COMPANION_3_NAME,Companion III (TBD)
-COMPANION_4_NAME,Companion IV (TBD)
 UI_COMPANION_JOINED,A companion joined: %s
 SHOP_PICKAXE,Better Pickaxes
 SHOP_PICKAXE_DESC,Dig power +1 for the whole crew

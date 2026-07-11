@@ -67,8 +67,8 @@ const BUTTON_FONT_SIZE: int = 16
 const BUTTON_MIN_SIZE := Vector2(118, 44)
 const ACTIVE_BUTTON_TINT := Color(1.0, 0.85, 0.3)
 
-## Expanded view zoom: 2x pixels so the sprites read clearly.
-const EXPANDED_CELL_PX: int = 32
+## Expanded view zoom: 3x pixels so the sprites read in full detail.
+const EXPANDED_CELL_PX: int = 48
 ## UI-side sprite animation cadence (does not touch the simulation).
 const ANIM_FRAME_SECONDS: float = 0.4
 var unread_docs: Array[String] = []
@@ -686,20 +686,20 @@ func _refresh_button_texts() -> void:
 	_refresh_archive_button()
 
 
+## The button is a plain on/off toggle; WIDEN stays core-only.
 func _cycle_dig_policy() -> void:
-	sim.dig_policy = ((int(sim.dig_policy) + 1) % UD.DigPolicy.size()) as UD.DigPolicy
+	if sim.dig_policy == UD.DigPolicy.NONE:
+		sim.dig_policy = UD.DigPolicy.DOWN
+	else:
+		sim.dig_policy = UD.DigPolicy.NONE
 	_refresh_button_texts()
 	queue_redraw()
 
 
 func _policy_label_key() -> String:
-	match sim.dig_policy:
-		UD.DigPolicy.DOWN:
-			return "UI_AUTO_DOWN"
-		UD.DigPolicy.WIDEN:
-			return "UI_AUTO_WIDEN"
-		_:
-			return "UI_AUTO_NONE"
+	if sim.dig_policy == UD.DigPolicy.NONE:
+		return "UI_AUTO_NONE"
+	return "UI_AUTO_DOWN"
 
 
 func _next_locale_code() -> String:
