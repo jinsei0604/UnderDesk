@@ -6,6 +6,6 @@
 	"terrain": "ROCK",
 	"hardness": 5,
 	"yield": "stone",
-	"documents": ["doc_003"],
+	"documents": ["doc_003", "doc_009", "doc_010"],
 	"document_chance": 0.06
 }

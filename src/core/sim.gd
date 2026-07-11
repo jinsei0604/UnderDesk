@@ -271,8 +271,19 @@ func _deposit(minion: UDMinion) -> void:
 	minion.state = UDMinion.State.IDLE
 
 
+## Extra document drop chance from built altars.
+func document_chance_bonus() -> float:
+	var bonus := 0.0
+	for room in rooms:
+		if str(room.get("effect", "")) == "doc_chance_add":
+			bonus += UD.DOC_CHANCE_PER_ALTAR
+	return bonus
+
+
 func _roll_document(stratum: Dictionary) -> void:
 	var chance := float(stratum.get("document_chance", 0.0))
+	if chance > 0.0:
+		chance += document_chance_bonus()
 	if chance <= 0.0:
 		return
 	var roll := _rng.randf()

@@ -17,7 +17,7 @@ const GRID_EXPAND_ROWS: int = 4
 ## Home depot on the surface row where minions deposit resources.
 const DEPOT_POS := Vector2i(30, 0)
 
-enum Terrain { AIR = 0, SOIL = 1, ROCK = 2, WETROCK = 3 }
+enum Terrain { AIR = 0, SOIL = 1, ROCK = 2, WETROCK = 3, RUINSTONE = 4 }
 
 ## Maps data-file terrain names to enum values.
 const TERRAIN_BY_NAME: Dictionary = {
@@ -25,7 +25,11 @@ const TERRAIN_BY_NAME: Dictionary = {
 	"SOIL": Terrain.SOIL,
 	"ROCK": Terrain.ROCK,
 	"WETROCK": Terrain.WETROCK,
+	"RUINSTONE": Terrain.RUINSTONE,
 }
+
+## Each altar raises the document drop chance by this much (§5.3 pacing).
+const DOC_CHANCE_PER_ALTAR: float = 0.05
 
 const RES_SOIL: String = "soil"
 const RES_STONE: String = "stone"

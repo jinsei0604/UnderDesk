@@ -53,6 +53,26 @@ func test_tavern_adds_dig_power() -> void:
 	assert_eq(restored.dig_power(), UD.MINION_DIG_POWER + 1)
 
 
+func test_altar_raises_document_chance() -> void:
+	var sim := _sim_with_open_area()
+	assert_eq(sim.document_chance_bonus(), 0.0)
+	sim.inventory[UD.RES_MAGIC_STONE] = 5
+	var altar := {
+		"id": "altar",
+		"name_key": "ROOM_ALTAR",
+		"width": 2,
+		"height": 1,
+		"cost": {"magic_stone": 5},
+		"effect": "doc_chance_add",
+	}
+	assert_true(sim.build_room(altar, Vector2i(5, 1)))
+	assert_eq(sim.document_chance_bonus(), UD.DOC_CHANCE_PER_ALTAR)
+	var restored := UDSim.from_dict(
+		JSON.parse_string(JSON.stringify(sim.to_dict())), UDTestFixtures.strata()
+	)
+	assert_eq(restored.document_chance_bonus(), UD.DOC_CHANCE_PER_ALTAR)
+
+
 func test_build_rejects_overlap() -> void:
 	var sim := _sim_with_open_area()
 	sim.inventory[UD.RES_SOIL] = 20

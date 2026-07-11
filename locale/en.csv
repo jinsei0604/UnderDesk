@@ -3,7 +3,9 @@ APP_TITLE,UNDERDESK
 STRATUM_TOPSOIL,Topsoil
 STRATUM_BEDROCK,Bedrock
 STRATUM_AQUIFER,Aquifer
+STRATUM_RUINS,Ancient Ruins
 ROOM_TAVERN,Tavern
+ROOM_ALTAR,Altar
 ROOM_DORM,Dormitory
 RES_SOIL,Soil
 RES_STONE,Stone
@@ -35,5 +37,15 @@ DOC_006_TITLE,A Miner's Journal - III
 DOC_006_BODY,"We reached the aquifer today. The water is clean, and cold, and it flows upward. That is not a slip of the pen. It climbs the walls in quiet, orderly lines, up toward the ceiling. Daron said there must be a lake on top of the mountain. We laughed. I have noticed, lately, that we measure our fear by how often we laugh. Today we laughed a great deal."
 DOC_007_TITLE,Notice from the Foreman
 DOC_007_BODY,"[NOTICE No. 11] The following are prohibited: 1. Singing in the shafts. 2. Whistling in the shafts. 3. Deliberately breaking the rhythm of the work. 4. Striking back in reply to the Answer. 5. Explaining the reasons for the above when a newcomer asks. — Those who know the reasons already know how to answer. — The Foreman"
+DOC_009_TITLE,Mining Charter
+DOC_009_BODY,"[Royal Bureau of Mines — Charter] The 170th petition to resume excavation is hereby GRANTED, on the following conditions: the workforce shall not exceed one hundred; no open flame shall be used below the fortieth stratum; the decision to withdraw rests entirely with the site foreman, and the capital need not be notified until the withdrawal is complete. — Note: the Bureau is obliged to record that all one hundred and sixty-nine previous petitions were written in the same hand."
+DOC_010_TITLE,Scratches on the Wall
+DOC_010_BODY,"(Scratched into the bedrock wall with a nail, or something like one) HERE SLEEPS MIM. a lie. not sleeping. awake. always awake. keep quiet and the work is easy. don't sing. don't count. don't answer. — And beneath that, one line in a different hand: ""Mim is doing fine. Please don't worry."""
+DOC_011_TITLE,Excavation Journal, Final Page
+DOC_011_BODY,"We were not the first. In the thirty-fourth stratum we broke into scaffolding that was not ours, and the ruins of an archive that was not ours. The tree rings in the timber date it to twelve hundred years ago. Here the journal changes. The pages that follow are in our own surveyor's handwriting — but in letters none of us know. Only the final line can be read: ""The rest is below."""
+DOC_012_TITLE,Fragment of a Litany
+DOC_012_BODY,"[Inscription in the stone chamber] The digger shall be filled. That is the promise of this place. Soil into silver, silver doubled, the double doubled again. Seek the depth. Yield not the depth. ...Here the inscription breaks off, scraped away. On examination, the tool that scraped it was the same tool that carved it."
+DOC_013_TITLE,A Miner's Journal - IV
+DOC_013_BODY,"Yorek quit. To be precise, he stopped coming to morning roll. His pack is still here. His bunk is still here. His wage pouch is still here. The foreman sent out no search party. All he said was: ""Those who go down are employed down there."" I took it for a joke, and laughed. Nobody laughed. Since this month, for some reason, there are two wage pouches with my name on them."
 DOC_008_TITLE,An Old Letter - II
 DOC_008_BODY,"Dear brother. You will recall I wrote that I cannot read. I can now. I do not remember learning. One morning I woke, and the marks on the tablets looked like plain dictation — just sounds, written down. They say it happens to everyone here. One of the old hands puts it differently: ""You haven't learned the tunnel's language. It has learned yours."" Either way, the pay is good. Only — these days, in my dreams, I find I am writing my letters to you in those marks."

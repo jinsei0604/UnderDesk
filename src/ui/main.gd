@@ -15,6 +15,7 @@ const COLOR_AIR := Color(0.10, 0.09, 0.13)
 const COLOR_SOIL := Color(0.42, 0.29, 0.17)
 const COLOR_ROCK := Color(0.34, 0.34, 0.40)
 const COLOR_WETROCK := Color(0.22, 0.32, 0.45)
+const COLOR_RUINSTONE := Color(0.52, 0.47, 0.36)
 const COLOR_GRID_LINE := Color(0.0, 0.0, 0.0, 0.25)
 const COLOR_JOB_MARK := Color(1.0, 0.85, 0.3, 0.55)
 const COLOR_DEPOT := Color(0.85, 0.3, 0.25)
@@ -237,6 +238,7 @@ func _draw_hud() -> void:
 		"%s %d" % [locale.text("RES_SOIL"), int(sim.inventory[UD.RES_SOIL])],
 		"%s %d" % [locale.text("RES_STONE"), int(sim.inventory[UD.RES_STONE])],
 		"%s %d" % [locale.text("RES_ORE"), int(sim.inventory[UD.RES_ORE])],
+		"%s %d" % [locale.text("RES_MAGIC_STONE"), int(sim.inventory[UD.RES_MAGIC_STONE])],
 		"⛏ %d" % sim.minions.size(),
 		"tick %d" % sim.tick_count,
 	]
@@ -297,6 +299,8 @@ func _cell_color(terrain: UD.Terrain, depth: int) -> Color:
 			base = COLOR_ROCK
 		UD.Terrain.WETROCK:
 			base = COLOR_WETROCK
+		UD.Terrain.RUINSTONE:
+			base = COLOR_RUINSTONE
 		_:
 			base = COLOR_AIR
 	var fade: float = maxf(DEPTH_FADE_FLOOR, 1.0 - depth * DEPTH_FADE_PER_ROW)
