@@ -52,3 +52,29 @@ func test_survey_card_paths_and_build() -> void:
 	assert_eq(card.size, Vector2(UDSurveyCard.CARD_SIZE))
 	assert_gt(card.get_child_count(), 0)
 	card.free()
+
+
+func test_survey_card_paper_tint() -> void:
+	assert_eq(UDSurveyCard.paper_color(""), UDSurveyCard.COLOR_PAPER,
+		"no anomaly color keeps plain paper")
+	var tinted := UDSurveyCard.paper_color("#16301c")
+	assert_ne(tinted, UDSurveyCard.COLOR_PAPER, "anomaly color stains the paper")
+	assert_eq(UDSurveyCard.paper_color("not-a-color"), UDSurveyCard.COLOR_PAPER,
+		"garbage color falls back to plain paper")
+
+
+func test_survey_card_stamp_translates() -> void:
+	for code: String in UD.SUPPORTED_LOCALES:
+		var locale := UDLocale.load_locale(code)
+		assert_ne(locale.text("CARD_STAMP"), "CARD_STAMP")
+		assert_ne(locale.text("UI_CARD_COPIED"), "UI_CARD_COPIED")
+
+
+func test_anomaly_card_colors_are_valid() -> void:
+	for def: Variant in UDDataLoader.load_json_dir("res://data/anomalies"):
+		var anomaly := def as Dictionary
+		var color := str(anomaly.get("card_color", ""))
+		if color == "":
+			continue
+		assert_true(Color.html_is_valid(color),
+			"%s card_color %s parses" % [anomaly["id"], color])

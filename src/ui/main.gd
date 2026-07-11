@@ -1092,17 +1092,24 @@ func _generate_survey_card() -> void:
 	if settings.resident_mode:
 		_expand()
 	var anomaly_name := "-"
+	var card_color := ""
 	if sim.daily_anomaly_id != "" and _anomaly_by_id.has(sim.daily_anomaly_id):
 		var anomaly: Dictionary = _anomaly_by_id[sim.daily_anomaly_id]
 		anomaly_name = locale.text(anomaly["name_key"])
+		card_color = str(anomaly.get("card_color", ""))
 	var data := {
 		"date_key": sim.daily_date_key,
 		"anomaly_name": anomaly_name,
+		"card_color": card_color,
 		"depth": sim.deepest_air_row(),
 		"coins": int(sim.inventory[UD.RES_GOLD]),
 		"minions": sim.minions.size(),
 		"docs": sim.discovered_documents.size(),
 		"docs_total": doc_db.count(),
+		"crystals": sim.crystals,
+		"resets": sim.resets,
+		"items": sim.items.size(),
+		"items_total": item_db.all_ids().size(),
 	}
 	var viewport := SubViewport.new()
 	viewport.size = UDSurveyCard.CARD_SIZE
@@ -1115,6 +1122,8 @@ func _generate_survey_card() -> void:
 	DirAccess.make_dir_recursive_absolute(UDSurveyCard.CARDS_DIR)
 	var path := UDSurveyCard.save_path_for(sim.daily_date_key)
 	image.save_png(path)
+	# One click saves AND copies (§5.4): paste straight into SNS.
+	var copied := UDClipboard.copy_image(ProjectSettings.globalize_path(path))
 	if _card_dialog == null:
 		_card_dialog = AcceptDialog.new()
 		_card_dialog.add_button(locale.text("UI_OPEN_FOLDER"), false, "open_folder")
@@ -1124,8 +1133,11 @@ func _generate_survey_card() -> void:
 		)
 		add_child(_card_dialog)
 	_card_dialog.title = locale.text("UI_CARD")
+	var saved_line := locale.text("UI_CARD_SAVED")
+	if copied:
+		saved_line += "\n" + locale.text("UI_CARD_COPIED")
 	_card_dialog.dialog_text = "%s\n%s" % [
-		locale.text("UI_CARD_SAVED"), ProjectSettings.globalize_path(path),
+		saved_line, ProjectSettings.globalize_path(path),
 	]
 	_card_dialog.popup_centered()
 

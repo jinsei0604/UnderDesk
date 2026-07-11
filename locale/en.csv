@@ -97,3 +97,5 @@ UI_INTRUDER_BREACH,An intruder stole coins (%d)
 "TUT_HINT_1","This is an idle game. It keeps digging while you work — come back whenever."
 "TUT_HINT_2","Click the strip to open the big window and cash in everything dug up."
 "TUT_HINT_3","Unearthed documents advance the story. Keep collecting — companions will join."
+"UI_CARD_COPIED","Also copied to the clipboard — paste it anywhere."
+CARD_STAMP,SURVEYED
