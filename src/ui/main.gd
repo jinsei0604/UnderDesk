@@ -52,7 +52,9 @@ var _companion_by_id: Dictionary = {}
 var mode: Mode = Mode.DIG
 var _build_room_id: String = ""
 var scroll_y: int = 0
+var scroll_x: int = 0
 var _follow_id: int = -1
+var _anim_frame: int = 0
 var _tally_text: String = ""
 var _tally_until_tick: int = 0
 
@@ -64,6 +66,11 @@ const PANEL_WIDTH: int = 260
 const BUTTON_FONT_SIZE: int = 16
 const BUTTON_MIN_SIZE := Vector2(118, 44)
 const ACTIVE_BUTTON_TINT := Color(1.0, 0.85, 0.3)
+
+## Expanded view zoom: 2x pixels so the sprites read clearly.
+const EXPANDED_CELL_PX: int = 32
+## UI-side sprite animation cadence (does not touch the simulation).
+const ANIM_FRAME_SECONDS: float = 0.4
 var unread_docs: Array[String] = []
 var offline_ticks_applied: int = 0
 
@@ -142,6 +149,11 @@ func _ready() -> void:
 	tick_timer.wait_time = UD.TICK_SECONDS
 	tick_timer.timeout.connect(_on_tick)
 	tick_timer.start()
+	var anim_timer := Timer.new()
+	anim_timer.wait_time = ANIM_FRAME_SECONDS
+	anim_timer.autostart = true
+	anim_timer.timeout.connect(_on_anim_tick)
+	add_child(anim_timer)
 	autosave_timer.wait_time = UD.AUTOSAVE_INTERVAL_SECONDS
 	autosave_timer.timeout.connect(func() -> void: UDSaveManager.save_game(sim))
 	autosave_timer.start()
@@ -176,6 +188,12 @@ func _sync_daily() -> void:
 	var anomaly := UDDaily.anomaly_for_date_key(anomalies, key)
 	if not anomaly.is_empty():
 		sim.apply_daily(key, anomaly)
+
+
+## Advances UI-side sprite animation only; the simulation is untouched.
+func _on_anim_tick() -> void:
+	_anim_frame += 1
+	queue_redraw()
 
 
 func _on_tick() -> void:
@@ -259,9 +277,15 @@ func _gui_input(event: InputEvent) -> void:
 			MOUSE_BUTTON_RIGHT:
 				_cancel_designation(mouse.position)
 			MOUSE_BUTTON_WHEEL_DOWN:
-				_scroll_by(1)
+				if mouse.shift_pressed:
+					_scroll_x_by(2)
+				else:
+					_scroll_by(1)
 			MOUSE_BUTTON_WHEEL_UP:
-				_scroll_by(-1)
+				if mouse.shift_pressed:
+					_scroll_x_by(-2)
+				else:
+					_scroll_by(-1)
 	elif event is InputEventMouseMotion and mode == Mode.DIG:
 		# Drag-paint dig designations instead of clicking cells one by one.
 		var motion := event as InputEventMouseMotion
@@ -303,17 +327,27 @@ func _scroll_by(rows: int) -> void:
 	queue_redraw()
 
 
+func _visible_cols() -> int:
+	return maxi(1, int((size.x - PANEL_WIDTH) / _cell_px()))
+
+
+func _scroll_x_by(cols: int) -> void:
+	var max_scroll: int = maxi(0, sim.grid.width - _visible_cols())
+	scroll_x = clampi(scroll_x + cols, 0, max_scroll)
+	queue_redraw()
+
+
 ## The strip has no HUD bar: cells use the full height.
 func _hud_offset() -> int:
 	return 0 if settings.resident_mode else HUD_HEIGHT
 
 
 ## Strip mode zooms in Taskbar-Heroes style: one big row where the
-## minions' motion is actually watchable. Expanded keeps 16px cells.
+## minions' motion is actually watchable. Expanded runs at 2x zoom.
 func _cell_px() -> int:
 	if settings.resident_mode:
 		return clampi(int(size.y), CELL_PX, 64)
-	return CELL_PX
+	return EXPANDED_CELL_PX
 
 
 func _visible_rows() -> int:
@@ -329,9 +363,12 @@ func _grid_origin() -> Vector2:
 		var star_x := float(star.pos.x) if star != null else float(UD.DEPOT_POS.x)
 		var desired := size.x / 2.0 - (star_x + 0.5) * cell_px
 		return Vector2(clampf(desired, minf(size.x - grid_px_width, 0.0), 0.0), 0.0)
-	# Expanded: the dig view keeps clear of the right-hand button panel.
+	# Expanded: the dig view keeps clear of the right-hand button panel
+	# and pans horizontally (zoomed cells no longer fit the width).
 	var view_width := size.x - PANEL_WIDTH
-	return Vector2(maxf(0.0, (view_width - grid_px_width) / 2.0), _hud_offset())
+	if grid_px_width <= view_width:
+		return Vector2((view_width - grid_px_width) / 2.0, _hud_offset())
+	return Vector2(-float(scroll_x * cell_px), _hud_offset())
 
 
 func _cell_at(point: Vector2) -> Vector2i:
@@ -527,7 +564,12 @@ func _draw_minions(origin: Vector2) -> void:
 		)
 		var art_key := art.minion_key(minion.id)
 		if art.has_art(art_key):
-			draw_texture_rect(art.texture(art_key), body, false)
+			var tex: Texture2D
+			if minion.state == UDMinion.State.IDLE or art.frame_count(art_key) <= 1:
+				tex = art.texture(art_key)
+			else:
+				tex = art.frame(art_key, _anim_frame + minion.id)
+			draw_texture_rect(tex, body, false)
 			continue
 		draw_rect(body, MINION_COLORS[minion.id % MINION_COLORS.size()])
 		# Two dark eyes: placeholder charm until real sprites land (§6).
@@ -686,6 +728,17 @@ func _expand() -> void:
 	settings.resident_mode = false
 	settings.save()
 	_apply_window_mode()
+	# Open the view centered on whoever is working.
+	var star := _followed_minion()
+	if star != null:
+		scroll_x = clampi(
+			star.pos.x - _visible_cols() / 2, 0,
+			maxi(0, sim.grid.width - _visible_cols())
+		)
+		scroll_y = clampi(
+			star.pos.y - _visible_rows() / 2, 0,
+			maxi(0, sim.grid.height - _visible_rows())
+		)
 	_refresh_button_texts()
 
 

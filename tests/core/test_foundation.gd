@@ -16,6 +16,17 @@ func test_art_library_loads_shipped_art_and_falls_back() -> void:
 	assert_null(lib.texture("minion_1"))
 
 
+func test_art_frame_animation() -> void:
+	var lib := UDArtLibrary.load_default([])
+	assert_eq(lib.frame_count("minion_0"), 2, "protagonist has a swing frame")
+	assert_eq(lib.frame_count("minion_2"), 2, "Riko has a blink frame")
+	assert_eq(lib.frame_count("terrain_soil"), 1, "static tiles stay single-frame")
+	assert_eq(lib.frame_count("minion_1"), 0, "missing art has no frames")
+	assert_not_null(lib.frame("minion_0", 0))
+	assert_not_null(lib.frame("minion_0", 7), "frame index wraps")
+	assert_ne(lib.frame("minion_0", 0), lib.frame("minion_0", 1))
+
+
 func test_art_keys() -> void:
 	var lib := UDArtLibrary.load_default([])
 	assert_eq(lib.terrain_key(UD.Terrain.SOIL), "terrain_soil")
