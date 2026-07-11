@@ -114,6 +114,14 @@ const NORMAL_WINDOW_SIZE := Vector2i(1152, 648)
 
 const SUPPORTED_LOCALES: Array[String] = ["ja", "en"]
 
+## First-run tutorial (§10): rotating hints over the first ~10 minutes
+## whose whole message is that idling is the intended way to play.
+const TUTORIAL_TICKS: int = 300
+const TUTORIAL_HINT_CYCLE_TICKS: int = 10
+const TUTORIAL_HINT_KEYS: Array[String] = [
+	"TUT_HINT_1", "TUT_HINT_2", "TUT_HINT_3",
+]
+
 ## Foreshadowing metadata on documents (story bible §5.1). A document may
 ## carry surface / mid / payoff variants of the same foreshadow thread.
 const REVEAL_STAGES: Array[String] = ["surface", "mid", "payoff"]

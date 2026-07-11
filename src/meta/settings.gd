@@ -7,6 +7,8 @@ const SETTINGS_PATH: String = "user://settings.json"
 var height_index: int = UD.DEFAULT_WINDOW_HEIGHT_INDEX
 var resident_mode: bool = true
 var locale_code: String = "ja"
+## Flips once the first-run hints have finished; they never show again.
+var tutorial_seen: bool = false
 
 
 static func load_settings() -> UDSettings:
@@ -33,6 +35,7 @@ func to_dict() -> Dictionary:
 		"height_index": height_index,
 		"resident_mode": resident_mode,
 		"locale_code": locale_code,
+		"tutorial_seen": tutorial_seen,
 	}
 
 
@@ -42,3 +45,4 @@ func apply_dict(d: Dictionary) -> void:
 	var lang := str(d.get("locale_code", locale_code))
 	if lang in UD.SUPPORTED_LOCALES:
 		locale_code = lang
+	tutorial_seen = bool(d.get("tutorial_seen", tutorial_seen))

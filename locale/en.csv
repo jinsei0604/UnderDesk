@@ -94,3 +94,6 @@ EVENT_INTRUDER_BREACH,T%d Intruder (str %d / def %d) broke through. %d coins
 EVENT_EMPTY,Nothing has happened yet. The hole is quiet.
 UI_INTRUDER_REPELLED,Intruder repelled (+%d coins)
 UI_INTRUDER_BREACH,An intruder stole coins (%d)
+"TUT_HINT_1","This is an idle game. It keeps digging while you work — come back whenever."
+"TUT_HINT_2","Click the strip to open the big window and cash in everything dug up."
+"TUT_HINT_3","Unearthed documents advance the story. Keep collecting — companions will join."

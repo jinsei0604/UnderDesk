@@ -215,6 +215,9 @@ func _on_anim_tick() -> void:
 func _on_tick() -> void:
 	_sync_daily()
 	sim.tick()
+	if not settings.tutorial_seen and sim.tick_count >= UD.TUTORIAL_TICKS:
+		settings.tutorial_seen = true
+		settings.save()
 	if not settings.resident_mode:
 		# While the big window is open, loot converts as it is dug.
 		sim.collect_loot()
@@ -435,6 +438,23 @@ func _draw_hud() -> void:
 			font, Vector2(8, HUD_HEIGHT + 20), _tally_text,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 16, STRIP_BADGE
 		)
+	if _tutorial_active():
+		draw_string(
+			font, Vector2(8, size.y - 10), _tutorial_hint(),
+			HORIZONTAL_ALIGNMENT_LEFT, size.x - 16, 16, STRIP_BADGE
+		)
+
+
+## First-run only (§10): the pitch is that leaving the game alone is
+## correct play, so the hints rotate quietly instead of interrupting.
+func _tutorial_active() -> bool:
+	return not settings.tutorial_seen and sim.tick_count < UD.TUTORIAL_TICKS
+
+
+func _tutorial_hint() -> String:
+	var index := int(sim.tick_count / UD.TUTORIAL_HINT_CYCLE_TICKS) \
+		% UD.TUTORIAL_HINT_KEYS.size()
+	return locale.text(UD.TUTORIAL_HINT_KEYS[index])
 
 
 ## Translucent readout drawn over the cells; the strip has no HUD bar.
@@ -491,6 +511,17 @@ func _draw_strip_overlay(font: Font) -> void:
 	)
 	if not unread_docs.is_empty() and sim.tick_count % 2 == 0:
 		draw_rect(Rect2(Vector2(size.x - 20, 4), Vector2(12, 12)), STRIP_BADGE)
+	if _tutorial_active():
+		var hint := _tutorial_hint()
+		var hint_width := font.get_string_size(
+			hint, HORIZONTAL_ALIGNMENT_LEFT, -1, STRIP_FONT_SIZE
+		).x
+		var hint_y := size.y - 14
+		draw_rect(Rect2(Vector2(0, hint_y), Vector2(hint_width + 12, 14)), STRIP_TEXT_BG)
+		draw_string(
+			font, Vector2(6, hint_y + 11), hint,
+			HORIZONTAL_ALIGNMENT_LEFT, size.x - 12, STRIP_FONT_SIZE, STRIP_BADGE
+		)
 
 
 func _draw_grid() -> void:
