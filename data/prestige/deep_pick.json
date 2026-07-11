@@ -1,0 +1,9 @@
+{
+	"id": "perma_pickaxe",
+	"name_key": "PRESTIGE_PICKAXE",
+	"desc_key": "PRESTIGE_PICKAXE_DESC",
+	"base_cost": 3,
+	"cost_mult": 2.0,
+	"effect": "dig_power_add",
+	"max_level": 5
+}

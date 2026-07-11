@@ -42,6 +42,8 @@ var doc_db: UDDocumentDB
 var room_db: UDRoomDB
 var item_db: UDItemDB
 var shop_db: UDShopDB
+var prestige_db: UDShopDB
+var strata_db: UDStrataDB
 var anomalies: Array = []
 var _anomaly_by_id: Dictionary = {}
 var mode: Mode = Mode.DIG
@@ -76,6 +78,14 @@ var _shop_dialog: AcceptDialog
 var _shop_list: ItemList
 var _shop_buy_button: Button
 var _shop_good_ids: Array[String] = []
+var _prestige_button: Button
+var _prestige_dialog: AcceptDialog
+var _prestige_info: Label
+var _prestige_list: ItemList
+var _perma_buy_button: Button
+var _bury_button: Button
+var _bury_confirm: ConfirmationDialog
+var _prestige_good_ids: Array[String] = []
 
 @onready var tick_timer: Timer = $TickTimer
 @onready var autosave_timer: Timer = $AutosaveTimer
@@ -88,18 +98,19 @@ func _ready() -> void:
 	room_db = UDRoomDB.load_from_dir("res://data/rooms")
 	item_db = UDItemDB.load_from_dir("res://data/items")
 	shop_db = UDShopDB.load_from_dir("res://data/shop")
+	prestige_db = UDShopDB.load_from_dir("res://data/prestige")
 	anomalies = UDDataLoader.load_json_dir("res://data/anomalies")
 	for anomaly: Variant in anomalies:
 		_anomaly_by_id[(anomaly as Dictionary)["id"]] = anomaly
-	var strata := UDStrataDB.load_from_dir("res://data/strata")
+	strata_db = UDStrataDB.load_from_dir("res://data/strata")
 
 	var payload := UDSaveManager.load_game()
 	if payload.is_empty():
 		sim = UDSim.new_game(
-			strata, int(Time.get_unix_time_from_system()), item_db.all_ids()
+			strata_db, int(Time.get_unix_time_from_system()), item_db.all_ids()
 		)
 	else:
-		sim = UDSim.from_dict(payload["sim"], strata, item_db.all_ids())
+		sim = UDSim.from_dict(payload["sim"], strata_db, item_db.all_ids())
 	sim.document_discovered.connect(_on_document_discovered)
 	if not payload.is_empty():
 		offline_ticks_applied = UDOffline.elapsed_ticks(
@@ -120,6 +131,7 @@ func _ready() -> void:
 	_build_archive_dialog()
 	_build_treasure_dialog()
 	_build_shop_dialog()
+	_build_prestige_dialog()
 	_refresh_button_texts()
 	_apply_window_mode()
 	queue_redraw()
@@ -325,6 +337,8 @@ func _draw_hud() -> void:
 		"▼ %d" % sim.deepest_air_row(),
 		"tick %d" % sim.tick_count,
 	]
+	if sim.crystals > 0 or sim.resets > 0:
+		parts.insert(2, "%s %d" % [locale.text("UI_CRYSTALS"), sim.crystals])
 	if sim.daily_anomaly_id != "" and _anomaly_by_id.has(sim.daily_anomaly_id):
 		var anomaly: Dictionary = _anomaly_by_id[sim.daily_anomaly_id]
 		parts.append("%s: %s" % [
@@ -491,6 +505,8 @@ func _build_hud() -> void:
 	bar.add_child(_treasure_button)
 	_shop_button = _make_button("", _open_shop)
 	bar.add_child(_shop_button)
+	_prestige_button = _make_button("", _open_prestige)
+	bar.add_child(_prestige_button)
 	_policy_button = _make_button("", _cycle_dig_policy)
 	bar.add_child(_policy_button)
 	_height_button = _make_button("", _cycle_height)
@@ -549,6 +565,9 @@ func _refresh_button_texts() -> void:
 	_treasure_button.text = "%s(%d)" % [locale.text("UI_TREASURES"), sim.items.size()]
 	_shop_button.text = locale.text("UI_SHOP")
 	_shop_buy_button.text = locale.text("UI_BUY")
+	_prestige_button.text = locale.text("UI_PRESTIGE")
+	_perma_buy_button.text = locale.text("UI_BUY")
+	_bury_button.text = locale.text("UI_PRESTIGE_DO")
 	_locale_button.text = _next_locale_code().to_upper()
 	_quit_button.text = locale.text("UI_QUIT")
 	_refresh_archive_button()
@@ -742,6 +761,93 @@ func _on_shop_buy() -> void:
 	if sim.buy_upgrade(good):
 		_populate_shop()
 		queue_redraw()
+
+
+func _build_prestige_dialog() -> void:
+	_prestige_dialog = AcceptDialog.new()
+	_prestige_dialog.min_size = Vector2i(640, 440)
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(600, 370)
+	_prestige_info = Label.new()
+	box.add_child(_prestige_info)
+	_prestige_list = ItemList.new()
+	_prestige_list.custom_minimum_size = Vector2(0, 240)
+	_prestige_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_prestige_list.add_theme_font_size_override("font_size", 15)
+	box.add_child(_prestige_list)
+	var row := HBoxContainer.new()
+	_perma_buy_button = Button.new()
+	_perma_buy_button.pressed.connect(_on_perma_buy)
+	row.add_child(_perma_buy_button)
+	_bury_button = Button.new()
+	_bury_button.pressed.connect(func() -> void: _bury_confirm.popup_centered())
+	row.add_child(_bury_button)
+	box.add_child(row)
+	_prestige_dialog.add_child(box)
+	add_child(_prestige_dialog)
+	_bury_confirm = ConfirmationDialog.new()
+	_bury_confirm.confirmed.connect(_on_bury_confirmed)
+	add_child(_bury_confirm)
+
+
+func _open_prestige() -> void:
+	if settings.resident_mode:
+		_expand()
+	_populate_prestige()
+	_prestige_dialog.popup_centered()
+
+
+func _populate_prestige() -> void:
+	_prestige_dialog.title = locale.text("UI_PRESTIGE")
+	_prestige_info.text = locale.text("UI_PRESTIGE_INFO") % [
+		sim.deepest_air_row(), sim.prestige_gain(), sim.crystals,
+	]
+	_bury_confirm.dialog_text = locale.text("UI_PRESTIGE_CONFIRM")
+	_bury_button.disabled = not sim.can_prestige()
+	var selected := _prestige_list.get_selected_items()
+	_prestige_list.clear()
+	_prestige_good_ids.clear()
+	for good_id in prestige_db.all_ids():
+		var good := prestige_db.get_good(good_id)
+		var level := sim.perma_level(good_id)
+		var max_level := int(good["max_level"])
+		var line := "%s Lv.%d/%d — %s" % [
+			locale.text(good["name_key"]), level, max_level,
+			locale.text(good["desc_key"]),
+		]
+		if level >= max_level:
+			line += "  [MAX]"
+		else:
+			line += "  [%s %d]" % [locale.text("UI_CRYSTALS"), UDSim.upgrade_cost(good, level)]
+		_prestige_good_ids.append(good_id)
+		_prestige_list.add_item(line)
+	if not selected.is_empty() and selected[0] < _prestige_list.item_count:
+		_prestige_list.select(selected[0])
+
+
+func _on_perma_buy() -> void:
+	var selected := _prestige_list.get_selected_items()
+	if selected.is_empty():
+		return
+	var good := prestige_db.get_good(_prestige_good_ids[selected[0]])
+	if sim.buy_perma(good):
+		_populate_prestige()
+		queue_redraw()
+
+
+func _on_bury_confirmed() -> void:
+	if not sim.can_prestige():
+		return
+	sim = UDSim.prestige_reset(sim, strata_db, item_db.all_ids())
+	sim.document_discovered.connect(_on_document_discovered)
+	scroll_y = 0
+	_follow_id = -1
+	_tally_text = ""
+	unread_docs.clear()
+	UDSaveManager.save_game(sim)
+	_populate_prestige()
+	_refresh_button_texts()
+	queue_redraw()
 
 
 func _open_archive() -> void:

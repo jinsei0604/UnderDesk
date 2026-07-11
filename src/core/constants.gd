@@ -35,6 +35,11 @@ const DAILY_DOC_CHANCE_BONUS: float = 0.1
 ## Extra document drop chance per level of the survey shop upgrade.
 const UPGRADE_DOC_CHANCE: float = 0.05
 
+## Prestige (§5.5): burying the shaft at this depth or deeper grants
+## crystals, one per row beyond the threshold.
+const PRESTIGE_MIN_DEPTH: int = 12
+const PRESTIGE_START_COINS_PER_LEVEL: int = 100
+
 const RES_SOIL: String = "soil"
 const RES_STONE: String = "stone"
 const RES_ORE: String = "ore"

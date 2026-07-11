@@ -37,6 +37,17 @@ UI_DAILY,Today's Anomaly
 UI_COLLECTED,Collected +%d coins
 UI_SHOP,Shop
 UI_BUY,Buy
+UI_PRESTIGE,Bury the Shaft
+UI_PRESTIGE_DO,Bury
+UI_PRESTIGE_INFO,Current depth %d / Burying grants +%d crystals / Crystals held: %d
+UI_PRESTIGE_CONFIRM,"Bury this shaft and dig anew? (The archive, treasures, crystals, and permanent upgrades remain.)"
+UI_CRYSTALS,Crystals
+PRESTIGE_PICKAXE,Deep Digging Lore
+PRESTIGE_PICKAXE_DESC,Permanent: dig power +1
+PRESTIGE_START,Stockpile Vault
+PRESTIGE_START_DESC,Permanent: +100 starting coins
+PRESTIGE_SURVEY,Ley Sense
+PRESTIGE_SURVEY_DESC,Permanent: documents +5%
 SHOP_HIRE,Hire a Minion
 SHOP_HIRE_DESC,A new minion joins the dig
 SHOP_PICKAXE,Better Pickaxes

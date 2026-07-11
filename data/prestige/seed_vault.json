@@ -1,0 +1,9 @@
+{
+	"id": "perma_start",
+	"name_key": "PRESTIGE_START",
+	"desc_key": "PRESTIGE_START_DESC",
+	"base_cost": 2,
+	"cost_mult": 1.5,
+	"effect": "start_coins",
+	"max_level": 10
+}

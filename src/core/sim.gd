@@ -29,8 +29,12 @@ var item_pool: Array[String] = []
 ## spot when a dig completes (no hauling trips); converted to coins in
 ## one batch by collect_loot() when the player checks in.
 var pending_loot: Dictionary = {}
-## Shop purchases: id -> { "level": int, "effect": String }.
+## Shop purchases: id -> { "level": int, "effect": String }. Run-scoped.
 var upgrades: Dictionary = {}
+## Prestige currency and permanent tree (§5.5). Carried across resets.
+var crystals: int = 0
+var perma: Dictionary = {}  # id -> { "level": int, "effect": String }
+var resets: int = 0
 var _rng := RandomNumberGenerator.new()
 
 
@@ -234,7 +238,8 @@ func dig_power() -> int:
 			power += 1
 	if daily_effect == "dig_power_add":
 		power += 1
-	power += _upgrade_effect_levels("dig_power_add")
+	power += UDSim._effect_levels_in(upgrades, "dig_power_add")
+	power += UDSim._effect_levels_in(perma, "dig_power_add")
 	return power
 
 
@@ -354,13 +359,66 @@ func buy_upgrade(good: Dictionary) -> bool:
 	return true
 
 
-func _upgrade_effect_levels(effect: String) -> int:
+static func _effect_levels_in(entries: Dictionary, effect: String) -> int:
 	var total := 0
-	for id: Variant in upgrades.keys():
-		var entry := upgrades[id] as Dictionary
+	for id: Variant in entries.keys():
+		var entry := entries[id] as Dictionary
 		if str(entry.get("effect", "")) == effect:
 			total += int(entry.get("level", 0))
 	return total
+
+
+func perma_level(id: String) -> int:
+	if not perma.has(id):
+		return 0
+	return int((perma[id] as Dictionary).get("level", 0))
+
+
+## Buys one level of a permanent (crystal-priced) upgrade.
+func buy_perma(good: Dictionary) -> bool:
+	var id := str(good["id"])
+	var level := perma_level(id)
+	if level >= int(good["max_level"]):
+		return false
+	var cost := UDSim.upgrade_cost(good, level)
+	if crystals < cost:
+		return false
+	crystals -= cost
+	perma[id] = {"level": level + 1, "effect": str(good.get("effect", ""))}
+	return true
+
+
+## Crystals earned by burying the shaft right now (0 = not deep enough).
+func prestige_gain() -> int:
+	return maxi(0, deepest_air_row() - UD.PRESTIGE_MIN_DEPTH + 1)
+
+
+func can_prestige() -> bool:
+	return prestige_gain() > 0
+
+
+## Buries the current shaft: a fresh dungeon that keeps the archive,
+## the collection, crystals (plus the new gain), and the permanent tree.
+static func prestige_reset(
+	old: UDSim, p_strata: UDStrataDB, p_item_pool: Array[String] = []
+) -> UDSim:
+	var gain := old.prestige_gain()
+	assert(gain > 0)
+	# Seed the next run from the old RNG stream: deterministic lineage.
+	var sim := UDSim.new_game(p_strata, old._rng.randi(), p_item_pool)
+	sim.crystals = old.crystals + gain
+	sim.perma = old.perma.duplicate(true)
+	sim.resets = old.resets + 1
+	sim.discovered_documents = old.discovered_documents.duplicate()
+	sim.items = old.items.duplicate()
+	sim.dig_policy = old.dig_policy
+	sim.daily_date_key = old.daily_date_key
+	sim.daily_anomaly_id = old.daily_anomaly_id
+	sim.daily_effect = old.daily_effect
+	var start_coins := UDSim._effect_levels_in(sim.perma, "start_coins") \
+		* UD.PRESTIGE_START_COINS_PER_LEVEL
+	sim.inventory[UD.RES_GOLD] = int(sim.inventory[UD.RES_GOLD]) + start_coins
+	return sim
 
 
 ## Extra document drop chance from built altars and the daily anomaly.
@@ -371,7 +429,8 @@ func document_chance_bonus() -> float:
 			bonus += UD.DOC_CHANCE_PER_ALTAR
 	if daily_effect == "doc_chance_add":
 		bonus += UD.DAILY_DOC_CHANCE_BONUS
-	bonus += _upgrade_effect_levels("doc_chance_add") * UD.UPGRADE_DOC_CHANCE
+	bonus += UDSim._effect_levels_in(upgrades, "doc_chance_add") * UD.UPGRADE_DOC_CHANCE
+	bonus += UDSim._effect_levels_in(perma, "doc_chance_add") * UD.UPGRADE_DOC_CHANCE
 	return bonus
 
 
@@ -458,6 +517,9 @@ func to_dict() -> Dictionary:
 		"items": items.duplicate(),
 		"pending_loot": pending_loot.duplicate(),
 		"upgrades": upgrades.duplicate(true),
+		"crystals": crystals,
+		"perma": perma.duplicate(true),
+		"resets": resets,
 	}
 
 
@@ -502,6 +564,14 @@ static func from_dict(
 			"level": int(entry.get("level", 0)),
 			"effect": str(entry.get("effect", "")),
 		}
+	sim.crystals = int(d.get("crystals", 0))
+	for id: Variant in (d.get("perma", {}) as Dictionary).keys():
+		var entry := d["perma"][id] as Dictionary
+		sim.perma[id] = {
+			"level": int(entry.get("level", 0)),
+			"effect": str(entry.get("effect", "")),
+		}
+	sim.resets = int(d.get("resets", 0))
 	# Pre-v3 saves may hold minions mid-haul: bag their load and free them.
 	for minion in sim.minions:
 		if minion.state == UDMinion.State.HAULING or minion.carrying != "":
