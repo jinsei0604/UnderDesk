@@ -87,3 +87,10 @@ DOC_013_TITLE,A Miner's Journal - IV
 DOC_013_BODY,"Yorek quit. To be precise, he stopped coming to morning roll. His pack is still here. His bunk is still here. His wage pouch is still here. The foreman sent out no search party. All he said was: ""Those who go down are employed down there."" I took it for a joke, and laughed. Nobody laughed. Since this month, for some reason, there are two wage pouches with my name on them."
 DOC_008_TITLE,An Old Letter - II
 DOC_008_BODY,"Dear brother. You will recall I wrote that I cannot read. I can now. I do not remember learning. One morning I woke, and the marks on the tablets looked like plain dictation — just sounds, written down. They say it happens to everyone here. One of the old hands puts it differently: ""You haven't learned the tunnel's language. It has learned yours."" Either way, the pay is good. Only — these days, in my dreams, I find I am writing my letters to you in those marks."
+ROOM_TRAP,Trap
+UI_EVENTS,Incidents
+EVENT_INTRUDER_REPELLED,T%d Intruder (str %d / def %d) repelled. Loot +%d coins
+EVENT_INTRUDER_BREACH,T%d Intruder (str %d / def %d) broke through. %d coins
+EVENT_EMPTY,Nothing has happened yet. The hole is quiet.
+UI_INTRUDER_REPELLED,Intruder repelled (+%d coins)
+UI_INTRUDER_BREACH,An intruder stole coins (%d)

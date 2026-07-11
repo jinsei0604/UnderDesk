@@ -116,6 +116,9 @@ var _bury_confirm: ConfirmationDialog
 var _prestige_good_ids: Array[String] = []
 var _card_button: Button
 var _card_dialog: AcceptDialog
+var _events_button: Button
+var _events_dialog: AcceptDialog
+var _events_list: ItemList
 
 @onready var tick_timer: Timer = $TickTimer
 @onready var autosave_timer: Timer = $AutosaveTimer
@@ -175,6 +178,7 @@ func _ready() -> void:
 	_build_treasure_dialog()
 	_build_shop_dialog()
 	_build_prestige_dialog()
+	_build_events_dialog()
 	_refresh_button_texts()
 	_apply_window_mode()
 	queue_redraw()
@@ -242,6 +246,15 @@ func _follow_camera() -> void:
 func _connect_sim_signals() -> void:
 	sim.document_discovered.connect(_on_document_discovered)
 	sim.companion_joined.connect(_on_companion_joined)
+	sim.intruder_raid.connect(_on_intruder_raid)
+
+
+func _on_intruder_raid(entry: Dictionary) -> void:
+	var key := "UI_INTRUDER_REPELLED" if bool(entry["repelled"]) \
+		else "UI_INTRUDER_BREACH"
+	_tally_text = locale.text(key) % int(entry["coins"])
+	_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 2
+	queue_redraw()
 
 
 func _on_document_discovered(doc_id: String) -> void:
@@ -660,6 +673,8 @@ func _build_hud() -> void:
 	grid.add_child(_prestige_button)
 	_card_button = _make_button("", _generate_survey_card)
 	grid.add_child(_card_button)
+	_events_button = _make_button("", _open_events)
+	grid.add_child(_events_button)
 	_height_button = _make_button("", _cycle_height)
 	grid.add_child(_height_button)
 	_locale_button = _make_button("", _toggle_locale)
@@ -726,6 +741,7 @@ func _refresh_button_texts() -> void:
 	_perma_buy_button.text = locale.text("UI_BUY")
 	_bury_button.text = locale.text("UI_PRESTIGE_DO")
 	_card_button.text = locale.text("UI_CARD")
+	_events_button.text = locale.text("UI_EVENTS")
 	_locale_button.text = _next_locale_code().to_upper()
 	_quit_button.text = locale.text("UI_QUIT")
 	_refresh_archive_button()
@@ -834,6 +850,37 @@ func _build_archive_dialog() -> void:
 	split.add_child(_archive_body)
 	_archive_dialog.add_child(split)
 	add_child(_archive_dialog)
+
+
+func _build_events_dialog() -> void:
+	_events_dialog = AcceptDialog.new()
+	_events_dialog.title = locale.text("UI_EVENTS")
+	_events_dialog.min_size = Vector2i(640, 360)
+	_events_list = ItemList.new()
+	_events_list.custom_minimum_size = Vector2(600, 300)
+	_events_list.add_theme_font_size_override("font_size", 15)
+	_events_dialog.add_child(_events_list)
+	add_child(_events_dialog)
+
+
+## Replay-style report (§5.2): the raid already resolved inside the sim;
+## this only retells it. Newest entries first.
+func _open_events() -> void:
+	if settings.resident_mode:
+		_expand()
+	_events_list.clear()
+	for i in range(sim.event_log.size() - 1, -1, -1):
+		var entry: Dictionary = sim.event_log[i]
+		var key := "EVENT_INTRUDER_REPELLED" if bool(entry["repelled"]) \
+			else "EVENT_INTRUDER_BREACH"
+		_events_list.add_item(locale.text(key) % [
+			int(entry["tick"]), int(entry["strength"]),
+			int(entry["defense"]), int(entry["coins"]),
+		])
+	if sim.event_log.is_empty():
+		_events_list.add_item(locale.text("EVENT_EMPTY"))
+	_events_dialog.title = locale.text("UI_EVENTS")
+	_events_dialog.popup_centered()
 
 
 func _build_treasure_dialog() -> void:
