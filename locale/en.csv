@@ -53,7 +53,7 @@ PRESTIGE_START_DESC,Permanent: +100 starting coins
 PRESTIGE_SURVEY,Ley Sense
 PRESTIGE_SURVEY_DESC,Permanent: documents +5%
 COMPANION_1_NAME,Companion I (TBD)
-COMPANION_2_NAME,Companion II (TBD)
+COMPANION_2_NAME,Riko
 COMPANION_3_NAME,Companion III (TBD)
 COMPANION_4_NAME,Companion IV (TBD)
 UI_COMPANION_JOINED,A companion joined: %s

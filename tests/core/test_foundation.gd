@@ -2,14 +2,18 @@ extends GutTest
 ## Foundation pieces: art naming convention and survey card assembly.
 
 
-func test_art_library_falls_back_gracefully() -> void:
+func test_art_library_loads_shipped_art_and_falls_back() -> void:
 	var lib := UDArtLibrary.load_default(["dorm", "tavern", "altar"])
-	# Terrain PNGs are not shipped yet: those fall back to rectangles.
-	assert_false(lib.has_art("terrain_soil"))
-	assert_null(lib.texture("terrain_soil"))
-	# The protagonist sprite ships since the party-plan change.
-	assert_true(lib.has_art("minion_0"), "protagonist sprite loads")
-	assert_not_null(lib.texture("minion_0"))
+	# Shipped: terrain set, rooms, depot, protagonist, Riko.
+	for key: String in [
+		"terrain_soil", "terrain_rock", "terrain_wetrock", "terrain_ruinstone",
+		"terrain_air", "depot", "room_dorm", "room_tavern", "room_altar",
+		"minion_0", "minion_2",
+	]:
+		assert_true(lib.has_art(key), "%s loads" % key)
+	# Companions without art yet fall back to placeholder rectangles.
+	assert_false(lib.has_art("minion_1"))
+	assert_null(lib.texture("minion_1"))
 
 
 func test_art_keys() -> void:
