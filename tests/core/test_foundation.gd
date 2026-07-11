@@ -70,6 +70,39 @@ func test_survey_card_stamp_translates() -> void:
 		assert_ne(locale.text("UI_CARD_COPIED"), "UI_CARD_COPIED")
 
 
+func test_placeholder_icons_fall_back_when_no_real_art() -> void:
+	var lib := UDArtLibrary.load_default([])
+	# No item/shop/prestige/doc art is shipped yet: every dialog icon
+	# should still resolve to a generated placeholder, not null.
+	assert_null(lib.texture("item_old_lantern"), "no real art shipped for this key")
+	var icon := lib.icon_or_placeholder("item_old_lantern", "old_lantern", "gem")
+	assert_not_null(icon)
+	assert_eq(icon.get_width(), UDArtLibrary.PLACEHOLDER_ICON_SIZE)
+
+
+func test_placeholder_icons_are_cached_and_deterministic() -> void:
+	var lib := UDArtLibrary.load_default([])
+	var a := lib.placeholder_icon("pickaxe", "rune")
+	var b := lib.placeholder_icon("pickaxe", "rune")
+	assert_eq(a, b, "same seed+shape reuses the cached texture")
+	var c := lib.placeholder_icon("survey", "rune")
+	assert_ne(a, c, "different seeds are distinct objects")
+
+
+func test_placeholder_icon_shapes_differ() -> void:
+	var lib := UDArtLibrary.load_default([])
+	var gem := lib.placeholder_icon("x", "gem").get_image()
+	var book := lib.placeholder_icon("x", "book").get_image()
+	assert_ne(gem.get_data(), book.get_data(), "gem and book render different pixels")
+
+
+func test_load_default_finds_real_art_for_extra_categories() -> void:
+	# minion_2.png ships for real (Riko); reuse it as a stand-in room id
+	# to prove the new item/shop/prestige/doc id params get probed.
+	var lib := UDArtLibrary.load_default(["dorm"], ["old_lantern"])
+	assert_false(lib.has_art("item_old_lantern"), "no item art shipped yet")
+
+
 func test_anomaly_card_colors_are_valid() -> void:
 	for def: Variant in UDDataLoader.load_json_dir("res://data/anomalies"):
 		var anomaly := def as Dictionary

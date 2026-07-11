@@ -133,7 +133,10 @@ func _ready() -> void:
 	item_db = UDItemDB.load_from_dir("res://data/items")
 	shop_db = UDShopDB.load_from_dir("res://data/shop")
 	prestige_db = UDShopDB.load_from_dir("res://data/prestige")
-	art = UDArtLibrary.load_default(room_db.all_ids())
+	art = UDArtLibrary.load_default(
+		room_db.all_ids(), item_db.all_ids(), shop_db.all_ids(),
+		prestige_db.all_ids(), doc_db.all_ids()
+	)
 	achievements = UDAchievements.load_default(UDPlatform.create())
 	anomalies = UDDataLoader.load_json_dir("res://data/anomalies")
 	for anomaly: Variant in anomalies:
@@ -900,6 +903,8 @@ func _build_archive_dialog() -> void:
 	_archive_list = ItemList.new()
 	_archive_list.custom_minimum_size = Vector2(240, 0)
 	_archive_list.add_theme_font_size_override("font_size", 15)
+	_archive_list.icon_mode = ItemList.ICON_MODE_LEFT
+	_archive_list.fixed_icon_size = Vector2i(UDArtLibrary.PLACEHOLDER_ICON_SIZE, UDArtLibrary.PLACEHOLDER_ICON_SIZE)
 	_archive_list.item_selected.connect(_on_archive_item_selected)
 	split.add_child(_archive_list)
 	_archive_body = RichTextLabel.new()
@@ -921,6 +926,8 @@ func _build_events_dialog() -> void:
 	_events_list = ItemList.new()
 	_events_list.custom_minimum_size = Vector2(600, 300)
 	_events_list.add_theme_font_size_override("font_size", 15)
+	_events_list.icon_mode = ItemList.ICON_MODE_LEFT
+	_events_list.fixed_icon_size = Vector2i(UDArtLibrary.PLACEHOLDER_ICON_SIZE, UDArtLibrary.PLACEHOLDER_ICON_SIZE)
 	_events_dialog.add_child(_events_list)
 	add_child(_events_dialog)
 
@@ -933,12 +940,15 @@ func _open_events() -> void:
 	_events_list.clear()
 	for i in range(sim.event_log.size() - 1, -1, -1):
 		var entry: Dictionary = sim.event_log[i]
-		var key := "EVENT_INTRUDER_REPELLED" if bool(entry["repelled"]) \
-			else "EVENT_INTRUDER_BREACH"
+		var repelled := bool(entry["repelled"])
+		var key := "EVENT_INTRUDER_REPELLED" if repelled else "EVENT_INTRUDER_BREACH"
+		var icon := art.placeholder_icon(
+			"intruder_repelled" if repelled else "intruder_breach", "rune"
+		)
 		_events_list.add_item(locale.text(key) % [
 			int(entry["tick"]), int(entry["strength"]),
 			int(entry["defense"]), int(entry["coins"]),
-		])
+		], icon)
 	if sim.event_log.is_empty():
 		_events_list.add_item(locale.text("EVENT_EMPTY"))
 	_events_dialog.title = locale.text("UI_EVENTS")
@@ -952,6 +962,8 @@ func _build_treasure_dialog() -> void:
 	_treasure_list = ItemList.new()
 	_treasure_list.custom_minimum_size = Vector2(520, 300)
 	_treasure_list.add_theme_font_size_override("font_size", 15)
+	_treasure_list.icon_mode = ItemList.ICON_MODE_LEFT
+	_treasure_list.fixed_icon_size = Vector2i(UDArtLibrary.PLACEHOLDER_ICON_SIZE, UDArtLibrary.PLACEHOLDER_ICON_SIZE)
 	_treasure_dialog.add_child(_treasure_list)
 	add_child(_treasure_dialog)
 
@@ -964,9 +976,10 @@ func _open_treasures() -> void:
 		if not item_db.has_item(item_id):
 			continue
 		var item := item_db.get_item(item_id)
+		var icon := art.icon_or_placeholder("item_%s" % item_id, item_id, "gem")
 		_treasure_list.add_item("%s — %s" % [
 			locale.text(item["name_key"]), locale.text(item["desc_key"]),
-		])
+		], icon)
 	if sim.items.is_empty():
 		_treasure_list.add_item("---")
 	_treasure_dialog.title = locale.text("UI_TREASURES")
@@ -983,6 +996,8 @@ func _build_shop_dialog() -> void:
 	_shop_list.custom_minimum_size = Vector2(0, 280)
 	_shop_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_shop_list.add_theme_font_size_override("font_size", 15)
+	_shop_list.icon_mode = ItemList.ICON_MODE_LEFT
+	_shop_list.fixed_icon_size = Vector2i(UDArtLibrary.PLACEHOLDER_ICON_SIZE, UDArtLibrary.PLACEHOLDER_ICON_SIZE)
 	box.add_child(_shop_list)
 	_shop_buy_button = Button.new()
 	_shop_buy_button.pressed.connect(_on_shop_buy)
@@ -1016,7 +1031,8 @@ func _populate_shop() -> void:
 		else:
 			line += "  [$%d]" % UDSim.upgrade_cost(good, level)
 		_shop_good_ids.append(good_id)
-		_shop_list.add_item(line)
+		var icon := art.icon_or_placeholder("shop_%s" % good_id, good_id, "rune")
+		_shop_list.add_item(line, icon)
 	if not selected.is_empty() and selected[0] < _shop_list.item_count:
 		_shop_list.select(selected[0])
 
@@ -1042,6 +1058,8 @@ func _build_prestige_dialog() -> void:
 	_prestige_list.custom_minimum_size = Vector2(0, 240)
 	_prestige_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_prestige_list.add_theme_font_size_override("font_size", 15)
+	_prestige_list.icon_mode = ItemList.ICON_MODE_LEFT
+	_prestige_list.fixed_icon_size = Vector2i(UDArtLibrary.PLACEHOLDER_ICON_SIZE, UDArtLibrary.PLACEHOLDER_ICON_SIZE)
 	box.add_child(_prestige_list)
 	var row := HBoxContainer.new()
 	_perma_buy_button = Button.new()
@@ -1088,7 +1106,8 @@ func _populate_prestige() -> void:
 		else:
 			line += "  [%s %d]" % [locale.text("UI_CRYSTALS"), UDSim.upgrade_cost(good, level)]
 		_prestige_good_ids.append(good_id)
-		_prestige_list.add_item(line)
+		var icon := art.icon_or_placeholder("prestige_%s" % good_id, good_id, "rune")
+		_prestige_list.add_item(line, icon)
 	if not selected.is_empty() and selected[0] < _prestige_list.item_count:
 		_prestige_list.select(selected[0])
 
@@ -1185,7 +1204,8 @@ func _open_archive() -> void:
 			continue
 		var doc := doc_db.get_doc(doc_id)
 		_archive_doc_ids.append(doc_id)
-		_archive_list.add_item(locale.text(doc["title_key"]))
+		var icon := art.icon_or_placeholder(doc_id, doc_id, "book")
+		_archive_list.add_item(locale.text(doc["title_key"]), icon)
 	unread_docs.clear()
 	_refresh_archive_button()
 	_archive_dialog.popup_centered()
