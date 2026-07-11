@@ -55,10 +55,17 @@ var _tally_text: String = ""
 var _tally_until_tick: int = 0
 
 const TALLY_SHOW_TICKS: int = 5
+
+## Expanded-mode control panel: big, thumb-friendly buttons on the
+## right; the dig view does not need the full width.
+const PANEL_WIDTH: int = 260
+const BUTTON_FONT_SIZE: int = 16
+const BUTTON_MIN_SIZE := Vector2(118, 44)
+const ACTIVE_BUTTON_TINT := Color(1.0, 0.85, 0.3)
 var unread_docs: Array[String] = []
 var offline_ticks_applied: int = 0
 
-var _button_bar: HBoxContainer
+var _button_bar: Control
 var _archive_button: Button
 var _dig_button: Button
 var _room_buttons: Dictionary = {}  # room id -> Button
@@ -300,7 +307,9 @@ func _grid_origin() -> Vector2:
 		var star_x := float(star.pos.x) if star != null else float(UD.DEPOT_POS.x)
 		var desired := size.x / 2.0 - (star_x + 0.5) * cell_px
 		return Vector2(clampf(desired, minf(size.x - grid_px_width, 0.0), 0.0), 0.0)
-	return Vector2(maxf(0.0, (size.x - grid_px_width) / 2.0), _hud_offset())
+	# Expanded: the dig view keeps clear of the right-hand button panel.
+	var view_width := size.x - PANEL_WIDTH
+	return Vector2(maxf(0.0, (view_width - grid_px_width) / 2.0), _hud_offset())
 
 
 func _cell_at(point: Vector2) -> Vector2i:
@@ -352,7 +361,7 @@ func _draw_hud() -> void:
 		parts.append(locale.text("UI_OFFLINE_REPORT") % offline_ticks_applied)
 	draw_string(
 		font, Vector2(8, HUD_HEIGHT - 6), "  |  ".join(parts),
-		HORIZONTAL_ALIGNMENT_LEFT, -1, HUD_FONT_SIZE, COLOR_HUD_TEXT
+		HORIZONTAL_ALIGNMENT_LEFT, size.x - 16, HUD_FONT_SIZE, COLOR_HUD_TEXT
 	)
 	if _tally_text != "" and sim.tick_count <= _tally_until_tick:
 		draw_string(
@@ -509,46 +518,55 @@ func _draw_minions(origin: Vector2) -> void:
 
 
 func _build_hud() -> void:
-	var bar := HBoxContainer.new()
-	bar.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	bar.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	bar.position.y = 2
-	add_child(bar)
-	_button_bar = bar
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	panel.offset_left = -PANEL_WIDTH
+	panel.offset_right = -4
+	panel.offset_top = HUD_HEIGHT + 4
+	panel.offset_bottom = -4
+	add_child(panel)
+	_button_bar = panel
+
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
+	panel.add_child(grid)
 
 	_dig_button = _make_button("", func() -> void: _set_mode(Mode.DIG))
-	bar.add_child(_dig_button)
+	grid.add_child(_dig_button)
+	_policy_button = _make_button("", _cycle_dig_policy)
+	grid.add_child(_policy_button)
 	for room_id in room_db.all_ids():
 		var button := _make_button("", _select_build_room.bind(room_id))
 		_room_buttons[room_id] = button
-		bar.add_child(button)
+		grid.add_child(button)
 	_archive_button = _make_button("", _open_archive)
-	bar.add_child(_archive_button)
+	grid.add_child(_archive_button)
 	_treasure_button = _make_button("", _open_treasures)
-	bar.add_child(_treasure_button)
+	grid.add_child(_treasure_button)
 	_shop_button = _make_button("", _open_shop)
-	bar.add_child(_shop_button)
+	grid.add_child(_shop_button)
 	_prestige_button = _make_button("", _open_prestige)
-	bar.add_child(_prestige_button)
+	grid.add_child(_prestige_button)
 	_card_button = _make_button("", _generate_survey_card)
-	bar.add_child(_card_button)
-	_policy_button = _make_button("", _cycle_dig_policy)
-	bar.add_child(_policy_button)
+	grid.add_child(_card_button)
 	_height_button = _make_button("", _cycle_height)
-	bar.add_child(_height_button)
-	_collapse_button = _make_button("", _collapse)
-	bar.add_child(_collapse_button)
+	grid.add_child(_height_button)
 	_locale_button = _make_button("", _toggle_locale)
-	bar.add_child(_locale_button)
+	grid.add_child(_locale_button)
+	_collapse_button = _make_button("", _collapse)
+	grid.add_child(_collapse_button)
 	_quit_button = _make_button("", _quit)
-	bar.add_child(_quit_button)
+	grid.add_child(_quit_button)
 	_refresh_mode_buttons()
 
 
 func _make_button(label: String, callback: Callable) -> Button:
 	var button := Button.new()
 	button.text = label
-	button.add_theme_font_size_override("font_size", HUD_FONT_SIZE)
+	button.custom_minimum_size = BUTTON_MIN_SIZE
+	button.add_theme_font_size_override("font_size", BUTTON_FONT_SIZE)
 	button.pressed.connect(callback)
 	return button
 
@@ -564,10 +582,15 @@ func _select_build_room(room_id: String) -> void:
 
 
 func _refresh_mode_buttons() -> void:
-	_dig_button.disabled = mode == Mode.DIG
+	# The active mode button is tinted gold so the selection is obvious.
+	var dig_active := mode == Mode.DIG
+	_dig_button.disabled = dig_active
+	_dig_button.modulate = ACTIVE_BUTTON_TINT if dig_active else Color.WHITE
 	for room_id: String in _room_buttons:
 		var button: Button = _room_buttons[room_id]
-		button.disabled = mode == Mode.BUILD and _build_room_id == room_id
+		var active := mode == Mode.BUILD and _build_room_id == room_id
+		button.disabled = active
+		button.modulate = ACTIVE_BUTTON_TINT if active else Color.WHITE
 
 
 func _refresh_archive_button() -> void:
