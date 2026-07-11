@@ -6,6 +6,7 @@ extends RefCounted
 
 signal document_discovered(doc_id: String)
 signal item_found(item_id: String)
+signal companion_joined(companion_id: String)
 
 var tick_count: int = 0
 var grid: UDGrid
@@ -25,6 +26,11 @@ var daily_effect: String = ""
 ## like the strata DB and not serialized.
 var items: Array[String] = []
 var item_pool: Array[String] = []
+## Story companions who have joined (§ plan change: the protagonist
+## starts alone; companions join as documents are discovered).
+## Definitions are injected like the strata DB, not serialized.
+var companions: Array[String] = []
+var companion_defs: Array = []  # [{ id, name_key, join_at_docs }]
 ## Loot dug up but not yet tallied: resource id -> count. Filled on the
 ## spot when a dig completes (no hauling trips); converted to coins in
 ## one batch by collect_loot() when the player checks in.
@@ -39,11 +45,15 @@ var _rng := RandomNumberGenerator.new()
 
 
 static func new_game(
-	p_strata: UDStrataDB, rng_seed: int, p_item_pool: Array[String] = []
+	p_strata: UDStrataDB,
+	rng_seed: int,
+	p_item_pool: Array[String] = [],
+	p_companion_defs: Array = [],
 ) -> UDSim:
 	var sim := UDSim.new()
 	sim.strata = p_strata
 	sim.item_pool = p_item_pool
+	sim.companion_defs = p_companion_defs
 	sim._rng.seed = rng_seed
 	sim.grid = UDGrid.new(UD.GRID_WIDTH)
 	for y in UD.GRID_INITIAL_HEIGHT:
@@ -67,6 +77,21 @@ func tick() -> void:
 	_auto_designate()
 	for minion in minions:
 		_step_minion(minion)
+	_check_companion_joins()
+
+
+## Story progression: companions join when enough documents have been
+## unearthed (thresholds live in data/companions/).
+func _check_companion_joins() -> void:
+	for def: Variant in companion_defs:
+		var companion := def as Dictionary
+		var id := str(companion["id"])
+		if companions.has(id) or minions.size() >= UD.MINION_MAX:
+			continue
+		if discovered_documents.size() >= int(companion["join_at_docs"]):
+			companions.append(id)
+			minions.append(UDMinion.create(minions.size(), UD.DEPOT_POS))
+			companion_joined.emit(id)
 
 
 ## Generates dig jobs from the current policy so play continues unattended.
@@ -405,8 +430,15 @@ static func prestige_reset(
 	var gain := old.prestige_gain()
 	assert(gain > 0)
 	# Seed the next run from the old RNG stream: deterministic lineage.
-	var sim := UDSim.new_game(p_strata, old._rng.randi(), p_item_pool)
+	var sim := UDSim.new_game(
+		p_strata, old._rng.randi(), p_item_pool, old.companion_defs
+	)
 	sim.crystals = old.crystals + gain
+	# Story progress persists: companions stay in the party.
+	sim.companions = old.companions.duplicate()
+	for i in sim.companions.size():
+		if sim.minions.size() < UD.MINION_MAX:
+			sim.minions.append(UDMinion.create(sim.minions.size(), UD.DEPOT_POS))
 	sim.perma = old.perma.duplicate(true)
 	sim.resets = old.resets + 1
 	sim.discovered_documents = old.discovered_documents.duplicate()
@@ -515,6 +547,7 @@ func to_dict() -> Dictionary:
 		"daily_anomaly_id": daily_anomaly_id,
 		"daily_effect": daily_effect,
 		"items": items.duplicate(),
+		"companions": companions.duplicate(),
 		"pending_loot": pending_loot.duplicate(),
 		"upgrades": upgrades.duplicate(true),
 		"crystals": crystals,
@@ -524,11 +557,15 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(
-	d: Dictionary, p_strata: UDStrataDB, p_item_pool: Array[String] = []
+	d: Dictionary,
+	p_strata: UDStrataDB,
+	p_item_pool: Array[String] = [],
+	p_companion_defs: Array = [],
 ) -> UDSim:
 	var sim := UDSim.new()
 	sim.strata = p_strata
 	sim.item_pool = p_item_pool
+	sim.companion_defs = p_companion_defs
 	sim.tick_count = int(d["tick_count"])
 	sim._rng.seed = (d["rng_seed"] as String).to_int()
 	sim._rng.state = (d["rng_state"] as String).to_int()
@@ -556,6 +593,8 @@ static func from_dict(
 	sim.daily_effect = str(d.get("daily_effect", ""))
 	for item_id: Variant in d.get("items", []) as Array:
 		sim.items.append(str(item_id))
+	for companion_id: Variant in d.get("companions", []) as Array:
+		sim.companions.append(str(companion_id))
 	for res: Variant in (d.get("pending_loot", {}) as Dictionary).keys():
 		sim.pending_loot[res] = int(d["pending_loot"][res])
 	for id: Variant in (d.get("upgrades", {}) as Dictionary).keys():
@@ -572,6 +611,16 @@ static func from_dict(
 			"effect": str(entry.get("effect", "")),
 		}
 	sim.resets = int(d.get("resets", 0))
+	# v3 -> v4: the minion crew becomes protagonist + story companions.
+	# Rebuild the party and release job claims held by removed workers;
+	# companions re-join on the next ticks from the document count.
+	if int(d.get("version", 1)) < 4:
+		sim.minions.clear()
+		sim.minions.append(UDMinion.create(0, UD.DEPOT_POS))
+		sim.companions.clear()
+		for job in sim.jobs:
+			job.claimed_by = -1
+			job.progress = 0
 	# Pre-v3 saves may hold minions mid-haul: bag their load and free them.
 	for minion in sim.minions:
 		if minion.state == UDMinion.State.HAULING or minion.carrying != "":

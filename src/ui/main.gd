@@ -47,6 +47,8 @@ var strata_db: UDStrataDB
 var art: UDArtLibrary
 var anomalies: Array = []
 var _anomaly_by_id: Dictionary = {}
+var companion_defs: Array = []
+var _companion_by_id: Dictionary = {}
 var mode: Mode = Mode.DIG
 var _build_room_id: String = ""
 var scroll_y: int = 0
@@ -113,16 +115,22 @@ func _ready() -> void:
 	anomalies = UDDataLoader.load_json_dir("res://data/anomalies")
 	for anomaly: Variant in anomalies:
 		_anomaly_by_id[(anomaly as Dictionary)["id"]] = anomaly
+	companion_defs = UDDataLoader.load_json_dir("res://data/companions")
+	for companion: Variant in companion_defs:
+		_companion_by_id[(companion as Dictionary)["id"]] = companion
 	strata_db = UDStrataDB.load_from_dir("res://data/strata")
 
 	var payload := UDSaveManager.load_game()
 	if payload.is_empty():
 		sim = UDSim.new_game(
-			strata_db, int(Time.get_unix_time_from_system()), item_db.all_ids()
+			strata_db, int(Time.get_unix_time_from_system()),
+			item_db.all_ids(), companion_defs
 		)
 	else:
-		sim = UDSim.from_dict(payload["sim"], strata_db, item_db.all_ids())
-	sim.document_discovered.connect(_on_document_discovered)
+		sim = UDSim.from_dict(
+			payload["sim"], strata_db, item_db.all_ids(), companion_defs
+		)
+	_connect_sim_signals()
 	if not payload.is_empty():
 		offline_ticks_applied = UDOffline.elapsed_ticks(
 			int(payload["saved_unix_time"]),
@@ -218,9 +226,23 @@ func _follow_camera() -> void:
 	scroll_y = clampi(star.pos.y - _visible_rows() / 2, 0, max_scroll)
 
 
+func _connect_sim_signals() -> void:
+	sim.document_discovered.connect(_on_document_discovered)
+	sim.companion_joined.connect(_on_companion_joined)
+
+
 func _on_document_discovered(doc_id: String) -> void:
 	unread_docs.append(doc_id)
 	_refresh_archive_button()
+
+
+func _on_companion_joined(companion_id: String) -> void:
+	var name := companion_id
+	if _companion_by_id.has(companion_id):
+		name = locale.text(_companion_by_id[companion_id]["name_key"])
+	_tally_text = locale.text("UI_COMPANION_JOINED") % name
+	_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 2
+	queue_redraw()
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -888,7 +910,7 @@ func _on_bury_confirmed() -> void:
 	if not sim.can_prestige():
 		return
 	sim = UDSim.prestige_reset(sim, strata_db, item_db.all_ids())
-	sim.document_discovered.connect(_on_document_discovered)
+	_connect_sim_signals()
 	scroll_y = 0
 	_follow_id = -1
 	_tally_text = ""

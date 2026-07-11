@@ -2,7 +2,7 @@ class_name UD
 extends RefCounted
 ## UNDERDESK core constants (§12-1: no magic numbers).
 
-const SAVE_VERSION: int = 3
+const SAVE_VERSION: int = 4
 
 ## Simulation tick length (§7.1: timer-driven, not per-frame).
 const TICK_SECONDS: float = 2.0
@@ -72,9 +72,11 @@ const NUGGET_COINS: int = 25
 const CHEST_COINS: int = 10
 
 const MINION_DIG_POWER: int = 1
-const INITIAL_MINION_COUNT: int = 3
-const MINION_MAX: int = 20
-const MINION_NAMES: Array[String] = ["ピブ", "モグ", "ドット", "ゴロ", "キノ", "ザザ"]
+## The protagonist digs alone at first; story companions join later.
+const INITIAL_MINION_COUNT: int = 1
+## Protagonist + up to 4 story companions (data/companions/).
+const MINION_MAX: int = 5
+const MINION_NAMES: Array[String] = ["主人公", "仲間・一", "仲間・二", "仲間・三", "仲間・四"]
 
 const AUTOSAVE_INTERVAL_SECONDS: float = 60.0
 const SAVE_BACKUP_GENERATIONS: int = 3

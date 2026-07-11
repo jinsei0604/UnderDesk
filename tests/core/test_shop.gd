@@ -79,7 +79,7 @@ func test_upgrades_survive_roundtrip() -> void:
 
 func test_shop_files_load_and_translate() -> void:
 	var db := UDShopDB.load_from_dir("res://data/shop")
-	assert_eq(db.all_ids().size(), 3)
+	assert_eq(db.all_ids().size(), 2, "hiring left the shop with the plan change")
 	var ja := UDLocale.load_locale("ja")
 	var en := UDLocale.load_locale("en")
 	for id in db.all_ids():

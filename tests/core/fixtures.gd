@@ -37,5 +37,5 @@ static func dorm_def() -> Dictionary:
 		"width": 2,
 		"height": 1,
 		"cost": {"soil": 10},
-		"effect": "minion_add",
+		"effect": "",
 	}

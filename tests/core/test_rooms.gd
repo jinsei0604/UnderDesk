@@ -8,12 +8,14 @@ func _sim_with_open_area() -> UDSim:
 	return sim
 
 
-func test_build_dorm_spawns_minion() -> void:
+func test_build_dorm_records_room() -> void:
+	# Plan change: companions join through the story, so the dorm is
+	# flavor only and must not spawn workers.
 	var sim := _sim_with_open_area()
 	sim.inventory[UD.RES_SOIL] = 10
 	var before := sim.minions.size()
 	assert_true(sim.build_room(UDTestFixtures.dorm_def(), Vector2i(5, 1)))
-	assert_eq(sim.minions.size(), before + 1)
+	assert_eq(sim.minions.size(), before, "no worker spawned")
 	assert_eq(int(sim.inventory[UD.RES_SOIL]), 0, "cost deducted")
 	assert_eq(sim.rooms.size(), 1)
 

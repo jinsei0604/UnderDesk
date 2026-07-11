@@ -4,9 +4,12 @@ extends GutTest
 
 func test_art_library_falls_back_gracefully() -> void:
 	var lib := UDArtLibrary.load_default(["dorm", "tavern", "altar"])
-	# No PNGs shipped yet: everything falls back to placeholder drawing.
+	# Terrain PNGs are not shipped yet: those fall back to rectangles.
 	assert_false(lib.has_art("terrain_soil"))
 	assert_null(lib.texture("terrain_soil"))
+	# The protagonist sprite ships since the party-plan change.
+	assert_true(lib.has_art("minion_0"), "protagonist sprite loads")
+	assert_not_null(lib.texture("minion_0"))
 
 
 func test_art_keys() -> void:

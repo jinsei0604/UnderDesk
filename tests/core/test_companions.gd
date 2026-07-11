@@ -1,0 +1,78 @@
+extends GutTest
+## Plan change: the protagonist excavates alone; story companions join
+## as documents are discovered (max party of 5).
+
+
+func _defs() -> Array:
+	return [
+		{"id": "c1", "name_key": "X", "join_at_docs": 1},
+		{"id": "c2", "name_key": "X", "join_at_docs": 2},
+	]
+
+
+func test_protagonist_starts_alone() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.strata(), 1, [], _defs())
+	assert_eq(sim.minions.size(), 1, "solo at the start")
+	assert_eq(sim.companions.size(), 0)
+
+
+func test_companion_joins_on_story_progress() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.strata(1.0), 7, [], _defs())
+	sim.dig_policy = UD.DigPolicy.NONE
+	sim.add_dig_job(Vector2i(UD.DEPOT_POS.x, 1))
+	sim.advance(30)
+	assert_eq(sim.discovered_documents.size(), 1)
+	assert_eq(sim.companions.size(), 1, "first companion joined at 1 document")
+	assert_eq(sim.companions[0], "c1")
+	assert_eq(sim.minions.size(), 2)
+
+
+func test_join_is_deterministic() -> void:
+	var a := UDSim.new_game(UDTestFixtures.strata(1.0), 7, [], _defs())
+	var b := UDSim.new_game(UDTestFixtures.strata(1.0), 7, [], _defs())
+	for sim: UDSim in [a, b]:
+		sim.dig_policy = UD.DigPolicy.DOWN
+		sim.advance(200)
+	assert_eq(JSON.stringify(a.to_dict()), JSON.stringify(b.to_dict()))
+
+
+func test_companions_survive_roundtrip() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.strata(), 1, [], _defs())
+	sim.companions.append("c1")
+	sim.minions.append(UDMinion.create(1, UD.DEPOT_POS))
+	var restored := UDSim.from_dict(
+		JSON.parse_string(JSON.stringify(sim.to_dict())),
+		UDTestFixtures.strata(), [], _defs()
+	)
+	assert_eq(restored.companions.size(), 1)
+	assert_eq(restored.minions.size(), 2)
+
+
+func test_pre_v4_party_migrates_to_solo() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.strata(), 1, [], _defs())
+	var d := sim.to_dict()
+	d["version"] = 3
+	# Fake an old three-minion crew with a claimed job.
+	var minions: Array = d["minions"]
+	for extra_id in [1, 2]:
+		var clone: Dictionary = (minions[0] as Dictionary).duplicate(true)
+		clone["id"] = extra_id
+		minions.append(clone)
+	d["jobs"] = [{"target": [5, 1], "progress": 1, "claimed_by": 2}]
+	var restored := UDSim.from_dict(
+		JSON.parse_string(JSON.stringify(d)), UDTestFixtures.strata(), [], _defs()
+	)
+	assert_eq(restored.minions.size(), 1, "party rebuilt as the solo protagonist")
+	assert_eq(restored.jobs[0].claimed_by, -1, "stale claim released")
+
+
+func test_prestige_keeps_companions() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.strata(), 9, [], _defs())
+	sim.companions.append("c1")
+	sim.minions.append(UDMinion.create(1, UD.DEPOT_POS))
+	for y in range(1, UD.PRESTIGE_MIN_DEPTH + 1):
+		sim._ensure_rows(y + 2)
+		sim.grid.set_terrain(Vector2i(UD.DEPOT_POS.x, y), UD.Terrain.AIR)
+	var fresh := UDSim.prestige_reset(sim, UDTestFixtures.strata())
+	assert_eq(fresh.companions.size(), 1, "story progress persists")
+	assert_eq(fresh.minions.size(), 2, "companion re-spawned in the new shaft")
