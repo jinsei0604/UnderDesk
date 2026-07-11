@@ -18,7 +18,7 @@ func test_art_library_loads_shipped_art_and_falls_back() -> void:
 
 func test_art_frame_animation() -> void:
 	var lib := UDArtLibrary.load_default([])
-	assert_eq(lib.frame_count("minion_0"), 2, "protagonist has a swing frame")
+	assert_eq(lib.frame_count("minion_0"), 3, "protagonist has a 3-frame dig loop")
 	assert_eq(lib.frame_count("minion_2"), 2, "Riko has a blink frame")
 	assert_eq(lib.frame_count("terrain_soil"), 1, "static tiles stay single-frame")
 	assert_eq(lib.frame_count("minion_1"), 0, "missing art has no frames")
