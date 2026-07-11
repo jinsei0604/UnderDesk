@@ -42,6 +42,10 @@ UI_PRESTIGE_DO,Bury
 UI_PRESTIGE_INFO,Current depth %d / Burying grants +%d crystals / Crystals held: %d
 UI_PRESTIGE_CONFIRM,"Bury this shaft and dig anew? (The archive, treasures, crystals, and permanent upgrades remain.)"
 UI_CRYSTALS,Crystals
+UI_CARD,Survey Card
+UI_CARD_SAVED,Geological survey card saved
+UI_OPEN_FOLDER,Open Folder
+CARD_TITLE,GEOLOGICAL SURVEY REPORT
 PRESTIGE_PICKAXE,Deep Digging Lore
 PRESTIGE_PICKAXE_DESC,Permanent: dig power +1
 PRESTIGE_START,Stockpile Vault

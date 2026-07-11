@@ -44,6 +44,7 @@ var item_db: UDItemDB
 var shop_db: UDShopDB
 var prestige_db: UDShopDB
 var strata_db: UDStrataDB
+var art: UDArtLibrary
 var anomalies: Array = []
 var _anomaly_by_id: Dictionary = {}
 var mode: Mode = Mode.DIG
@@ -86,6 +87,8 @@ var _perma_buy_button: Button
 var _bury_button: Button
 var _bury_confirm: ConfirmationDialog
 var _prestige_good_ids: Array[String] = []
+var _card_button: Button
+var _card_dialog: AcceptDialog
 
 @onready var tick_timer: Timer = $TickTimer
 @onready var autosave_timer: Timer = $AutosaveTimer
@@ -99,6 +102,7 @@ func _ready() -> void:
 	item_db = UDItemDB.load_from_dir("res://data/items")
 	shop_db = UDShopDB.load_from_dir("res://data/shop")
 	prestige_db = UDShopDB.load_from_dir("res://data/prestige")
+	art = UDArtLibrary.load_default(room_db.all_ids())
 	anomalies = UDDataLoader.load_json_dir("res://data/anomalies")
 	for anomaly: Variant in anomalies:
 		_anomaly_by_id[(anomaly as Dictionary)["id"]] = anomaly
@@ -384,8 +388,16 @@ func _draw_grid() -> void:
 		for x in sim.grid.width:
 			var cell := Vector2i(x, y)
 			var rect := _cell_rect(origin, cell)
-			draw_rect(rect, _cell_color(sim.grid.terrain_at(cell), y))
-			draw_rect(rect, COLOR_GRID_LINE, false, 1.0)
+			var terrain := sim.grid.terrain_at(cell)
+			var art_key := art.terrain_key(terrain)
+			if art.has_art(art_key):
+				var fade := maxf(DEPTH_FADE_FLOOR, 1.0 - y * DEPTH_FADE_PER_ROW)
+				draw_texture_rect(
+					art.texture(art_key), rect, false, Color(fade, fade, fade)
+				)
+			else:
+				draw_rect(rect, _cell_color(terrain, y))
+				draw_rect(rect, COLOR_GRID_LINE, false, 1.0)
 	_draw_rooms(origin)
 	_draw_jobs(origin)
 	_draw_depot(origin)
@@ -432,6 +444,9 @@ func _draw_depot(origin: Vector2) -> void:
 		return
 	var cell_px := float(_cell_px())
 	var rect := _cell_rect(origin, UD.DEPOT_POS)
+	if art.has_art("depot"):
+		draw_texture_rect(art.texture("depot"), rect, false)
+		return
 	var flag_base := rect.position + Vector2(cell_px / 2.0, cell_px)
 	draw_line(flag_base, flag_base + Vector2(0, -cell_px * 0.8), COLOR_DEPOT, 2.0)
 	draw_rect(
@@ -451,8 +466,12 @@ func _draw_rooms(origin: Vector2) -> void:
 			_cell_rect(origin, footprint.position).position,
 			Vector2(footprint.size * cell_px)
 		)
-		draw_rect(rect, COLOR_ROOM)
 		var room_id: String = sim.rooms[i]["id"]
+		var art_key := "room_%s" % room_id
+		if art.has_art(art_key):
+			draw_texture_rect(art.texture(art_key), rect, false)
+			continue
+		draw_rect(rect, COLOR_ROOM)
 		var label := locale.text(room_db.get_room(room_id)["name_key"]).left(1)
 		draw_string(
 			font, rect.position + Vector2(4, cell_px - 4), label,
@@ -475,6 +494,10 @@ func _draw_minions(origin: Vector2) -> void:
 			rect.position + Vector2(inset, inset + bob),
 			Vector2(cell_px - inset * 2, cell_px - inset * 2 - bob)
 		)
+		var art_key := art.minion_key(minion.id)
+		if art.has_art(art_key):
+			draw_texture_rect(art.texture(art_key), body, false)
+			continue
 		draw_rect(body, MINION_COLORS[minion.id % MINION_COLORS.size()])
 		# Two dark eyes: placeholder charm until real sprites land (§6).
 		var eye := maxf(1.0, cell_px / 12.0)
@@ -507,6 +530,8 @@ func _build_hud() -> void:
 	bar.add_child(_shop_button)
 	_prestige_button = _make_button("", _open_prestige)
 	bar.add_child(_prestige_button)
+	_card_button = _make_button("", _generate_survey_card)
+	bar.add_child(_card_button)
 	_policy_button = _make_button("", _cycle_dig_policy)
 	bar.add_child(_policy_button)
 	_height_button = _make_button("", _cycle_height)
@@ -568,6 +593,7 @@ func _refresh_button_texts() -> void:
 	_prestige_button.text = locale.text("UI_PRESTIGE")
 	_perma_buy_button.text = locale.text("UI_BUY")
 	_bury_button.text = locale.text("UI_PRESTIGE_DO")
+	_card_button.text = locale.text("UI_CARD")
 	_locale_button.text = _next_locale_code().to_upper()
 	_quit_button.text = locale.text("UI_QUIT")
 	_refresh_archive_button()
@@ -848,6 +874,49 @@ func _on_bury_confirmed() -> void:
 	_populate_prestige()
 	_refresh_button_texts()
 	queue_redraw()
+
+
+## Renders today's survey card offscreen and saves it as a PNG (§5.4).
+func _generate_survey_card() -> void:
+	if settings.resident_mode:
+		_expand()
+	var anomaly_name := "-"
+	if sim.daily_anomaly_id != "" and _anomaly_by_id.has(sim.daily_anomaly_id):
+		var anomaly: Dictionary = _anomaly_by_id[sim.daily_anomaly_id]
+		anomaly_name = locale.text(anomaly["name_key"])
+	var data := {
+		"date_key": sim.daily_date_key,
+		"anomaly_name": anomaly_name,
+		"depth": sim.deepest_air_row(),
+		"coins": int(sim.inventory[UD.RES_GOLD]),
+		"minions": sim.minions.size(),
+		"docs": sim.discovered_documents.size(),
+		"docs_total": doc_db.count(),
+	}
+	var viewport := SubViewport.new()
+	viewport.size = UDSurveyCard.CARD_SIZE
+	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	viewport.add_child(UDSurveyCard.build_card(data, locale))
+	add_child(viewport)
+	await RenderingServer.frame_post_draw
+	var image := viewport.get_texture().get_image()
+	viewport.queue_free()
+	DirAccess.make_dir_recursive_absolute(UDSurveyCard.CARDS_DIR)
+	var path := UDSurveyCard.save_path_for(sim.daily_date_key)
+	image.save_png(path)
+	if _card_dialog == null:
+		_card_dialog = AcceptDialog.new()
+		_card_dialog.add_button(locale.text("UI_OPEN_FOLDER"), false, "open_folder")
+		_card_dialog.custom_action.connect(
+			func(_action: StringName) -> void:
+				OS.shell_open(ProjectSettings.globalize_path(UDSurveyCard.CARDS_DIR))
+		)
+		add_child(_card_dialog)
+	_card_dialog.title = locale.text("UI_CARD")
+	_card_dialog.dialog_text = "%s\n%s" % [
+		locale.text("UI_CARD_SAVED"), ProjectSettings.globalize_path(path),
+	]
+	_card_dialog.popup_centered()
 
 
 func _open_archive() -> void:

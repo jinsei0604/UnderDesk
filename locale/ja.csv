@@ -42,6 +42,10 @@ UI_PRESTIGE_DO,埋め戻す
 UI_PRESTIGE_INFO,現在の深度 ▼%d ／ 埋め戻しで結晶 +%d ／ 保有結晶 %d
 UI_PRESTIGE_CONFIRM,坑道を埋め戻して最初から掘り直す？（書庫・宝物・結晶・恒久強化は残る）
 UI_CRYSTALS,結晶
+UI_CARD,調査書
+UI_CARD_SAVED,地質調査書を保存した
+UI_OPEN_FOLDER,フォルダを開く
+CARD_TITLE,地質調査書
 PRESTIGE_PICKAXE,深掘りの心得
 PRESTIGE_PICKAXE_DESC,恒久: 掘削力+1
 PRESTIGE_START,備蓄庫
