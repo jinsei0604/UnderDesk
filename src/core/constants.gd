@@ -17,13 +17,14 @@ const GRID_EXPAND_ROWS: int = 4
 ## Home depot on the surface row where minions deposit resources.
 const DEPOT_POS := Vector2i(30, 0)
 
-enum Terrain { AIR = 0, SOIL = 1, ROCK = 2 }
+enum Terrain { AIR = 0, SOIL = 1, ROCK = 2, WETROCK = 3 }
 
 ## Maps data-file terrain names to enum values.
 const TERRAIN_BY_NAME: Dictionary = {
 	"AIR": Terrain.AIR,
 	"SOIL": Terrain.SOIL,
 	"ROCK": Terrain.ROCK,
+	"WETROCK": Terrain.WETROCK,
 }
 
 const RES_SOIL: String = "soil"

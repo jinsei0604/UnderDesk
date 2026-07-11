@@ -32,6 +32,27 @@ func test_build_rejects_undug_cells() -> void:
 		"cannot build inside solid ground")
 
 
+func test_tavern_adds_dig_power() -> void:
+	var sim := _sim_with_open_area()
+	assert_eq(sim.dig_power(), UD.MINION_DIG_POWER)
+	sim.inventory[UD.RES_STONE] = 8
+	var tavern := {
+		"id": "tavern",
+		"name_key": "ROOM_TAVERN",
+		"width": 2,
+		"height": 1,
+		"cost": {"stone": 8},
+		"effect": "dig_power_add",
+	}
+	assert_true(sim.build_room(tavern, Vector2i(5, 1)))
+	assert_eq(sim.dig_power(), UD.MINION_DIG_POWER + 1)
+	# The bonus must survive a save/load cycle.
+	var restored := UDSim.from_dict(
+		JSON.parse_string(JSON.stringify(sim.to_dict())), UDTestFixtures.strata()
+	)
+	assert_eq(restored.dig_power(), UD.MINION_DIG_POWER + 1)
+
+
 func test_build_rejects_overlap() -> void:
 	var sim := _sim_with_open_area()
 	sim.inventory[UD.RES_SOIL] = 20

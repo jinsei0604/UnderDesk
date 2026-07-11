@@ -2,6 +2,8 @@ key,text
 APP_TITLE,UNDERDESK
 STRATUM_TOPSOIL,Topsoil
 STRATUM_BEDROCK,Bedrock
+STRATUM_AQUIFER,Aquifer
+ROOM_TAVERN,Tavern
 ROOM_DORM,Dormitory
 RES_SOIL,Soil
 RES_STONE,Stone
@@ -25,3 +27,13 @@ DOC_002_TITLE,An Old Letter
 DOC_002_BODY,"Dear brother. Thank you for the money. The site here is the same as ever. There is just one odd rule: ""Any stone tablet you find, hand it in unread."" They say the ones who read them are the ones who quit. The others laugh — you can't even read, you're the safest man in the pit. ...But brother. If a man cannot read, how is it that in his dreams he finds himself *reading* it anyway?"
 DOC_003_TITLE,Fragment of a Stone Tablet
 DOC_003_BODY,"[LEGIBLE SECTION] ...to appease it, we ceased our digging. Seven times we filled the shaft back in, and seven times we failed. Return the soil, stack the stones — it does not matter. The depth remembers. You may forget, but the hole does not. ...[REMAINDER LOST]"
+DOC_004_TITLE,A Miner's Journal - II
+DOC_004_BODY,"I am beginning to understand what the foreman means by training your ears. Deep down, the sound of your pickaxe comes back to you — one beat late, and somehow a little more polite. I took it for an echo at first. Then Yorek tried it: three strikes, then stop. It answered with four. The foreman said: ""Don't try to match its count. As long as it matches yours, the work goes well."" And in fact, they say this month's yield is the highest on record."
+DOC_005_TITLE,Torn Page from a Wage Ledger
+DOC_005_BODY,"[Ledger, excerpt] Week 7: Daron, 20 silver. Yorek, 20 silver. Mim, 25 (night shift). Week 8: Daron, 40. Yorek, 40. Note: wages doubled for all work below the tenth stratum. Week 9: Daron, 80. Note: wages quadrupled. Held in storage, recipient absent. Week 10: Note: we are running out of storage."
+DOC_006_TITLE,A Miner's Journal - III
+DOC_006_BODY,"We reached the aquifer today. The water is clean, and cold, and it flows upward. That is not a slip of the pen. It climbs the walls in quiet, orderly lines, up toward the ceiling. Daron said there must be a lake on top of the mountain. We laughed. I have noticed, lately, that we measure our fear by how often we laugh. Today we laughed a great deal."
+DOC_007_TITLE,Notice from the Foreman
+DOC_007_BODY,"[NOTICE No. 11] The following are prohibited: 1. Singing in the shafts. 2. Whistling in the shafts. 3. Deliberately breaking the rhythm of the work. 4. Striking back in reply to the Answer. 5. Explaining the reasons for the above when a newcomer asks. — Those who know the reasons already know how to answer. — The Foreman"
+DOC_008_TITLE,An Old Letter - II
+DOC_008_BODY,"Dear brother. You will recall I wrote that I cannot read. I can now. I do not remember learning. One morning I woke, and the marks on the tablets looked like plain dictation — just sounds, written down. They say it happens to everyone here. One of the old hands puts it differently: ""You haven't learned the tunnel's language. It has learned yours."" Either way, the pay is good. Only — these days, in my dreams, I find I am writing my letters to you in those marks."

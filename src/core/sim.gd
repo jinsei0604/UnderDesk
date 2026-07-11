@@ -156,7 +156,11 @@ func build_room(room_def: Dictionary, pos: Vector2i) -> bool:
 			return false
 	for res: Variant in cost.keys():
 		inventory[res] = int(inventory[res]) - int(cost[res])
-	rooms.append({"id": room_def["id"], "pos": pos})
+	rooms.append({
+		"id": room_def["id"],
+		"pos": pos,
+		"effect": str(room_def.get("effect", "")),
+	})
 	_apply_room_effect(room_def)
 	return true
 
@@ -181,6 +185,16 @@ func _apply_room_effect(room_def: Dictionary) -> void:
 	var effect: String = room_def.get("effect", "")
 	if effect == "minion_add" and minions.size() < UD.MINION_MAX:
 		minions.append(UDMinion.create(minions.size(), UD.DEPOT_POS))
+
+
+## Base power plus one for each built room with a dig_power_add effect
+## (e.g. the tavern). Effects are recorded on the room entry at build time.
+func dig_power() -> int:
+	var power := UD.MINION_DIG_POWER
+	for room in rooms:
+		if str(room.get("effect", "")) == "dig_power_add":
+			power += 1
+	return power
 
 
 func _step_minion(minion: UDMinion) -> void:
@@ -230,7 +244,7 @@ func _dig(minion: UDMinion) -> void:
 		minion.job_target = UDMinion.NO_TARGET
 		minion.state = UDMinion.State.IDLE
 		return
-	job.progress += UD.MINION_DIG_POWER
+	job.progress += dig_power()
 	if job.progress < strata.hardness_for_depth(job.target.y):
 		return
 	# Dig complete: open the cell, collect yield, roll for a document.
@@ -293,7 +307,11 @@ func to_dict() -> Dictionary:
 	var room_dicts: Array = []
 	for room in rooms:
 		var origin: Vector2i = room["pos"]
-		room_dicts.append({"id": room["id"], "pos": [origin.x, origin.y]})
+		room_dicts.append({
+			"id": room["id"],
+			"pos": [origin.x, origin.y],
+			"effect": str(room.get("effect", "")),
+		})
 	return {
 		"version": UD.SAVE_VERSION,
 		"tick_count": tick_count,
@@ -326,7 +344,11 @@ static func from_dict(d: Dictionary, p_strata: UDStrataDB) -> UDSim:
 	for room_dict: Variant in d["rooms"] as Array:
 		var rd := room_dict as Dictionary
 		var p: Array = rd["pos"]
-		sim.rooms.append({"id": rd["id"], "pos": Vector2i(int(p[0]), int(p[1]))})
+		sim.rooms.append({
+			"id": rd["id"],
+			"pos": Vector2i(int(p[0]), int(p[1])),
+			"effect": str(rd.get("effect", "")),
+		})
 	for doc_id: Variant in d["discovered_documents"] as Array:
 		sim.discovered_documents.append(doc_id)
 	# Missing in pre-policy saves: default to NONE.

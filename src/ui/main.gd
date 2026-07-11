@@ -2,7 +2,7 @@ extends Control
 ## Resident-strip main view (placeholder art, §13-5). Draws the cross-section,
 ## routes clicks to dig/build commands, and hosts the archive dialog.
 
-enum Mode { DIG = 0, BUILD_DORM = 1 }
+enum Mode { DIG = 0, BUILD = 1 }
 
 const CELL_PX: int = 16
 const HUD_HEIGHT: int = 22
@@ -14,6 +14,7 @@ const COLOR_HUD_TEXT := Color(0.85, 0.82, 0.75)
 const COLOR_AIR := Color(0.10, 0.09, 0.13)
 const COLOR_SOIL := Color(0.42, 0.29, 0.17)
 const COLOR_ROCK := Color(0.34, 0.34, 0.40)
+const COLOR_WETROCK := Color(0.22, 0.32, 0.45)
 const COLOR_GRID_LINE := Color(0.0, 0.0, 0.0, 0.25)
 const COLOR_JOB_MARK := Color(1.0, 0.85, 0.3, 0.55)
 const COLOR_DEPOT := Color(0.85, 0.3, 0.25)
@@ -27,6 +28,7 @@ var locale: UDLocale
 var doc_db: UDDocumentDB
 var room_db: UDRoomDB
 var mode: Mode = Mode.DIG
+var _build_room_id: String = ""
 var scroll_y: int = 0
 var unread_docs: Array[String] = []
 var offline_ticks_applied: int = 0
@@ -34,7 +36,7 @@ var offline_ticks_applied: int = 0
 var _button_bar: HBoxContainer
 var _archive_button: Button
 var _dig_button: Button
-var _dorm_button: Button
+var _room_buttons: Dictionary = {}  # room id -> Button
 var _policy_button: Button
 var _height_button: Button
 var _collapse_button: Button
@@ -156,8 +158,8 @@ func _handle_click(click_pos: Vector2) -> void:
 		Mode.DIG:
 			if sim.add_dig_job(cell):
 				queue_redraw()
-		Mode.BUILD_DORM:
-			if sim.build_room(room_db.get_room("dorm"), cell):
+		Mode.BUILD:
+			if sim.build_room(room_db.get_room(_build_room_id), cell):
 				mode = Mode.DIG
 				_refresh_mode_buttons()
 				queue_redraw()
@@ -222,6 +224,7 @@ func _draw_hud() -> void:
 		locale.text("APP_TITLE"),
 		"%s %d" % [locale.text("RES_SOIL"), int(sim.inventory[UD.RES_SOIL])],
 		"%s %d" % [locale.text("RES_STONE"), int(sim.inventory[UD.RES_STONE])],
+		"%s %d" % [locale.text("RES_ORE"), int(sim.inventory[UD.RES_ORE])],
 		"⛏ %d" % sim.minions.size(),
 		"tick %d" % sim.tick_count,
 	]
@@ -236,9 +239,10 @@ func _draw_hud() -> void:
 ## Translucent readout drawn over the cells; the strip has no HUD bar.
 ## Unread documents blink at the right edge (§5.1: icon blink only).
 func _draw_strip_overlay(font: Font) -> void:
-	var text := "%s %d  %s %d  ⛏%d  ▼%d" % [
+	var text := "%s %d  %s %d  %s %d  ⛏%d  ▼%d" % [
 		locale.text("RES_SOIL"), int(sim.inventory[UD.RES_SOIL]),
 		locale.text("RES_STONE"), int(sim.inventory[UD.RES_STONE]),
+		locale.text("RES_ORE"), int(sim.inventory[UD.RES_ORE]),
 		sim.minions.size(),
 		sim.deepest_air_row(),
 	]
@@ -278,6 +282,8 @@ func _terrain_color(terrain: UD.Terrain) -> Color:
 			return COLOR_SOIL
 		UD.Terrain.ROCK:
 			return COLOR_ROCK
+		UD.Terrain.WETROCK:
+			return COLOR_WETROCK
 		_:
 			return COLOR_AIR
 
@@ -357,8 +363,10 @@ func _build_hud() -> void:
 
 	_dig_button = _make_button("", func() -> void: _set_mode(Mode.DIG))
 	bar.add_child(_dig_button)
-	_dorm_button = _make_button("", func() -> void: _set_mode(Mode.BUILD_DORM))
-	bar.add_child(_dorm_button)
+	for room_id in room_db.all_ids():
+		var button := _make_button("", _select_build_room.bind(room_id))
+		_room_buttons[room_id] = button
+		bar.add_child(button)
 	_archive_button = _make_button("", _open_archive)
 	bar.add_child(_archive_button)
 	_policy_button = _make_button("", _cycle_dig_policy)
@@ -387,9 +395,16 @@ func _set_mode(new_mode: Mode) -> void:
 	_refresh_mode_buttons()
 
 
+func _select_build_room(room_id: String) -> void:
+	_build_room_id = room_id
+	_set_mode(Mode.BUILD)
+
+
 func _refresh_mode_buttons() -> void:
 	_dig_button.disabled = mode == Mode.DIG
-	_dorm_button.disabled = mode == Mode.BUILD_DORM
+	for room_id: String in _room_buttons:
+		var button: Button = _room_buttons[room_id]
+		button.disabled = mode == Mode.BUILD and _build_room_id == room_id
 
 
 func _refresh_archive_button() -> void:
@@ -403,7 +418,9 @@ func _refresh_archive_button() -> void:
 
 func _refresh_button_texts() -> void:
 	_dig_button.text = locale.text("UI_DIG")
-	_dorm_button.text = locale.text("UI_BUILD_DORM")
+	for room_id: String in _room_buttons:
+		var button: Button = _room_buttons[room_id]
+		button.text = locale.text(room_db.get_room(room_id)["name_key"])
 	_policy_button.text = locale.text(_policy_label_key())
 	_height_button.text = "%dpx" % UD.WINDOW_HEIGHTS[settings.height_index]
 	_collapse_button.text = locale.text("UI_COLLAPSE")
