@@ -16,8 +16,7 @@ UI_QUIT,終了
 UI_AUTO_NONE,自動:なし
 UI_AUTO_DOWN,自動:下へ掘る
 UI_AUTO_WIDEN,自動:横へ広げる
-UI_MODE_NORMAL,通常画面
-UI_MODE_RESIDENT,常駐に戻す
+UI_COLLAPSE,タスクバーへ戻る
 UI_NEW_DOC,新しい文書が出土した
 UI_OFFLINE_REPORT,留守の間に %d ティック進行した
 DOC_001_TITLE,坑夫の手記・一

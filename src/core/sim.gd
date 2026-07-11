@@ -74,7 +74,7 @@ func _has_walkable_neighbor(cell: Vector2i) -> bool:
 
 func _policy_candidates() -> Array[Vector2i]:
 	var candidates: Array[Vector2i] = []
-	var deepest := _deepest_air_row()
+	var deepest := deepest_air_row()
 	if deepest < 0:
 		return candidates
 	_ensure_rows(deepest + UD.GRID_EXPAND_ROWS)
@@ -104,7 +104,9 @@ func _policy_candidates() -> Array[Vector2i]:
 	return candidates
 
 
-func _deepest_air_row() -> int:
+## The digging front: deepest row with any open cell. Also used by the
+## strip camera to follow the action.
+func deepest_air_row() -> int:
 	for y in range(grid.height - 1, -1, -1):
 		for x in grid.width:
 			if grid.is_walkable(Vector2i(x, y)):

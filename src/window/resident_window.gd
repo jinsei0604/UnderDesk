@@ -10,14 +10,19 @@ static func setup_resident(window: Window, height_index: int) -> void:
 	window.borderless = true
 	window.always_on_top = true
 	var usable: Rect2i = DisplayServer.screen_get_usable_rect(window.current_screen)
+	window.min_size = Vector2i(0, 0)
 	window.size = Vector2i(usable.size.x, win_height)
+	# The OS may clamp the requested size; dock using the size we actually
+	# got so the strip never hangs off the bottom edge.
+	var actual: Vector2i = window.size
 	window.position = Vector2i(
 		usable.position.x,
-		usable.position.y + usable.size.y - win_height
+		usable.position.y + usable.size.y - actual.y
 	)
 
 
-static func setup_normal(window: Window) -> void:
+## Centered management window: reading documents, giving orders.
+static func setup_expanded(window: Window) -> void:
 	window.borderless = false
 	window.always_on_top = false
 	window.size = UD.NORMAL_WINDOW_SIZE

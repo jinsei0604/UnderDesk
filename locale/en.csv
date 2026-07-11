@@ -16,8 +16,7 @@ UI_QUIT,Quit
 UI_AUTO_NONE,Auto: Off
 UI_AUTO_DOWN,Auto: Dig Down
 UI_AUTO_WIDEN,Auto: Widen
-UI_MODE_NORMAL,Windowed
-UI_MODE_RESIDENT,Dock
+UI_COLLAPSE,Back to Taskbar
 UI_NEW_DOC,A new document was unearthed
 UI_OFFLINE_REPORT,%d ticks passed while you were away
 DOC_001_TITLE,A Miner's Journal - I

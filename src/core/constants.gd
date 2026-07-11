@@ -51,9 +51,11 @@ const SAVE_BACKUP_GENERATIONS: int = 3
 const FPS_ACTIVE: int = 60
 const FPS_IDLE: int = 10
 
-const WINDOW_HEIGHTS: Array[int] = [120, 180, 240]
-const DEFAULT_WINDOW_HEIGHT_INDEX: int = 1
-## Normal (non-resident) window mode for streamers / focused play (§5.1).
+## Strip heights. 48px is the taskbar-look default; taller options remain
+## for players who want a wider view of the dig.
+const WINDOW_HEIGHTS: Array[int] = [48, 120, 180, 240]
+const DEFAULT_WINDOW_HEIGHT_INDEX: int = 0
+## Centered window opened by clicking the strip: reading and management.
 const NORMAL_WINDOW_SIZE := Vector2i(1152, 648)
 
 const SUPPORTED_LOCALES: Array[String] = ["ja", "en"]

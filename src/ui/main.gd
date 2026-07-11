@@ -31,12 +31,13 @@ var scroll_y: int = 0
 var unread_docs: Array[String] = []
 var offline_ticks_applied: int = 0
 
+var _button_bar: HBoxContainer
 var _archive_button: Button
 var _dig_button: Button
 var _dorm_button: Button
 var _policy_button: Button
 var _height_button: Button
-var _mode_button: Button
+var _collapse_button: Button
 var _locale_button: Button
 var _quit_button: Button
 var _archive_dialog: AcceptDialog
@@ -97,7 +98,18 @@ func _notification(what: int) -> void:
 func _on_tick() -> void:
 	sim.tick()
 	UDResidentWindow.sync_render_loop(get_window())
+	if settings.resident_mode:
+		_follow_camera()
 	queue_redraw()
+
+
+## Keeps the digging front in view while the strip runs unattended.
+func _follow_camera() -> void:
+	var front := sim.deepest_air_row()
+	if front < 0:
+		return
+	var max_scroll: int = maxi(0, sim.grid.height - _visible_rows())
+	scroll_y = clampi(front - _visible_rows() + 2, 0, max_scroll)
 
 
 func _on_document_discovered(doc_id: String) -> void:
@@ -106,6 +118,11 @@ func _on_document_discovered(doc_id: String) -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
+	if settings.resident_mode:
+		# The strip is ambient: any click opens the management window.
+		if event is InputEventMouseButton and event.pressed:
+			_expand()
+		return
 	if event is InputEventMouseButton and event.pressed:
 		var mouse := event as InputEventMouseButton
 		match mouse.button_index:
@@ -122,6 +139,13 @@ func _gui_input(event: InputEvent) -> void:
 		var motion := event as InputEventMouseMotion
 		if motion.button_mask & MOUSE_BUTTON_MASK_LEFT:
 			_handle_click(motion.position)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed \
+			and (event as InputEventKey).keycode == KEY_ESCAPE \
+			and not settings.resident_mode:
+		_collapse()
 
 
 func _handle_click(click_pos: Vector2) -> void:
@@ -151,13 +175,18 @@ func _scroll_by(rows: int) -> void:
 	queue_redraw()
 
 
+## The strip has no HUD bar: cells use the full height.
+func _hud_offset() -> int:
+	return 0 if settings.resident_mode else HUD_HEIGHT
+
+
 func _visible_rows() -> int:
-	return maxi(1, int((size.y - HUD_HEIGHT) / CELL_PX))
+	return maxi(1, int((size.y - _hud_offset()) / CELL_PX))
 
 
 func _grid_origin() -> Vector2:
 	var grid_px_width := float(sim.grid.width * CELL_PX)
-	return Vector2(maxf(0.0, (size.x - grid_px_width) / 2.0), HUD_HEIGHT)
+	return Vector2(maxf(0.0, (size.x - grid_px_width) / 2.0), _hud_offset())
 
 
 func _cell_at(point: Vector2) -> Vector2i:
@@ -179,8 +208,16 @@ func _draw() -> void:
 	_draw_grid()
 
 
+const STRIP_FONT_SIZE: int = 11
+const STRIP_BADGE := Color(1.0, 0.85, 0.3)
+const STRIP_TEXT_BG := Color(0.0, 0.0, 0.0, 0.45)
+
+
 func _draw_hud() -> void:
 	var font := ThemeDB.fallback_font
+	if settings.resident_mode:
+		_draw_strip_overlay(font)
+		return
 	var parts: Array[String] = [
 		locale.text("APP_TITLE"),
 		"%s %d" % [locale.text("RES_SOIL"), int(sim.inventory[UD.RES_SOIL])],
@@ -194,6 +231,27 @@ func _draw_hud() -> void:
 		font, Vector2(8, HUD_HEIGHT - 6), "  |  ".join(parts),
 		HORIZONTAL_ALIGNMENT_LEFT, -1, HUD_FONT_SIZE, COLOR_HUD_TEXT
 	)
+
+
+## Translucent readout drawn over the cells; the strip has no HUD bar.
+## Unread documents blink at the right edge (§5.1: icon blink only).
+func _draw_strip_overlay(font: Font) -> void:
+	var text := "%s %d  %s %d  ⛏%d  ▼%d" % [
+		locale.text("RES_SOIL"), int(sim.inventory[UD.RES_SOIL]),
+		locale.text("RES_STONE"), int(sim.inventory[UD.RES_STONE]),
+		sim.minions.size(),
+		sim.deepest_air_row(),
+	]
+	var text_width := font.get_string_size(
+		text, HORIZONTAL_ALIGNMENT_LEFT, -1, STRIP_FONT_SIZE
+	).x
+	draw_rect(Rect2(Vector2.ZERO, Vector2(text_width + 12, 16)), STRIP_TEXT_BG)
+	draw_string(
+		font, Vector2(6, 12), text,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, STRIP_FONT_SIZE, COLOR_HUD_TEXT
+	)
+	if not unread_docs.is_empty() and sim.tick_count % 2 == 0:
+		draw_rect(Rect2(Vector2(size.x - 20, 4), Vector2(12, 12)), STRIP_BADGE)
 
 
 func _draw_grid() -> void:
@@ -295,6 +353,7 @@ func _build_hud() -> void:
 	bar.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	bar.position.y = 2
 	add_child(bar)
+	_button_bar = bar
 
 	_dig_button = _make_button("", func() -> void: _set_mode(Mode.DIG))
 	bar.add_child(_dig_button)
@@ -306,8 +365,8 @@ func _build_hud() -> void:
 	bar.add_child(_policy_button)
 	_height_button = _make_button("", _cycle_height)
 	bar.add_child(_height_button)
-	_mode_button = _make_button("", _toggle_window_mode)
-	bar.add_child(_mode_button)
+	_collapse_button = _make_button("", _collapse)
+	bar.add_child(_collapse_button)
 	_locale_button = _make_button("", _toggle_locale)
 	bar.add_child(_locale_button)
 	_quit_button = _make_button("", _quit)
@@ -347,8 +406,7 @@ func _refresh_button_texts() -> void:
 	_dorm_button.text = locale.text("UI_BUILD_DORM")
 	_policy_button.text = locale.text(_policy_label_key())
 	_height_button.text = "%dpx" % UD.WINDOW_HEIGHTS[settings.height_index]
-	_mode_button.text = locale.text("UI_MODE_NORMAL") if settings.resident_mode \
-		else locale.text("UI_MODE_RESIDENT")
+	_collapse_button.text = locale.text("UI_COLLAPSE")
 	_locale_button.text = _next_locale_code().to_upper()
 	_quit_button.text = locale.text("UI_QUIT")
 	_refresh_archive_button()
@@ -375,11 +433,29 @@ func _next_locale_code() -> String:
 	return UD.SUPPORTED_LOCALES[(index + 1) % UD.SUPPORTED_LOCALES.size()]
 
 
+## Strip = taskbar-look ambient view. Expanded = centered window for
+## reading documents and giving orders. Clicking the strip expands.
 func _apply_window_mode() -> void:
+	_button_bar.visible = not settings.resident_mode
 	if settings.resident_mode:
 		UDResidentWindow.setup_resident(get_window(), settings.height_index)
+		_follow_camera()
 	else:
-		UDResidentWindow.setup_normal(get_window())
+		UDResidentWindow.setup_expanded(get_window())
+	queue_redraw()
+
+
+func _expand() -> void:
+	settings.resident_mode = false
+	settings.save()
+	_apply_window_mode()
+	_refresh_button_texts()
+
+
+func _collapse() -> void:
+	settings.resident_mode = true
+	settings.save()
+	_apply_window_mode()
 
 
 func _cycle_height() -> void:
@@ -387,13 +463,6 @@ func _cycle_height() -> void:
 	settings.save()
 	if settings.resident_mode:
 		UDResidentWindow.setup_resident(get_window(), settings.height_index)
-	_refresh_button_texts()
-
-
-func _toggle_window_mode() -> void:
-	settings.resident_mode = not settings.resident_mode
-	settings.save()
-	_apply_window_mode()
 	_refresh_button_texts()
 
 
@@ -409,16 +478,20 @@ func _toggle_locale() -> void:
 func _build_archive_dialog() -> void:
 	_archive_dialog = AcceptDialog.new()
 	_archive_dialog.title = locale.text("UI_ARCHIVE")
-	_archive_dialog.min_size = Vector2i(640, 320)
+	_archive_dialog.min_size = Vector2i(860, 500)
 	var split := HSplitContainer.new()
-	split.custom_minimum_size = Vector2(600, 260)
+	split.custom_minimum_size = Vector2(820, 440)
 	_archive_list = ItemList.new()
-	_archive_list.custom_minimum_size = Vector2(200, 0)
+	_archive_list.custom_minimum_size = Vector2(240, 0)
+	_archive_list.add_theme_font_size_override("font_size", 15)
 	_archive_list.item_selected.connect(_on_archive_item_selected)
 	split.add_child(_archive_list)
 	_archive_body = RichTextLabel.new()
 	_archive_body.bbcode_enabled = true
 	_archive_body.fit_content = false
+	_archive_body.add_theme_font_size_override("normal_font_size", 17)
+	_archive_body.add_theme_font_size_override("bold_font_size", 19)
+	_archive_body.add_theme_constant_override("line_separation", 6)
 	_archive_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	split.add_child(_archive_body)
 	_archive_dialog.add_child(split)
@@ -426,6 +499,9 @@ func _build_archive_dialog() -> void:
 
 
 func _open_archive() -> void:
+	if settings.resident_mode:
+		# Documents are unreadable in a 48px strip: expand first.
+		_expand()
 	_archive_list.clear()
 	_archive_doc_ids.clear()
 	_archive_body.text = ""
