@@ -99,3 +99,14 @@ UI_INTRUDER_BREACH,An intruder stole coins (%d)
 "TUT_HINT_3","Unearthed documents advance the story. Keep collecting — companions will join."
 "UI_CARD_COPIED","Also copied to the clipboard — paste it anywhere."
 CARD_STAMP,SURVEYED
+UI_ACHIEVEMENT,Achievement unlocked: %s
+ACH_FIRST_DOC,First Page
+ACH_FIRST_DOC_DESC,Unearth your first document
+ACH_DOCS_10,One Who Read Too Much
+ACH_DOCS_10_DESC,Unearth 10 documents
+ACH_FIRST_RESET,One Who Buried It
+ACH_FIRST_RESET_DESC,Bury the shaft for the first time
+ACH_ITEMS_5,Budding Collector
+ACH_ITEMS_5_DESC,Collect 5 treasures
+ACH_DEPTH_20,Depth Twenty
+ACH_DEPTH_20_DESC,Reach depth 20

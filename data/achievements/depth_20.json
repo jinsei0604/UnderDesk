@@ -1,0 +1,6 @@
+{
+	"id": "depth_20",
+	"name_key": "ACH_DEPTH_20",
+	"desc_key": "ACH_DEPTH_20_DESC",
+	"trigger": { "type": "depth", "count": 20 }
+}

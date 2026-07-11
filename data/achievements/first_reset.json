@@ -1,0 +1,6 @@
+{
+	"id": "first_reset",
+	"name_key": "ACH_FIRST_RESET",
+	"desc_key": "ACH_FIRST_RESET_DESC",
+	"trigger": { "type": "resets", "count": 1 }
+}

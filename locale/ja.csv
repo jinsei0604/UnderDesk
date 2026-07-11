@@ -99,3 +99,14 @@ TUT_HINT_2,小窓をクリックすると大画面が開き、掘った資源を
 TUT_HINT_3,文書が出土すると物語が進む。集めれば、やがて仲間が加わる
 UI_CARD_COPIED,クリップボードにもコピーした（そのままSNSに貼れる）
 CARD_STAMP,調査済
+UI_ACHIEVEMENT,実績解除: %s
+ACH_FIRST_DOC,最初の一枚
+ACH_FIRST_DOC_DESC,文書を1編発掘する
+ACH_DOCS_10,読みすぎた者
+ACH_DOCS_10_DESC,文書を10編発掘する
+ACH_FIRST_RESET,埋め戻した者
+ACH_FIRST_RESET_DESC,はじめて坑道を埋め戻す
+ACH_ITEMS_5,収集家の芽
+ACH_ITEMS_5_DESC,宝物を5種類集める
+ACH_DEPTH_20,深度二十
+ACH_DEPTH_20_DESC,深度20に到達する

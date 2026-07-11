@@ -45,6 +45,7 @@ var shop_db: UDShopDB
 var prestige_db: UDShopDB
 var strata_db: UDStrataDB
 var art: UDArtLibrary
+var achievements: UDAchievements
 var anomalies: Array = []
 var _anomaly_by_id: Dictionary = {}
 var companion_defs: Array = []
@@ -133,6 +134,7 @@ func _ready() -> void:
 	shop_db = UDShopDB.load_from_dir("res://data/shop")
 	prestige_db = UDShopDB.load_from_dir("res://data/prestige")
 	art = UDArtLibrary.load_default(room_db.all_ids())
+	achievements = UDAchievements.load_default(UDPlatform.create())
 	anomalies = UDDataLoader.load_json_dir("res://data/anomalies")
 	for anomaly: Variant in anomalies:
 		_anomaly_by_id[(anomaly as Dictionary)["id"]] = anomaly
@@ -218,6 +220,17 @@ func _on_tick() -> void:
 	if not settings.tutorial_seen and sim.tick_count >= UD.TUTORIAL_TICKS:
 		settings.tutorial_seen = true
 		settings.save()
+	var fresh_achievements := achievements.evaluate(sim)
+	if not fresh_achievements.is_empty():
+		achievements.save()
+	for ach_id in fresh_achievements:
+		var ach_name := ach_id
+		for def: Variant in achievements.defs:
+			if str((def as Dictionary)["id"]) == ach_id:
+				ach_name = locale.text((def as Dictionary)["name_key"])
+				break
+		_tally_text = locale.text("UI_ACHIEVEMENT") % ach_name
+		_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 2
 	if not settings.resident_mode:
 		# While the big window is open, loot converts as it is dug.
 		sim.collect_loot()

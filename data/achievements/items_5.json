@@ -1,0 +1,6 @@
+{
+	"id": "items_5",
+	"name_key": "ACH_ITEMS_5",
+	"desc_key": "ACH_ITEMS_5_DESC",
+	"trigger": { "type": "items", "count": 5 }
+}

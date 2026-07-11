@@ -1,0 +1,6 @@
+{
+	"id": "first_doc",
+	"name_key": "ACH_FIRST_DOC",
+	"desc_key": "ACH_FIRST_DOC_DESC",
+	"trigger": { "type": "docs", "count": 1 }
+}
