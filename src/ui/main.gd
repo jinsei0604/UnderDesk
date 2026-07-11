@@ -636,10 +636,24 @@ func _draw_rooms(origin: Vector2) -> void:
 		)
 
 
+## Party slot -> art variant. Slot 0 is always the protagonist; slot N
+## (N>=1) corresponds to sim.companions[N-1] in join order, so the art
+## key is looked up by companion identity rather than the slot index
+## (fixes companions rendering as an unnamed placeholder block).
+func _minion_art_variant(slot_index: int) -> int:
+	if slot_index == 0:
+		return 0
+	var companion_index := slot_index - 1
+	if companion_index < sim.companions.size():
+		return UDMinion.art_variant_for_companion(sim.companions[companion_index])
+	return slot_index
+
+
 func _draw_minions(origin: Vector2) -> void:
 	var cell_px := _cell_px()
 	var inset := maxi(MINION_INSET, cell_px / 6)
-	for minion in sim.minions:
+	for slot_index in sim.minions.size():
+		var minion: UDMinion = sim.minions[slot_index]
 		if not _cell_visible(minion.pos):
 			continue
 		var rect := _cell_rect(origin, minion.pos)
@@ -647,18 +661,22 @@ func _draw_minions(origin: Vector2) -> void:
 		var bob := 0.0
 		if minion.state != UDMinion.State.IDLE:
 			bob = float(((sim.tick_count + minion.id) % 2) * maxi(1, cell_px / 12))
-		var art_key := art.minion_key(minion.id)
+		var art_variant := _minion_art_variant(slot_index)
+		var art_key := art.minion_key(art_variant)
 		if art.has_art(art_key):
 			# Illustrated sprites carry their own margins: use the full cell.
 			var sprite_rect := Rect2(
 				rect.position + Vector2(0, bob), Vector2(cell_px, cell_px - bob)
 			)
 			var tex: Texture2D
-			if minion.state == UDMinion.State.IDLE or art.frame_count(art_key) <= 1:
-				tex = art.texture(art_key)
-			else:
+			# The frame set is a dig loop (§6), not a walk cycle: only
+			# animate while actually digging, or the sprite reads as
+			# jittering rather than walking while moving between jobs.
+			if minion.state == UDMinion.State.DIGGING and art.frame_count(art_key) > 1:
 				tex = art.frame(art_key, _anim_frame + minion.id)
-			var native := int(MINION_NATIVE_FACING.get(minion.id, 1))
+			else:
+				tex = art.texture(art_key)
+			var native := int(MINION_NATIVE_FACING.get(art_variant, 1))
 			if _minion_facing(minion) != native:
 				# Mirror around the sprite's vertical center line.
 				draw_set_transform(

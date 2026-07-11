@@ -23,6 +23,21 @@ static func create(p_id: int, p_pos: Vector2i) -> UDMinion:
 	return minion
 
 
+## Art assets are named after the companion's data id (companion_2 ->
+## minion_2.png), not the party's join order. A minion's slot index in
+## sim.minions is positional (protagonist=0, then one per sim.companions
+## entry in order), so the UI derives the art variant from the matching
+## companion id instead of trusting the slot index directly (§6).
+static func art_variant_for_companion(companion_id: String) -> int:
+	var digits := ""
+	for i in range(companion_id.length() - 1, -1, -1):
+		var ch := companion_id[i]
+		if not ch.is_valid_int():
+			break
+		digits = ch + digits
+	return int(digits) if digits != "" else 1
+
+
 func to_dict() -> Dictionary:
 	var path_arrays: Array = []
 	for cell in path:
