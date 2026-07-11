@@ -46,6 +46,7 @@ var _anomaly_by_id: Dictionary = {}
 var mode: Mode = Mode.DIG
 var _build_room_id: String = ""
 var scroll_y: int = 0
+var _follow_id: int = -1
 var unread_docs: Array[String] = []
 var offline_ticks_applied: int = 0
 
@@ -144,19 +145,39 @@ func _on_tick() -> void:
 	queue_redraw()
 
 
-## Keeps the crew in view while the strip runs unattended: the camera
-## tracks the row most minions are on (median), so their digging and
-## hauling motion is what fills the single visible row.
-func _follow_camera() -> void:
-	if sim.minions.is_empty():
-		return
-	var rows: Array[int] = []
+## The strip camera follows one worker, preferring whoever is digging:
+## a digger stands right beside the remaining solid blocks of its row,
+## so the visible row always contains both the minion and the dirt.
+func _followed_minion() -> UDMinion:
+	var current: UDMinion = null
 	for minion in sim.minions:
-		rows.append(minion.pos.y)
-	rows.sort()
-	var crew_row: int = rows[rows.size() / 2]
+		if minion.id == _follow_id:
+			current = minion
+			break
+	if current != null and current.state == UDMinion.State.DIGGING:
+		return current
+	for minion in sim.minions:
+		if minion.state == UDMinion.State.DIGGING:
+			_follow_id = minion.id
+			return minion
+	if current != null and current.state != UDMinion.State.IDLE:
+		return current
+	for minion in sim.minions:
+		if minion.state != UDMinion.State.IDLE:
+			_follow_id = minion.id
+			return minion
+	if not sim.minions.is_empty():
+		_follow_id = sim.minions[0].id
+		return sim.minions[0]
+	return null
+
+
+func _follow_camera() -> void:
+	var star := _followed_minion()
+	if star == null:
+		return
 	var max_scroll: int = maxi(0, sim.grid.height - _visible_rows())
-	scroll_y = clampi(crew_row - _visible_rows() / 2, 0, max_scroll)
+	scroll_y = clampi(star.pos.y - _visible_rows() / 2, 0, max_scroll)
 
 
 func _on_document_discovered(doc_id: String) -> void:
@@ -243,12 +264,10 @@ func _grid_origin() -> Vector2:
 	var cell_px := _cell_px()
 	var grid_px_width := float(sim.grid.width * cell_px)
 	if settings.resident_mode:
-		# The mini strip is narrower than the grid: follow the crew.
-		var avg_x := 0.0
-		for minion in sim.minions:
-			avg_x += float(minion.pos.x)
-		avg_x /= maxf(1.0, float(sim.minions.size()))
-		var desired := size.x / 2.0 - (avg_x + 0.5) * cell_px
+		# The mini strip is narrower than the grid: center the followed worker.
+		var star := _followed_minion()
+		var star_x := float(star.pos.x) if star != null else float(UD.DEPOT_POS.x)
+		var desired := size.x / 2.0 - (star_x + 0.5) * cell_px
 		return Vector2(clampf(desired, minf(size.x - grid_px_width, 0.0), 0.0), 0.0)
 	return Vector2(maxf(0.0, (size.x - grid_px_width) / 2.0), _hud_offset())
 

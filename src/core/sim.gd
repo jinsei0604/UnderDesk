@@ -338,19 +338,18 @@ func _roll_document(stratum: Dictionary) -> void:
 	document_discovered.emit(doc_id)
 
 
-## Rare finds on dig completion: a chest holds a random unowned item,
-## a nugget pays far more than any hauled resource.
+## Rare finds on dig completion: a chest always pays coins and also
+## holds a random unowned collection item while any remain; a nugget
+## pays far more than any hauled resource.
 func _roll_special_find() -> void:
 	var roll := _rng.randf()
 	if roll < UD.CHEST_CHANCE:
+		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + UD.CHEST_COINS
 		var pool: Array[String] = []
 		for item_id in item_pool:
 			if not items.has(item_id):
 				pool.append(item_id)
-		if pool.is_empty():
-			inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) \
-				+ UD.CHEST_FALLBACK_COINS
-		else:
+		if not pool.is_empty():
 			var item_id: String = pool[_rng.randi_range(0, pool.size() - 1)]
 			items.append(item_id)
 			item_found.emit(item_id)

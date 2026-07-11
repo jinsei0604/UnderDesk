@@ -60,8 +60,9 @@ const COIN_VALUES: Dictionary = {
 const CHEST_CHANCE: float = 0.02
 const NUGGET_CHANCE: float = 0.03
 const NUGGET_COINS: int = 25
-## Paid out when a chest drops but every item is already owned.
-const CHEST_FALLBACK_COINS: int = 10
+## Every chest pays this; an unowned collection item also drops while
+## any remain (the collection grows with updates, ~100 items planned).
+const CHEST_COINS: int = 10
 
 const MINION_DIG_POWER: int = 1
 const INITIAL_MINION_COUNT: int = 3
