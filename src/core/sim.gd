@@ -29,6 +29,8 @@ var item_pool: Array[String] = []
 ## spot when a dig completes (no hauling trips); converted to coins in
 ## one batch by collect_loot() when the player checks in.
 var pending_loot: Dictionary = {}
+## Shop purchases: id -> { "level": int, "effect": String }.
+var upgrades: Dictionary = {}
 var _rng := RandomNumberGenerator.new()
 
 
@@ -232,6 +234,7 @@ func dig_power() -> int:
 			power += 1
 	if daily_effect == "dig_power_add":
 		power += 1
+	power += _upgrade_effect_levels("dig_power_add")
 	return power
 
 
@@ -324,6 +327,42 @@ func pending_loot_total() -> int:
 	return total
 
 
+func upgrade_level(id: String) -> int:
+	if not upgrades.has(id):
+		return 0
+	return int((upgrades[id] as Dictionary).get("level", 0))
+
+
+static func upgrade_cost(good: Dictionary, level: int) -> int:
+	return int(round(float(good["base_cost"]) * pow(float(good["cost_mult"]), level)))
+
+
+## Buys one level of a shop good. Returns false when maxed or unaffordable.
+func buy_upgrade(good: Dictionary) -> bool:
+	var id := str(good["id"])
+	var level := upgrade_level(id)
+	if level >= int(good["max_level"]):
+		return false
+	var cost := UDSim.upgrade_cost(good, level)
+	if int(inventory.get(UD.RES_GOLD, 0)) < cost:
+		return false
+	inventory[UD.RES_GOLD] = int(inventory[UD.RES_GOLD]) - cost
+	var effect := str(good.get("effect", ""))
+	upgrades[id] = {"level": level + 1, "effect": effect}
+	if effect == "minion_add" and minions.size() < UD.MINION_MAX:
+		minions.append(UDMinion.create(minions.size(), UD.DEPOT_POS))
+	return true
+
+
+func _upgrade_effect_levels(effect: String) -> int:
+	var total := 0
+	for id: Variant in upgrades.keys():
+		var entry := upgrades[id] as Dictionary
+		if str(entry.get("effect", "")) == effect:
+			total += int(entry.get("level", 0))
+	return total
+
+
 ## Extra document drop chance from built altars and the daily anomaly.
 func document_chance_bonus() -> float:
 	var bonus := 0.0
@@ -332,6 +371,7 @@ func document_chance_bonus() -> float:
 			bonus += UD.DOC_CHANCE_PER_ALTAR
 	if daily_effect == "doc_chance_add":
 		bonus += UD.DAILY_DOC_CHANCE_BONUS
+	bonus += _upgrade_effect_levels("doc_chance_add") * UD.UPGRADE_DOC_CHANCE
 	return bonus
 
 
@@ -417,6 +457,7 @@ func to_dict() -> Dictionary:
 		"daily_effect": daily_effect,
 		"items": items.duplicate(),
 		"pending_loot": pending_loot.duplicate(),
+		"upgrades": upgrades.duplicate(true),
 	}
 
 
@@ -455,6 +496,12 @@ static func from_dict(
 		sim.items.append(str(item_id))
 	for res: Variant in (d.get("pending_loot", {}) as Dictionary).keys():
 		sim.pending_loot[res] = int(d["pending_loot"][res])
+	for id: Variant in (d.get("upgrades", {}) as Dictionary).keys():
+		var entry := d["upgrades"][id] as Dictionary
+		sim.upgrades[id] = {
+			"level": int(entry.get("level", 0)),
+			"effect": str(entry.get("effect", "")),
+		}
 	# Pre-v3 saves may hold minions mid-haul: bag their load and free them.
 	for minion in sim.minions:
 		if minion.state == UDMinion.State.HAULING or minion.carrying != "":

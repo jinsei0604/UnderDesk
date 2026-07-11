@@ -32,6 +32,8 @@ const TERRAIN_BY_NAME: Dictionary = {
 const DOC_CHANCE_PER_ALTAR: float = 0.05
 ## Extra document drop chance while the lush-vein daily anomaly is active.
 const DAILY_DOC_CHANCE_BONUS: float = 0.1
+## Extra document drop chance per level of the survey shop upgrade.
+const UPGRADE_DOC_CHANCE: float = 0.05
 
 const RES_SOIL: String = "soil"
 const RES_STONE: String = "stone"

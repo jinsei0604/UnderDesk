@@ -1,0 +1,9 @@
+{
+	"id": "pickaxe",
+	"name_key": "SHOP_PICKAXE",
+	"desc_key": "SHOP_PICKAXE_DESC",
+	"base_cost": 100,
+	"cost_mult": 2.0,
+	"effect": "dig_power_add",
+	"max_level": 5
+}

@@ -41,6 +41,7 @@ var locale: UDLocale
 var doc_db: UDDocumentDB
 var room_db: UDRoomDB
 var item_db: UDItemDB
+var shop_db: UDShopDB
 var anomalies: Array = []
 var _anomaly_by_id: Dictionary = {}
 var mode: Mode = Mode.DIG
@@ -70,6 +71,11 @@ var _archive_doc_ids: Array[String] = []
 var _treasure_button: Button
 var _treasure_dialog: AcceptDialog
 var _treasure_list: ItemList
+var _shop_button: Button
+var _shop_dialog: AcceptDialog
+var _shop_list: ItemList
+var _shop_buy_button: Button
+var _shop_good_ids: Array[String] = []
 
 @onready var tick_timer: Timer = $TickTimer
 @onready var autosave_timer: Timer = $AutosaveTimer
@@ -81,6 +87,7 @@ func _ready() -> void:
 	doc_db = UDDocumentDB.load_from_dir("res://data/documents")
 	room_db = UDRoomDB.load_from_dir("res://data/rooms")
 	item_db = UDItemDB.load_from_dir("res://data/items")
+	shop_db = UDShopDB.load_from_dir("res://data/shop")
 	anomalies = UDDataLoader.load_json_dir("res://data/anomalies")
 	for anomaly: Variant in anomalies:
 		_anomaly_by_id[(anomaly as Dictionary)["id"]] = anomaly
@@ -112,6 +119,7 @@ func _ready() -> void:
 	_build_hud()
 	_build_archive_dialog()
 	_build_treasure_dialog()
+	_build_shop_dialog()
 	_refresh_button_texts()
 	_apply_window_mode()
 	queue_redraw()
@@ -481,6 +489,8 @@ func _build_hud() -> void:
 	bar.add_child(_archive_button)
 	_treasure_button = _make_button("", _open_treasures)
 	bar.add_child(_treasure_button)
+	_shop_button = _make_button("", _open_shop)
+	bar.add_child(_shop_button)
 	_policy_button = _make_button("", _cycle_dig_policy)
 	bar.add_child(_policy_button)
 	_height_button = _make_button("", _cycle_height)
@@ -537,6 +547,8 @@ func _refresh_button_texts() -> void:
 	_height_button.text = "%dpx" % UD.WINDOW_HEIGHTS[settings.height_index]
 	_collapse_button.text = locale.text("UI_COLLAPSE")
 	_treasure_button.text = "%s(%d)" % [locale.text("UI_TREASURES"), sim.items.size()]
+	_shop_button.text = locale.text("UI_SHOP")
+	_shop_buy_button.text = locale.text("UI_BUY")
 	_locale_button.text = _next_locale_code().to_upper()
 	_quit_button.text = locale.text("UI_QUIT")
 	_refresh_archive_button()
@@ -672,6 +684,64 @@ func _open_treasures() -> void:
 		_treasure_list.add_item("---")
 	_treasure_dialog.title = locale.text("UI_TREASURES")
 	_treasure_dialog.popup_centered()
+
+
+func _build_shop_dialog() -> void:
+	_shop_dialog = AcceptDialog.new()
+	_shop_dialog.title = locale.text("UI_SHOP")
+	_shop_dialog.min_size = Vector2i(640, 400)
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(600, 330)
+	_shop_list = ItemList.new()
+	_shop_list.custom_minimum_size = Vector2(0, 280)
+	_shop_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_shop_list.add_theme_font_size_override("font_size", 15)
+	box.add_child(_shop_list)
+	_shop_buy_button = Button.new()
+	_shop_buy_button.pressed.connect(_on_shop_buy)
+	box.add_child(_shop_buy_button)
+	_shop_dialog.add_child(box)
+	add_child(_shop_dialog)
+
+
+func _open_shop() -> void:
+	if settings.resident_mode:
+		_expand()
+	_populate_shop()
+	_shop_dialog.title = locale.text("UI_SHOP")
+	_shop_dialog.popup_centered()
+
+
+func _populate_shop() -> void:
+	var selected := _shop_list.get_selected_items()
+	_shop_list.clear()
+	_shop_good_ids.clear()
+	for good_id in shop_db.all_ids():
+		var good := shop_db.get_good(good_id)
+		var level := sim.upgrade_level(good_id)
+		var max_level := int(good["max_level"])
+		var line := "%s Lv.%d/%d — %s" % [
+			locale.text(good["name_key"]), level, max_level,
+			locale.text(good["desc_key"]),
+		]
+		if level >= max_level:
+			line += "  [MAX]"
+		else:
+			line += "  [$%d]" % UDSim.upgrade_cost(good, level)
+		_shop_good_ids.append(good_id)
+		_shop_list.add_item(line)
+	if not selected.is_empty() and selected[0] < _shop_list.item_count:
+		_shop_list.select(selected[0])
+
+
+func _on_shop_buy() -> void:
+	var selected := _shop_list.get_selected_items()
+	if selected.is_empty():
+		return
+	var good := shop_db.get_good(_shop_good_ids[selected[0]])
+	if sim.buy_upgrade(good):
+		_populate_shop()
+		queue_redraw()
 
 
 func _open_archive() -> void:

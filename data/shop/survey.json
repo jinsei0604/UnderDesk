@@ -1,0 +1,9 @@
+{
+	"id": "survey",
+	"name_key": "SHOP_SURVEY",
+	"desc_key": "SHOP_SURVEY_DESC",
+	"base_cost": 120,
+	"cost_mult": 2.0,
+	"effect": "doc_chance_add",
+	"max_level": 5
+}

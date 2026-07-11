@@ -35,6 +35,14 @@ UI_COLLAPSE,タスクバーへ戻る
 UI_NEW_DOC,新しい文書が出土した
 UI_DAILY,今日の異変
 UI_COLLECTED,回収 +%d コイン
+UI_SHOP,ショップ
+UI_BUY,購入
+SHOP_HIRE,手下を雇う
+SHOP_HIRE_DESC,新しい手下が坑道に加わる
+SHOP_PICKAXE,つるはし強化
+SHOP_PICKAXE_DESC,全員の掘削力+1
+SHOP_SURVEY,地質調査
+SHOP_SURVEY_DESC,文書の出土率+5%
 ANOMALY_LUSH_VEIN,肥沃な地脈（文書が出やすい）
 ANOMALY_SOFT_EARTH,柔らかい土（掘削+1）
 ANOMALY_GOLD_DUST,金粉の風（掘るたび金+1）

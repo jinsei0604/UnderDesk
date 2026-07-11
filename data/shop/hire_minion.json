@@ -1,0 +1,9 @@
+{
+	"id": "hire_minion",
+	"name_key": "SHOP_HIRE",
+	"desc_key": "SHOP_HIRE_DESC",
+	"base_cost": 50,
+	"cost_mult": 1.5,
+	"effect": "minion_add",
+	"max_level": 17
+}

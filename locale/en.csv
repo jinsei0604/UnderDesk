@@ -35,6 +35,14 @@ UI_COLLAPSE,Back to Taskbar
 UI_NEW_DOC,A new document was unearthed
 UI_DAILY,Today's Anomaly
 UI_COLLECTED,Collected +%d coins
+UI_SHOP,Shop
+UI_BUY,Buy
+SHOP_HIRE,Hire a Minion
+SHOP_HIRE_DESC,A new minion joins the dig
+SHOP_PICKAXE,Better Pickaxes
+SHOP_PICKAXE_DESC,Dig power +1 for the whole crew
+SHOP_SURVEY,Geological Survey
+SHOP_SURVEY_DESC,Documents unearthed +5%
 ANOMALY_LUSH_VEIN,Lush Ley Vein (documents more common)
 ANOMALY_SOFT_EARTH,Soft Earth (dig power +1)
 ANOMALY_GOLD_DUST,Gold Dust Wind (+1 gold per dig)
