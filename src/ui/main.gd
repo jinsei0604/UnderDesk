@@ -135,13 +135,19 @@ func _on_tick() -> void:
 	queue_redraw()
 
 
-## Keeps the digging front in view while the strip runs unattended.
+## Keeps the crew in view while the strip runs unattended: the camera
+## tracks the row most minions are on (median), so their digging and
+## hauling motion is what fills the single visible row.
 func _follow_camera() -> void:
-	var front := sim.deepest_air_row()
-	if front < 0:
+	if sim.minions.is_empty():
 		return
+	var rows: Array[int] = []
+	for minion in sim.minions:
+		rows.append(minion.pos.y)
+	rows.sort()
+	var crew_row: int = rows[rows.size() / 2]
 	var max_scroll: int = maxi(0, sim.grid.height - _visible_rows())
-	scroll_y = clampi(front - _visible_rows() + 2, 0, max_scroll)
+	scroll_y = clampi(crew_row - _visible_rows() / 2, 0, max_scroll)
 
 
 func _on_document_discovered(doc_id: String) -> void:
@@ -212,19 +218,28 @@ func _hud_offset() -> int:
 	return 0 if settings.resident_mode else HUD_HEIGHT
 
 
+## Strip mode zooms in Taskbar-Heroes style: one big row where the
+## minions' motion is actually watchable. Expanded keeps 16px cells.
+func _cell_px() -> int:
+	if settings.resident_mode:
+		return clampi(int(size.y), CELL_PX, 64)
+	return CELL_PX
+
+
 func _visible_rows() -> int:
-	return maxi(1, int((size.y - _hud_offset()) / CELL_PX))
+	return maxi(1, int((size.y - _hud_offset()) / _cell_px()))
 
 
 func _grid_origin() -> Vector2:
-	var grid_px_width := float(sim.grid.width * CELL_PX)
+	var cell_px := _cell_px()
+	var grid_px_width := float(sim.grid.width * cell_px)
 	if settings.resident_mode:
 		# The mini strip is narrower than the grid: follow the crew.
 		var avg_x := 0.0
 		for minion in sim.minions:
 			avg_x += float(minion.pos.x)
 		avg_x /= maxf(1.0, float(sim.minions.size()))
-		var desired := size.x / 2.0 - (avg_x + 0.5) * CELL_PX
+		var desired := size.x / 2.0 - (avg_x + 0.5) * cell_px
 		return Vector2(clampf(desired, minf(size.x - grid_px_width, 0.0), 0.0), 0.0)
 	return Vector2(maxf(0.0, (size.x - grid_px_width) / 2.0), _hud_offset())
 
@@ -234,7 +249,8 @@ func _cell_at(point: Vector2) -> Vector2i:
 	var local := point - origin
 	if local.x < 0.0 or local.y < 0.0:
 		return UDMinion.NO_TARGET
-	var cell := Vector2i(int(local.x / CELL_PX), int(local.y / CELL_PX) + scroll_y)
+	var cell_px := _cell_px()
+	var cell := Vector2i(int(local.x / cell_px), int(local.y / cell_px) + scroll_y)
 	if not sim.grid.is_inside(cell):
 		return UDMinion.NO_TARGET
 	return cell
@@ -302,10 +318,7 @@ func _draw_grid() -> void:
 	for y in range(scroll_y, last_row):
 		for x in sim.grid.width:
 			var cell := Vector2i(x, y)
-			var rect := Rect2(
-				origin + Vector2(x * CELL_PX, (y - scroll_y) * CELL_PX),
-				Vector2(CELL_PX, CELL_PX)
-			)
+			var rect := _cell_rect(origin, cell)
 			draw_rect(rect, _cell_color(sim.grid.terrain_at(cell), y))
 			draw_rect(rect, COLOR_GRID_LINE, false, 1.0)
 	_draw_rooms(origin)
@@ -332,9 +345,10 @@ func _cell_color(terrain: UD.Terrain, depth: int) -> Color:
 
 
 func _cell_rect(origin: Vector2, cell: Vector2i) -> Rect2:
+	var cell_px := _cell_px()
 	return Rect2(
-		origin + Vector2(cell.x * CELL_PX, (cell.y - scroll_y) * CELL_PX),
-		Vector2(CELL_PX, CELL_PX)
+		origin + Vector2(cell.x * cell_px, (cell.y - scroll_y) * cell_px),
+		Vector2(cell_px, cell_px)
 	)
 
 
@@ -351,11 +365,12 @@ func _draw_jobs(origin: Vector2) -> void:
 func _draw_depot(origin: Vector2) -> void:
 	if not _cell_visible(UD.DEPOT_POS):
 		return
+	var cell_px := float(_cell_px())
 	var rect := _cell_rect(origin, UD.DEPOT_POS)
-	var flag_base := rect.position + Vector2(CELL_PX / 2.0, CELL_PX)
-	draw_line(flag_base, flag_base + Vector2(0, -CELL_PX * 0.8), COLOR_DEPOT, 2.0)
+	var flag_base := rect.position + Vector2(cell_px / 2.0, cell_px)
+	draw_line(flag_base, flag_base + Vector2(0, -cell_px * 0.8), COLOR_DEPOT, 2.0)
 	draw_rect(
-		Rect2(flag_base + Vector2(0, -CELL_PX * 0.8), Vector2(CELL_PX * 0.4, CELL_PX * 0.3)),
+		Rect2(flag_base + Vector2(0, -cell_px * 0.8), Vector2(cell_px * 0.4, cell_px * 0.3)),
 		COLOR_DEPOT
 	)
 
@@ -366,36 +381,47 @@ func _draw_rooms(origin: Vector2) -> void:
 		var footprint := sim.room_footprint(i, room_db)
 		if not _cell_visible(footprint.position):
 			continue
+		var cell_px := _cell_px()
 		var rect := Rect2(
 			_cell_rect(origin, footprint.position).position,
-			Vector2(footprint.size * CELL_PX)
+			Vector2(footprint.size * cell_px)
 		)
 		draw_rect(rect, COLOR_ROOM)
 		var room_id: String = sim.rooms[i]["id"]
 		var label := locale.text(room_db.get_room(room_id)["name_key"]).left(1)
 		draw_string(
-			font, rect.position + Vector2(4, CELL_PX - 4), label,
+			font, rect.position + Vector2(4, cell_px - 4), label,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, HUD_FONT_SIZE, COLOR_HUD_TEXT
 		)
 
 
 func _draw_minions(origin: Vector2) -> void:
+	var cell_px := _cell_px()
+	var inset := maxi(MINION_INSET, cell_px / 6)
 	for minion in sim.minions:
 		if not _cell_visible(minion.pos):
 			continue
 		var rect := _cell_rect(origin, minion.pos)
-		# 1px bob while working, phase-shifted per minion: tiny but alive.
+		# Work bob, phase-shifted per minion and scaled with zoom.
 		var bob := 0.0
 		if minion.state != UDMinion.State.IDLE:
-			bob = float((sim.tick_count + minion.id) % 2)
+			bob = float(((sim.tick_count + minion.id) % 2) * maxi(1, cell_px / 12))
 		var body := Rect2(
-			rect.position + Vector2(MINION_INSET, MINION_INSET + bob),
-			Vector2(CELL_PX - MINION_INSET * 2, CELL_PX - MINION_INSET * 2 - bob)
+			rect.position + Vector2(inset, inset + bob),
+			Vector2(cell_px - inset * 2, cell_px - inset * 2 - bob)
 		)
 		draw_rect(body, MINION_COLORS[minion.id % MINION_COLORS.size()])
+		# Two dark eyes: placeholder charm until real sprites land (§6).
+		var eye := maxf(1.0, cell_px / 12.0)
+		var eye_y := body.position.y + body.size.y * 0.3
+		draw_rect(Rect2(Vector2(body.position.x + body.size.x * 0.25, eye_y),
+			Vector2(eye, eye)), COLOR_BACKGROUND)
+		draw_rect(Rect2(Vector2(body.position.x + body.size.x * 0.65, eye_y),
+			Vector2(eye, eye)), COLOR_BACKGROUND)
 		if minion.carrying != "":
 			draw_rect(
-				Rect2(rect.position + Vector2(MINION_INSET, bob), Vector2(6, 4)),
+				Rect2(rect.position + Vector2(float(inset), bob),
+					Vector2(cell_px / 3.0, cell_px / 4.0)),
 				COLOR_CARRY
 			)
 
