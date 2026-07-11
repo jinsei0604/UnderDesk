@@ -93,7 +93,7 @@ const DEFAULT_WINDOW_HEIGHT_INDEX: int = 0
 ## busy with volume / Wi-Fi tray icons), floating about 1cm above the
 ## bottom edge so it does not sit on the taskbar itself.
 const MINI_WINDOW_WIDTH: int = 320
-const MINI_LEFT_MARGIN: int = 232
+const MINI_LEFT_MARGIN: int = 212
 const MINI_BOTTOM_MARGIN: int = 12
 ## Centered window opened by clicking the strip: reading and management.
 const NORMAL_WINDOW_SIZE := Vector2i(1152, 648)
