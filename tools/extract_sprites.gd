@@ -15,7 +15,14 @@ const GAME_SPRITE_SIZE := 128
 
 ## Outputs flipped horizontally so every frame of a character faces the
 ## same way (the game mirrors at draw time for the other direction).
-const FLIP_X_OUTPUTS: Array[String] = ["minion_0"]
+## Every minion_0 frame must agree with the base idle pose's orientation
+## or the dig loop visibly snaps to face the wrong way mid-swing (bug
+## found 2026-07-12: the miner_v2 preset's raw poses face the opposite
+## way from the kept idle frame).
+const FLIP_X_OUTPUTS: Array[String] = [
+	"minion_0", "minion_0_f2", "minion_0_f3", "minion_0_f4", "minion_0_f5",
+	"minion_0_f6",
+]
 
 ## preset -> { src, crops: { out_name: [x, y, w, h] } }
 const PRESETS := {
@@ -62,10 +69,11 @@ const PRESETS := {
 			# of the neighboring pose in this sheet, so the original,
 			# already-shipped idle frame is kept and only the swing
 			# frames below are sourced from this sheet.
-			"minion_0_f2": 7,   # wind-up at apex
-			"minion_0_f3": 8,   # strike begins, light dust
-			"minion_0_f4": 25,  # strike peak, dust bursts
-			"minion_0_f5": 9,   # dust settling, eases back toward idle
+			"minion_0_f2": 21,  # wind-up lifting (fixes the idle->apex snap)
+			"minion_0_f3": 7,   # wind-up at apex
+			"minion_0_f4": 8,   # strike begins, light dust
+			"minion_0_f5": 25,  # strike peak, dust bursts
+			"minion_0_f6": 9,   # dust settling, eases back toward idle
 		},
 	},
 }

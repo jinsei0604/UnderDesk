@@ -59,6 +59,11 @@ var _build_room_id: String = ""
 var scroll_y: int = 0
 var scroll_x: int = 0
 var _anim_frame: int = 0
+## Per-minion dig-swing phase (UI-only, not simulation state): every
+## swing starts at the wind-up frame instead of wherever the global
+## animation counter happens to be, or a new dig could open mid-strike.
+var _prev_minion_state: Dictionary = {}  # minion id -> UDMinion.State
+var _dig_anim_start: Dictionary = {}  # minion id -> _anim_frame at swing start
 var _facing: Dictionary = {}  # minion id -> -1 (left) / 1 (right)
 
 ## Which way each character's source art faces (mirrored for the other
@@ -226,6 +231,7 @@ func _on_anim_tick() -> void:
 func _on_tick() -> void:
 	_sync_daily()
 	sim.tick()
+	_track_dig_swing_starts()
 	if not settings.tutorial_seen and sim.tick_count >= UD.TUTORIAL_TICKS:
 		settings.tutorial_seen = true
 		settings.save()
@@ -247,6 +253,18 @@ func _on_tick() -> void:
 	UDResidentWindow.sync_render_loop(get_window())
 	_follow_camera()
 	queue_redraw()
+
+
+## Stamps the animation-time origin of every swing the instant a minion
+## enters DIGGING, so _draw_minions always starts the loop at the
+## wind-up frame instead of sampling into it mid-strike.
+func _track_dig_swing_starts() -> void:
+	for minion in sim.minions:
+		var prev_state: int = int(_prev_minion_state.get(minion.id, -1))
+		if minion.state == UDMinion.State.DIGGING \
+				and prev_state != UDMinion.State.DIGGING:
+			_dig_anim_start[minion.id] = _anim_frame
+		_prev_minion_state[minion.id] = minion.state
 
 
 ## The camera anchors on the protagonist (minion 0): wherever they walk
@@ -669,11 +687,16 @@ func _draw_minions(origin: Vector2) -> void:
 				rect.position + Vector2(0, bob), Vector2(cell_px, cell_px - bob)
 			)
 			var tex: Texture2D
-			# The frame set is a dig loop (§6), not a walk cycle: only
-			# animate while actually digging, or the sprite reads as
-			# jittering rather than walking while moving between jobs.
+			# The frame set is a dig loop (§6: wind-up -> strike -> dust
+			# -> recover), not a walk cycle: only animate while actually
+			# digging, or the sprite reads as jittering while moving
+			# between jobs. The swing always starts at the wind-up frame
+			# (index 1: index 0 is the idle/base pose) relative to when
+			# THIS dig began, not the global animation clock, or a swing
+			# could open already mid-strike.
 			if minion.state == UDMinion.State.DIGGING and art.frame_count(art_key) > 1:
-				tex = art.frame(art_key, _anim_frame + minion.id)
+				var swing_start := int(_dig_anim_start.get(minion.id, _anim_frame))
+				tex = art.frame(art_key, 1 + _anim_frame - swing_start)
 			else:
 				tex = art.texture(art_key)
 			var native := int(MINION_NATIVE_FACING.get(art_variant, 1))
