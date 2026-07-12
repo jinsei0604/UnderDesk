@@ -47,7 +47,38 @@ const PRESETS := {
 			"miner_find": [1030, 940, 205, 235],
 		},
 	},
+	## Second reference sheet (2026-07-12): a uniform 10x4 grid of poses,
+	## each cell stamped with a small numbered badge in the top-left that
+	## must be erased before flood-fill (see ERASE_TOP_LEFT below). Picks
+	## a full raise -> strike -> dust -> recover arc for a richer, more
+	## natural dig loop (was a 3-frame loop that read as jittery).
+	"miner_v2": {
+		"src": "res://assets/reference/miner_sheet_v2.png",
+		"grid": {"cols": 10, "rows": 4, "sheet_w": 1536, "sheet_h": 1024},
+		"cell_crops": {
+			# out_name: cell_index (0-based, row-major). minion_0 itself
+			# (the idle/base frame) is intentionally NOT regenerated here:
+			# every clean crop near its cell (20, 27, ...) bled a sliver
+			# of the neighboring pose in this sheet, so the original,
+			# already-shipped idle frame is kept and only the swing
+			# frames below are sourced from this sheet.
+			"minion_0_f2": 7,   # wind-up at apex
+			"minion_0_f3": 8,   # strike begins, light dust
+			"minion_0_f4": 25,  # strike peak, dust bursts
+			"minion_0_f5": 9,   # dust settling, eases back toward idle
+		},
+	},
 }
+
+## Cell-local rect to blank out before background clearing (kills the
+## reference sheet's numbered badge so it never survives into trim()).
+## Measured against the actual sheet: the badge spans roughly
+## x:12-46, y:38-64, so this rect covers it with margin.
+const ERASE_TOP_LEFT := Rect2i(0, 0, 52, 68)
+## Horizontal inset per cell + fixed crop width: keeps each character
+## clear of its neighbors regardless of how wide a pose's cell margin is.
+const CELL_INSET_X := 6
+const CELL_CROP_W := 88
 
 
 func _init() -> void:
@@ -64,10 +95,28 @@ func _init() -> void:
 		quit(1)
 		return
 	sheet.convert(Image.FORMAT_RGBA8)
-	var crops: Dictionary = preset["crops"]
+	# Two crop styles: hand-picked rects ("crops"), or a uniform grid
+	# where each cell is picked by index and auto-inset ("cell_crops").
+	var crops: Dictionary = {}
+	if preset.has("cell_crops"):
+		var grid: Dictionary = preset["grid"]
+		var cell_w: float = float(grid["sheet_w"]) / float(grid["cols"])
+		var cell_h: float = float(grid["sheet_h"]) / float(grid["rows"])
+		var cell_crops: Dictionary = preset["cell_crops"]
+		for out_name: String in cell_crops.keys():
+			var index: int = int(cell_crops[out_name])
+			var col: int = index % int(grid["cols"])
+			var row: int = index / int(grid["cols"])
+			var x0 := int(round(col * cell_w)) + CELL_INSET_X
+			crops[out_name] = [x0, int(row * cell_h), CELL_CROP_W, int(cell_h)]
+	else:
+		crops = preset["crops"]
+	var erase_badge: bool = preset.has("cell_crops")
 	for out_name: String in crops.keys():
 		var r: Array = crops[out_name]
 		var img := sheet.get_region(Rect2i(int(r[0]), int(r[1]), int(r[2]), int(r[3])))
+		if erase_badge:
+			img.fill_rect(ERASE_TOP_LEFT, img.get_pixel(0, 0))
 		_clear_background(img)
 		var trimmed := _trim(img)
 		if trimmed == null:
