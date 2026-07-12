@@ -1,13 +1,15 @@
 class_name UDPlatform
 extends RefCounted
-## Platform-services abstraction (§8: src/platform/). The desktop build
-## is a silent no-op; a Steam backend will subclass this and forward
-## unlocks to the Steamworks API. Game code only ever talks to this
-## interface, so shipping without Steam stays a one-line change.
+## Platform-services abstraction (§8: src/platform/). Distribution is
+## itch.io (decided 2026-07-12), which has no built-in achievements or
+## cloud-save API, so this is a silent no-op for now. Achievements stay
+## local (UDAchievements writes to user://). If a networked feature
+## (e.g. guild trading with other players) needs a backend later, that
+## backend subclasses this — game code only ever talks to this
+## interface, so adding one stays a one-line change in create().
 
 
 static func create() -> UDPlatform:
-	# Steam backend lands here later (P4): detect and return UDSteam.
 	return UDPlatform.new()
 
 
