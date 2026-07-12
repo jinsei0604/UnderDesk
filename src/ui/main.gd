@@ -95,18 +95,11 @@ var _height_button: Button
 var _collapse_button: Button
 var _locale_button: Button
 var _quit_button: Button
-var _archive_dialog: AcceptDialog
-var _archive_list: ItemList
-var _archive_body: RichTextLabel
-var _archive_doc_ids: Array[String] = []
+var _archive_dialog: UDCardDialog
 var _treasure_button: Button
-var _treasure_dialog: AcceptDialog
-var _treasure_list: ItemList
+var _treasure_dialog: UDCardDialog
 var _shop_button: Button
-var _shop_dialog: AcceptDialog
-var _shop_list: ItemList
-var _shop_buy_button: Button
-var _shop_good_ids: Array[String] = []
+var _shop_dialog: UDCardDialog
 var _prestige_button: Button
 var _prestige_dialog: AcceptDialog
 var _prestige_info: Label
@@ -801,7 +794,6 @@ func _refresh_button_texts() -> void:
 	_collapse_button.text = locale.text("UI_COLLAPSE")
 	_treasure_button.text = "%s(%d)" % [locale.text("UI_TREASURES"), sim.items.size()]
 	_shop_button.text = locale.text("UI_SHOP")
-	_shop_buy_button.text = locale.text("UI_BUY")
 	_prestige_button.text = locale.text("UI_PRESTIGE")
 	_perma_buy_button.text = locale.text("UI_BUY")
 	_bury_button.text = locale.text("UI_PRESTIGE_DO")
@@ -895,27 +887,8 @@ func _toggle_locale() -> void:
 
 
 func _build_archive_dialog() -> void:
-	_archive_dialog = AcceptDialog.new()
-	_archive_dialog.title = locale.text("UI_ARCHIVE")
-	_archive_dialog.min_size = Vector2i(860, 500)
-	var split := HSplitContainer.new()
-	split.custom_minimum_size = Vector2(820, 440)
-	_archive_list = ItemList.new()
-	_archive_list.custom_minimum_size = Vector2(240, 0)
-	_archive_list.add_theme_font_size_override("font_size", 15)
-	_archive_list.icon_mode = ItemList.ICON_MODE_LEFT
-	_archive_list.fixed_icon_size = Vector2i(UDArtLibrary.PLACEHOLDER_ICON_SIZE, UDArtLibrary.PLACEHOLDER_ICON_SIZE)
-	_archive_list.item_selected.connect(_on_archive_item_selected)
-	split.add_child(_archive_list)
-	_archive_body = RichTextLabel.new()
-	_archive_body.bbcode_enabled = true
-	_archive_body.fit_content = false
-	_archive_body.add_theme_font_size_override("normal_font_size", 17)
-	_archive_body.add_theme_font_size_override("bold_font_size", 19)
-	_archive_body.add_theme_constant_override("line_separation", 6)
-	_archive_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	split.add_child(_archive_body)
-	_archive_dialog.add_child(split)
+	_archive_dialog = UDCardDialog.create(locale.text("UI_ARCHIVE"), false)
+	_archive_dialog.card_selected.connect(_on_archive_card_selected)
 	add_child(_archive_dialog)
 
 
@@ -956,94 +929,112 @@ func _open_events() -> void:
 
 
 func _build_treasure_dialog() -> void:
-	_treasure_dialog = AcceptDialog.new()
-	_treasure_dialog.title = locale.text("UI_TREASURES")
-	_treasure_dialog.min_size = Vector2i(560, 360)
-	_treasure_list = ItemList.new()
-	_treasure_list.custom_minimum_size = Vector2(520, 300)
-	_treasure_list.add_theme_font_size_override("font_size", 15)
-	_treasure_list.icon_mode = ItemList.ICON_MODE_LEFT
-	_treasure_list.fixed_icon_size = Vector2i(UDArtLibrary.PLACEHOLDER_ICON_SIZE, UDArtLibrary.PLACEHOLDER_ICON_SIZE)
-	_treasure_dialog.add_child(_treasure_list)
+	_treasure_dialog = UDCardDialog.create(locale.text("UI_TREASURES"), false)
+	_treasure_dialog.card_selected.connect(_on_treasure_card_selected)
 	add_child(_treasure_dialog)
 
 
+## The whole collection shows on the shelf: owned treasures as cards,
+## the rest as locked ????? slots (the catalogue reveals its size, the
+## contents stay a surprise — reference shots 2026-07-12).
 func _open_treasures() -> void:
 	if settings.resident_mode:
 		_expand()
-	_treasure_list.clear()
-	for item_id in sim.items:
-		if not item_db.has_item(item_id):
-			continue
-		var item := item_db.get_item(item_id)
+	_treasure_dialog.clear_cards()
+	for item_id in item_db.all_ids():
+		var owned := sim.items.has(item_id)
 		var icon := art.icon_or_placeholder("item_%s" % item_id, item_id, "gem")
-		_treasure_list.add_item("%s — %s" % [
-			locale.text(item["name_key"]), locale.text(item["desc_key"]),
-		], icon)
-	if sim.items.is_empty():
-		_treasure_list.add_item("---")
+		var title_text := locale.text(item_db.get_item(item_id)["name_key"]) \
+			if owned else ""
+		_treasure_dialog.add_card(item_id, title_text, "", icon, not owned)
+	_treasure_dialog.set_progress(
+		locale.text("UI_PROGRESS_ITEMS") % [sim.items.size(), item_db.all_ids().size()]
+	)
 	_treasure_dialog.title = locale.text("UI_TREASURES")
+	_treasure_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
+	var first := _treasure_dialog.first_unlocked_id()
+	if first != "":
+		_treasure_dialog.select_card(first)
 	_treasure_dialog.popup_centered()
 
 
+func _on_treasure_card_selected(item_id: String) -> void:
+	var item := item_db.get_item(item_id)
+	_treasure_dialog.show_detail(
+		locale.text(item["name_key"]),
+		locale.text(item["desc_key"]),
+		art.icon_or_placeholder("item_%s" % item_id, item_id, "gem")
+	)
+
+
 func _build_shop_dialog() -> void:
-	_shop_dialog = AcceptDialog.new()
-	_shop_dialog.title = locale.text("UI_SHOP")
-	_shop_dialog.min_size = Vector2i(640, 400)
-	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(600, 330)
-	_shop_list = ItemList.new()
-	_shop_list.custom_minimum_size = Vector2(0, 280)
-	_shop_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_shop_list.add_theme_font_size_override("font_size", 15)
-	_shop_list.icon_mode = ItemList.ICON_MODE_LEFT
-	_shop_list.fixed_icon_size = Vector2i(UDArtLibrary.PLACEHOLDER_ICON_SIZE, UDArtLibrary.PLACEHOLDER_ICON_SIZE)
-	box.add_child(_shop_list)
-	_shop_buy_button = Button.new()
-	_shop_buy_button.pressed.connect(_on_shop_buy)
-	box.add_child(_shop_buy_button)
-	_shop_dialog.add_child(box)
+	_shop_dialog = UDCardDialog.create(locale.text("UI_SHOP"), true)
+	_shop_dialog.card_selected.connect(_on_shop_card_selected)
+	_shop_dialog.action_pressed.connect(_on_shop_buy)
 	add_child(_shop_dialog)
 
 
 func _open_shop() -> void:
 	if settings.resident_mode:
 		_expand()
-	_populate_shop()
+	_populate_shop("")
 	_shop_dialog.title = locale.text("UI_SHOP")
 	_shop_dialog.popup_centered()
 
 
-func _populate_shop() -> void:
-	var selected := _shop_list.get_selected_items()
-	_shop_list.clear()
-	_shop_good_ids.clear()
+## Goods hang like framed wares (reference shot): the card carries name,
+## level and price; the detail panel sells it and holds the buy button.
+func _populate_shop(keep_selection: String) -> void:
+	_shop_dialog.clear_cards()
 	for good_id in shop_db.all_ids():
 		var good := shop_db.get_good(good_id)
 		var level := sim.upgrade_level(good_id)
 		var max_level := int(good["max_level"])
-		var line := "%s Lv.%d/%d — %s" % [
-			locale.text(good["name_key"]), level, max_level,
-			locale.text(good["desc_key"]),
-		]
+		var subtitle := "Lv.%d/%d" % [level, max_level]
 		if level >= max_level:
-			line += "  [MAX]"
+			subtitle += "  MAX"
 		else:
-			line += "  [$%d]" % UDSim.upgrade_cost(good, level)
-		_shop_good_ids.append(good_id)
+			subtitle += "  $%d" % UDSim.upgrade_cost(good, level)
 		var icon := art.icon_or_placeholder("shop_%s" % good_id, good_id, "rune")
-		_shop_list.add_item(line, icon)
-	if not selected.is_empty() and selected[0] < _shop_list.item_count:
-		_shop_list.select(selected[0])
+		_shop_dialog.add_card(
+			good_id, locale.text(good["name_key"]), subtitle, icon, false
+		)
+	_shop_dialog.set_progress(
+		"%s %d" % [locale.text("RES_GOLD"), int(sim.inventory[UD.RES_GOLD])]
+	)
+	_shop_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
+	_shop_dialog.set_action(locale.text("UI_BUY"), true)
+	var select_id := keep_selection
+	if select_id == "":
+		select_id = _shop_dialog.first_unlocked_id()
+	if select_id != "":
+		_shop_dialog.select_card(select_id)
 
 
-func _on_shop_buy() -> void:
-	var selected := _shop_list.get_selected_items()
-	if selected.is_empty():
-		return
-	var good := shop_db.get_good(_shop_good_ids[selected[0]])
+func _on_shop_card_selected(good_id: String) -> void:
+	var good := shop_db.get_good(good_id)
+	var level := sim.upgrade_level(good_id)
+	var max_level := int(good["max_level"])
+	var body := locale.text(good["desc_key"])
+	var maxed := level >= max_level
+	var cost := 0
+	if maxed:
+		body += "\n\n[b]Lv.%d/%d  MAX[/b]" % [level, max_level]
+	else:
+		cost = UDSim.upgrade_cost(good, level)
+		body += "\n\n[b]Lv.%d/%d[/b]   $%d" % [level, max_level, cost]
+	_shop_dialog.show_detail(
+		locale.text(good["name_key"]), body,
+		art.icon_or_placeholder("shop_%s" % good_id, good_id, "rune")
+	)
+	var affordable := not maxed and int(sim.inventory[UD.RES_GOLD]) >= cost
+	_shop_dialog.set_action(locale.text("UI_BUY"), not affordable)
+
+
+func _on_shop_buy(good_id: String) -> void:
+	var good := shop_db.get_good(good_id)
 	if sim.buy_upgrade(good):
-		_populate_shop()
+		_populate_shop(good_id)
 		queue_redraw()
 
 
@@ -1192,34 +1183,57 @@ func _generate_survey_card() -> void:
 	_card_dialog.popup_centered()
 
 
+## The archive shows the whole catalogue (reference: 手記一覧): found
+## documents as parchment cards, the rest locked as ????? so the player
+## always sees how much of the story is still underground.
 func _open_archive() -> void:
 	if settings.resident_mode:
 		# Documents are unreadable in a 48px strip: expand first.
 		_expand()
-	_archive_list.clear()
-	_archive_doc_ids.clear()
-	_archive_body.text = ""
-	for doc_id in sim.discovered_documents:
-		if not doc_db.has_doc(doc_id):
-			continue
+	var fresh := unread_docs.duplicate()
+	_archive_dialog.clear_cards()
+	for doc_id in doc_db.all_ids():
+		var found := sim.discovered_documents.has(doc_id)
 		var doc := doc_db.get_doc(doc_id)
-		_archive_doc_ids.append(doc_id)
+		var subtitle := _doc_number_label(doc_id)
+		if fresh.has(doc_id):
+			subtitle += " ✦"
 		var icon := art.icon_or_placeholder(doc_id, doc_id, "book")
-		_archive_list.add_item(locale.text(doc["title_key"]), icon)
+		_archive_dialog.add_card(
+			doc_id, locale.text(doc["title_key"]) if found else "",
+			subtitle, icon, not found
+		)
+	_archive_dialog.set_progress(locale.text("UI_PROGRESS_DOCS") % [
+		sim.discovered_documents.size(), doc_db.count(),
+	])
+	_archive_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
 	unread_docs.clear()
 	_refresh_archive_button()
+	# Open on the newest unread page, else the first found one.
+	var select_id := str(fresh[0]) if not fresh.is_empty() \
+		else _archive_dialog.first_unlocked_id()
+	if select_id != "":
+		_archive_dialog.select_card(select_id)
 	_archive_dialog.popup_centered()
-	if _archive_list.item_count > 0:
-		_archive_list.select(0)
-		_on_archive_item_selected(0)
 
 
-func _on_archive_item_selected(index: int) -> void:
-	var doc := doc_db.get_doc(_archive_doc_ids[index])
-	_archive_body.text = "[b]%s[/b]\n\n%s" % [
+## doc_007 -> "No.7" (matches the reference catalogue numbering).
+func _doc_number_label(doc_id: String) -> String:
+	var digits := ""
+	for i in range(doc_id.length() - 1, -1, -1):
+		if not doc_id[i].is_valid_int():
+			break
+		digits = doc_id[i] + digits
+	return ("No.%d" % int(digits)) if digits != "" else doc_id
+
+
+func _on_archive_card_selected(doc_id: String) -> void:
+	var doc := doc_db.get_doc(doc_id)
+	_archive_dialog.show_detail(
 		locale.text(doc["title_key"]),
 		locale.text(doc["body_key"]),
-	]
+		art.icon_or_placeholder(doc_id, doc_id, "book")
+	)
 
 
 func _quit() -> void:

@@ -110,3 +110,6 @@ ACH_ITEMS_5,収集家の芽
 ACH_ITEMS_5_DESC,宝物を5種類集める
 ACH_DEPTH_20,深度二十
 ACH_DEPTH_20_DESC,深度20に到達する
+UI_PROGRESS_DOCS,発見した文書 %d / %d
+UI_PROGRESS_ITEMS,収集した宝物 %d / %d
+UI_SELECT_HINT,カードを選ぶと詳細が表示される

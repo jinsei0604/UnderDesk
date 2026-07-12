@@ -110,3 +110,6 @@ ACH_ITEMS_5,Budding Collector
 ACH_ITEMS_5_DESC,Collect 5 treasures
 ACH_DEPTH_20,Depth Twenty
 ACH_DEPTH_20_DESC,Reach depth 20
+UI_PROGRESS_DOCS,Documents found %d / %d
+UI_PROGRESS_ITEMS,Treasures collected %d / %d
+UI_SELECT_HINT,Select a card to see its details.
