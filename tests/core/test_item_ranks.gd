@@ -28,6 +28,17 @@ func test_rank_caps_and_helpers() -> void:
 	assert_eq(sim.rank_below("D"), "", "nothing below D")
 
 
+func test_rank_caps_match_spec_for_every_rank() -> void:
+	# Locks in the full cap table (user spec 2026-07-12), not just the
+	# two extremes: Z10/S50/A100/B200/C500/D500.
+	assert_eq(int(UD.ITEM_RANK_CAPS["Z"]), 10)
+	assert_eq(int(UD.ITEM_RANK_CAPS["S"]), 50)
+	assert_eq(int(UD.ITEM_RANK_CAPS["A"]), 100)
+	assert_eq(int(UD.ITEM_RANK_CAPS["B"]), 200)
+	assert_eq(int(UD.ITEM_RANK_CAPS["C"]), 500)
+	assert_eq(int(UD.ITEM_RANK_CAPS["D"]), 500)
+
+
 func test_add_item_respects_cap() -> void:
 	var sim := _sim()
 	sim.items["z1"] = 9
@@ -72,10 +83,26 @@ func test_exchange_rejects_bad_offers() -> void:
 	assert_false(sim.exchange_item("z1", {"a1": 3}), "wrong fodder rank")
 	assert_false(sim.exchange_item("z1", {"s1": 4}), "over count")
 	assert_false(sim.exchange_item("c1", {"d1": 1}), "C rank is chest-only")
+	assert_false(sim.exchange_item("d1", {}), "D rank is chest-only, no fodder tier below it")
 	assert_false(sim.exchange_item("ghost", {"s1": 3}), "unknown target")
+	assert_false(sim.exchange_item("z1", {"s1": 0}), "zero count offered")
+	assert_false(sim.exchange_item("z1", {"s1": -3}), "negative count offered")
+	assert_false(sim.exchange_item("z1", {"z1": 3}), "cannot offer the target rank as its own fodder")
 	sim.items["z1"] = sim.item_cap("z1")
 	assert_false(sim.exchange_item("z1", {"s1": 3}), "target at cap")
 	assert_eq(sim.item_count("s1"), 5, "failed offers consume nothing")
+
+
+func test_exchange_boundary_exact_count_required() -> void:
+	# A costs exactly B×7 (UD.ITEM_EXCHANGE_COSTS["A"]). One below and
+	# one above the exact count both fail; only the exact amount works.
+	var sim := _sim()
+	sim.items["b1"] = 8
+	assert_false(sim.exchange_item("a1", {"b1": 6}), "one short of 7")
+	assert_false(sim.exchange_item("a1", {"b1": 8}), "one over 7")
+	assert_true(sim.exchange_item("a1", {"b1": 7}), "exactly 7 succeeds")
+	assert_eq(sim.item_count("a1"), 1)
+	assert_eq(sim.item_count("b1"), 1, "only the exact amount was consumed")
 
 
 func test_altar_needs_building_and_coins() -> void:
@@ -108,6 +135,48 @@ func test_altar_demands_items_at_higher_levels() -> void:
 	assert_eq(sim.item_count("d1"), 1, "offering consumed the item")
 	sim.altar_level = 29
 	assert_eq(sim.altar_required_item_rank(), "Z", "level 30+ demands Z")
+
+
+func test_altar_tier_boundaries_match_spec() -> void:
+	# UD.ALTAR_ITEM_RANK_TIERS: 5->D, 10->C, 15->B, 20->A, 25->S, 30->Z.
+	# Checks the tick right below and right at each threshold so the
+	# max-tier-lookup in altar_required_item_rank cannot be off-by-one.
+	var sim := _sim()
+	# altar_required_item_rank() looks at altar_level + 1 (the level the
+	# NEXT offering would reach), so the rank steps up one level early.
+	var cases := {
+		3: "", 4: "D", 5: "D",
+		9: "C", 10: "C", 14: "B",
+		15: "B", 19: "A", 20: "A",
+		24: "S", 25: "S", 29: "Z",
+		30: "Z", 99: "Z",
+	}
+	for level: Variant in cases.keys():
+		sim.altar_level = int(level)
+		assert_eq(sim.altar_required_item_rank(), cases[level],
+			"altar_level %d requires rank at next offer" % int(level))
+
+
+func test_altar_offer_cost_scales_geometrically() -> void:
+	var sim := _sim()
+	sim.rooms.append({"id": "altar", "pos": Vector2i(2, 1), "effect": "doc_chance_add"})
+	var base := sim.altar_offer_cost()
+	assert_eq(base, UD.ALTAR_OFFER_BASE_COST, "level 0 costs exactly the base")
+	sim.altar_level = 1
+	assert_eq(
+		sim.altar_offer_cost(),
+		int(round(UD.ALTAR_OFFER_BASE_COST * UD.ALTAR_OFFER_COST_MULT)),
+		"level 1 applies the multiplier once"
+	)
+
+
+func test_altar_rejects_item_of_correct_rank_but_zero_owned() -> void:
+	var sim := _sim()
+	sim.rooms.append({"id": "altar", "pos": Vector2i(2, 1), "effect": "doc_chance_add"})
+	sim.inventory[UD.RES_GOLD] = 1000000
+	sim.altar_level = 4
+	sim.items["d1"] = 0
+	assert_false(sim.offer_at_altar("d1"), "correct rank but none actually owned")
 
 
 func test_altar_level_survives_roundtrip() -> void:
