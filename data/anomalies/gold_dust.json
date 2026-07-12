@@ -1,6 +1,5 @@
 {
 	"id": "gold_dust",
 	"name_key": "ANOMALY_GOLD_DUST",
-	"effect": "gold_per_dig",
-	"card_color": "#3a2f10"
+	"effect": "gold_per_dig"
 }

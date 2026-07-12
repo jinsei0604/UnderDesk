@@ -1,6 +1,5 @@
 {
 	"id": "soft_earth",
 	"name_key": "ANOMALY_SOFT_EARTH",
-	"effect": "dig_power_add",
-	"card_color": "#33230f"
+	"effect": "dig_power_add"
 }

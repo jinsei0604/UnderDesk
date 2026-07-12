@@ -41,10 +41,6 @@ UI_PRESTIGE_DO,Bury
 UI_PRESTIGE_INFO,Current depth %d / Burying grants +%d crystals / Crystals held: %d
 UI_PRESTIGE_CONFIRM,"Bury this shaft and dig anew? (The archive, treasures, crystals, and permanent upgrades remain.)"
 UI_CRYSTALS,Crystals
-UI_CARD,Survey Card
-UI_CARD_SAVED,Geological survey card saved
-UI_OPEN_FOLDER,Open Folder
-CARD_TITLE,GEOLOGICAL SURVEY REPORT
 PRESTIGE_PICKAXE,Deep Digging Lore
 PRESTIGE_PICKAXE_DESC,Permanent: dig power +1
 PRESTIGE_START,Stockpile Vault
@@ -90,8 +86,6 @@ DOC_008_BODY,"Dear brother. You will recall I wrote that I cannot read. I can no
 "TUT_HINT_1","This is an idle game. It keeps digging while you work — come back whenever."
 "TUT_HINT_2","Click the strip to open the big window and cash in everything dug up."
 "TUT_HINT_3","Unearthed documents advance the story. Keep collecting — companions will join."
-"UI_CARD_COPIED","Also copied to the clipboard — paste it anywhere."
-CARD_STAMP,SURVEYED
 UI_ACHIEVEMENT,Achievement unlocked: %s
 ACH_FIRST_DOC,First Page
 ACH_FIRST_DOC_DESC,Unearth your first document

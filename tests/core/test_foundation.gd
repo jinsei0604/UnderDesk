@@ -1,5 +1,5 @@
 extends GutTest
-## Foundation pieces: art naming convention and survey card assembly.
+## Foundation pieces: art naming convention and dialog icon fallback.
 
 
 func test_art_library_loads_shipped_art_and_falls_back() -> void:
@@ -36,40 +36,6 @@ func test_art_keys() -> void:
 	assert_eq(lib.minion_key(7), "minion_1", "variants wrap at %d" % UDArtLibrary.MINION_VARIANTS)
 
 
-func test_survey_card_paths_and_build() -> void:
-	assert_eq(UDSurveyCard.save_path_for("2026-07-11"), "user://cards/card_2026-07-11.png")
-	var locale := UDLocale.load_locale("ja")
-	var card := UDSurveyCard.build_card({
-		"date_key": "2026-07-11",
-		"anomaly_name": "テスト異変",
-		"depth": 14,
-		"coins": 320,
-		"minions": 4,
-		"docs": 6,
-		"docs_total": 13,
-	}, locale)
-	assert_not_null(card)
-	assert_eq(card.size, Vector2(UDSurveyCard.CARD_SIZE))
-	assert_gt(card.get_child_count(), 0)
-	card.free()
-
-
-func test_survey_card_paper_tint() -> void:
-	assert_eq(UDSurveyCard.paper_color(""), UDSurveyCard.COLOR_PAPER,
-		"no anomaly color keeps plain paper")
-	var tinted := UDSurveyCard.paper_color("#16301c")
-	assert_ne(tinted, UDSurveyCard.COLOR_PAPER, "anomaly color stains the paper")
-	assert_eq(UDSurveyCard.paper_color("not-a-color"), UDSurveyCard.COLOR_PAPER,
-		"garbage color falls back to plain paper")
-
-
-func test_survey_card_stamp_translates() -> void:
-	for code: String in UD.SUPPORTED_LOCALES:
-		var locale := UDLocale.load_locale(code)
-		assert_ne(locale.text("CARD_STAMP"), "CARD_STAMP")
-		assert_ne(locale.text("UI_CARD_COPIED"), "UI_CARD_COPIED")
-
-
 func test_placeholder_icons_fall_back_when_no_real_art() -> void:
 	var lib := UDArtLibrary.load_default([])
 	# No item/shop/prestige/doc art is shipped yet: every dialog icon
@@ -101,13 +67,3 @@ func test_load_default_finds_real_art_for_extra_categories() -> void:
 	# to prove the new item/shop/prestige/doc id params get probed.
 	var lib := UDArtLibrary.load_default(["dorm"], ["old_lantern"])
 	assert_false(lib.has_art("item_old_lantern"), "no item art shipped yet")
-
-
-func test_anomaly_card_colors_are_valid() -> void:
-	for def: Variant in UDDataLoader.load_json_dir("res://data/anomalies"):
-		var anomaly := def as Dictionary
-		var color := str(anomaly.get("card_color", ""))
-		if color == "":
-			continue
-		assert_true(Color.html_is_valid(color),
-			"%s card_color %s parses" % [anomaly["id"], color])

@@ -1,6 +1,5 @@
 {
 	"id": "lush_vein",
 	"name_key": "ANOMALY_LUSH_VEIN",
-	"effect": "doc_chance_add",
-	"card_color": "#16301c"
+	"effect": "doc_chance_add"
 }

@@ -112,8 +112,6 @@ var _perma_buy_button: Button
 var _bury_button: Button
 var _bury_confirm: ConfirmationDialog
 var _prestige_good_ids: Array[String] = []
-var _card_button: Button
-var _card_dialog: AcceptDialog
 var _altar_dialog: UDCardDialog
 var _guild_dialog: UDCardDialog
 ## Auto-picked consumption plan for the selected guild exchange target.
@@ -735,8 +733,6 @@ func _build_hud() -> void:
 	grid.add_child(_shop_button)
 	_prestige_button = _make_button("", _open_prestige)
 	grid.add_child(_prestige_button)
-	_card_button = _make_button("", _generate_survey_card)
-	grid.add_child(_card_button)
 	_height_button = _make_button("", _cycle_height)
 	grid.add_child(_height_button)
 	_locale_button = _make_button("", _toggle_locale)
@@ -814,7 +810,6 @@ func _refresh_button_texts() -> void:
 	_prestige_button.text = locale.text("UI_PRESTIGE")
 	_perma_buy_button.text = locale.text("UI_BUY")
 	_bury_button.text = locale.text("UI_PRESTIGE_DO")
-	_card_button.text = locale.text("UI_CARD")
 	_locale_button.text = _next_locale_code().to_upper()
 	_quit_button.text = locale.text("UI_QUIT")
 	_refresh_archive_button()
@@ -1312,61 +1307,6 @@ func _on_bury_confirmed() -> void:
 	_populate_prestige()
 	_refresh_button_texts()
 	queue_redraw()
-
-
-## Renders today's survey card offscreen and saves it as a PNG (§5.4).
-func _generate_survey_card() -> void:
-	if settings.resident_mode:
-		_expand()
-	var anomaly_name := "-"
-	var card_color := ""
-	if sim.daily_anomaly_id != "" and _anomaly_by_id.has(sim.daily_anomaly_id):
-		var anomaly: Dictionary = _anomaly_by_id[sim.daily_anomaly_id]
-		anomaly_name = locale.text(anomaly["name_key"])
-		card_color = str(anomaly.get("card_color", ""))
-	var data := {
-		"date_key": sim.daily_date_key,
-		"anomaly_name": anomaly_name,
-		"card_color": card_color,
-		"depth": sim.deepest_air_row(),
-		"coins": int(sim.inventory[UD.RES_GOLD]),
-		"minions": sim.minions.size(),
-		"docs": sim.discovered_documents.size(),
-		"docs_total": doc_db.count(),
-		"crystals": sim.crystals,
-		"resets": sim.resets,
-		"items": sim.distinct_items(),
-		"items_total": item_db.all_ids().size(),
-	}
-	var viewport := SubViewport.new()
-	viewport.size = UDSurveyCard.CARD_SIZE
-	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
-	viewport.add_child(UDSurveyCard.build_card(data, locale))
-	add_child(viewport)
-	await RenderingServer.frame_post_draw
-	var image := viewport.get_texture().get_image()
-	viewport.queue_free()
-	DirAccess.make_dir_recursive_absolute(UDSurveyCard.CARDS_DIR)
-	var path := UDSurveyCard.save_path_for(sim.daily_date_key)
-	image.save_png(path)
-	# One click saves AND copies (§5.4): paste straight into SNS.
-	var copied := UDClipboard.copy_image(ProjectSettings.globalize_path(path))
-	if _card_dialog == null:
-		_card_dialog = AcceptDialog.new()
-		_card_dialog.add_button(locale.text("UI_OPEN_FOLDER"), false, "open_folder")
-		_card_dialog.custom_action.connect(
-			func(_action: StringName) -> void:
-				OS.shell_open(ProjectSettings.globalize_path(UDSurveyCard.CARDS_DIR))
-		)
-		add_child(_card_dialog)
-	_card_dialog.title = locale.text("UI_CARD")
-	var saved_line := locale.text("UI_CARD_SAVED")
-	if copied:
-		saved_line += "\n" + locale.text("UI_CARD_COPIED")
-	_card_dialog.dialog_text = "%s\n%s" % [
-		saved_line, ProjectSettings.globalize_path(path),
-	]
-	_card_dialog.popup_centered()
 
 
 ## Two-level archive (user request 2026-07-12): the shelf shows one card
