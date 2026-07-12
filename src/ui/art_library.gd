@@ -23,15 +23,14 @@ var _frames: Dictionary = {}  # key -> Array[Texture2D]
 var _icon_cache: Dictionary = {}  # "shape:seed:size" -> Texture2D
 
 
-## room_ids/item_ids/shop_ids/prestige_ids/doc_ids are optional: passing
-## them lets shipped assets like room_<id>.png or item_<id>.png be found
-## up front. Anything missing still renders via icon_or_placeholder()
-## and upgrades automatically once the matching PNG is dropped in.
+## room_ids/item_ids/shop_ids/doc_ids are optional: passing them lets
+## shipped assets like room_<id>.png or item_<id>.png be found up front.
+## Anything missing still renders via icon_or_placeholder() and upgrades
+## automatically once the matching PNG is dropped in.
 static func load_default(
 	room_ids: Array[String],
 	item_ids: Array[String] = [],
 	shop_ids: Array[String] = [],
-	prestige_ids: Array[String] = [],
 	doc_ids: Array[String] = [],
 ) -> UDArtLibrary:
 	var lib := UDArtLibrary.new()
@@ -47,8 +46,6 @@ static func load_default(
 		keys.append("item_%s" % item_id)
 	for shop_id in shop_ids:
 		keys.append("shop_%s" % shop_id)
-	for prestige_id in prestige_ids:
-		keys.append("prestige_%s" % prestige_id)
 	for doc_id in doc_ids:
 		keys.append(doc_id)
 	for key in keys:

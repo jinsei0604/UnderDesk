@@ -36,17 +36,6 @@ UI_DAILY,今日の異変
 UI_COLLECTED,回収 +%d コイン
 UI_SHOP,ショップ
 UI_BUY,購入
-UI_PRESTIGE,埋め戻し
-UI_PRESTIGE_DO,埋め戻す
-UI_PRESTIGE_INFO,現在の深度 ▼%d ／ 埋め戻しで結晶 +%d ／ 保有結晶 %d
-UI_PRESTIGE_CONFIRM,坑道を埋め戻して最初から掘り直す？（書庫・宝物・結晶・恒久強化は残る）
-UI_CRYSTALS,結晶
-PRESTIGE_PICKAXE,深掘りの心得
-PRESTIGE_PICKAXE_DESC,恒久: 掘削力+1
-PRESTIGE_START,備蓄庫
-PRESTIGE_START_DESC,恒久: 開始時コイン+100
-PRESTIGE_SURVEY,地脈感覚
-PRESTIGE_SURVEY_DESC,恒久: 文書出土率+5%
 COMPANION_2_NAME,リコ
 UI_COMPANION_JOINED,仲間が加わった: %s
 SHOP_PICKAXE,つるはし強化
@@ -91,8 +80,6 @@ ACH_FIRST_DOC,最初の一枚
 ACH_FIRST_DOC_DESC,文書を1編発掘する
 ACH_DOCS_10,読みすぎた者
 ACH_DOCS_10_DESC,文書を10編発掘する
-ACH_FIRST_RESET,埋め戻した者
-ACH_FIRST_RESET_DESC,はじめて坑道を埋め戻す
 ACH_ITEMS_5,収集家の芽
 ACH_ITEMS_5_DESC,宝物を5種類集める
 ACH_DEPTH_20,深度二十

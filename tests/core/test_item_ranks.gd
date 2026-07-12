@@ -110,7 +110,7 @@ func test_altar_demands_items_at_higher_levels() -> void:
 	assert_eq(sim.altar_required_item_rank(), "Z", "level 30+ demands Z")
 
 
-func test_altar_level_survives_roundtrip_but_not_prestige() -> void:
+func test_altar_level_survives_roundtrip() -> void:
 	var sim := _sim()
 	sim.altar_level = 3
 	var restored := UDSim.from_dict(
@@ -118,12 +118,6 @@ func test_altar_level_survives_roundtrip_but_not_prestige() -> void:
 		UDTestFixtures.strata(), [], [], {}, RANKS
 	)
 	assert_eq(restored.altar_level, 3)
-	for y in range(1, UD.PRESTIGE_MIN_DEPTH + 1):
-		sim._ensure_rows(y + 2)
-		sim.grid.set_terrain(Vector2i(UD.DEPOT_POS.x, y), UD.Terrain.AIR)
-	var fresh := UDSim.prestige_reset(sim, UDTestFixtures.strata())
-	assert_eq(fresh.altar_level, 0, "offerings are run-scoped")
-	assert_eq(fresh.item_ranks, RANKS, "rank map carries into the next run")
 
 
 func test_v4_item_array_migrates_to_counts() -> void:

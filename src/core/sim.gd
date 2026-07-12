@@ -29,8 +29,7 @@ var daily_effect: String = ""
 var items: Dictionary = {}
 var item_pool: Array[String] = []
 var item_ranks: Dictionary = {}  # item id -> "Z".."D"
-## Coins offered at the altar so far, +1 dig power per level. Run-scoped
-## like shop upgrades (a new shaft starts with a cold altar).
+## Coins offered at the altar so far, +1 dig power per level.
 var altar_level: int = 0
 ## Story companions who have joined (§ plan change: the protagonist
 ## starts alone; companions join as documents are discovered).
@@ -45,12 +44,8 @@ var doc_conditions: Dictionary = {}  # doc id -> { min_docs, requires_* }
 ## spot when a dig completes (no hauling trips); converted to coins in
 ## one batch by collect_loot() when the player checks in.
 var pending_loot: Dictionary = {}
-## Shop purchases: id -> { "level": int, "effect": String }. Run-scoped.
+## Shop purchases: id -> { "level": int, "effect": String }.
 var upgrades: Dictionary = {}
-## Prestige currency and permanent tree (§5.5). Carried across resets.
-var crystals: int = 0
-var perma: Dictionary = {}  # id -> { "level": int, "effect": String }
-var resets: int = 0
 var _rng := RandomNumberGenerator.new()
 
 
@@ -288,7 +283,6 @@ func dig_power() -> int:
 	if daily_effect == "dig_power_add":
 		power += 1
 	power += UDSim._effect_levels_in(upgrades, "dig_power_add")
-	power += UDSim._effect_levels_in(perma, "dig_power_add")
 	power += altar_level
 	return power
 
@@ -418,67 +412,6 @@ static func _effect_levels_in(entries: Dictionary, effect: String) -> int:
 	return total
 
 
-func perma_level(id: String) -> int:
-	if not perma.has(id):
-		return 0
-	return int((perma[id] as Dictionary).get("level", 0))
-
-
-## Buys one level of a permanent (crystal-priced) upgrade.
-func buy_perma(good: Dictionary) -> bool:
-	var id := str(good["id"])
-	var level := perma_level(id)
-	if level >= int(good["max_level"]):
-		return false
-	var cost := UDSim.upgrade_cost(good, level)
-	if crystals < cost:
-		return false
-	crystals -= cost
-	perma[id] = {"level": level + 1, "effect": str(good.get("effect", ""))}
-	return true
-
-
-## Crystals earned by burying the shaft right now (0 = not deep enough).
-func prestige_gain() -> int:
-	return maxi(0, deepest_air_row() - UD.PRESTIGE_MIN_DEPTH + 1)
-
-
-func can_prestige() -> bool:
-	return prestige_gain() > 0
-
-
-## Buries the current shaft: a fresh dungeon that keeps the archive,
-## the collection, crystals (plus the new gain), and the permanent tree.
-static func prestige_reset(
-	old: UDSim, p_strata: UDStrataDB, p_item_pool: Array[String] = []
-) -> UDSim:
-	var gain := old.prestige_gain()
-	assert(gain > 0)
-	# Seed the next run from the old RNG stream: deterministic lineage.
-	var sim := UDSim.new_game(
-		p_strata, old._rng.randi(), p_item_pool, old.companion_defs,
-		old.doc_conditions, old.item_ranks
-	)
-	sim.crystals = old.crystals + gain
-	# Story progress persists: companions stay in the party.
-	sim.companions = old.companions.duplicate()
-	for i in sim.companions.size():
-		if sim.minions.size() < UD.MINION_MAX:
-			sim.minions.append(UDMinion.create(sim.minions.size(), UD.DEPOT_POS))
-	sim.perma = old.perma.duplicate(true)
-	sim.resets = old.resets + 1
-	sim.discovered_documents = old.discovered_documents.duplicate()
-	sim.items = old.items.duplicate()
-	sim.dig_policy = old.dig_policy
-	sim.daily_date_key = old.daily_date_key
-	sim.daily_anomaly_id = old.daily_anomaly_id
-	sim.daily_effect = old.daily_effect
-	var start_coins := UDSim._effect_levels_in(sim.perma, "start_coins") \
-		* UD.PRESTIGE_START_COINS_PER_LEVEL
-	sim.inventory[UD.RES_GOLD] = int(sim.inventory[UD.RES_GOLD]) + start_coins
-	return sim
-
-
 ## Extra document drop chance from built altars and the daily anomaly.
 func document_chance_bonus() -> float:
 	var bonus := 0.0
@@ -488,7 +421,6 @@ func document_chance_bonus() -> float:
 	if daily_effect == "doc_chance_add":
 		bonus += UD.DAILY_DOC_CHANCE_BONUS
 	bonus += UDSim._effect_levels_in(upgrades, "doc_chance_add") * UD.UPGRADE_DOC_CHANCE
-	bonus += UDSim._effect_levels_in(perma, "doc_chance_add") * UD.UPGRADE_DOC_CHANCE
 	return bonus
 
 
@@ -713,9 +645,6 @@ func to_dict() -> Dictionary:
 		"companions": companions.duplicate(),
 		"pending_loot": pending_loot.duplicate(),
 		"upgrades": upgrades.duplicate(true),
-		"crystals": crystals,
-		"perma": perma.duplicate(true),
-		"resets": resets,
 	}
 
 
@@ -778,14 +707,6 @@ static func from_dict(
 			"level": int(entry.get("level", 0)),
 			"effect": str(entry.get("effect", "")),
 		}
-	sim.crystals = int(d.get("crystals", 0))
-	for id: Variant in (d.get("perma", {}) as Dictionary).keys():
-		var entry := d["perma"][id] as Dictionary
-		sim.perma[id] = {
-			"level": int(entry.get("level", 0)),
-			"effect": str(entry.get("effect", "")),
-		}
-	sim.resets = int(d.get("resets", 0))
 	# v3 -> v4: the minion crew becomes protagonist + story companions.
 	# Rebuild the party and release job claims held by removed workers;
 	# companions re-join on the next ticks from the document count.

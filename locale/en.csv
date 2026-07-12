@@ -36,17 +36,6 @@ UI_DAILY,Today's Anomaly
 UI_COLLECTED,Collected +%d coins
 UI_SHOP,Shop
 UI_BUY,Buy
-UI_PRESTIGE,Bury the Shaft
-UI_PRESTIGE_DO,Bury
-UI_PRESTIGE_INFO,Current depth %d / Burying grants +%d crystals / Crystals held: %d
-UI_PRESTIGE_CONFIRM,"Bury this shaft and dig anew? (The archive, treasures, crystals, and permanent upgrades remain.)"
-UI_CRYSTALS,Crystals
-PRESTIGE_PICKAXE,Deep Digging Lore
-PRESTIGE_PICKAXE_DESC,Permanent: dig power +1
-PRESTIGE_START,Stockpile Vault
-PRESTIGE_START_DESC,Permanent: +100 starting coins
-PRESTIGE_SURVEY,Ley Sense
-PRESTIGE_SURVEY_DESC,Permanent: documents +5%
 COMPANION_2_NAME,Riko
 UI_COMPANION_JOINED,A companion joined: %s
 SHOP_PICKAXE,Better Pickaxes
@@ -91,8 +80,6 @@ ACH_FIRST_DOC,First Page
 ACH_FIRST_DOC_DESC,Unearth your first document
 ACH_DOCS_10,One Who Read Too Much
 ACH_DOCS_10_DESC,Unearth 10 documents
-ACH_FIRST_RESET,One Who Buried It
-ACH_FIRST_RESET_DESC,Bury the shaft for the first time
 ACH_ITEMS_5,Budding Collector
 ACH_ITEMS_5_DESC,Collect 5 treasures
 ACH_DEPTH_20,Depth Twenty

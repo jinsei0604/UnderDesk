@@ -83,13 +83,3 @@ func test_removed_companion_defs_prune_saved_party() -> void:
 	assert_eq(restored.minions.size(), 2, "party rebuilt to protagonist + c1")
 
 
-func test_prestige_keeps_companions() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 9, [], _defs())
-	sim.companions.append("c1")
-	sim.minions.append(UDMinion.create(1, UD.DEPOT_POS))
-	for y in range(1, UD.PRESTIGE_MIN_DEPTH + 1):
-		sim._ensure_rows(y + 2)
-		sim.grid.set_terrain(Vector2i(UD.DEPOT_POS.x, y), UD.Terrain.AIR)
-	var fresh := UDSim.prestige_reset(sim, UDTestFixtures.strata())
-	assert_eq(fresh.companions.size(), 1, "story progress persists")
-	assert_eq(fresh.minions.size(), 2, "companion re-spawned in the new shaft")

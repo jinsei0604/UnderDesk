@@ -38,7 +38,7 @@ func test_art_keys() -> void:
 
 func test_placeholder_icons_fall_back_when_no_real_art() -> void:
 	var lib := UDArtLibrary.load_default([])
-	# No item/shop/prestige/doc art is shipped yet: every dialog icon
+	# No item/shop/doc art is shipped yet: every dialog icon
 	# should still resolve to a generated placeholder, not null.
 	assert_null(lib.texture("item_old_lantern"), "no real art shipped for this key")
 	var icon := lib.icon_or_placeholder("item_old_lantern", "old_lantern", "gem")
@@ -64,6 +64,6 @@ func test_placeholder_icon_shapes_differ() -> void:
 
 func test_load_default_finds_real_art_for_extra_categories() -> void:
 	# minion_2.png ships for real (Riko); reuse it as a stand-in room id
-	# to prove the new item/shop/prestige/doc id params get probed.
+	# to prove the item/shop/doc id params get probed.
 	var lib := UDArtLibrary.load_default(["dorm"], ["old_lantern"])
 	assert_false(lib.has_art("item_old_lantern"), "no item art shipped yet")

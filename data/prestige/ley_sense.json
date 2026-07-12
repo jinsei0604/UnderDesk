@@ -1,9 +1,0 @@
-{
-	"id": "perma_survey",
-	"name_key": "PRESTIGE_SURVEY",
-	"desc_key": "PRESTIGE_SURVEY_DESC",
-	"base_cost": 4,
-	"cost_mult": 2.0,
-	"effect": "doc_chance_add",
-	"max_level": 4
-}

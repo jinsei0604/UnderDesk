@@ -1,16 +1,13 @@
 class_name UDAchievements
 extends RefCounted
-## Achievement tracker (§5.3: progress metrics feed Steam achievements).
+## Achievement tracker (§5.3: progress metrics feed platform achievements).
 ## Definitions are data (data/achievements/*.json); unlocks persist to
-## user:// and survive prestige resets. The platform backend is notified
-## exactly once per unlock.
+## user://. The platform backend is notified exactly once per unlock.
 
 const SAVE_PATH: String = "user://achievements.json"
 
 ## Metrics an achievement trigger can watch (design §5.3, CLAUDE.md).
-const TRIGGER_TYPES: Array[String] = [
-	"docs", "resets", "items", "depth", "crystals",
-]
+const TRIGGER_TYPES: Array[String] = ["docs", "items", "depth"]
 
 var defs: Array = []  # [{ id, name_key, desc_key, trigger: {type, count} }]
 var unlocked: Array[String] = []
@@ -59,14 +56,10 @@ func _metric(sim: UDSim, type: String) -> int:
 	match type:
 		"docs":
 			return sim.discovered_documents.size()
-		"resets":
-			return sim.resets
 		"items":
 			return sim.distinct_items()
 		"depth":
 			return sim.deepest_air_row()
-		"crystals":
-			return sim.crystals
 	return 0
 
 

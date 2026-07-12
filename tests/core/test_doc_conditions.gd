@@ -81,10 +81,3 @@ func test_conditions_survive_roundtrip_via_injection() -> void:
 	assert_true(restored._doc_unlocked("d1"))
 
 
-func test_prestige_carries_conditions() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 9, [], [], _conditions())
-	for y in range(1, UD.PRESTIGE_MIN_DEPTH + 1):
-		sim._ensure_rows(y + 2)
-		sim.grid.set_terrain(Vector2i(UD.DEPOT_POS.x, y), UD.Terrain.AIR)
-	var fresh := UDSim.prestige_reset(sim, UDTestFixtures.strata())
-	assert_eq(fresh.doc_conditions, _conditions())
