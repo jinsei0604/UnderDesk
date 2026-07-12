@@ -16,15 +16,19 @@ const GAME_SPRITE_SIZE := 128
 ## Outputs flipped horizontally so every frame of a character faces the
 ## same way (the game mirrors at draw time for the other direction).
 ## Every minion_0 frame must agree with the base idle pose's orientation
-## or the dig loop visibly snaps to face the wrong way mid-swing (bug
-## found 2026-07-12: the miner_v2 preset's raw poses face the opposite
-## way from the kept idle frame).
-const FLIP_X_OUTPUTS: Array[String] = [
-	"minion_0", "minion_0_f2", "minion_0_f3", "minion_0_f4", "minion_0_f5",
-	"minion_0_f6",
-]
+## or the dig loop visibly snaps to face the wrong way mid-swing.
+const FLIP_X_OUTPUTS: Array[String] = []
 
 ## preset -> { src, crops: { out_name: [x, y, w, h] } }
+## or { src, grid: {...}, cell_crops: { out_name: cell_index } } for a
+## uniform-grid reference sheet (see the "grid"/"cell_crops" handling
+## below; ERASE_TOP_LEFT strips a numbered badge stamped in each cell).
+##
+## NOTE (2026-07-13): the "miner"/"miner_v2" presets that used to
+## generate minion_0[.._f6].png are gone — the protagonist's dig frames
+## are now the user's hand-drawn art (Pixelorama). Re-running an old
+## preset targeting those output names would silently overwrite that
+## hand-drawn work, so don't recreate one without confirming first.
 const PRESETS := {
 	"riko": {
 		"src": "res://assets/reference/riko_sheet.png",
@@ -36,44 +40,6 @@ const PRESETS := {
 			"riko_think": [735, 652, 170, 220],
 			"riko_surprise": [900, 688, 165, 184],
 			"riko_cheer": [1055, 700, 180, 172],
-		},
-	},
-	"miner": {
-		"src": "res://assets/reference/miner_sheet.png",
-		"crops": {
-			"minion_0": [50, 665, 135, 210],
-			"minion_0_f2": [245, 940, 185, 235],
-			"minion_0_f3": [650, 940, 150, 235],
-			"miner_walk2": [240, 665, 145, 210],
-			"miner_walk3": [440, 665, 140, 210],
-			"miner_walk4": [635, 665, 145, 210],
-			"miner_walk5": [840, 665, 160, 210],
-			"miner_dig1": [40, 915, 170, 260],
-			"miner_dig3_dust": [445, 940, 160, 235],
-			"miner_dig5": [835, 940, 165, 235],
-			"miner_find": [1030, 940, 205, 235],
-		},
-	},
-	## Second reference sheet (2026-07-12): a uniform 10x4 grid of poses,
-	## each cell stamped with a small numbered badge in the top-left that
-	## must be erased before flood-fill (see ERASE_TOP_LEFT below). Picks
-	## a full raise -> strike -> dust -> recover arc for a richer, more
-	## natural dig loop (was a 3-frame loop that read as jittery).
-	"miner_v2": {
-		"src": "res://assets/reference/miner_sheet_v2.png",
-		"grid": {"cols": 10, "rows": 4, "sheet_w": 1536, "sheet_h": 1024},
-		"cell_crops": {
-			# out_name: cell_index (0-based, row-major). minion_0 itself
-			# (the idle/base frame) is intentionally NOT regenerated here:
-			# every clean crop near its cell (20, 27, ...) bled a sliver
-			# of the neighboring pose in this sheet, so the original,
-			# already-shipped idle frame is kept and only the swing
-			# frames below are sourced from this sheet.
-			"minion_0_f2": 21,  # wind-up lifting (fixes the idle->apex snap)
-			"minion_0_f3": 7,   # wind-up at apex
-			"minion_0_f4": 8,   # strike begins, light dust
-			"minion_0_f5": 25,  # strike peak, dust bursts
-			"minion_0_f6": 9,   # dust settling, eases back toward idle
 		},
 	},
 }

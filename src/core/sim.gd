@@ -247,7 +247,6 @@ func build_room(room_def: Dictionary, pos: Vector2i) -> bool:
 		"pos": pos,
 		"effect": str(room_def.get("effect", "")),
 	})
-	_apply_room_effect(room_def)
 	return true
 
 
@@ -265,12 +264,6 @@ func _room_at(cell: Vector2i) -> int:
 		if cell == origin or cell == origin + Vector2i(1, 0):
 			return i
 	return -1
-
-
-func _apply_room_effect(room_def: Dictionary) -> void:
-	var effect: String = room_def.get("effect", "")
-	if effect == "minion_add" and minions.size() < UD.MINION_MAX:
-		minions.append(UDMinion.create(minions.size(), UD.DEPOT_POS))
 
 
 ## Base power plus one for each built room with a dig_power_add effect
@@ -398,8 +391,6 @@ func buy_upgrade(good: Dictionary) -> bool:
 	inventory[UD.RES_GOLD] = int(inventory[UD.RES_GOLD]) - cost
 	var effect := str(good.get("effect", ""))
 	upgrades[id] = {"level": level + 1, "effect": effect}
-	if effect == "minion_add" and minions.size() < UD.MINION_MAX:
-		minions.append(UDMinion.create(minions.size(), UD.DEPOT_POS))
 	return true
 
 

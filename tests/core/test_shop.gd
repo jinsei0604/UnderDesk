@@ -14,21 +14,9 @@ func _pickaxe() -> Dictionary:
 	}
 
 
-func _hire() -> Dictionary:
-	return {
-		"id": "hire_minion",
-		"name_key": "SHOP_HIRE",
-		"desc_key": "SHOP_HIRE_DESC",
-		"base_cost": 50,
-		"cost_mult": 1.5,
-		"effect": "minion_add",
-		"max_level": 17,
-	}
-
-
 func test_cost_scales_per_level() -> void:
-	assert_eq(UDSim.upgrade_cost(_hire(), 0), 50)
-	assert_eq(UDSim.upgrade_cost(_hire(), 1), 75)
+	assert_eq(UDSim.upgrade_cost(_pickaxe(), 0), 100)
+	assert_eq(UDSim.upgrade_cost(_pickaxe(), 1), 200)
 	assert_eq(UDSim.upgrade_cost(_pickaxe(), 2), 400)
 
 
@@ -56,14 +44,6 @@ func test_max_level_enforced() -> void:
 	assert_true(sim.buy_upgrade(_pickaxe()))
 	assert_true(sim.buy_upgrade(_pickaxe()))
 	assert_false(sim.buy_upgrade(_pickaxe()), "max level 2 reached")
-
-
-func test_hire_spawns_minion() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
-	sim.inventory[UD.RES_GOLD] = 50
-	var before := sim.minions.size()
-	assert_true(sim.buy_upgrade(_hire()))
-	assert_eq(sim.minions.size(), before + 1)
 
 
 func test_upgrades_survive_roundtrip() -> void:
