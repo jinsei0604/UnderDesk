@@ -336,6 +336,15 @@ func _handle_click(click_pos: Vector2) -> void:
 		return
 	match mode:
 		Mode.DIG:
+			# Clicking a built facility in the world opens its screen
+			# instead of trying (and failing) to dig an already-air cell.
+			var room_id := _room_id_at_cell(cell)
+			if room_id == "altar":
+				_open_altar()
+				return
+			if room_id == "tavern":
+				_open_guild()
+				return
 			if sim.add_dig_job(cell):
 				queue_redraw()
 		Mode.BUILD:
@@ -343,6 +352,13 @@ func _handle_click(click_pos: Vector2) -> void:
 				mode = Mode.DIG
 				_refresh_mode_buttons()
 				queue_redraw()
+
+
+func _room_id_at_cell(cell: Vector2i) -> String:
+	for i in sim.rooms.size():
+		if sim.room_footprint(i, room_db).has_point(cell):
+			return str(sim.rooms[i]["id"])
+	return ""
 
 
 func _cancel_designation(click_pos: Vector2) -> void:
