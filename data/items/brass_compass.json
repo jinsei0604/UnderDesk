@@ -1,5 +1,6 @@
 {
 	"id": "brass_compass",
 	"name_key": "ITEM_BRASS_COMPASS",
-	"desc_key": "ITEM_BRASS_COMPASS_DESC"
+	"desc_key": "ITEM_BRASS_COMPASS_DESC",
+	"rank": "B"
 }

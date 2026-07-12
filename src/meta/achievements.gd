@@ -62,7 +62,7 @@ func _metric(sim: UDSim, type: String) -> int:
 		"resets":
 			return sim.resets
 		"items":
-			return sim.items.size()
+			return sim.distinct_items()
 		"depth":
 			return sim.deepest_air_row()
 		"crystals":

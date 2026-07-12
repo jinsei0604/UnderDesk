@@ -4,7 +4,7 @@ STRATUM_TOPSOIL,表土
 STRATUM_BEDROCK,岩盤
 STRATUM_AQUIFER,地下水脈
 STRATUM_RUINS,古代遺構
-ROOM_TAVERN,酒場
+ROOM_TAVERN,ギルド
 ROOM_ALTAR,祭壇
 ROOM_DORM,宿舎
 RES_SOIL,土
@@ -113,3 +113,19 @@ SERIES_LETTERS,古い書簡
 SERIES_RECORDS,記録・通達
 SERIES_RUINS,古代の遺構
 SERIES_OTHER,その他
+UI_RANK,ランク
+UI_ALTAR,お供え
+UI_ALTAR_OFFER,捧げる
+UI_ALTAR_LEVEL,祭壇 Lv.%d
+UI_ALTAR_EFFECT,掘削力+1（この坑道の間ずっと有効）
+UI_ALTAR_COINS,コインを捧げる
+UI_ALTAR_NEED_RANK,%s ランクの宝物を1つ捧げる必要がある
+UI_ALTAR_NO_ITEM,%s ランクの宝物を持っていない
+UI_ALTAR_NEEDS_ROOM,先に祭壇を建てる必要がある
+UI_GUILD,ギルド
+UI_EXCHANGE,交換
+UI_GUILD_NOTE,他の探索者との交換はSteam連携後に開放。ランクアップ交換は今すぐできる
+UI_GUILD_NEEDS_ROOM,先にギルドを建てる必要がある
+UI_GUILD_COST,必要: %s ランク ×%d
+UI_GUILD_CONSUMES,消費内訳:
+UI_GUILD_SHORT,素材が足りない（%s ランク ×%d 必要）

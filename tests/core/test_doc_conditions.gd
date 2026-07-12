@@ -56,7 +56,7 @@ func test_item_gate() -> void:
 	sim.dig_policy = UD.DigPolicy.NONE
 	_dig_next(sim, 1)
 	assert_eq(sim.discovered_documents.size(), 0)
-	sim.items.append("relic")
+	sim.items["relic"] = 1
 	_dig_next(sim, 2)
 	assert_eq(sim.discovered_documents.size(), 1, "gate opens with the item")
 

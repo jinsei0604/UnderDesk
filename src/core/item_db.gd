@@ -33,3 +33,23 @@ func all_ids() -> Array[String]:
 		ids.append(id)
 	ids.sort()
 	return ids
+
+
+func rank(id: String) -> String:
+	return str(get_item(id).get("rank", UD.ITEM_DEFAULT_RANK))
+
+
+## id -> rank map for injecting into the sim (like strata / conditions).
+func ranks_by_id() -> Dictionary:
+	var ranks: Dictionary = {}
+	for id: Variant in _items.keys():
+		ranks[str(id)] = rank(str(id))
+	return ranks
+
+
+func ids_of_rank(wanted: String) -> Array[String]:
+	var ids: Array[String] = []
+	for id in all_ids():
+		if rank(id) == wanted:
+			ids.append(id)
+	return ids

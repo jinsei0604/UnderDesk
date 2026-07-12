@@ -2,7 +2,7 @@ class_name UD
 extends RefCounted
 ## UNDERDESK core constants (§12-1: no magic numbers).
 
-const SAVE_VERSION: int = 4
+const SAVE_VERSION: int = 5
 
 ## Simulation tick length (§7.1: timer-driven, not per-frame).
 const TICK_SECONDS: float = 2.0
@@ -61,6 +61,27 @@ const COIN_VALUES: Dictionary = {
 	RES_MAGIC_STONE: 10,
 	RES_FOOD: 1,
 	RES_GOLD: 1,
+}
+
+## Collection item ranks, best first (guild trading, altar offerings).
+const ITEM_RANKS: Array[String] = ["Z", "S", "A", "B", "C", "D"]
+const ITEM_DEFAULT_RANK: String = "D"
+## Per-rank carry caps: rarer items stack lower.
+const ITEM_RANK_CAPS: Dictionary = {
+	"Z": 10, "S": 50, "A": 100, "B": 200, "C": 500, "D": 500,
+}
+## Guild exchange: receiving one item of rank R consumes this many items
+## of the rank directly below (Z←S×3, S←A×5, A←B×7, B←C×10).
+## C and D have no exchange requirement.
+const ITEM_EXCHANGE_COSTS: Dictionary = {"Z": 3, "S": 5, "A": 7, "B": 10}
+
+## Altar offerings (§5.2 rework): each offering costs scaling coins and
+## grants +1 dig power. From these altar levels on, the offering also
+## consumes one collection item of the given rank.
+const ALTAR_OFFER_BASE_COST: int = 40
+const ALTAR_OFFER_COST_MULT: float = 1.4
+const ALTAR_ITEM_RANK_TIERS: Dictionary = {
+	5: "D", 10: "C", 15: "B", 20: "A", 25: "S", 30: "Z",
 }
 
 ## Special finds rolled on each completed dig.

@@ -59,12 +59,12 @@ func test_v2_save_does_not_remigrate() -> void:
 func test_items_survive_roundtrip() -> void:
 	var pool: Array[String] = ["item_a", "item_b"]
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 1, pool)
-	sim.items.append("item_a")
+	sim.items["item_a"] = 1
 	var restored := UDSim.from_dict(
 		JSON.parse_string(JSON.stringify(sim.to_dict())), UDTestFixtures.strata(), pool
 	)
 	assert_eq(restored.items.size(), 1)
-	assert_eq(restored.items[0], "item_a")
+	assert_eq(int(restored.items["item_a"]), 1)
 
 
 func test_special_finds_are_deterministic() -> void:
@@ -75,7 +75,7 @@ func test_special_finds_are_deterministic() -> void:
 		sim.dig_policy = UD.DigPolicy.DOWN
 		sim.advance(600)
 	assert_eq(JSON.stringify(a.to_dict()), JSON.stringify(b.to_dict()))
-	for item_id in a.items:
+	for item_id: Variant in a.items.keys():
 		assert_true(pool.has(item_id), "found items come from the pool")
 
 

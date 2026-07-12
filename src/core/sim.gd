@@ -22,10 +22,16 @@ var dig_policy: UD.DigPolicy = UD.DigPolicy.NONE
 var daily_date_key: String = ""
 var daily_anomaly_id: String = ""
 var daily_effect: String = ""
-## Treasure-chest collectibles owned. The candidate pool is injected
+## Treasure-chest collectibles owned: item id -> count. Items stack up
+## to a per-rank cap (UD.ITEM_RANK_CAPS) so spares can feed the altar
+## and the guild exchange. The candidate pool and rank map are injected
 ## like the strata DB and not serialized.
-var items: Array[String] = []
+var items: Dictionary = {}
 var item_pool: Array[String] = []
+var item_ranks: Dictionary = {}  # item id -> "Z".."D"
+## Coins offered at the altar so far, +1 dig power per level. Run-scoped
+## like shop upgrades (a new shaft starts with a cold altar).
+var altar_level: int = 0
 ## Story companions who have joined (§ plan change: the protagonist
 ## starts alone; companions join as documents are discovered).
 ## Definitions are injected like the strata DB, not serialized.
@@ -54,12 +60,14 @@ static func new_game(
 	p_item_pool: Array[String] = [],
 	p_companion_defs: Array = [],
 	p_doc_conditions: Dictionary = {},
+	p_item_ranks: Dictionary = {},
 ) -> UDSim:
 	var sim := UDSim.new()
 	sim.strata = p_strata
 	sim.item_pool = p_item_pool
 	sim.companion_defs = p_companion_defs
 	sim.doc_conditions = p_doc_conditions
+	sim.item_ranks = p_item_ranks
 	sim._rng.seed = rng_seed
 	sim.grid = UDGrid.new(UD.GRID_WIDTH)
 	for y in UD.GRID_INITIAL_HEIGHT:
@@ -281,6 +289,7 @@ func dig_power() -> int:
 		power += 1
 	power += UDSim._effect_levels_in(upgrades, "dig_power_add")
 	power += UDSim._effect_levels_in(perma, "dig_power_add")
+	power += altar_level
 	return power
 
 
@@ -448,7 +457,7 @@ static func prestige_reset(
 	# Seed the next run from the old RNG stream: deterministic lineage.
 	var sim := UDSim.new_game(
 		p_strata, old._rng.randi(), p_item_pool, old.companion_defs,
-		old.doc_conditions
+		old.doc_conditions, old.item_ranks
 	)
 	sim.crystals = old.crystals + gain
 	# Story progress persists: companions stay in the party.
@@ -514,28 +523,146 @@ func _doc_unlocked(doc_id: String) -> bool:
 		if not companions.has(str(companion_id)):
 			return false
 	for item_id: Variant in cond.get("requires_items", []) as Array:
-		if not items.has(str(item_id)):
+		if item_count(str(item_id)) <= 0:
 			return false
 	return true
 
 
+func item_count(item_id: String) -> int:
+	return int(items.get(item_id, 0))
+
+
+func item_rank(item_id: String) -> String:
+	return str(item_ranks.get(item_id, UD.ITEM_DEFAULT_RANK))
+
+
+func item_cap(item_id: String) -> int:
+	return int(UD.ITEM_RANK_CAPS.get(item_rank(item_id), 0))
+
+
+## Distinct collectibles owned at least once (collection progress).
+func distinct_items() -> int:
+	var total := 0
+	for item_id: Variant in items.keys():
+		if int(items[item_id]) > 0:
+			total += 1
+	return total
+
+
+func _add_item(item_id: String, amount: int) -> void:
+	items[item_id] = mini(item_count(item_id) + amount, item_cap(item_id))
+
+
 ## Rare finds on dig completion: a chest always pays coins and also
-## holds a random unowned collection item while any remain; a nugget
-## pays far more than any hauled resource.
+## holds a random collection item that is still under its rank cap;
+## a nugget pays far more than any hauled resource.
 func _roll_special_find() -> void:
 	var roll := _rng.randf()
 	if roll < UD.CHEST_CHANCE:
 		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + UD.CHEST_COINS
 		var pool: Array[String] = []
 		for item_id in item_pool:
-			if not items.has(item_id):
+			if item_count(item_id) < item_cap(item_id):
 				pool.append(item_id)
 		if not pool.is_empty():
 			var item_id: String = pool[_rng.randi_range(0, pool.size() - 1)]
-			items.append(item_id)
+			_add_item(item_id, 1)
 			item_found.emit(item_id)
 	elif roll < UD.CHEST_CHANCE + UD.NUGGET_CHANCE:
 		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + UD.NUGGET_COINS
+
+
+## --- Altar offerings -----------------------------------------------
+## Coins (and, at higher levels, a collection item) buy permanent-for-
+## this-run dig power. Player command: deterministic, no rng.
+
+func altar_built() -> bool:
+	for room in rooms:
+		if str(room["id"]) == "altar":
+			return true
+	return false
+
+
+func altar_offer_cost() -> int:
+	return int(round(
+		UD.ALTAR_OFFER_BASE_COST * pow(UD.ALTAR_OFFER_COST_MULT, altar_level)
+	))
+
+
+## Rank of the item the NEXT offering consumes ("" while coins suffice).
+func altar_required_item_rank() -> String:
+	var next_level := altar_level + 1
+	var required := ""
+	var best_tier := -1
+	for tier: Variant in UD.ALTAR_ITEM_RANK_TIERS.keys():
+		if next_level >= int(tier) and int(tier) > best_tier:
+			best_tier = int(tier)
+			required = str(UD.ALTAR_ITEM_RANK_TIERS[tier])
+	return required
+
+
+## Offers coins (plus item_id when a rank is required) for +1 dig power.
+func offer_at_altar(item_id: String = "") -> bool:
+	if not altar_built():
+		return false
+	var cost := altar_offer_cost()
+	if int(inventory.get(UD.RES_GOLD, 0)) < cost:
+		return false
+	var required_rank := altar_required_item_rank()
+	if required_rank != "":
+		if item_id == "" or item_count(item_id) <= 0:
+			return false
+		if item_rank(item_id) != required_rank:
+			return false
+	inventory[UD.RES_GOLD] = int(inventory[UD.RES_GOLD]) - cost
+	if required_rank != "":
+		items[item_id] = item_count(item_id) - 1
+	altar_level += 1
+	return true
+
+
+## --- Guild exchange --------------------------------------------------
+## Receiving one item of rank R consumes UD.ITEM_EXCHANGE_COSTS[R] items
+## of the rank directly below (Z←S×3, S←A×5, A←B×7, B←C×10). C/D rank
+## items cannot be exchanged for — they come out of chests. The consume
+## map is chosen by the caller (UI/network layer); the sim only enforces
+## the rules, so the same command serves local and future Steam trades.
+
+func rank_below(rank: String) -> String:
+	var index := UD.ITEM_RANKS.find(rank)
+	if index < 0 or index + 1 >= UD.ITEM_RANKS.size():
+		return ""
+	return UD.ITEM_RANKS[index + 1]
+
+
+func exchange_item(target_id: String, consume: Dictionary) -> bool:
+	if not item_pool.has(target_id):
+		return false
+	var target_rank := item_rank(target_id)
+	if not UD.ITEM_EXCHANGE_COSTS.has(target_rank):
+		return false
+	if item_count(target_id) >= item_cap(target_id):
+		return false
+	var required := int(UD.ITEM_EXCHANGE_COSTS[target_rank])
+	var fodder_rank := rank_below(target_rank)
+	var offered := 0
+	for consume_id: Variant in consume.keys():
+		var id := str(consume_id)
+		var count := int(consume[consume_id])
+		if count <= 0 or id == target_id:
+			return false
+		if item_rank(id) != fodder_rank:
+			return false
+		if item_count(id) < count:
+			return false
+		offered += count
+	if offered != required:
+		return false
+	for consume_id: Variant in consume.keys():
+		var id := str(consume_id)
+		items[id] = item_count(id) - int(consume[consume_id])
+	_add_item(target_id, 1)
+	return true
 
 
 func _job_for_target(target: Vector2i) -> UDJob:
@@ -582,6 +709,7 @@ func to_dict() -> Dictionary:
 		"daily_anomaly_id": daily_anomaly_id,
 		"daily_effect": daily_effect,
 		"items": items.duplicate(),
+		"altar_level": altar_level,
 		"companions": companions.duplicate(),
 		"pending_loot": pending_loot.duplicate(),
 		"upgrades": upgrades.duplicate(true),
@@ -597,12 +725,14 @@ static func from_dict(
 	p_item_pool: Array[String] = [],
 	p_companion_defs: Array = [],
 	p_doc_conditions: Dictionary = {},
+	p_item_ranks: Dictionary = {},
 ) -> UDSim:
 	var sim := UDSim.new()
 	sim.strata = p_strata
 	sim.item_pool = p_item_pool
 	sim.companion_defs = p_companion_defs
 	sim.doc_conditions = p_doc_conditions
+	sim.item_ranks = p_item_ranks
 	sim.tick_count = int(d["tick_count"])
 	sim._rng.seed = (d["rng_seed"] as String).to_int()
 	sim._rng.state = (d["rng_state"] as String).to_int()
@@ -628,8 +758,16 @@ static func from_dict(
 	sim.daily_date_key = str(d.get("daily_date_key", ""))
 	sim.daily_anomaly_id = str(d.get("daily_anomaly_id", ""))
 	sim.daily_effect = str(d.get("daily_effect", ""))
-	for item_id: Variant in d.get("items", []) as Array:
-		sim.items.append(str(item_id))
+	# v4 -> v5: the collection became stackable. Old saves hold a plain
+	# id array (one of each); new saves hold id -> count.
+	var saved_items: Variant = d.get("items", {})
+	if saved_items is Array:
+		for item_id: Variant in saved_items as Array:
+			sim.items[str(item_id)] = 1
+	else:
+		for item_id: Variant in (saved_items as Dictionary).keys():
+			sim.items[str(item_id)] = int((saved_items as Dictionary)[item_id])
+	sim.altar_level = int(d.get("altar_level", 0))
 	for companion_id: Variant in d.get("companions", []) as Array:
 		sim.companions.append(str(companion_id))
 	for res: Variant in (d.get("pending_loot", {}) as Dictionary).keys():

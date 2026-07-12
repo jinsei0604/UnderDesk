@@ -49,7 +49,7 @@ func test_reset_carries_the_permanent_and_drops_the_run() -> void:
 	var old := _sim_at_depth(UD.PRESTIGE_MIN_DEPTH + 3)
 	old.crystals = 2
 	old.discovered_documents.append("doc_001")
-	old.items.append("item_a")
+	old.items["item_a"] = 1
 	old.inventory[UD.RES_GOLD] = 500
 	old.upgrades["pickaxe"] = {"level": 2, "effect": "dig_power_add"}
 	old.rooms.append({"id": "dorm", "pos": Vector2i(5, 1), "effect": "minion_add"})

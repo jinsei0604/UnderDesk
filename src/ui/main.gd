@@ -114,6 +114,12 @@ var _bury_confirm: ConfirmationDialog
 var _prestige_good_ids: Array[String] = []
 var _card_button: Button
 var _card_dialog: AcceptDialog
+var _altar_button: Button
+var _altar_dialog: UDCardDialog
+var _guild_button: Button
+var _guild_dialog: UDCardDialog
+## Auto-picked consumption plan for the selected guild exchange target.
+var _guild_plan: Dictionary = {}
 
 @onready var tick_timer: Timer = $TickTimer
 @onready var autosave_timer: Timer = $AutosaveTimer
@@ -145,12 +151,13 @@ func _ready() -> void:
 	if payload.is_empty():
 		sim = UDSim.new_game(
 			strata_db, int(Time.get_unix_time_from_system()),
-			item_db.all_ids(), companion_defs, doc_db.conditions_by_id()
+			item_db.all_ids(), companion_defs, doc_db.conditions_by_id(),
+			item_db.ranks_by_id()
 		)
 	else:
 		sim = UDSim.from_dict(
 			payload["sim"], strata_db, item_db.all_ids(), companion_defs,
-			doc_db.conditions_by_id()
+			doc_db.conditions_by_id(), item_db.ranks_by_id()
 		)
 	# Rooms whose definitions were removed from data/ (e.g. the retired
 	# trap room) must not crash the draw loop: drop them from the save.
@@ -185,6 +192,8 @@ func _ready() -> void:
 	_build_treasure_dialog()
 	_build_shop_dialog()
 	_build_prestige_dialog()
+	_build_altar_dialog()
+	_build_guild_dialog()
 	_refresh_button_texts()
 	_apply_window_mode()
 	queue_redraw()
@@ -238,7 +247,7 @@ func _on_tick() -> void:
 	if not settings.resident_mode:
 		# While the big window is open, loot converts as it is dug.
 		sim.collect_loot()
-	_treasure_button.text = "%s(%d)" % [locale.text("UI_TREASURES"), sim.items.size()]
+	_treasure_button.text = "%s(%d)" % [locale.text("UI_TREASURES"), sim.distinct_items()]
 	UDResidentWindow.sync_render_loop(get_window())
 	_follow_camera()
 	queue_redraw()
@@ -423,7 +432,7 @@ func _draw_hud() -> void:
 	var parts: Array[String] = [
 		locale.text("APP_TITLE"),
 		"%s %d" % [locale.text("RES_GOLD"), int(sim.inventory[UD.RES_GOLD])],
-		"%s %d/%d" % [locale.text("UI_TREASURES"), sim.items.size(), item_db.all_ids().size()],
+		"%s %d/%d" % [locale.text("UI_TREASURES"), sim.distinct_items(), item_db.all_ids().size()],
 		"⛏ %d" % sim.minions.size(),
 		"▼ %d" % sim.deepest_air_row(),
 		"tick %d" % sim.tick_count,
@@ -728,6 +737,10 @@ func _build_hud() -> void:
 	grid.add_child(_shop_button)
 	_prestige_button = _make_button("", _open_prestige)
 	grid.add_child(_prestige_button)
+	_altar_button = _make_button("", _open_altar)
+	grid.add_child(_altar_button)
+	_guild_button = _make_button("", _open_guild)
+	grid.add_child(_guild_button)
 	_card_button = _make_button("", _generate_survey_card)
 	grid.add_child(_card_button)
 	_height_button = _make_button("", _cycle_height)
@@ -789,12 +802,14 @@ func _refresh_button_texts() -> void:
 	_policy_button.text = locale.text(_policy_label_key())
 	_height_button.text = "%dpx" % UD.WINDOW_HEIGHTS[settings.height_index]
 	_collapse_button.text = locale.text("UI_COLLAPSE")
-	_treasure_button.text = "%s(%d)" % [locale.text("UI_TREASURES"), sim.items.size()]
+	_treasure_button.text = "%s(%d)" % [locale.text("UI_TREASURES"), sim.distinct_items()]
 	_shop_button.text = locale.text("UI_SHOP")
 	_prestige_button.text = locale.text("UI_PRESTIGE")
 	_perma_buy_button.text = locale.text("UI_BUY")
 	_bury_button.text = locale.text("UI_PRESTIGE_DO")
 	_card_button.text = locale.text("UI_CARD")
+	_altar_button.text = locale.text("UI_ALTAR")
+	_guild_button.text = locale.text("UI_GUILD")
 	_locale_button.text = _next_locale_code().to_upper()
 	_quit_button.text = locale.text("UI_QUIT")
 	_refresh_archive_button()
@@ -903,13 +918,16 @@ func _open_treasures() -> void:
 		_expand()
 	_treasure_dialog.clear_cards()
 	for item_id in item_db.all_ids():
-		var owned := sim.items.has(item_id)
+		var owned := sim.item_count(item_id) > 0
 		var icon := art.icon_or_placeholder("item_%s" % item_id, item_id, "gem")
 		var title_text := locale.text(item_db.get_item(item_id)["name_key"]) \
 			if owned else ""
-		_treasure_dialog.add_card(item_id, title_text, "", icon, not owned)
+		var subtitle := ""
+		if owned:
+			subtitle = "%s  ×%d" % [item_db.rank(item_id), sim.item_count(item_id)]
+		_treasure_dialog.add_card(item_id, title_text, subtitle, icon, not owned)
 	_treasure_dialog.set_progress(
-		locale.text("UI_PROGRESS_ITEMS") % [sim.items.size(), item_db.all_ids().size()]
+		locale.text("UI_PROGRESS_ITEMS") % [sim.distinct_items(), item_db.all_ids().size()]
 	)
 	_treasure_dialog.title = locale.text("UI_TREASURES")
 	_treasure_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
@@ -921,9 +939,13 @@ func _open_treasures() -> void:
 
 func _on_treasure_card_selected(item_id: String) -> void:
 	var item := item_db.get_item(item_id)
+	var body := locale.text(item["desc_key"])
+	body += "\n\n[b]%s: %s[/b]   ×%d / %d" % [
+		locale.text("UI_RANK"), item_db.rank(item_id),
+		sim.item_count(item_id), sim.item_cap(item_id),
+	]
 	_treasure_dialog.show_detail(
-		locale.text(item["name_key"]),
-		locale.text(item["desc_key"]),
+		locale.text(item["name_key"]), body,
 		art.icon_or_placeholder("item_%s" % item_id, item_id, "gem")
 	)
 
@@ -996,6 +1018,204 @@ func _on_shop_buy(good_id: String) -> void:
 	var good := shop_db.get_good(good_id)
 	if sim.buy_upgrade(good):
 		_populate_shop(good_id)
+		queue_redraw()
+
+
+## --- Altar offerings -------------------------------------------------
+## Coins (and at higher levels a treasure of the demanded rank) buy
+## permanent-for-this-run dig power (user spec 2026-07-12).
+
+func _build_altar_dialog() -> void:
+	_altar_dialog = UDCardDialog.create(locale.text("UI_ALTAR"), true)
+	_altar_dialog.card_selected.connect(_on_altar_card_selected)
+	_altar_dialog.action_pressed.connect(_on_altar_offer)
+	add_child(_altar_dialog)
+
+
+func _open_altar() -> void:
+	if settings.resident_mode:
+		_expand()
+	_populate_altar()
+	_altar_dialog.title = locale.text("UI_ALTAR")
+	_altar_dialog.popup_centered()
+
+
+func _populate_altar() -> void:
+	_altar_dialog.clear_cards()
+	_altar_dialog.set_back("", false)
+	_altar_dialog.set_progress("%s   %s %d" % [
+		locale.text("UI_ALTAR_LEVEL") % sim.altar_level,
+		locale.text("RES_GOLD"), int(sim.inventory[UD.RES_GOLD]),
+	])
+	_altar_dialog.set_action(locale.text("UI_ALTAR_OFFER"), true)
+	if not sim.altar_built():
+		_altar_dialog.show_detail("", locale.text("UI_ALTAR_NEEDS_ROOM"), null)
+		return
+	var required_rank := sim.altar_required_item_rank()
+	if required_rank == "":
+		_altar_dialog.add_card(
+			"__coins__", locale.text("UI_ALTAR_COINS"),
+			"$%d" % sim.altar_offer_cost(),
+			art.icon_or_placeholder("room_altar", "altar_offer", "rune"), false
+		)
+	else:
+		for item_id in item_db.ids_of_rank(required_rank):
+			if sim.item_count(item_id) <= 0:
+				continue
+			_altar_dialog.add_card(
+				item_id, locale.text(item_db.get_item(item_id)["name_key"]),
+				"%s  ×%d" % [required_rank, sim.item_count(item_id)],
+				art.icon_or_placeholder("item_%s" % item_id, item_id, "gem"),
+				false
+			)
+		if not _altar_dialog.has_cards():
+			_altar_dialog.show_detail("", "%s\n%s" % [
+				locale.text("UI_ALTAR_NEED_RANK") % required_rank,
+				locale.text("UI_ALTAR_NO_ITEM") % required_rank,
+			], null)
+			return
+	var first := _altar_dialog.first_unlocked_id()
+	if first != "":
+		_altar_dialog.select_card(first)
+
+
+func _on_altar_card_selected(card_id: String) -> void:
+	var cost := sim.altar_offer_cost()
+	var body := "%s\n\n[b]$%d[/b]" % [locale.text("UI_ALTAR_EFFECT"), cost]
+	var required_rank := sim.altar_required_item_rank()
+	var title := locale.text("UI_ALTAR_COINS")
+	var icon := art.icon_or_placeholder("room_altar", "altar_offer", "rune")
+	if required_rank != "" and card_id != "__coins__":
+		body += "\n%s" % (locale.text("UI_ALTAR_NEED_RANK") % required_rank)
+		title = locale.text(item_db.get_item(card_id)["name_key"])
+		icon = art.icon_or_placeholder("item_%s" % card_id, card_id, "gem")
+	_altar_dialog.show_detail(title, body, icon)
+	var affordable := int(sim.inventory[UD.RES_GOLD]) >= cost
+	_altar_dialog.set_action(locale.text("UI_ALTAR_OFFER"), not affordable)
+
+
+func _on_altar_offer(card_id: String) -> void:
+	var item_id := "" if card_id == "__coins__" else card_id
+	if sim.offer_at_altar(item_id):
+		_populate_altar()
+		queue_redraw()
+
+
+## --- Guild exchange ---------------------------------------------------
+## Rank-up exchange runs locally today; person-to-person trading rides
+## on Steam later through the same sim command (UDPlatform).
+
+func _build_guild_dialog() -> void:
+	_guild_dialog = UDCardDialog.create(locale.text("UI_GUILD"), true)
+	_guild_dialog.card_selected.connect(_on_guild_card_selected)
+	_guild_dialog.action_pressed.connect(_on_guild_exchange)
+	add_child(_guild_dialog)
+
+
+func _guild_built() -> bool:
+	for room in sim.rooms:
+		if str(room["id"]) == "tavern":
+			return true
+	return false
+
+
+func _open_guild() -> void:
+	if settings.resident_mode:
+		_expand()
+	_populate_guild("")
+	_guild_dialog.title = locale.text("UI_GUILD")
+	_guild_dialog.popup_centered()
+
+
+func _populate_guild(keep_selection: String) -> void:
+	_guild_dialog.clear_cards()
+	_guild_dialog.set_back("", false)
+	_guild_dialog.set_progress(locale.text("UI_GUILD_NOTE"))
+	_guild_dialog.set_action(locale.text("UI_EXCHANGE"), true)
+	if not _guild_built():
+		_guild_dialog.show_detail("", locale.text("UI_GUILD_NEEDS_ROOM"), null)
+		return
+	for item_id in item_db.all_ids():
+		var rank := item_db.rank(item_id)
+		if not UD.ITEM_EXCHANGE_COSTS.has(rank):
+			continue
+		var fodder_rank := sim.rank_below(rank)
+		_guild_dialog.add_card(
+			item_id, locale.text(item_db.get_item(item_id)["name_key"]),
+			"%s ← %s×%d" % [rank, fodder_rank, int(UD.ITEM_EXCHANGE_COSTS[rank])],
+			art.icon_or_placeholder("item_%s" % item_id, item_id, "gem"),
+			false
+		)
+	_guild_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
+	var select_id := keep_selection
+	if select_id == "":
+		select_id = _guild_dialog.first_unlocked_id()
+	if select_id != "":
+		_guild_dialog.select_card(select_id)
+
+
+## Greedy auto-pick: spend the most plentiful fodder first so rare
+## spares survive. Returns {} when the player cannot cover the cost.
+func _guild_exchange_plan(target_id: String) -> Dictionary:
+	var rank := item_db.rank(target_id)
+	if not UD.ITEM_EXCHANGE_COSTS.has(rank):
+		return {}
+	var needed := int(UD.ITEM_EXCHANGE_COSTS[rank])
+	var fodder_rank := sim.rank_below(rank)
+	var owned: Array[String] = []
+	for item_id in item_db.ids_of_rank(fodder_rank):
+		if item_id != target_id and sim.item_count(item_id) > 0:
+			owned.append(item_id)
+	owned.sort_custom(
+		func(a: String, b: String) -> bool:
+			return sim.item_count(a) > sim.item_count(b)
+	)
+	var plan: Dictionary = {}
+	for item_id in owned:
+		if needed <= 0:
+			break
+		var take := mini(needed, sim.item_count(item_id))
+		plan[item_id] = take
+		needed -= take
+	if needed > 0:
+		return {}
+	return plan
+
+
+func _on_guild_card_selected(target_id: String) -> void:
+	var item := item_db.get_item(target_id)
+	var rank := item_db.rank(target_id)
+	var fodder_rank := sim.rank_below(rank)
+	var needed := int(UD.ITEM_EXCHANGE_COSTS[rank])
+	var body := locale.text(item["desc_key"])
+	body += "\n\n[b]%s[/b]" % (locale.text("UI_GUILD_COST") % [fodder_rank, needed])
+	body += "\n%s ×%d / %d" % [
+		locale.text("UI_RANK") + " " + rank,
+		sim.item_count(target_id), sim.item_cap(target_id),
+	]
+	_guild_plan = _guild_exchange_plan(target_id)
+	var at_cap := sim.item_count(target_id) >= sim.item_cap(target_id)
+	if _guild_plan.is_empty():
+		body += "\n\n%s" % (locale.text("UI_GUILD_SHORT") % [fodder_rank, needed])
+	else:
+		body += "\n\n%s" % locale.text("UI_GUILD_CONSUMES")
+		for consume_id: Variant in _guild_plan.keys():
+			body += "\n  %s ×%d" % [
+				locale.text(item_db.get_item(str(consume_id))["name_key"]),
+				int(_guild_plan[consume_id]),
+			]
+	_guild_dialog.show_detail(
+		locale.text(item["name_key"]), body,
+		art.icon_or_placeholder("item_%s" % target_id, target_id, "gem")
+	)
+	_guild_dialog.set_action(
+		locale.text("UI_EXCHANGE"), _guild_plan.is_empty() or at_cap
+	)
+
+
+func _on_guild_exchange(target_id: String) -> void:
+	if sim.exchange_item(target_id, _guild_plan):
+		_populate_guild(target_id)
 		queue_redraw()
 
 
@@ -1110,7 +1330,7 @@ func _generate_survey_card() -> void:
 		"docs_total": doc_db.count(),
 		"crystals": sim.crystals,
 		"resets": sim.resets,
-		"items": sim.items.size(),
+		"items": sim.distinct_items(),
 		"items_total": item_db.all_ids().size(),
 	}
 	var viewport := SubViewport.new()

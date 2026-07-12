@@ -4,7 +4,7 @@ STRATUM_TOPSOIL,Topsoil
 STRATUM_BEDROCK,Bedrock
 STRATUM_AQUIFER,Aquifer
 STRATUM_RUINS,Ancient Ruins
-ROOM_TAVERN,Tavern
+ROOM_TAVERN,Guild
 ROOM_ALTAR,Altar
 ROOM_DORM,Dormitory
 RES_SOIL,Soil
@@ -113,3 +113,19 @@ SERIES_LETTERS,Old Letters
 SERIES_RECORDS,Records & Notices
 SERIES_RUINS,The Ancient Ruins
 SERIES_OTHER,Miscellany
+UI_RANK,Rank
+UI_ALTAR,Offering
+UI_ALTAR_OFFER,Offer
+UI_ALTAR_LEVEL,Altar Lv.%d
+UI_ALTAR_EFFECT,+1 dig power for the life of this shaft
+UI_ALTAR_COINS,Offer coins
+UI_ALTAR_NEED_RANK,Requires offering one rank-%s treasure
+UI_ALTAR_NO_ITEM,You own no rank-%s treasure
+UI_ALTAR_NEEDS_ROOM,Build an altar first
+UI_GUILD,Guild
+UI_EXCHANGE,Exchange
+UI_GUILD_NOTE,Trading with other delvers opens with Steam. Rank-up exchange works today.
+UI_GUILD_NEEDS_ROOM,Build the guild first
+UI_GUILD_COST,Requires: rank %s ×%d
+UI_GUILD_CONSUMES,Will consume:
+UI_GUILD_SHORT,Not enough fodder (need rank %s ×%d)
