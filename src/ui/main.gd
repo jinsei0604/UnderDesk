@@ -114,9 +114,6 @@ var _bury_confirm: ConfirmationDialog
 var _prestige_good_ids: Array[String] = []
 var _card_button: Button
 var _card_dialog: AcceptDialog
-var _events_button: Button
-var _events_dialog: AcceptDialog
-var _events_list: ItemList
 
 @onready var tick_timer: Timer = $TickTimer
 @onready var autosave_timer: Timer = $AutosaveTimer
@@ -155,6 +152,13 @@ func _ready() -> void:
 			payload["sim"], strata_db, item_db.all_ids(), companion_defs,
 			doc_db.conditions_by_id()
 		)
+	# Rooms whose definitions were removed from data/ (e.g. the retired
+	# trap room) must not crash the draw loop: drop them from the save.
+	var kept_rooms: Array[Dictionary] = []
+	for room in sim.rooms:
+		if room_db.has_room(str(room["id"])):
+			kept_rooms.append(room)
+	sim.rooms = kept_rooms
 	_connect_sim_signals()
 	if not payload.is_empty():
 		offline_ticks_applied = UDOffline.elapsed_ticks(
@@ -181,7 +185,6 @@ func _ready() -> void:
 	_build_treasure_dialog()
 	_build_shop_dialog()
 	_build_prestige_dialog()
-	_build_events_dialog()
 	_refresh_button_texts()
 	_apply_window_mode()
 	queue_redraw()
@@ -263,15 +266,6 @@ func _follow_camera() -> void:
 func _connect_sim_signals() -> void:
 	sim.document_discovered.connect(_on_document_discovered)
 	sim.companion_joined.connect(_on_companion_joined)
-	sim.intruder_raid.connect(_on_intruder_raid)
-
-
-func _on_intruder_raid(entry: Dictionary) -> void:
-	var key := "UI_INTRUDER_REPELLED" if bool(entry["repelled"]) \
-		else "UI_INTRUDER_BREACH"
-	_tally_text = locale.text(key) % int(entry["coins"])
-	_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 2
-	queue_redraw()
 
 
 func _on_document_discovered(doc_id: String) -> void:
@@ -736,8 +730,6 @@ func _build_hud() -> void:
 	grid.add_child(_prestige_button)
 	_card_button = _make_button("", _generate_survey_card)
 	grid.add_child(_card_button)
-	_events_button = _make_button("", _open_events)
-	grid.add_child(_events_button)
 	_height_button = _make_button("", _cycle_height)
 	grid.add_child(_height_button)
 	_locale_button = _make_button("", _toggle_locale)
@@ -803,7 +795,6 @@ func _refresh_button_texts() -> void:
 	_perma_buy_button.text = locale.text("UI_BUY")
 	_bury_button.text = locale.text("UI_PRESTIGE_DO")
 	_card_button.text = locale.text("UI_CARD")
-	_events_button.text = locale.text("UI_EVENTS")
 	_locale_button.text = _next_locale_code().to_upper()
 	_quit_button.text = locale.text("UI_QUIT")
 	_refresh_archive_button()
@@ -896,42 +887,6 @@ func _build_archive_dialog() -> void:
 	_archive_dialog.card_selected.connect(_on_archive_card_selected)
 	_archive_dialog.back_pressed.connect(_show_archive_series_shelf)
 	add_child(_archive_dialog)
-
-
-func _build_events_dialog() -> void:
-	_events_dialog = AcceptDialog.new()
-	_events_dialog.title = locale.text("UI_EVENTS")
-	_events_dialog.min_size = Vector2i(640, 360)
-	_events_list = ItemList.new()
-	_events_list.custom_minimum_size = Vector2(600, 300)
-	_events_list.add_theme_font_size_override("font_size", 15)
-	_events_list.icon_mode = ItemList.ICON_MODE_LEFT
-	_events_list.fixed_icon_size = Vector2i(UDArtLibrary.PLACEHOLDER_ICON_SIZE, UDArtLibrary.PLACEHOLDER_ICON_SIZE)
-	_events_dialog.add_child(_events_list)
-	add_child(_events_dialog)
-
-
-## Replay-style report (§5.2): the raid already resolved inside the sim;
-## this only retells it. Newest entries first.
-func _open_events() -> void:
-	if settings.resident_mode:
-		_expand()
-	_events_list.clear()
-	for i in range(sim.event_log.size() - 1, -1, -1):
-		var entry: Dictionary = sim.event_log[i]
-		var repelled := bool(entry["repelled"])
-		var key := "EVENT_INTRUDER_REPELLED" if repelled else "EVENT_INTRUDER_BREACH"
-		var icon := art.placeholder_icon(
-			"intruder_repelled" if repelled else "intruder_breach", "rune"
-		)
-		_events_list.add_item(locale.text(key) % [
-			int(entry["tick"]), int(entry["strength"]),
-			int(entry["defense"]), int(entry["coins"]),
-		], icon)
-	if sim.event_log.is_empty():
-		_events_list.add_item(locale.text("EVENT_EMPTY"))
-	_events_dialog.title = locale.text("UI_EVENTS")
-	_events_dialog.popup_centered()
 
 
 func _build_treasure_dialog() -> void:

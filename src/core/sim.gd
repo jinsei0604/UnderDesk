@@ -7,7 +7,6 @@ extends RefCounted
 signal document_discovered(doc_id: String)
 signal item_found(item_id: String)
 signal companion_joined(companion_id: String)
-signal intruder_raid(entry: Dictionary)
 
 var tick_count: int = 0
 var grid: UDGrid
@@ -46,9 +45,6 @@ var upgrades: Dictionary = {}
 var crystals: int = 0
 var perma: Dictionary = {}  # id -> { "level": int, "effect": String }
 var resets: int = 0
-## Replay-style report of things that happened while nobody watched
-## (§5.2 intruders). Newest last; capped at UD.EVENT_LOG_MAX entries.
-var event_log: Array[Dictionary] = []
 var _rng := RandomNumberGenerator.new()
 
 
@@ -88,7 +84,6 @@ func tick() -> void:
 	for minion in minions:
 		_step_minion(minion)
 	_check_companion_joins()
-	_check_intruder()
 
 
 ## Story progression: companions join when enough documents have been
@@ -103,50 +98,6 @@ func _check_companion_joins() -> void:
 			companions.append(id)
 			minions.append(UDMinion.create(minions.size(), UD.DEPOT_POS))
 			companion_joined.emit(id)
-
-
-## Traps built in advance are the whole defence (§5.2: no realtime
-## response). Shop/perma effects with defense_add stack in for free.
-func defense() -> int:
-	var total := 0
-	for room in rooms:
-		if str(room.get("effect", "")) == "defense_add":
-			total += 1
-	total += UDSim._effect_levels_in(upgrades, "defense_add")
-	total += UDSim._effect_levels_in(perma, "defense_add")
-	return total
-
-
-## Weekly-ish raid resolved inside the tick, so offline catch-up and
-## realtime produce the identical log. A repelled intruder drops loot;
-## one that gets through steals coins (never below zero).
-func _check_intruder() -> void:
-	if tick_count % UD.INTRUDER_INTERVAL_TICKS != 0:
-		return
-	var strength := _rng.randi_range(
-		UD.INTRUDER_STRENGTH_MIN, UD.INTRUDER_STRENGTH_MAX
-	)
-	var guard := defense()
-	var repelled := guard >= strength
-	var coins_delta: int
-	if repelled:
-		coins_delta = strength * UD.INTRUDER_REWARD_PER_STRENGTH
-	else:
-		var theft := (strength - guard) * UD.INTRUDER_THEFT_PER_STRENGTH
-		coins_delta = -mini(theft, int(inventory.get(UD.RES_GOLD, 0)))
-	inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + coins_delta
-	var entry := {
-		"kind": "intruder",
-		"tick": tick_count,
-		"strength": strength,
-		"defense": guard,
-		"repelled": repelled,
-		"coins": coins_delta,
-	}
-	event_log.append(entry)
-	while event_log.size() > UD.EVENT_LOG_MAX:
-		event_log.pop_front()
-	intruder_raid.emit(entry)
 
 
 ## Generates dig jobs from the current policy so play continues unattended.
@@ -637,7 +588,6 @@ func to_dict() -> Dictionary:
 		"crystals": crystals,
 		"perma": perma.duplicate(true),
 		"resets": resets,
-		"event_log": event_log.duplicate(true),
 	}
 
 
@@ -698,17 +648,6 @@ static func from_dict(
 			"effect": str(entry.get("effect", "")),
 		}
 	sim.resets = int(d.get("resets", 0))
-	# JSON turns ints into floats: normalize event entries on the way in.
-	for entry_var: Variant in d.get("event_log", []) as Array:
-		var entry := entry_var as Dictionary
-		sim.event_log.append({
-			"kind": str(entry.get("kind", "intruder")),
-			"tick": int(entry.get("tick", 0)),
-			"strength": int(entry.get("strength", 0)),
-			"defense": int(entry.get("defense", 0)),
-			"repelled": bool(entry.get("repelled", false)),
-			"coins": int(entry.get("coins", 0)),
-		})
 	# v3 -> v4: the minion crew becomes protagonist + story companions.
 	# Rebuild the party and release job claims held by removed workers;
 	# companions re-join on the next ticks from the document count.

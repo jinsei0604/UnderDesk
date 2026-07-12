@@ -71,20 +71,6 @@ const NUGGET_COINS: int = 25
 ## any remain (the collection grows with updates, ~100 items planned).
 const CHEST_COINS: int = 10
 
-## Intruder raids (§5.2): a low-frequency report-style event. No realtime
-## response is asked of the player; traps built in advance decide the
-## outcome, and the result lands in the event log.
-const INTRUDER_INTERVAL_TICKS: int = 30240
-const INTRUDER_STRENGTH_MIN: int = 1
-const INTRUDER_STRENGTH_MAX: int = 4
-## Coins looted from the fallen intruder per point of strength.
-const INTRUDER_REWARD_PER_STRENGTH: int = 15
-## Coins an unstopped intruder makes off with, per point of strength
-## (capped by what the hoard actually holds — never goes negative).
-const INTRUDER_THEFT_PER_STRENGTH: int = 20
-## Event log entries kept in the save (oldest dropped first).
-const EVENT_LOG_MAX: int = 20
-
 const MINION_DIG_POWER: int = 1
 ## The protagonist digs alone at first; story companions join later.
 const INITIAL_MINION_COUNT: int = 1
