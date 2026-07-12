@@ -62,6 +62,27 @@ func test_document_foreshadow_metadata_is_well_formed() -> void:
 					"%s condition key %s is known" % [doc_id, key])
 
 
+func test_document_series_cross_reference() -> void:
+	# Every document belongs to a defined series (data/series/), every
+	# series translates, and no series shelf is empty in the archive.
+	var series_defs := UDDataLoader.load_json_dir("res://data/series")
+	assert_gt(series_defs.size(), 0)
+	var series_ids: Array[String] = []
+	var ja := UDLocale.load_locale("ja")
+	var en := UDLocale.load_locale("en")
+	for def: Variant in series_defs:
+		var series := def as Dictionary
+		series_ids.append(str(series["id"]))
+		for locale: UDLocale in [ja, en]:
+			assert_ne(locale.text(series["name_key"]), series["name_key"],
+				"%s name translated" % series["id"])
+	var docs := UDDocumentDB.load_from_dir("res://data/documents")
+	for doc_id in docs.all_ids():
+		var series_id := str(docs.get_doc(doc_id).get("series", "other"))
+		assert_true(series_id in series_ids,
+			"%s series %s is defined" % [doc_id, series_id])
+
+
 func test_strata_document_ids_exist() -> void:
 	var docs := UDDocumentDB.load_from_dir("res://data/documents")
 	var strata_defs := UDDataLoader.load_json_dir("res://data/strata")

@@ -1,5 +1,6 @@
 {
 	"id": "doc_001",
 	"title_key": "DOC_001_TITLE",
-	"body_key": "DOC_001_BODY"
+	"body_key": "DOC_001_BODY",
+	"series": "journal"
 }

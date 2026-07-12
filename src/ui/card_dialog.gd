@@ -8,6 +8,7 @@ extends AcceptDialog
 
 signal card_selected(id: String)
 signal action_pressed(id: String)
+signal back_pressed
 
 ## Palette shared with the survey card: aged paper in a dark cabinet.
 const COLOR_CABINET := Color(0.075, 0.065, 0.055)
@@ -27,6 +28,7 @@ const DETAIL_ICON_PX: int = 88
 const GRID_COLUMNS: int = 4
 
 var _progress_label: Label
+var _back_button: Button
 var _grid: GridContainer
 var _detail_icon: TextureRect
 var _detail_title: Label
@@ -54,11 +56,23 @@ func _build(with_action: bool) -> void:
 	column.add_theme_constant_override("separation", 8)
 	root.add_child(column)
 
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 10)
+	column.add_child(header)
+
+	_back_button = Button.new()
+	_back_button.custom_minimum_size = Vector2(90, 34)
+	_back_button.add_theme_font_size_override("font_size", 14)
+	_back_button.visible = false
+	_back_button.pressed.connect(func() -> void: back_pressed.emit())
+	header.add_child(_back_button)
+
 	_progress_label = Label.new()
 	_progress_label.add_theme_font_size_override("font_size", 15)
 	_progress_label.add_theme_color_override("font_color", COLOR_TITLE)
 	_progress_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	column.add_child(_progress_label)
+	_progress_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(_progress_label)
 
 	var body := HBoxContainer.new()
 	body.add_theme_constant_override("separation", 12)
@@ -127,6 +141,12 @@ func set_progress(text: String) -> void:
 	_progress_label.text = text
 
 
+## Shows the "back to series" button on nested pages (archive shelves).
+func set_back(label: String, visible_now: bool) -> void:
+	_back_button.text = "← " + label
+	_back_button.visible = visible_now
+
+
 func clear_cards() -> void:
 	_selected_id = ""
 	_cards.clear()
@@ -164,7 +184,8 @@ func add_card(
 	image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	image.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	image.texture = icon
-	image.modulate = Color(0.45, 0.42, 0.4) if locked else Color.WHITE
+	# Locked entries read as blacked-out silhouettes on a dark slot.
+	image.modulate = Color(0.16, 0.14, 0.13) if locked else Color.WHITE
 	box.add_child(image)
 
 	var name_label := Label.new()

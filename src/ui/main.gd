@@ -48,6 +48,10 @@ var art: UDArtLibrary
 var achievements: UDAchievements
 var anomalies: Array = []
 var _anomaly_by_id: Dictionary = {}
+## Document series defs (data/series/): filename order is display order.
+var doc_series: Array = []
+## "" = the series-selection shelf; otherwise the open series id.
+var _archive_series: String = ""
 var companion_defs: Array = []
 var _companion_by_id: Dictionary = {}
 var mode: Mode = Mode.DIG
@@ -131,6 +135,7 @@ func _ready() -> void:
 		prestige_db.all_ids(), doc_db.all_ids()
 	)
 	achievements = UDAchievements.load_default(UDPlatform.create())
+	doc_series = UDDataLoader.load_json_dir("res://data/series")
 	anomalies = UDDataLoader.load_json_dir("res://data/anomalies")
 	for anomaly: Variant in anomalies:
 		_anomaly_by_id[(anomaly as Dictionary)["id"]] = anomaly
@@ -889,6 +894,7 @@ func _toggle_locale() -> void:
 func _build_archive_dialog() -> void:
 	_archive_dialog = UDCardDialog.create(locale.text("UI_ARCHIVE"), false)
 	_archive_dialog.card_selected.connect(_on_archive_card_selected)
+	_archive_dialog.back_pressed.connect(_show_archive_series_shelf)
 	add_child(_archive_dialog)
 
 
@@ -1183,38 +1189,96 @@ func _generate_survey_card() -> void:
 	_card_dialog.popup_centered()
 
 
-## The archive shows the whole catalogue (reference: 手記一覧): found
-## documents as parchment cards, the rest locked as ????? so the player
-## always sees how much of the story is still underground.
+## Two-level archive (user request 2026-07-12): the shelf shows one card
+## per series (メインストーリー / 外伝 …, data/series/); opening a series
+## lists its documents in number order, unfound ones blacked out as ?????.
 func _open_archive() -> void:
 	if settings.resident_mode:
 		# Documents are unreadable in a 48px strip: expand first.
 		_expand()
+	_show_archive_series_shelf()
+	_archive_dialog.popup_centered()
+
+
+func _series_doc_ids(series_id: String) -> Array[String]:
+	var ids: Array[String] = []
+	for doc_id in doc_db.all_ids():
+		if str(doc_db.get_doc(doc_id).get("series", "other")) == series_id:
+			ids.append(doc_id)
+	return ids
+
+
+func _show_archive_series_shelf() -> void:
+	_archive_series = ""
+	_archive_dialog.clear_cards()
+	for def: Variant in doc_series:
+		var series := def as Dictionary
+		var series_id := str(series["id"])
+		var doc_ids := _series_doc_ids(series_id)
+		if doc_ids.is_empty():
+			continue
+		var found := 0
+		var has_unread := false
+		for doc_id in doc_ids:
+			if sim.discovered_documents.has(doc_id):
+				found += 1
+			if unread_docs.has(doc_id):
+				has_unread = true
+		var subtitle := "%d / %d" % [found, doc_ids.size()]
+		if has_unread:
+			subtitle += " ✦"
+		_archive_dialog.add_card(
+			series_id, locale.text(series["name_key"]), subtitle,
+			art.icon_or_placeholder("series_%s" % series_id, series_id, "book"),
+			false
+		)
+	_archive_dialog.set_back(locale.text("UI_BACK"), false)
+	_archive_dialog.set_progress(locale.text("UI_PROGRESS_DOCS") % [
+		sim.discovered_documents.size(), doc_db.count(),
+	])
+	_archive_dialog.show_detail("", locale.text("UI_SELECT_SERIES_HINT"), null)
+
+
+func _show_archive_series(series_id: String) -> void:
+	_archive_series = series_id
 	var fresh := unread_docs.duplicate()
 	_archive_dialog.clear_cards()
-	for doc_id in doc_db.all_ids():
-		var found := sim.discovered_documents.has(doc_id)
+	var found := 0
+	var doc_ids := _series_doc_ids(series_id)
+	for doc_id in doc_ids:
+		var is_found := sim.discovered_documents.has(doc_id)
+		if is_found:
+			found += 1
 		var doc := doc_db.get_doc(doc_id)
 		var subtitle := _doc_number_label(doc_id)
 		if fresh.has(doc_id):
 			subtitle += " ✦"
-		var icon := art.icon_or_placeholder(doc_id, doc_id, "book")
 		_archive_dialog.add_card(
-			doc_id, locale.text(doc["title_key"]) if found else "",
-			subtitle, icon, not found
+			doc_id, locale.text(doc["title_key"]) if is_found else "",
+			subtitle, art.icon_or_placeholder(doc_id, doc_id, "book"),
+			not is_found
 		)
-	_archive_dialog.set_progress(locale.text("UI_PROGRESS_DOCS") % [
-		sim.discovered_documents.size(), doc_db.count(),
-	])
-	_archive_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
-	unread_docs.clear()
+		# Entering the shelf marks this series' pages as read.
+		unread_docs.erase(doc_id)
 	_refresh_archive_button()
-	# Open on the newest unread page, else the first found one.
-	var select_id := str(fresh[0]) if not fresh.is_empty() \
-		else _archive_dialog.first_unlocked_id()
+	var series_name := series_id
+	for def: Variant in doc_series:
+		if str((def as Dictionary)["id"]) == series_id:
+			series_name = locale.text((def as Dictionary)["name_key"])
+			break
+	_archive_dialog.set_back(locale.text("UI_BACK"), true)
+	_archive_dialog.set_progress("%s   %d / %d" % [series_name, found, doc_ids.size()])
+	_archive_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
+	# Open on the newest unread page in this series, else the first found.
+	var select_id := ""
+	for doc_id in doc_ids:
+		if fresh.has(doc_id):
+			select_id = doc_id
+			break
+	if select_id == "":
+		select_id = _archive_dialog.first_unlocked_id()
 	if select_id != "":
 		_archive_dialog.select_card(select_id)
-	_archive_dialog.popup_centered()
 
 
 ## doc_007 -> "No.7" (matches the reference catalogue numbering).
@@ -1227,12 +1291,15 @@ func _doc_number_label(doc_id: String) -> String:
 	return ("No.%d" % int(digits)) if digits != "" else doc_id
 
 
-func _on_archive_card_selected(doc_id: String) -> void:
-	var doc := doc_db.get_doc(doc_id)
+func _on_archive_card_selected(card_id: String) -> void:
+	if _archive_series == "":
+		_show_archive_series(card_id)
+		return
+	var doc := doc_db.get_doc(card_id)
 	_archive_dialog.show_detail(
 		locale.text(doc["title_key"]),
 		locale.text(doc["body_key"]),
-		art.icon_or_placeholder(doc_id, doc_id, "book")
+		art.icon_or_placeholder(card_id, card_id, "book")
 	)
 
 

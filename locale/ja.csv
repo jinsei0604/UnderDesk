@@ -113,3 +113,10 @@ ACH_DEPTH_20_DESC,深度20に到達する
 UI_PROGRESS_DOCS,発見した文書 %d / %d
 UI_PROGRESS_ITEMS,収集した宝物 %d / %d
 UI_SELECT_HINT,カードを選ぶと詳細が表示される
+UI_BACK,戻る
+UI_SELECT_SERIES_HINT,シリーズを選ぶと手記の一覧が開く
+SERIES_JOURNAL,坑夫の手記
+SERIES_LETTERS,古い書簡
+SERIES_RECORDS,記録・通達
+SERIES_RUINS,古代の遺構
+SERIES_OTHER,その他
