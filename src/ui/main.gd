@@ -114,9 +114,7 @@ var _bury_confirm: ConfirmationDialog
 var _prestige_good_ids: Array[String] = []
 var _card_button: Button
 var _card_dialog: AcceptDialog
-var _altar_button: Button
 var _altar_dialog: UDCardDialog
-var _guild_button: Button
 var _guild_dialog: UDCardDialog
 ## Auto-picked consumption plan for the selected guild exchange target.
 var _guild_plan: Dictionary = {}
@@ -726,7 +724,7 @@ func _build_hud() -> void:
 	_policy_button = _make_button("", _cycle_dig_policy)
 	grid.add_child(_policy_button)
 	for room_id in room_db.all_ids():
-		var button := _make_button("", _select_build_room.bind(room_id))
+		var button := _make_button("", _on_room_button.bind(room_id))
 		_room_buttons[room_id] = button
 		grid.add_child(button)
 	_archive_button = _make_button("", _open_archive)
@@ -737,10 +735,6 @@ func _build_hud() -> void:
 	grid.add_child(_shop_button)
 	_prestige_button = _make_button("", _open_prestige)
 	grid.add_child(_prestige_button)
-	_altar_button = _make_button("", _open_altar)
-	grid.add_child(_altar_button)
-	_guild_button = _make_button("", _open_guild)
-	grid.add_child(_guild_button)
 	_card_button = _make_button("", _generate_survey_card)
 	grid.add_child(_card_button)
 	_height_button = _make_button("", _cycle_height)
@@ -766,6 +760,19 @@ func _make_button(label: String, callback: Callable) -> Button:
 func _set_mode(new_mode: Mode) -> void:
 	mode = new_mode
 	_refresh_mode_buttons()
+
+
+## Room buttons double as facility doors (user request 2026-07-12):
+## before the room exists the button arms build mode; once it stands,
+## the same button opens the room's own screen instead.
+func _on_room_button(room_id: String) -> void:
+	if room_id == "altar" and sim.altar_built():
+		_open_altar()
+		return
+	if room_id == "tavern" and _guild_built():
+		_open_guild()
+		return
+	_select_build_room(room_id)
 
 
 func _select_build_room(room_id: String) -> void:
@@ -808,8 +815,6 @@ func _refresh_button_texts() -> void:
 	_perma_buy_button.text = locale.text("UI_BUY")
 	_bury_button.text = locale.text("UI_PRESTIGE_DO")
 	_card_button.text = locale.text("UI_CARD")
-	_altar_button.text = locale.text("UI_ALTAR")
-	_guild_button.text = locale.text("UI_GUILD")
 	_locale_button.text = _next_locale_code().to_upper()
 	_quit_button.text = locale.text("UI_QUIT")
 	_refresh_archive_button()
