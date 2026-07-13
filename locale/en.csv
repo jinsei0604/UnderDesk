@@ -144,3 +144,29 @@ ACH_DEPTH_50,Depth Fifty
 ACH_DEPTH_50_DESC,Reach depth 50
 ACH_DOCS_20,Document Addict
 ACH_DOCS_20_DESC,Unearth 20 documents
+ITEM_BENT_PIN,A Bent Pin
+ITEM_BENT_PIN_DESC,"Pin something with it, and your memory of that thing fades a little."
+ITEM_SINGLE_EARRING,A Single Earring
+ITEM_SINGLE_EARRING_DESC,"Someone is said to still be digging for its pair. The tunnels have not given it back."
+ITEM_DAMP_MATCHBOX,A Damp Matchbox
+ITEM_DAMP_MATCHBOX_DESC,"It is damp, yet strike it and it lights, exactly once, every time."
+ITEM_UNNUMBERED_TICKET,A Ticket With No Destination
+ITEM_UNNUMBERED_TICKET_DESC,"The destination is blank, but hold it tight and you always arrive somewhere."
+ITEM_INVERTED_LETTER,A Letter Turned Inside Out
+ITEM_INVERTED_LETTER_DESC,"Open the seal and the words are always written on the other side."
+ITEM_BOTTOMLESS_CUP,A Cup Without a Bottom
+ITEM_BOTTOMLESS_CUP_DESC,"Pour water in, and the ground beneath your feet grows damp by the same amount."
+ITEM_MISCOUNTED_BEADS,Miscounted Prayer Beads
+ITEM_MISCOUNTED_BEADS_DESC,"Count the beads and the total is always one off from last time."
+ITEM_UPSIDE_DOWN_CANDLE,An Upside-Down Candle
+ITEM_UPSIDE_DOWN_CANDLE_DESC,"Light it and the wax flows upward, pooling above the flame."
+ITEM_IOU_WALLET,A Wallet of Nothing But IOUs
+ITEM_IOU_WALLET_DESC,"Open it and there is a new IOU inside each time, though no one can read the signature."
+ITEM_DOUBLE_BOTTOMED_LUNCHBOX,A Double-Bottomed Lunch Box
+ITEM_DOUBLE_BOTTOMED_LUNCHBOX_DESC,"Empty it completely, and closing the lid fills it again."
+ITEM_WHISPERING_CONCH,A Whispering Conch Shell
+ITEM_WHISPERING_CONCH_DESC,"Hold it to your ear and you hear not the sea, but the sound of deep tunnels."
+ITEM_UNCHOSEN_LOT,The Lot No One Picks
+ITEM_UNCHOSEN_LOT_DESC,"Only one lot in the box, yet it is still there each time you draw."
+ITEM_PATCHWORK_MAP,A Patchwork Map
+ITEM_PATCHWORK_MAP_DESC,"None of the roads on it lead outside the tunnels, yet new ones are added daily."

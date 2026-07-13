@@ -1,0 +1,6 @@
+{
+	"id": "iou_wallet",
+	"name_key": "ITEM_IOU_WALLET",
+	"desc_key": "ITEM_IOU_WALLET_DESC",
+	"rank": "C"
+}
