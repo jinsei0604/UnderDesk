@@ -1023,6 +1023,7 @@ func _on_shop_buy(good_id: String) -> void:
 func _build_dorm_dialog() -> void:
 	_dorm_dialog = UDCardDialog.create(locale.text("ROOM_DORM"), false)
 	_dorm_dialog.card_selected.connect(_on_dorm_card_selected)
+	_dorm_dialog.set_background(art.texture("dialog_bg_dorm"))
 	add_child(_dorm_dialog)
 
 
