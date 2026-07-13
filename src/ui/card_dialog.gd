@@ -11,11 +11,13 @@ signal action_pressed(id: String)
 signal back_pressed
 
 ## Palette shared with the survey card: aged paper in a dark cabinet.
+## Card fills carry alpha < 1 so an illustrated background (§ archive/
+## treasure dialog_bg_*) reads through even when the grid is packed full.
 const COLOR_CABINET := Color(0.075, 0.065, 0.055)
-const COLOR_PAPER := Color(0.16, 0.135, 0.105)
-const COLOR_PAPER_HOVER := Color(0.21, 0.18, 0.14)
-const COLOR_PAPER_SELECTED := Color(0.24, 0.2, 0.14)
-const COLOR_LOCKED := Color(0.095, 0.085, 0.075)
+const COLOR_PAPER := Color(0.16, 0.135, 0.105, 0.82)
+const COLOR_PAPER_HOVER := Color(0.21, 0.18, 0.14, 0.86)
+const COLOR_PAPER_SELECTED := Color(0.24, 0.2, 0.14, 0.9)
+const COLOR_LOCKED := Color(0.095, 0.085, 0.075, 0.82)
 const COLOR_BORDER := Color(0.62, 0.5, 0.28)
 const COLOR_BORDER_DIM := Color(0.28, 0.24, 0.18)
 const COLOR_TITLE := Color(0.9, 0.78, 0.5)

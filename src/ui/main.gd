@@ -858,6 +858,7 @@ func _build_archive_dialog() -> void:
 func _build_treasure_dialog() -> void:
 	_treasure_dialog = UDCardDialog.create(locale.text("UI_TREASURES"), false)
 	_treasure_dialog.card_selected.connect(_on_treasure_card_selected)
+	_treasure_dialog.set_background(art.texture("dialog_bg_treasure"))
 	add_child(_treasure_dialog)
 
 
