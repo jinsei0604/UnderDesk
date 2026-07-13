@@ -88,6 +88,8 @@ UI_PROGRESS_ITEMS,Treasures collected %d / %d
 UI_SELECT_HINT,Select a card to see its details.
 UI_BACK,Back
 UI_SELECT_SERIES_HINT,Choose a series to open its pages.
+UI_SELECT_RANK_HINT,Choose a rank to open its treasures.
+UI_RANK_LABEL,Rank %s
 SERIES_JOURNAL,A Miner's Journal
 SERIES_LETTERS,Old Letters
 SERIES_RECORDS,Records & Notices

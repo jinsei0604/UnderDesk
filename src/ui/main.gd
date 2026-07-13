@@ -48,6 +48,8 @@ var _anomaly_by_id: Dictionary = {}
 var doc_series: Array = []
 ## "" = the series-selection shelf; otherwise the open series id.
 var _archive_series: String = ""
+## "" = the rank-selection shelf; otherwise the open rank (Z/S/A/B/C/D).
+var _treasure_rank: String = ""
 var companion_defs: Array = []
 var _companion_by_id: Dictionary = {}
 var scroll_y: int = 0
@@ -858,47 +860,89 @@ func _build_archive_dialog() -> void:
 func _build_treasure_dialog() -> void:
 	_treasure_dialog = UDCardDialog.create(locale.text("UI_TREASURES"), false)
 	_treasure_dialog.card_selected.connect(_on_treasure_card_selected)
+	_treasure_dialog.back_pressed.connect(_show_treasure_rank_shelf)
 	_treasure_dialog.set_background(art.texture("dialog_bg_treasure"))
 	add_child(_treasure_dialog)
 
 
-## The whole collection shows on the shelf: owned treasures as cards,
-## the rest as locked ????? slots (the catalogue reveals its size, the
-## contents stay a surprise — reference shots 2026-07-12).
+## Two-level treasure shelf (same UX as the archive, 2026-07-14 user
+## request — one less layout for the player to learn): the shelf shows
+## one card per rank (Z/S/A/B/C/D), opening a rank lists its items as
+## owned cards or locked ????? slots.
 func _open_treasures() -> void:
 	if settings.resident_mode:
 		_expand()
-	_treasure_dialog.clear_cards()
+	_show_treasure_rank_shelf()
+	_treasure_dialog.popup_centered()
+
+
+func _rank_item_ids(rank: String) -> Array[String]:
+	var ids: Array[String] = []
 	for item_id in item_db.all_ids():
-		var owned := sim.item_count(item_id) > 0
-		var icon := art.icon_or_placeholder("item_%s" % item_id, item_id, "gem")
-		var title_text := locale.text(item_db.get_item(item_id)["name_key"]) \
-			if owned else ""
-		var subtitle := ""
-		if owned:
-			subtitle = "%s  ×%d" % [item_db.rank(item_id), sim.item_count(item_id)]
-		_treasure_dialog.add_card(item_id, title_text, subtitle, icon, not owned)
+		if item_db.rank(item_id) == rank:
+			ids.append(item_id)
+	return ids
+
+
+func _show_treasure_rank_shelf() -> void:
+	_treasure_rank = ""
+	_treasure_dialog.clear_cards()
+	for rank in UD.ITEM_RANKS:
+		var item_ids := _rank_item_ids(rank)
+		if item_ids.is_empty():
+			continue
+		var owned := 0
+		for item_id in item_ids:
+			if sim.item_count(item_id) > 0:
+				owned += 1
+		_treasure_dialog.add_card(
+			rank, locale.text("UI_RANK_LABEL") % rank, "%d / %d" % [owned, item_ids.size()],
+			art.icon_or_placeholder("item_rank_%s" % rank, rank, "gem"), false
+		)
+	_treasure_dialog.set_back(locale.text("UI_BACK"), false)
 	_treasure_dialog.set_progress(
 		locale.text("UI_PROGRESS_ITEMS") % [sim.distinct_items(), item_db.all_ids().size()]
 	)
-	_treasure_dialog.title = locale.text("UI_TREASURES")
+	_treasure_dialog.show_detail("", locale.text("UI_SELECT_RANK_HINT"), null)
+
+
+func _show_treasure_rank(rank: String) -> void:
+	_treasure_rank = rank
+	_treasure_dialog.clear_cards()
+	var item_ids := _rank_item_ids(rank)
+	var owned := 0
+	for item_id in item_ids:
+		var is_owned := sim.item_count(item_id) > 0
+		if is_owned:
+			owned += 1
+		var icon := art.icon_or_placeholder("item_%s" % item_id, item_id, "gem")
+		var title_text := locale.text(item_db.get_item(item_id)["name_key"]) \
+			if is_owned else ""
+		var subtitle := "×%d" % sim.item_count(item_id) if is_owned else ""
+		_treasure_dialog.add_card(item_id, title_text, subtitle, icon, not is_owned)
+	_treasure_dialog.set_back(locale.text("UI_BACK"), true)
+	_treasure_dialog.set_progress(
+		"%s   %d / %d" % [locale.text("UI_RANK_LABEL") % rank, owned, item_ids.size()]
+	)
 	_treasure_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
 	var first := _treasure_dialog.first_unlocked_id()
 	if first != "":
 		_treasure_dialog.select_card(first)
-	_treasure_dialog.popup_centered()
 
 
-func _on_treasure_card_selected(item_id: String) -> void:
-	var item := item_db.get_item(item_id)
+func _on_treasure_card_selected(card_id: String) -> void:
+	if _treasure_rank == "":
+		_show_treasure_rank(card_id)
+		return
+	var item := item_db.get_item(card_id)
 	var body := locale.text(item["desc_key"])
 	body += "\n\n[b]%s: %s[/b]   ×%d / %d" % [
-		locale.text("UI_RANK"), item_db.rank(item_id),
-		sim.item_count(item_id), sim.item_cap(item_id),
+		locale.text("UI_RANK"), item_db.rank(card_id),
+		sim.item_count(card_id), sim.item_cap(card_id),
 	]
 	_treasure_dialog.show_detail(
 		locale.text(item["name_key"]), body,
-		art.icon_or_placeholder("item_%s" % item_id, item_id, "gem")
+		art.icon_or_placeholder("item_%s" % card_id, card_id, "gem")
 	)
 
 

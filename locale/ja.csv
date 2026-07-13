@@ -88,6 +88,8 @@ UI_PROGRESS_ITEMS,収集した宝物 %d / %d
 UI_SELECT_HINT,カードを選ぶと詳細が表示される
 UI_BACK,戻る
 UI_SELECT_SERIES_HINT,シリーズを選ぶと手記の一覧が開く
+UI_SELECT_RANK_HINT,ランクを選ぶと宝物の一覧が開く
+UI_RANK_LABEL,%sランク
 SERIES_JOURNAL,坑夫の手記
 SERIES_LETTERS,古い書簡
 SERIES_RECORDS,記録・通達

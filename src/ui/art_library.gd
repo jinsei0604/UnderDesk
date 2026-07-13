@@ -12,6 +12,7 @@ extends RefCounted
 ##   dialog_bg_<archive|treasure|shop|altar|guild|dorm>.png
 ##   (illustrated backdrop behind a UDCardDialog's card grid)
 ##   series_<series_id>.png  (e.g. series_journal.png, the archive shelf icon)
+##   item_rank_<Z|S|A|B|C|D>.png  (the treasure shelf's rank-card icon)
 ##
 ## Frame animation: add <key>_f2.png, <key>_f3.png, ... and the sprite
 ## cycles through them automatically (the base file is frame 1).
@@ -46,6 +47,8 @@ static func load_default(
 	]
 	for i in MINION_VARIANTS:
 		keys.append("minion_%d" % i)
+	for rank in UD.ITEM_RANKS:
+		keys.append("item_rank_%s" % rank)
 	for room_id in room_ids:
 		keys.append("room_%s" % room_id)
 	for item_id in item_ids:
