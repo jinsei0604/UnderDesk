@@ -99,12 +99,8 @@ func _build(with_action: bool) -> void:
 	_character_rect = TextureRect.new()
 	_character_rect.anchor_left = 0.5
 	_character_rect.anchor_right = 0.5
-	_character_rect.anchor_top = 1.0
-	_character_rect.anchor_bottom = 1.0
 	_character_rect.offset_left = -CHARACTER_SIZE / 2.0
 	_character_rect.offset_right = CHARACTER_SIZE / 2.0
-	_character_rect.offset_top = -CHARACTER_SIZE - CHARACTER_BOTTOM_MARGIN
-	_character_rect.offset_bottom = -CHARACTER_BOTTOM_MARGIN
 	_character_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_character_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_character_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -179,11 +175,19 @@ func set_background(tex: Texture2D) -> void:
 	_background_rect.visible = tex != null
 
 
-## Optional character portrait standing at the foot of the backdrop
-## (e.g. the altar's hero, front-and-center before the shrine).
-func set_character(tex: Texture2D) -> void:
+## Optional character portrait posed over the backdrop (e.g. the hero
+## or a companion standing on the altar). `feet_y` is where the
+## character's feet line up, as a fraction of the card area's height
+## (0 = top, 1 = bottom); the sprite extends upward from that line.
+## Whichever party member is being upgraded can be swapped in later by
+## just calling this again with a different texture.
+func set_character(tex: Texture2D, feet_y: float = 1.0) -> void:
 	_character_rect.texture = tex
 	_character_rect.visible = tex != null
+	_character_rect.anchor_top = feet_y
+	_character_rect.anchor_bottom = feet_y
+	_character_rect.offset_top = -CHARACTER_SIZE - CHARACTER_BOTTOM_MARGIN
+	_character_rect.offset_bottom = -CHARACTER_BOTTOM_MARGIN
 
 
 ## Shows the "back to series" button on nested pages (archive shelves).
