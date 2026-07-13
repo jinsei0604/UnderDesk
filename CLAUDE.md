@@ -69,7 +69,7 @@ image_data/frames/N/layer_1 を読める）。地形/部屋はまだ生成ドッ
 ## コンテンツ追加レシピ（コード変更不要）
 
 - **地層**: `data/strata/NNN_name.json`（depth_from/to, terrain, hardness, yield, documents, document_chance）。新terrainが要る場合のみ `UD.Terrain` と `TERRAIN_BY_NAME`、`main.gd` の色/アートキー追加
-- **文書**: `data/documents/doc_NNN.json` ＋ `locale/ja.csv`・`en.csv` に TITLE/BODY。どこかの地層の documents 配列に入れないと出土しない。**本文はストーリー確定後に書く。勝手に増やさない**（`docs/STORY_BIBLE_v2_foreshadowing.md` は仮案。§2・§4が確定するまで最終テキスト・伏線回収は書かない。データ構造・システム側の実装には使ってよい）
+- **文書**: `data/documents/doc_NNN.json` ＋ `locale/ja.csv`・`en.csv` に TITLE/BODY。どこかの地層の documents 配列に入れないと出土しない。**本文はストーリー確定後に書く。勝手に増やさない**（`docs/STORY_BIBLE_v2_foreshadowing.md`＋`docs/STORY_BIBLE_v5.md`（v5は行商人アナスタス/世界名アビュソス/ソストラトス初出エピソードの確定＋v2からの追記）を合わせて参照。v2の§2・§4（核心の真実・伏線カタログ）とv5の§4（仲間のストーリー設定など）はまだ未確定なので、最終テキスト・伏線回収は書かない。データ構造・システム側の実装には使ってよい）
   - 任意フィールド（story bible §5.1、テストで書式検証済み）: `companion_tag`, `foreshadow_ids`（["F01"…]）, `reveal_stage`（surface/mid/payoff）, `conditions`（`min_docs` / `requires_companions` / `requires_items`。条件を満たすまで出土しない。sim には `UDDocumentDB.conditions_by_id()` で注入、セーブには載せない）
   - `series`フィールド必須（書庫の2階層表示用）: `data/series/NNN_xxx.json`（id, name_key）にシリーズを定義し、文書側で参照。ファイル名順が棚の表示順。現在の分類は仮。ストーリー確定後に「メインストーリー」「◯◯外伝」等へJSON+localeだけで差し替え可
 - **コレクション（宝箱アイテム）**: `data/items/xxx.json`（id, name_key, desc_key, **rank**: Z/S/A/B/C/D）＋locale 2行×2言語。目標約100種、アップデートで追加。Z・Sランクの実アイテムは未定義（ストーリー確定後にユーザーと相談して追加）
@@ -103,7 +103,7 @@ image_data/frames/N/layer_1 を読める）。地形/部屋はまだ生成ドッ
 ## 未実装（設計図）
 
 1. **配信プラットフォーム連携**（配信プラットフォームはitch.ioに決定、2026-07-12）: `src/platform/` に抽象化済み（`UDPlatform`）。itch.ioにはSteamworksのような実績/クラウドセーブAPIが無いため、実績（`UDAchievements`）は当面ローカル保存のみで運用。将来ネットワーク機能（ギルドの対人交換など）が必要になったら自前サーバーか外部サービスの検討が必要
-2. **手記書き直し**: ストーリーバイブル（docs/STORY_BIBLE_v2_foreshadowing.md、現状は仮案）の§2・§4確定後。既存13編は仮
+2. **手記書き直し**: ストーリーバイブル（docs/STORY_BIBLE_v2_foreshadowing.md＋docs/STORY_BIBLE_v5.md、仲間のストーリー設定はまだ未確定）確定後。既存13編は仮。v5で【確定】したタイトル副題「〜忘却の底で〜」・世界名アビュソス・行商人アナスタスの正体とセリフ変化・序章のソストラトス初出エピソードは実装OK、それ以外（仲間ストーリー、F17意匠、エンディング分岐、MVP文書圧縮）はまだ手を付けない
 3. **地形/部屋の本番アート**: 現在は生成ドット絵。assets/art/ に規約名PNGを置くだけで差し替わる
 4. ~~部屋の隣接ボーナス~~: 2026-07-13に施設の地図配置自体を廃止したため対象消滅（design.md §5.2も更新済み）
 
