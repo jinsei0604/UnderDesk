@@ -138,3 +138,9 @@ ITEM_SINGLE_SIGNATURE_CONTRACT,誰かの署名だけの契約書
 ITEM_SINGLE_SIGNATURE_CONTRACT_DESC,内容の欄はすべて空白で、署名だけが日々増えていく。
 ITEM_UPWARD_ROOT,逆さ吊りの根
 ITEM_UPWARD_ROOT_DESC,地層に埋まっているのに、掘り出した瞬間から光の方角へ伸び続ける。
+ACH_ITEMS_10,収集家
+ACH_ITEMS_10_DESC,宝物を10種類集める
+ACH_DEPTH_50,深度五十
+ACH_DEPTH_50_DESC,深度50に到達する
+ACH_DOCS_20,文書中毒
+ACH_DOCS_20_DESC,文書を20編発掘する

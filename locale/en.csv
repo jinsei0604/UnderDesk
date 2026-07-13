@@ -138,3 +138,9 @@ ITEM_SINGLE_SIGNATURE_CONTRACT,A Contract of a Single Signature
 ITEM_SINGLE_SIGNATURE_CONTRACT_DESC,"Every clause is blank; only the list of signatures keeps growing."
 ITEM_UPWARD_ROOT,A Root That Grows Upward
 ITEM_UPWARD_ROOT_DESC,"Buried in the strata, yet the moment it is dug up, it keeps growing toward the light."
+ACH_ITEMS_10,Collector
+ACH_ITEMS_10_DESC,Collect 10 treasures
+ACH_DEPTH_50,Depth Fifty
+ACH_DEPTH_50_DESC,Reach depth 50
+ACH_DOCS_20,Document Addict
+ACH_DOCS_20_DESC,Unearth 20 documents
