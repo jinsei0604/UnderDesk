@@ -26,11 +26,14 @@ const CARD_SIZE := Vector2(128, 108)
 const CARD_ICON_PX: int = 36
 const DETAIL_ICON_PX: int = 88
 const GRID_COLUMNS: int = 4
+const CHARACTER_SIZE: float = 120.0
+const CHARACTER_BOTTOM_MARGIN: float = 18.0
 
 var _progress_label: Label
 var _back_button: Button
 var _grid: GridContainer
 var _background_rect: TextureRect
+var _character_rect: TextureRect
 var _detail_icon: TextureRect
 var _detail_title: Label
 var _detail_body: RichTextLabel
@@ -92,6 +95,21 @@ func _build(with_action: bool) -> void:
 	_background_rect.clip_contents = true
 	_background_rect.visible = false
 	card_area.add_child(_background_rect)
+
+	_character_rect = TextureRect.new()
+	_character_rect.anchor_left = 0.5
+	_character_rect.anchor_right = 0.5
+	_character_rect.anchor_top = 1.0
+	_character_rect.anchor_bottom = 1.0
+	_character_rect.offset_left = -CHARACTER_SIZE / 2.0
+	_character_rect.offset_right = CHARACTER_SIZE / 2.0
+	_character_rect.offset_top = -CHARACTER_SIZE - CHARACTER_BOTTOM_MARGIN
+	_character_rect.offset_bottom = -CHARACTER_BOTTOM_MARGIN
+	_character_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_character_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_character_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_character_rect.visible = false
+	card_area.add_child(_character_rect)
 
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -159,6 +177,13 @@ func set_progress(text: String) -> void:
 func set_background(tex: Texture2D) -> void:
 	_background_rect.texture = tex
 	_background_rect.visible = tex != null
+
+
+## Optional character portrait standing at the foot of the backdrop
+## (e.g. the altar's hero, front-and-center before the shrine).
+func set_character(tex: Texture2D) -> void:
+	_character_rect.texture = tex
+	_character_rect.visible = tex != null
 
 
 ## Shows the "back to series" button on nested pages (archive shelves).

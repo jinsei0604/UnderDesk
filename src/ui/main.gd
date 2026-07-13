@@ -1074,6 +1074,8 @@ func _build_altar_dialog() -> void:
 	_altar_dialog = UDCardDialog.create(locale.text("UI_ALTAR"), true)
 	_altar_dialog.card_selected.connect(_on_altar_card_selected)
 	_altar_dialog.action_pressed.connect(_on_altar_offer)
+	_altar_dialog.set_background(art.texture("dialog_bg_altar"))
+	_altar_dialog.set_character(art.texture(art.minion_key(0)))
 	add_child(_altar_dialog)
 
 
