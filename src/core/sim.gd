@@ -14,7 +14,6 @@ var strata: UDStrataDB
 var inventory: Dictionary = {}  # resource id -> int
 var minions: Array[UDMinion] = []
 var jobs: Array[UDJob] = []
-var rooms: Array[Dictionary] = []  # { "id": String, "pos": Vector2i }
 var discovered_documents: Array[String] = []
 var dig_policy: UD.DigPolicy = UD.DigPolicy.NONE
 ## Daily anomaly (§5.4). Applied as an explicit state change so offline
@@ -224,55 +223,12 @@ func remove_dig_job(target: Vector2i) -> bool:
 	return false
 
 
-## Builds a room whose footprint cells are all dug-out AIR. Deducts cost and
-## applies its effect. Returns false when placement or cost is invalid.
-func build_room(room_def: Dictionary, pos: Vector2i) -> bool:
-	var footprint_w := int(room_def["width"])
-	var footprint_h := int(room_def["height"])
-	for dy in footprint_h:
-		for dx in footprint_w:
-			var cell := pos + Vector2i(dx, dy)
-			if not grid.is_walkable(cell) or cell == UD.DEPOT_POS:
-				return false
-			if _room_at(cell) >= 0:
-				return false
-	var cost: Dictionary = room_def["cost"]
-	for res: Variant in cost.keys():
-		if int(inventory.get(res, 0)) < int(cost[res]):
-			return false
-	for res: Variant in cost.keys():
-		inventory[res] = int(inventory[res]) - int(cost[res])
-	rooms.append({
-		"id": room_def["id"],
-		"pos": pos,
-		"effect": str(room_def.get("effect", "")),
-	})
-	return true
-
-
-func room_footprint(index: int, room_db: UDRoomDB) -> Rect2i:
-	var room: Dictionary = rooms[index]
-	var def := room_db.get_room(room["id"])
-	return Rect2i(room["pos"], Vector2i(int(def["width"]), int(def["height"])))
-
-
-func _room_at(cell: Vector2i) -> int:
-	for i in rooms.size():
-		var room: Dictionary = rooms[i]
-		# MVP rooms are small; compare against stored origin plus max footprint 2x1.
-		var origin: Vector2i = room["pos"]
-		if cell == origin or cell == origin + Vector2i(1, 0):
-			return i
-	return -1
-
-
-## Base power plus one for each built room with a dig_power_add effect
-## (e.g. the tavern). Effects are recorded on the room entry at build time.
+## Base power plus one per level of every dig_power_add source: shop
+## upgrades, the guild facility, and altar offerings all share the same
+## "upgrades" ledger (facilities are one-time, max_level-1 upgrades —
+## see data/facilities/).
 func dig_power() -> int:
 	var power := UD.MINION_DIG_POWER
-	for room in rooms:
-		if str(room.get("effect", "")) == "dig_power_add":
-			power += 1
 	if daily_effect == "dig_power_add":
 		power += 1
 	power += UDSim._effect_levels_in(upgrades, "dig_power_add")
@@ -403,12 +359,11 @@ static func _effect_levels_in(entries: Dictionary, effect: String) -> int:
 	return total
 
 
-## Extra document drop chance from built altars and the daily anomaly.
+## Extra document drop chance from the altar facility, the survey shop
+## upgrade, and the daily anomaly (altar/survey share the same ledger
+## and per-level bonus — see dig_power()'s comment).
 func document_chance_bonus() -> float:
 	var bonus := 0.0
-	for room in rooms:
-		if str(room.get("effect", "")) == "doc_chance_add":
-			bonus += UD.DOC_CHANCE_PER_ALTAR
 	if daily_effect == "doc_chance_add":
 		bonus += UD.DAILY_DOC_CHANCE_BONUS
 	bonus += UDSim._effect_levels_in(upgrades, "doc_chance_add") * UD.UPGRADE_DOC_CHANCE
@@ -500,10 +455,15 @@ func _roll_special_find() -> void:
 ## this-run dig power. Player command: deterministic, no rng.
 
 func altar_built() -> bool:
-	for room in rooms:
-		if str(room["id"]) == "altar":
-			return true
-	return false
+	return upgrade_level("altar") > 0
+
+
+func guild_built() -> bool:
+	return upgrade_level("tavern") > 0
+
+
+func dorm_built() -> bool:
+	return upgrade_level("dorm") > 0
 
 
 func altar_offer_cost() -> int:
@@ -607,14 +567,6 @@ func to_dict() -> Dictionary:
 	var job_dicts: Array = []
 	for job in jobs:
 		job_dicts.append(job.to_dict())
-	var room_dicts: Array = []
-	for room in rooms:
-		var origin: Vector2i = room["pos"]
-		room_dicts.append({
-			"id": room["id"],
-			"pos": [origin.x, origin.y],
-			"effect": str(room.get("effect", "")),
-		})
 	return {
 		"version": UD.SAVE_VERSION,
 		"tick_count": tick_count,
@@ -625,7 +577,6 @@ func to_dict() -> Dictionary:
 		"inventory": inventory.duplicate(),
 		"minions": minion_dicts,
 		"jobs": job_dicts,
-		"rooms": room_dicts,
 		"discovered_documents": discovered_documents.duplicate(),
 		"dig_policy": int(dig_policy),
 		"daily_date_key": daily_date_key,
@@ -663,14 +614,6 @@ static func from_dict(
 		sim.minions.append(UDMinion.from_dict(minion_dict))
 	for job_dict: Variant in d["jobs"] as Array:
 		sim.jobs.append(UDJob.from_dict(job_dict))
-	for room_dict: Variant in d["rooms"] as Array:
-		var rd := room_dict as Dictionary
-		var p: Array = rd["pos"]
-		sim.rooms.append({
-			"id": rd["id"],
-			"pos": Vector2i(int(p[0]), int(p[1])),
-			"effect": str(rd.get("effect", "")),
-		})
 	for doc_id: Variant in d["discovered_documents"] as Array:
 		sim.discovered_documents.append(doc_id)
 	# Missing in pre-policy saves: default to NONE.
@@ -698,6 +641,15 @@ static func from_dict(
 			"level": int(entry.get("level", 0)),
 			"effect": str(entry.get("effect", "")),
 		}
+	# v5 -> v6: altar/tavern/dorm stopped being placeable rooms and
+	# became one-time facility unlocks that live in the same "upgrades"
+	# ledger as shop purchases. A room built in the old save carries
+	# its unlock straight over (same effect, level 1).
+	for room_dict: Variant in d.get("rooms", []) as Array:
+		var rd := room_dict as Dictionary
+		var facility_id := str(rd.get("id", ""))
+		if facility_id in ["altar", "tavern", "dorm"] and not sim.upgrades.has(facility_id):
+			sim.upgrades[facility_id] = {"level": 1, "effect": str(rd.get("effect", ""))}
 	# v3 -> v4: the minion crew becomes protagonist + story companions.
 	# Rebuild the party and release job claims held by removed workers;
 	# companions re-join on the next ticks from the document count.

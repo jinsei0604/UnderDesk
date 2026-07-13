@@ -24,7 +24,6 @@ ITEM_SILVER_LOCKET,銀のロケット
 ITEM_SILVER_LOCKET_DESC,中の肖像画は空白だ。日に日に、空白が誰かに似てくる。
 ITEM_ODD_COIN,変な硬貨
 ITEM_ODD_COIN_DESC,数えるたびに枚数が違う。増えている日は、機嫌がいいらしい。
-UI_DIG,掘る
 UI_BUILD_DORM,宿舎
 UI_ARCHIVE,書庫
 UI_QUIT,終了
@@ -110,6 +109,8 @@ UI_GUILD_NEEDS_ROOM,先にギルドを建てる必要がある
 UI_GUILD_COST,必要: %s ランク ×%d
 UI_GUILD_CONSUMES,消費内訳:
 UI_GUILD_SHORT,素材が足りない（%s ランク ×%d 必要）
-UI_BUILD_MODE_HINT,%sを建てる場所を、すでに掘った場所からクリックしてください
 UI_BUILD_CANNOT_AFFORD,%sを建てるコインが足りない
-UI_BUILD_NO_SPACE,%sを建てる場所がない（もう少し掘り進めてください）
+FACILITY_ALTAR_DESC,文書の出土率が上がる。お供えでさらに掘削力も強化できる
+FACILITY_GUILD_DESC,掘削力が上がる。宝物のランクアップ交換もできるようになる
+FACILITY_DORM_DESC,仲間たちが休む場所
+UI_PARTY,仲間

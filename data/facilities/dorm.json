@@ -1,0 +1,9 @@
+{
+	"id": "dorm",
+	"name_key": "ROOM_DORM",
+	"desc_key": "FACILITY_DORM_DESC",
+	"base_cost": 25,
+	"cost_mult": 1.0,
+	"effect": "",
+	"max_level": 1
+}

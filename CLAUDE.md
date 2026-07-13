@@ -26,7 +26,7 @@
 ## 鉄則（破ると進行破壊バグになる）
 
 1. **決定性**: シミュレーションの乱数は必ず `UDSim._rng` から。`randi()`や`randomize()`をcoreで使わない。UI側でも sim の状態を変える乱数は禁止
-2. **オフライン等価性**: リアルタイム進行とオフライン一括計算は同じ `tick()` を通る。tick外から sim 状態を変えるのは「プレイヤーコマンド」（add_dig_job / build_room / buy_* / apply_daily / collect_loot / offer_at_altar / exchange_item）だけ。新コマンドを足したらセーブに載せて等価性を保つ
+2. **オフライン等価性**: リアルタイム進行とオフライン一括計算は同じ `tick()` を通る。tick外から sim 状態を変えるのは「プレイヤーコマンド」（add_dig_job / buy_upgrade / apply_daily / collect_loot / offer_at_altar / exchange_item）だけ。新コマンドを足したらセーブに載せて等価性を保つ
 3. **セーブ互換**: `to_dict`/`from_dict` に項目を足すときは `d.get("key", default)` で旧セーブを許容。互換を壊す変更は `UD.SAVE_VERSION` を上げて from_dict 内で移行処理（例: v1→v2 資源→コイン換金、v2→v3 運搬手下の正規化）
 4. **RNGのseed/stateはstringで保存**（JSONでint64がfloat化けするため）。同様に64bit整数をセーブに載せるときはstring化
 5. **coreはGodotノード非依存**（RefCountedのみ）。OS依存は `src/window/`、表示は `src/ui/` に隔離
@@ -40,7 +40,7 @@
 src/core/      純ロジック。UDSim が心臓部（tick制・2秒/tick）
   sim.gd       状態＋コマンド＋シリアライズ。全ゲームルールはここ
   constants.gd UD.* 定数・enum
-  *_db.gd      データローダ（strata/room/item/shop は同じパターン）
+  *_db.gd      データローダ（strata/item/shop は同じパターン。facility も UDShopDB を再利用）
 src/meta/      セーブ（世代バックアップ3つ）・オフライン計算・設定
 src/daily/     日付→共通シード（FNV-1a自前実装）
 src/narrative/ 文書DB・ローカライズ（locale/*.csv手動パース）
@@ -74,8 +74,9 @@ image_data/frames/N/layer_1 を読める）。地形/部屋はまだ生成ドッ
   - `series`フィールド必須（書庫の2階層表示用）: `data/series/NNN_xxx.json`（id, name_key）にシリーズを定義し、文書側で参照。ファイル名順が棚の表示順。現在の分類は仮。ストーリー確定後に「メインストーリー」「◯◯外伝」等へJSON+localeだけで差し替え可
 - **コレクション（宝箱アイテム）**: `data/items/xxx.json`（id, name_key, desc_key, **rank**: Z/S/A/B/C/D）＋locale 2行×2言語。目標約100種、アップデートで追加。Z・Sランクの実アイテムは未定義（ストーリー確定後にユーザーと相談して追加）
 - **ショップ商品**: `data/shop/xxx.json`（base_cost, cost_mult, effect, max_level）。effect は sim 側実装が必要なら `dig_power()` / `document_chance_bonus()` / `buy_upgrade()` を参照
+- **施設（祭壇/ギルド/宿舎）**: `data/facilities/xxx.json`（ショップと同スキーマ、max_level常に1の一回限り解禁）。地図配置は無く、ボタン一つで`buy_upgrade()`→即座にダイアログが開く。新しい施設を足す場合は`main.gd`の`_on_facility_button`にmatch節を1つ追加するだけ
 - **デイリー異変**: `data/anomalies/xxx.json`（effect: dig_power_add / doc_chance_add / gold_per_dig。新効果は sim に分岐追加＋テスト）
-- **アート**: `assets/art/` に PNG を置くだけ（terrain_soil.png, minion_0..5.png, room_dorm.png, depot.png）。無ければ色矩形にフォールバック。置いたら `--import`
+- **アート**: `assets/art/` に PNG を置くだけ（terrain_soil.png, minion_0..5.png, room_altar.png/room_tavern.png/room_dorm.png（施設アイコン、キー接頭辞は`room_`のまま）, depot.png）。無ければ色矩形/プレースホルダーアイコンにフォールバック。置いたら `--import`
 - **アニメ**: `<key>_f2.png, _f3.png...` を置くと自動でフレーム再生（基本ファイル=1フレーム目、0.4秒/コマ、IDLE中は1フレーム目固定）。アニメはUI側のみでシミュレーションに影響しない
 - **キャラの向き**: スプライトは全フレーム同じ向きに統一し（tools/extract_sprites.gd の FLIP_X_OUTPUTS で調整）、main.gd の MINION_NATIVE_FACING に素材の向きを登録。逆方向は描画時に自動反転。掘削の破片は _draw_debris が対象地形の色で生成するので、素材に土煙を焼き込まないこと
 - **掘削アニメ（2026-07-13更新）**: minion_0 は5コマ（idle + 振り上げ + 頂点 + 打ち込み開始 + ピーク/砂煙）。ユーザーがPixeloramaで直接描いた手描き素材に差し替え済み（旧AI生成シート版は破棄）
@@ -87,23 +88,24 @@ image_data/frames/N/layer_1 を読める）。地形/部屋はまだ生成ドッ
 
 ## 実装済みの主要システム（2026-07-12〜13セッションで追加）
 
-- **侵入者イベントは実装後に削除された**（ユーザー判断、2026-07-12夕）。復活させないこと。旧セーブの罠部屋は main.gd の _ready で未知部屋として除去される
+- **侵入者イベントは実装後に削除された**（ユーザー判断、2026-07-12夕）。復活させないこと
 - **アイテムランク＋スタック所持（セーブv5）**: 宝物は rank（Z>S>A>B>C>D、items JSONの`rank`フィールド）と所持数を持つ。上限 UD.ITEM_RANK_CAPS（Z10/S50/A100/B200/C・D500）。`sim.items` は id→count 辞書（v4配列から自動移行）。ランク表は `UDItemDB.ranks_by_id()` で sim に注入
-- **祭壇のお供え**: `sim.offer_at_altar(item_id)`。コイン費用は UD.ALTAR_OFFER_BASE_COST×1.4^Lv、+1掘削力/Lv、Lv5からは UD.ALTAR_ITEM_RANK_TIERS のランクの宝物1個も消費。祭壇建設が前提。プレステージ削除に伴い、坑道と同様に一切リセットされない永続効果
-- **ギルド交換**: 酒場はギルドに改名（room idは`tavern`のまま、locale名のみ変更）。`sim.exchange_item(target, consume)` で下位ランク消費→上位1個（レートは UD.ITEM_EXCHANGE_COSTS: Z←S×3/S←A×5/A←B×7/B←C×10、C・Dは宝箱限定）。**配信プラットフォームはitch.ioに決定（2026-07-12）。対人交換は将来のネットワーク連携で同じコマンドに載せる設計**（itch.ioにはSteamのようなインベントリ/実績APIが無いため、実装時は自前サーバーか外部サービスを想定）。UIの消費内訳は所持数の多い順に自動選択
+- **施設は地図配置を廃止、ボタン一つで解禁（2026-07-13、ユーザー判断）**: 「掘って戻ってこられる場所を探す」手間自体が不要と判断され、祭壇/ギルド/宿舎は`data/facilities/`のショップ型定義になった。未解禁ならボタン押下で`sim.buy_upgrade(def)`（コストはコイン、max_level=1）→そのままダイアログが開く。解禁済みならダイアログを直接開く（`main.gd`の`_on_facility_button`）。旧セーブ（v5以前の`rooms`配列）は`from_dict`内でupgradesへ自動移行、`sim.rooms`自体が撤廃されているので`build_room`/`room_footprint`/ダンジョン画面上の部屋タイル描画も全て削除済み
+- **祭壇のお供え**: `sim.offer_at_altar(item_id)`。コイン費用は UD.ALTAR_OFFER_BASE_COST×1.4^Lv、+1掘削力/Lv、Lv5からは UD.ALTAR_ITEM_RANK_TIERS のランクの宝物1個も消費。`sim.altar_built()`は`upgrade_level("altar")>0`で判定。一切リセットされない永続効果
+- **ギルド交換**: 酒場はギルドに改名（facility idは`tavern`のまま、locale名のみ変更）。`sim.guild_built()`は`upgrade_level("tavern")>0`で判定。`sim.exchange_item(target, consume)` で下位ランク消費→上位1個（レートは UD.ITEM_EXCHANGE_COSTS: Z←S×3/S←A×5/A←B×7/B←C×10、C・Dは宝箱限定）。**配信プラットフォームはitch.ioに決定（2026-07-12）。対人交換は将来のネットワーク連携で同じコマンドに載せる設計**（itch.ioにはSteamのようなインベントリ/実績APIが無いため、実装時は自前サーバーか外部サービスを想定）。UIの消費内訳は所持数の多い順に自動選択
+- **宿舎**: 純フレーバー（ゲームプレイ効果なし）。解禁するとパーティ全員の顔ぶれをカードで見られるだけの画面（`_open_dorm`）。将来のドット絵UI差し替え先の一つ
 - **チュートリアル**: settings.tutorial_seen ＋ 最初の UD.TUTORIAL_TICKS の間、帯/大画面にローテーションヒント（TUT_HINT_*）
 - **文書の出土条件**: documents JSON の conditions（min_docs/requires_companions/requires_items）を `_roll_document` で判定
 - **調査書カード機能は削除済み（2026-07-12、ユーザー判断）**: 公開前は見せる相手がいないため撤去。マーケティング施策で必要になったら `git log` から `src/daily/survey_card.gd` / `src/window/clipboard.gd` を復元すること。デイリー異変システム自体（`UDDaily`・`data/anomalies/`）は現役
 - **手下の見た目バグ修正(2026-07-12)**: 仲間の描画アート/向きは`minion.id`（パーティ内の並び順）ではなく**companion_id由来のart_variant**（`UDMinion.art_variant_for_companion`、main.gdの`_minion_art_variant`）で決める。IDがずれると仲間が無名のプレースホルダー四角として表示される
 - **ダイアログのイラスト化**: ショップ/宝物/書庫は`UDCardDialog`（羊皮紙カードグリッド＋右の詳細パネル、src/ui/card_dialog.gd）。祭壇・ギルドも同じウィジェットを使用。カードのアイコンは`UDArtLibrary.icon_or_placeholder(key, seed, shape)`が実アート（`item_<id>.png`/`shop_<id>.png`/`<doc_id>.png`）があればそれを使い、無ければ`placeholder_icon`で手続き生成（gem/rune/book形状、seedからHSVで色決定）。実アートを置くだけで自動的に差し替わる
-- **祭壇/ギルドはワンクリックで開く（2026-07-13、手動配置は撤廃）**: 未建設ならボタン押下時に`_auto_build`が拠点(depot)近くの掘削済み空きマスを自動検索して即建設し、そのままダイアログを開く（コスト消費は従来どおり、置き場所選択の手間だけ排除）。建設済みならダイアログを直接開く。手動配置(`_select_build_room`→掘削済みマスをクリックして配置)は**宿舎(dorm、フレーバー専用)にのみ残存**。ダンジョン画面上に建てたタイル自体をクリックしても画面が開く（main.gdの`_room_id_at_cell`、DIGモードでのクリック時にまず建物判定してから掘削判定に落ちる）
 
 ## 未実装（設計図）
 
 1. **配信プラットフォーム連携**（配信プラットフォームはitch.ioに決定、2026-07-12）: `src/platform/` に抽象化済み（`UDPlatform`）。itch.ioにはSteamworksのような実績/クラウドセーブAPIが無いため、実績（`UDAchievements`）は当面ローカル保存のみで運用。将来ネットワーク機能（ギルドの対人交換など）が必要になったら自前サーバーか外部サービスの検討が必要
 2. **手記書き直し**: ストーリーバイブル（docs/STORY_BIBLE_v2_foreshadowing.md、現状は仮案）の§2・§4確定後。既存13編は仮
 3. **地形/部屋の本番アート**: 現在は生成ドット絵。assets/art/ に規約名PNGを置くだけで差し替わる
-4. **部屋の隣接ボーナス**（§5.2、MVPチェックリスト）: 未着手
+4. ~~部屋の隣接ボーナス~~: 2026-07-13に施設の地図配置自体を廃止したため対象消滅（design.md §5.2も更新済み）
 
 ## パフォーマンス予算（§7.1、超えたら実装を差し戻す）
 

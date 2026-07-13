@@ -12,12 +12,22 @@ func test_strata_files_load() -> void:
 	assert_eq(strata.terrain_for_depth(100), UD.Terrain.RUINSTONE, "deepest stratum repeats")
 
 
-func test_room_files_load() -> void:
-	var rooms := UDRoomDB.load_from_dir("res://data/rooms")
-	assert_true(rooms.has_room("dorm"))
-	assert_true(rooms.has_room("tavern"))
-	assert_true(rooms.has_room("altar"))
-	assert_eq(int(rooms.get_room("dorm")["width"]), 2)
+func test_facility_files_load_and_translate() -> void:
+	# altar/tavern/dorm are one-time facility unlocks (shop schema,
+	# max_level 1), not placeable rooms (removed 2026-07-13).
+	var facilities := UDShopDB.load_from_dir("res://data/facilities")
+	assert_true(facilities.has_good("dorm"))
+	assert_true(facilities.has_good("tavern"))
+	assert_true(facilities.has_good("altar"))
+	var ja := UDLocale.load_locale("ja")
+	var en := UDLocale.load_locale("en")
+	for id in facilities.all_ids():
+		var def := facilities.get_good(id)
+		assert_eq(int(def["max_level"]), 1, "%s is a one-time unlock" % id)
+		assert_gt(int(def["base_cost"]), 0)
+		for locale: UDLocale in [ja, en]:
+			assert_ne(locale.text(def["name_key"]), def["name_key"])
+			assert_ne(locale.text(def["desc_key"]), def["desc_key"])
 
 
 func test_documents_and_locales_cross_reference() -> void:

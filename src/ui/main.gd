@@ -1,8 +1,6 @@
 extends Control
 ## Resident-strip main view (placeholder art, §13-5). Draws the cross-section,
-## routes clicks to dig/build commands, and hosts the archive dialog.
-
-enum Mode { DIG = 0, BUILD = 1 }
+## routes clicks to dig commands, and hosts the archive dialog.
 
 const CELL_PX: int = 16
 const HUD_HEIGHT: int = 22
@@ -33,13 +31,12 @@ const MINION_COLORS: Array[Color] = [
 const DEPTH_FADE_PER_ROW: float = 0.015
 const DEPTH_FADE_FLOOR: float = 0.4
 const COLOR_CARRY := Color(0.6, 0.42, 0.25)
-const COLOR_ROOM := Color(0.25, 0.55, 0.55, 0.85)
 
 var sim: UDSim
 var settings: UDSettings
 var locale: UDLocale
 var doc_db: UDDocumentDB
-var room_db: UDRoomDB
+var facility_db: UDShopDB
 var item_db: UDItemDB
 var shop_db: UDShopDB
 var strata_db: UDStrataDB
@@ -53,8 +50,6 @@ var doc_series: Array = []
 var _archive_series: String = ""
 var companion_defs: Array = []
 var _companion_by_id: Dictionary = {}
-var mode: Mode = Mode.DIG
-var _build_room_id: String = ""
 var scroll_y: int = 0
 var scroll_x: int = 0
 var _anim_frame: int = 0
@@ -84,7 +79,6 @@ const TALLY_SHOW_TICKS: int = 5
 const PANEL_WIDTH: int = 260
 const BUTTON_FONT_SIZE: int = 16
 const BUTTON_MIN_SIZE := Vector2(118, 44)
-const ACTIVE_BUTTON_TINT := Color(1.0, 0.85, 0.3)
 
 ## Expanded view zoom: near-native sprite resolution, tunnel close-up
 ## framing (about 7x5 cells in view).
@@ -96,8 +90,7 @@ var offline_ticks_applied: int = 0
 
 var _button_bar: Control
 var _archive_button: Button
-var _dig_button: Button
-var _room_buttons: Dictionary = {}  # room id -> Button
+var _facility_buttons: Dictionary = {}  # facility id -> Button
 var _policy_button: Button
 var _height_button: Button
 var _collapse_button: Button
@@ -110,6 +103,7 @@ var _shop_button: Button
 var _shop_dialog: UDCardDialog
 var _altar_dialog: UDCardDialog
 var _guild_dialog: UDCardDialog
+var _dorm_dialog: UDCardDialog
 ## Auto-picked consumption plan for the selected guild exchange target.
 var _guild_plan: Dictionary = {}
 
@@ -121,11 +115,11 @@ func _ready() -> void:
 	settings = UDSettings.load_settings()
 	locale = UDLocale.load_locale(settings.locale_code)
 	doc_db = UDDocumentDB.load_from_dir("res://data/documents")
-	room_db = UDRoomDB.load_from_dir("res://data/rooms")
+	facility_db = UDShopDB.load_from_dir("res://data/facilities")
 	item_db = UDItemDB.load_from_dir("res://data/items")
 	shop_db = UDShopDB.load_from_dir("res://data/shop")
 	art = UDArtLibrary.load_default(
-		room_db.all_ids(), item_db.all_ids(), shop_db.all_ids(), doc_db.all_ids()
+		facility_db.all_ids(), item_db.all_ids(), shop_db.all_ids(), doc_db.all_ids()
 	)
 	achievements = UDAchievements.load_default(UDPlatform.create())
 	doc_series = UDDataLoader.load_json_dir("res://data/series")
@@ -149,13 +143,6 @@ func _ready() -> void:
 			payload["sim"], strata_db, item_db.all_ids(), companion_defs,
 			doc_db.conditions_by_id(), item_db.ranks_by_id()
 		)
-	# Rooms whose definitions were removed from data/ (e.g. the retired
-	# trap room) must not crash the draw loop: drop them from the save.
-	var kept_rooms: Array[Dictionary] = []
-	for room in sim.rooms:
-		if room_db.has_room(str(room["id"])):
-			kept_rooms.append(room)
-	sim.rooms = kept_rooms
 	_connect_sim_signals()
 	if not payload.is_empty():
 		offline_ticks_applied = UDOffline.elapsed_ticks(
@@ -183,6 +170,7 @@ func _ready() -> void:
 	_build_shop_dialog()
 	_build_altar_dialog()
 	_build_guild_dialog()
+	_build_dorm_dialog()
 	_refresh_button_texts()
 	_apply_window_mode()
 	queue_redraw()
@@ -316,7 +304,7 @@ func _gui_input(event: InputEvent) -> void:
 					_scroll_x_by(-2)
 				else:
 					_scroll_by(-1)
-	elif event is InputEventMouseMotion and mode == Mode.DIG:
+	elif event is InputEventMouseMotion:
 		# Drag-paint dig designations instead of clicking cells one by one.
 		var motion := event as InputEventMouseMotion
 		if motion.button_mask & MOUSE_BUTTON_MASK_LEFT:
@@ -334,31 +322,8 @@ func _handle_click(click_pos: Vector2) -> void:
 	var cell := _cell_at(click_pos)
 	if cell == UDMinion.NO_TARGET:
 		return
-	match mode:
-		Mode.DIG:
-			# Clicking a built facility in the world opens its screen
-			# instead of trying (and failing) to dig an already-air cell.
-			var room_id := _room_id_at_cell(cell)
-			if room_id == "altar":
-				_open_altar()
-				return
-			if room_id == "tavern":
-				_open_guild()
-				return
-			if sim.add_dig_job(cell):
-				queue_redraw()
-		Mode.BUILD:
-			if sim.build_room(room_db.get_room(_build_room_id), cell):
-				mode = Mode.DIG
-				_refresh_mode_buttons()
-				queue_redraw()
-
-
-func _room_id_at_cell(cell: Vector2i) -> String:
-	for i in sim.rooms.size():
-		if sim.room_footprint(i, room_db).has_point(cell):
-			return str(sim.rooms[i]["id"])
-	return ""
+	if sim.add_dig_job(cell):
+		queue_redraw()
 
 
 func _cancel_designation(click_pos: Vector2) -> void:
@@ -574,7 +539,6 @@ func _draw_grid() -> void:
 			else:
 				draw_rect(rect, _cell_color(terrain, y))
 				draw_rect(rect, COLOR_GRID_LINE, false, 1.0)
-	_draw_rooms(origin)
 	_draw_jobs(origin)
 	_draw_depot(origin)
 	_draw_minions(origin)
@@ -630,30 +594,6 @@ func _draw_depot(origin: Vector2) -> void:
 		Rect2(flag_base + Vector2(0, -cell_px * 0.8), Vector2(cell_px * 0.4, cell_px * 0.3)),
 		COLOR_DEPOT
 	)
-
-
-func _draw_rooms(origin: Vector2) -> void:
-	var font := ThemeDB.fallback_font
-	for i in sim.rooms.size():
-		var footprint := sim.room_footprint(i, room_db)
-		if not _cell_visible(footprint.position):
-			continue
-		var cell_px := _cell_px()
-		var rect := Rect2(
-			_cell_rect(origin, footprint.position).position,
-			Vector2(footprint.size * cell_px)
-		)
-		var room_id: String = sim.rooms[i]["id"]
-		var art_key := "room_%s" % room_id
-		if art.has_art(art_key):
-			draw_texture_rect(art.texture(art_key), rect, false)
-			continue
-		draw_rect(rect, COLOR_ROOM)
-		var label := locale.text(room_db.get_room(room_id)["name_key"]).left(1)
-		draw_string(
-			font, rect.position + Vector2(4, cell_px - 4), label,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, HUD_FONT_SIZE, COLOR_HUD_TEXT
-		)
 
 
 ## Party slot -> art variant. Slot 0 is always the protagonist; slot N
@@ -742,13 +682,11 @@ func _build_hud() -> void:
 	grid.add_theme_constant_override("v_separation", 6)
 	panel.add_child(grid)
 
-	_dig_button = _make_button("", func() -> void: _set_mode(Mode.DIG))
-	grid.add_child(_dig_button)
 	_policy_button = _make_button("", _cycle_dig_policy)
 	grid.add_child(_policy_button)
-	for room_id in room_db.all_ids():
-		var button := _make_button("", _on_room_button.bind(room_id))
-		_room_buttons[room_id] = button
+	for facility_id in facility_db.all_ids():
+		var button := _make_button("", _on_facility_button.bind(facility_id))
+		_facility_buttons[facility_id] = button
 		grid.add_child(button)
 	_archive_button = _make_button("", _open_archive)
 	grid.add_child(_archive_button)
@@ -764,7 +702,6 @@ func _build_hud() -> void:
 	grid.add_child(_collapse_button)
 	_quit_button = _make_button("", _quit)
 	grid.add_child(_quit_button)
-	_refresh_mode_buttons()
 
 
 func _make_button(label: String, callback: Callable) -> Button:
@@ -776,95 +713,30 @@ func _make_button(label: String, callback: Callable) -> Button:
 	return button
 
 
-func _set_mode(new_mode: Mode) -> void:
-	mode = new_mode
-	_refresh_mode_buttons()
-
-
-## Room buttons double as facility doors (user request 2026-07-12,
-## revised 2026-07-13: manual placement felt like needless friction —
-## pressing the button now auto-builds altar/guild at the first free
-## dug spot and opens the screen in one click, same cost as before).
-func _on_room_button(room_id: String) -> void:
-	if room_id == "altar":
-		if not sim.altar_built() and not _auto_build(room_id):
-			return
-		_open_altar()
+## Facility buttons (user request 2026-07-13: no map placement at all —
+## pressing the button unlocks the facility outright, same one-time
+## cost as before, then opens its screen. Reuses the shop's buy_upgrade
+## command with max_level 1, so altar/guild/dorm live in the same
+## "upgrades" ledger as pickaxe/survey and need no bespoke sim state.
+func _on_facility_button(facility_id: String) -> void:
+	if sim.upgrade_level(facility_id) <= 0 and not _auto_build(facility_id):
 		return
-	if room_id == "tavern":
-		if not _guild_built() and not _auto_build(room_id):
-			return
-		_open_guild()
-		return
-	_select_build_room(room_id)
+	match facility_id:
+		"altar":
+			_open_altar()
+		"tavern":
+			_open_guild()
+		"dorm":
+			_open_dorm()
 
 
-## Places a room at the first dug, unoccupied spot near the depot
-## instead of making the player pick a location. Returns false (with a
-## toast) when it's unaffordable or there is nowhere dug yet to put it.
-func _auto_build(room_id: String) -> bool:
-	var def := room_db.get_room(room_id)
-	var cost: Dictionary = def["cost"]
-	for res: Variant in cost.keys():
-		if int(sim.inventory.get(res, 0)) < int(cost[res]):
-			_tally_text = locale.text("UI_BUILD_CANNOT_AFFORD") % locale.text(def["name_key"])
-			_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 2
-			return false
-	var pos := _find_room_spot(int(def["width"]), int(def["height"]))
-	if pos == UDMinion.NO_TARGET:
-		_tally_text = locale.text("UI_BUILD_NO_SPACE") % locale.text(def["name_key"])
-		_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 2
-		return false
-	return sim.build_room(def, pos)
-
-
-## Nearest-to-depot search for a footprint of walkable, room-free cells.
-func _find_room_spot(width: int, height: int) -> Vector2i:
-	var candidates: Array[Vector2i] = []
-	for y in sim.grid.height:
-		for x in sim.grid.width - width + 1:
-			candidates.append(Vector2i(x, y))
-	candidates.sort_custom(
-		func(a: Vector2i, b: Vector2i) -> bool:
-			return a.distance_squared_to(UD.DEPOT_POS) < b.distance_squared_to(UD.DEPOT_POS)
-	)
-	for pos in candidates:
-		var fits := true
-		for dy in height:
-			for dx in width:
-				var cell := pos + Vector2i(dx, dy)
-				if not sim.grid.is_walkable(cell) or cell == UD.DEPOT_POS \
-						or _room_id_at_cell(cell) != "":
-					fits = false
-					break
-			if not fits:
-				break
-		if fits:
-			return pos
-	return UDMinion.NO_TARGET
-
-
-func _select_build_room(room_id: String) -> void:
-	_build_room_id = room_id
-	_set_mode(Mode.BUILD)
-	# The gold button tint alone is easy to miss: say out loud that a
-	# click in the tunnel is needed next (user feedback 2026-07-13 —
-	# pressing the room button looked like it did nothing).
-	_tally_text = locale.text("UI_BUILD_MODE_HINT") % \
-		locale.text(room_db.get_room(room_id)["name_key"])
-	_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 3
-
-
-func _refresh_mode_buttons() -> void:
-	# The active mode button is tinted gold so the selection is obvious.
-	var dig_active := mode == Mode.DIG
-	_dig_button.disabled = dig_active
-	_dig_button.modulate = ACTIVE_BUTTON_TINT if dig_active else Color.WHITE
-	for room_id: String in _room_buttons:
-		var button: Button = _room_buttons[room_id]
-		var active := mode == Mode.BUILD and _build_room_id == room_id
-		button.disabled = active
-		button.modulate = ACTIVE_BUTTON_TINT if active else Color.WHITE
+func _auto_build(facility_id: String) -> bool:
+	var def := facility_db.get_good(facility_id)
+	if sim.buy_upgrade(def):
+		return true
+	_tally_text = locale.text("UI_BUILD_CANNOT_AFFORD") % locale.text(def["name_key"])
+	_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 2
+	return false
 
 
 func _refresh_archive_button() -> void:
@@ -877,10 +749,9 @@ func _refresh_archive_button() -> void:
 
 
 func _refresh_button_texts() -> void:
-	_dig_button.text = locale.text("UI_DIG")
-	for room_id: String in _room_buttons:
-		var button: Button = _room_buttons[room_id]
-		button.text = locale.text(room_db.get_room(room_id)["name_key"])
+	for facility_id: String in _facility_buttons:
+		var button: Button = _facility_buttons[facility_id]
+		button.text = locale.text(facility_db.get_good(facility_id)["name_key"])
 	_policy_button.text = locale.text(_policy_label_key())
 	_height_button.text = "%dpx" % UD.WINDOW_HEIGHTS[settings.height_index]
 	_collapse_button.text = locale.text("UI_COLLAPSE")
@@ -1097,6 +968,55 @@ func _on_shop_buy(good_id: String) -> void:
 		queue_redraw()
 
 
+## --- Dorm ---------------------------------------------------------
+## Pure flavor (no gameplay effect): a roster card per party member.
+
+func _build_dorm_dialog() -> void:
+	_dorm_dialog = UDCardDialog.create(locale.text("ROOM_DORM"), false)
+	_dorm_dialog.card_selected.connect(_on_dorm_card_selected)
+	add_child(_dorm_dialog)
+
+
+func _open_dorm() -> void:
+	if settings.resident_mode:
+		_expand()
+	_dorm_dialog.clear_cards()
+	for slot_index in sim.minions.size():
+		var art_variant := _minion_art_variant(slot_index)
+		var minion_id := "minion_%d" % slot_index
+		var display_name := locale.text("APP_TITLE") if slot_index == 0 else ""
+		if slot_index > 0 and slot_index - 1 < sim.companions.size():
+			var companion_id: String = sim.companions[slot_index - 1]
+			if _companion_by_id.has(companion_id):
+				display_name = locale.text(_companion_by_id[companion_id]["name_key"])
+		_dorm_dialog.add_card(
+			minion_id, display_name, "",
+			art.icon_or_placeholder("minion_%d" % art_variant, minion_id, "rune"), false
+		)
+	_dorm_dialog.set_progress("%s %d/%d" % [
+		locale.text("UI_PARTY"), sim.minions.size(), UD.MINION_MAX,
+	])
+	_dorm_dialog.title = locale.text("ROOM_DORM")
+	_dorm_dialog.show_detail("", locale.text("FACILITY_DORM_DESC"), null)
+	if sim.minions.size() > 0:
+		_dorm_dialog.select_card("minion_0")
+	_dorm_dialog.popup_centered()
+
+
+func _on_dorm_card_selected(minion_id: String) -> void:
+	var slot_index := int(minion_id.trim_prefix("minion_"))
+	var art_variant := _minion_art_variant(slot_index)
+	var display_name := locale.text("APP_TITLE")
+	if slot_index > 0 and slot_index - 1 < sim.companions.size():
+		var companion_id: String = sim.companions[slot_index - 1]
+		if _companion_by_id.has(companion_id):
+			display_name = locale.text(_companion_by_id[companion_id]["name_key"])
+	_dorm_dialog.show_detail(
+		display_name, locale.text("FACILITY_DORM_DESC"),
+		art.icon_or_placeholder("minion_%d" % art_variant, minion_id, "rune")
+	)
+
+
 ## --- Altar offerings -------------------------------------------------
 ## Coins (and at higher levels a treasure of the demanded rank) buy
 ## permanent-for-this-run dig power (user spec 2026-07-12).
@@ -1188,11 +1108,6 @@ func _build_guild_dialog() -> void:
 	add_child(_guild_dialog)
 
 
-func _guild_built() -> bool:
-	for room in sim.rooms:
-		if str(room["id"]) == "tavern":
-			return true
-	return false
 
 
 func _open_guild() -> void:
@@ -1208,7 +1123,7 @@ func _populate_guild(keep_selection: String) -> void:
 	_guild_dialog.set_back("", false)
 	_guild_dialog.set_progress(locale.text("UI_GUILD_NOTE"))
 	_guild_dialog.set_action(locale.text("UI_EXCHANGE"), true)
-	if not _guild_built():
+	if not sim.guild_built():
 		_guild_dialog.show_detail("", locale.text("UI_GUILD_NEEDS_ROOM"), null)
 		return
 	for item_id in item_db.all_ids():

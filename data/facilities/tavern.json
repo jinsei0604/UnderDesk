@@ -1,0 +1,9 @@
+{
+	"id": "tavern",
+	"name_key": "ROOM_TAVERN",
+	"desc_key": "FACILITY_GUILD_DESC",
+	"base_cost": 40,
+	"cost_mult": 1.0,
+	"effect": "dig_power_add",
+	"max_level": 1
+}

@@ -1,0 +1,9 @@
+{
+	"id": "altar",
+	"name_key": "ROOM_ALTAR",
+	"desc_key": "FACILITY_ALTAR_DESC",
+	"base_cost": 80,
+	"cost_mult": 1.0,
+	"effect": "doc_chance_add",
+	"max_level": 1
+}

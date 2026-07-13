@@ -109,7 +109,7 @@ func test_altar_needs_building_and_coins() -> void:
 	var sim := _sim()
 	sim.inventory[UD.RES_GOLD] = 10000
 	assert_false(sim.offer_at_altar(), "no altar built yet")
-	sim.rooms.append({"id": "altar", "pos": Vector2i(2, 1), "effect": "doc_chance_add"})
+	sim.upgrades["altar"] = {"level": 1, "effect": "doc_chance_add"}
 	var power_before := sim.dig_power()
 	var cost := sim.altar_offer_cost()
 	assert_true(sim.offer_at_altar())
@@ -123,7 +123,7 @@ func test_altar_needs_building_and_coins() -> void:
 
 func test_altar_demands_items_at_higher_levels() -> void:
 	var sim := _sim()
-	sim.rooms.append({"id": "altar", "pos": Vector2i(2, 1), "effect": "doc_chance_add"})
+	sim.upgrades["altar"] = {"level": 1, "effect": "doc_chance_add"}
 	sim.inventory[UD.RES_GOLD] = 1000000
 	sim.altar_level = 4
 	assert_eq(sim.altar_required_item_rank(), "D", "level 5 starts the D tier")
@@ -159,7 +159,7 @@ func test_altar_tier_boundaries_match_spec() -> void:
 
 func test_altar_offer_cost_scales_geometrically() -> void:
 	var sim := _sim()
-	sim.rooms.append({"id": "altar", "pos": Vector2i(2, 1), "effect": "doc_chance_add"})
+	sim.upgrades["altar"] = {"level": 1, "effect": "doc_chance_add"}
 	var base := sim.altar_offer_cost()
 	assert_eq(base, UD.ALTAR_OFFER_BASE_COST, "level 0 costs exactly the base")
 	sim.altar_level = 1
@@ -172,7 +172,7 @@ func test_altar_offer_cost_scales_geometrically() -> void:
 
 func test_altar_rejects_item_of_correct_rank_but_zero_owned() -> void:
 	var sim := _sim()
-	sim.rooms.append({"id": "altar", "pos": Vector2i(2, 1), "effect": "doc_chance_add"})
+	sim.upgrades["altar"] = {"level": 1, "effect": "doc_chance_add"}
 	sim.inventory[UD.RES_GOLD] = 1000000
 	sim.altar_level = 4
 	sim.items["d1"] = 0

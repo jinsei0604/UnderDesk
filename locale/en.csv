@@ -24,7 +24,6 @@ ITEM_SILVER_LOCKET,A Silver Locket
 ITEM_SILVER_LOCKET_DESC,"The portrait inside is blank. Day by day, the blank looks more like someone."
 ITEM_ODD_COIN,An Odd Coin
 ITEM_ODD_COIN_DESC,"Count it and the total changes. On days it increases, it is said to be in a good mood."
-UI_DIG,Dig
 UI_BUILD_DORM,Dorm
 UI_ARCHIVE,Archive
 UI_QUIT,Quit
@@ -110,6 +109,8 @@ UI_GUILD_NEEDS_ROOM,Build the guild first
 UI_GUILD_COST,Requires: rank %s ×%d
 UI_GUILD_CONSUMES,Will consume:
 UI_GUILD_SHORT,Not enough fodder (need rank %s ×%d)
-"UI_BUILD_MODE_HINT","Click an already-dug spot to place the %s."
 "UI_BUILD_CANNOT_AFFORD","Not enough coins to build the %s."
-"UI_BUILD_NO_SPACE","No dug space free for the %s yet — dig a bit further."
+"FACILITY_ALTAR_DESC","Raises document discovery rate. Offerings here boost dig power further."
+"FACILITY_GUILD_DESC","Raises dig power. Also opens rank-up treasure exchange."
+"FACILITY_DORM_DESC","Where the party rests."
+UI_PARTY,Party

@@ -2,7 +2,7 @@ class_name UD
 extends RefCounted
 ## UNDERDESK core constants (§12-1: no magic numbers).
 
-const SAVE_VERSION: int = 5
+const SAVE_VERSION: int = 6
 
 ## Simulation tick length (§7.1: timer-driven, not per-frame).
 const TICK_SECONDS: float = 2.0
@@ -28,8 +28,6 @@ const TERRAIN_BY_NAME: Dictionary = {
 	"RUINSTONE": Terrain.RUINSTONE,
 }
 
-## Each altar raises the document drop chance by this much (§5.3 pacing).
-const DOC_CHANCE_PER_ALTAR: float = 0.05
 ## Extra document drop chance while the lush-vein daily anomaly is active.
 const DAILY_DOC_CHANCE_BONUS: float = 0.1
 ## Extra document drop chance per level of the survey shop upgrade.
