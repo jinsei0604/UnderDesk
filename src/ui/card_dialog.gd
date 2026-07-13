@@ -88,7 +88,8 @@ func _build(with_action: bool) -> void:
 	_background_rect = TextureRect.new()
 	_background_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_background_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_background_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	_background_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_background_rect.clip_contents = true
 	_background_rect.visible = false
 	card_area.add_child(_background_rect)
 
