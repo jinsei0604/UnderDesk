@@ -11,21 +11,19 @@ signal action_pressed(id: String)
 signal back_pressed
 
 ## Palette shared with the survey card: aged paper in a dark cabinet.
-## Card fills carry alpha < 1 so an illustrated background (§ archive/
-## treasure dialog_bg_*) reads through even when the grid is packed full.
 const COLOR_CABINET := Color(0.075, 0.065, 0.055)
-const COLOR_PAPER := Color(0.16, 0.135, 0.105, 0.82)
-const COLOR_PAPER_HOVER := Color(0.21, 0.18, 0.14, 0.86)
-const COLOR_PAPER_SELECTED := Color(0.24, 0.2, 0.14, 0.9)
-const COLOR_LOCKED := Color(0.095, 0.085, 0.075, 0.82)
+const COLOR_PAPER := Color(0.16, 0.135, 0.105)
+const COLOR_PAPER_HOVER := Color(0.21, 0.18, 0.14)
+const COLOR_PAPER_SELECTED := Color(0.24, 0.2, 0.14)
+const COLOR_LOCKED := Color(0.095, 0.085, 0.075)
 const COLOR_BORDER := Color(0.62, 0.5, 0.28)
 const COLOR_BORDER_DIM := Color(0.28, 0.24, 0.18)
 const COLOR_TITLE := Color(0.9, 0.78, 0.5)
 const COLOR_TEXT := Color(0.85, 0.8, 0.7)
 const COLOR_MUTED := Color(0.5, 0.45, 0.38)
 
-const CARD_SIZE := Vector2(150, 128)
-const CARD_ICON_PX: int = 44
+const CARD_SIZE := Vector2(128, 108)
+const CARD_ICON_PX: int = 36
 const DETAIL_ICON_PX: int = 88
 const GRID_COLUMNS: int = 4
 
@@ -102,8 +100,8 @@ func _build(with_action: bool) -> void:
 
 	_grid = GridContainer.new()
 	_grid.columns = GRID_COLUMNS
-	_grid.add_theme_constant_override("h_separation", 10)
-	_grid.add_theme_constant_override("v_separation", 10)
+	_grid.add_theme_constant_override("h_separation", 22)
+	_grid.add_theme_constant_override("v_separation", 22)
 	_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_grid)
 
