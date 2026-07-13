@@ -797,6 +797,12 @@ func _on_room_button(room_id: String) -> void:
 func _select_build_room(room_id: String) -> void:
 	_build_room_id = room_id
 	_set_mode(Mode.BUILD)
+	# The gold button tint alone is easy to miss: say out loud that a
+	# click in the tunnel is needed next (user feedback 2026-07-13 —
+	# pressing the room button looked like it did nothing).
+	_tally_text = locale.text("UI_BUILD_MODE_HINT") % \
+		locale.text(room_db.get_room(room_id)["name_key"])
+	_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 3
 
 
 func _refresh_mode_buttons() -> void:

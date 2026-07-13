@@ -110,3 +110,4 @@ UI_GUILD_NEEDS_ROOM,Build the guild first
 UI_GUILD_COST,Requires: rank %s ×%d
 UI_GUILD_CONSUMES,Will consume:
 UI_GUILD_SHORT,Not enough fodder (need rank %s ×%d)
+"UI_BUILD_MODE_HINT","Click an already-dug spot to place the %s."
