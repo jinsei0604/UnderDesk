@@ -1,0 +1,6 @@
+{
+	"id": "unrung_doorbell",
+	"name_key": "ITEM_UNRUNG_DOORBELL",
+	"desc_key": "ITEM_UNRUNG_DOORBELL_DESC",
+	"rank": "B"
+}

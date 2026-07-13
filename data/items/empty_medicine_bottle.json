@@ -1,0 +1,6 @@
+{
+	"id": "empty_medicine_bottle",
+	"name_key": "ITEM_EMPTY_MEDICINE_BOTTLE",
+	"desc_key": "ITEM_EMPTY_MEDICINE_BOTTLE_DESC",
+	"rank": "D"
+}

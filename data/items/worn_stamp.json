@@ -1,0 +1,6 @@
+{
+	"id": "worn_stamp",
+	"name_key": "ITEM_WORN_STAMP",
+	"desc_key": "ITEM_WORN_STAMP_DESC",
+	"rank": "C"
+}

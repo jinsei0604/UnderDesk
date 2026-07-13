@@ -90,7 +90,7 @@ func test_chest_with_empty_pool_pays_coins_without_crashing() -> void:
 
 func test_real_item_files_load_and_translate() -> void:
 	var db := UDItemDB.load_from_dir("res://data/items")
-	assert_eq(db.all_ids().size(), 30)
+	assert_eq(db.all_ids().size(), 100)
 	var ja := UDLocale.load_locale("ja")
 	var en := UDLocale.load_locale("en")
 	for id in db.all_ids():

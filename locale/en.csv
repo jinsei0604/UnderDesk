@@ -170,3 +170,143 @@ ITEM_UNCHOSEN_LOT,The Lot No One Picks
 ITEM_UNCHOSEN_LOT_DESC,"Only one lot in the box, yet it is still there each time you draw."
 ITEM_PATCHWORK_MAP,A Patchwork Map
 ITEM_PATCHWORK_MAP_DESC,"None of the roads on it lead outside the tunnels, yet new ones are added daily."
+ITEM_GLASS_HEART,A Glass Heart
+ITEM_GLASS_HEART_DESC,"It never cracks, yet you can feel it beating."
+ITEM_TWIN_RINGS,Twin Rings
+ITEM_TWIN_RINGS_DESC,"Wear one, and somewhere far off the other glows on the same finger."
+ITEM_VANISHED_PORTRAIT_FRAME,Frame of a Vanished Portrait
+ITEM_VANISHED_PORTRAIT_FRAME_DESC,"The painting is gone, yet the right light still traces someone's outline."
+ITEM_LAST_PAGE_BOOKMARK,Bookmark for the Last Page
+ITEM_LAST_PAGE_BOOKMARK_DESC,"Slip it into any book, and it always falls open to the final page."
+ITEM_SEAMLESS_BOOTS,Seamless Boots
+ITEM_SEAMLESS_BOOTS_DESC,"Wear them and your footsteps vanish, though footprints keep appearing after you take them off."
+ITEM_STUCK_LETTER_CLIP,A Letter Clip That Will Not Open
+ITEM_STUCK_LETTER_CLIP_DESC,"The papers clipped inside keep multiplying; no one remembers how to remove them."
+ITEM_TIDE_SCENTED_CLOTH,Cloth That Smells of Tide
+ITEM_TIDE_SCENTED_CLOTH_DESC,"Found deep underground, yet no amount of drying removes the smell of the sea."
+ITEM_UNWEIGHTED_OFFERING_BOX,An Offering Box With No Weight
+ITEM_UNWEIGHTED_OFFERING_BOX_DESC,"Drop coins in, and the box's weight from outside never changes."
+ITEM_SHADOW_ONLY_PHOTOGRAPH,Photograph of Only a Shadow
+ITEM_SHADOW_ONLY_PHOTOGRAPH_DESC,"Only a shadow appears in the photo, but the light's direction is different every time."
+ITEM_ANSWERING_BELL,A Bell That Answers When Called
+ITEM_ANSWERING_BELL_DESC,"Call a name and it rings once, though whose name it answers to is unclear."
+ITEM_UNCRUSHABLE_COCOON,A Cocoon That Will Not Crush
+ITEM_UNCRUSHABLE_COCOON_DESC,"No amount of force crushes it. You can only feel something inside, waiting."
+ITEM_UPWARD_COMPASS,Sibling of the Downward Compass
+ITEM_UPWARD_COMPASS_DESC,"Similar to the brass compass, but this one's needle always points up."
+ITEM_UNRUNG_DOORBELL,A Doorbell No One Rang
+ITEM_UNRUNG_DOORBELL_DESC,"No one presses it, yet a chime answers back from deep in the tunnels now and then."
+ITEM_STUCK_TRIPLE_DRAWER,A Drawer That Will Not Open, Three Tiers
+ITEM_STUCK_TRIPLE_DRAWER_DESC,"Only the bottom tier is ever slightly open; it is empty, but cold."
+ITEM_COUNTING_SONG_TABLET,A Tablet With a Counting Song
+ITEM_COUNTING_SONG_TABLET_DESC,"Recite it aloud, and someone murmurs the next number for you."
+ITEM_UNBENDING_UMBRELLA_RIB,An Umbrella Rib That Never Bends
+ITEM_UNBENDING_UMBRELLA_RIB_DESC,"The umbrella is long gone, but this rib alone still remembers the smell of rain."
+ITEM_SILENT_CRICKET_CAGE,A Cricket Cage With No Sound
+ITEM_SILENT_CRICKET_CAGE_DESC,"No insect lives inside, yet it chirps faintly once night falls."
+ITEM_HALF_LEGIBLE_LETTER,A Letter Half-Legible
+ITEM_HALF_LEGIBLE_LETTER_DESC,"Only the top half is legible; the bottom half is a different stain each time."
+ITEM_UNDERSIDE_ENGRAVED_PLATE,A Plate Engraved on the Underside
+ITEM_UNDERSIDE_ENGRAVED_PLATE_DESC,"Flip it over to check, and the engraved name looks different every time."
+ITEM_CRUSHED_FLUTE,A Crushed Flute
+ITEM_CRUSHED_FLUTE_DESC,"Bent out of shape, yet blow it and it plays the note it made before breaking."
+ITEM_WORN_STAMP,A Worn-Down Stamp
+ITEM_WORN_STAMP_DESC,"The carving wore away long ago, yet stamped, the faded pattern faintly returns."
+ITEM_REMEMBERING_STRING,A String That Remembers
+ITEM_REMEMBERING_STRING_DESC,"Untie it and it slowly works its way back into the same knot."
+ITEM_BACKWARDS_SIGNPOST,A Signpost Written Backwards
+ITEM_BACKWARDS_SIGNPOST_DESC,"Held to a mirror it reads clearly, naming a place no one has heard of."
+ITEM_UNLIT_LAMP_WICK,A Wick From a Lamp That Never Lights
+ITEM_UNLIT_LAMP_WICK_DESC,"Soak it in oil and it never lights, yet it stays faintly warm in the dark."
+ITEM_MISMATCHED_GEAR_BOX,A Box of Gears That Do Not Add Up
+ITEM_MISMATCHED_GEAR_BOX_DESC,"Assemble every gear and one is left over. Discard it, and by morning one is left over again."
+ITEM_RUSTPROOF_NAIL,A Nail That Never Rusts
+ITEM_RUSTPROOF_NAIL_DESC,"The wood it is driven into ages every year; the nail itself stays forever new."
+ITEM_UNSTRUCK_MATCH,A Match Before It Strikes
+ITEM_UNSTRUCK_MATCH_DESC,"Unstruck, yet the tip alone carries a faint warmth."
+ITEM_DATES_ONLY_NOTEBOOK,A Notebook of Only Dates
+ITEM_DATES_ONLY_NOTEBOOK_DESC,"Every plan is left blank; only the dates are filled in, meticulously."
+ITEM_ANSWERING_JAR,A Jar That Answers When Tapped
+ITEM_ANSWERING_JAR_DESC,"Tap it, and a moment later the same rhythm answers from inside."
+ITEM_MATCHING_POTTERY_SHARDS,Pottery Shards That Always Fit
+ITEM_MATCHING_POTTERY_SHARDS_DESC,"Wherever the shards are found, arranged together they always form one jar."
+ITEM_WICK_ONLY_LANTERN,A Lantern of Only a Wick
+ITEM_WICK_ONLY_LANTERN_DESC,"No glass, no oil, yet on windless days it flickers ever so slightly."
+ITEM_BACKWARD_SANDBAG,A Sandbag That Runs Backward
+ITEM_BACKWARD_SANDBAG_DESC,"Tilt it and the sand moves from the bottom to the top."
+ITEM_UNUSED_KEYRING,A Keyring With No Sign of Use
+ITEM_UNUSED_KEYRING_DESC,"Every key looks brand new, yet the ring holding them together is worn smooth with age."
+ITEM_HALF_MELTED_WAX,Half-Melted Wax
+ITEM_HALF_MELTED_WAX_DESC,"Even cold, it dents to the shape of a fingertip when touched."
+ITEM_CRUSHED_LANTERN_FRAME,Frame of a Crushed Lantern
+ITEM_CRUSHED_LANTERN_FRAME_DESC,"The paper is torn, but the frame alone still traces the shape of a light."
+ITEM_SILENT_BELL,A Bell That Makes No Sound
+ITEM_SILENT_BELL_DESC,"Shake it and nothing sounds, yet a moment later, something rings deep in your ear."
+ITEM_CHIPPED_TEACUP,A Chipped Teacup
+ITEM_CHIPPED_TEACUP_DESC,"Drink from the chipped side, and it always feels hotter than it should."
+ITEM_BENT_NAIL_PULLER,A Bent Nail Puller
+ITEM_BENT_NAIL_PULLER_DESC,"Use it, and the tip grows a little longer for every nail pulled."
+ITEM_WORN_WHETSTONE,A Worn Whetstone
+ITEM_WORN_WHETSTONE_DESC,"It sharpens any blade, but by the next day the edge dulls back to where it started."
+ITEM_SINGLE_SHOELACE,A Single Shoelace
+ITEM_SINGLE_SHOELACE_DESC,"Tie it, and somewhere far off, its missing partner seems to tie itself too."
+ITEM_BROKEN_COMB,A Broken Comb
+ITEM_BROKEN_COMB_DESC,"Half its teeth are missing, yet somehow it combs through hair without a single snag."
+ITEM_FOGGED_SPECTACLES,Fogged Spectacles
+ITEM_FOGGED_SPECTACLES_DESC,"No amount of wiping clears the fog, yet distant things come sharply into focus when worn."
+ITEM_RUSTED_SCISSORS,Rusted Scissors
+ITEM_RUSTED_SCISSORS_DESC,"It cannot cut paper, but it cuts hair cleanly enough."
+ITEM_HALF_SPARE_KEY,Half a Spare Key
+ITEM_HALF_SPARE_KEY_DESC,"It fits halfway into any lock. No one knows where the other half went."
+ITEM_FRAYED_ROPE_END,A Frayed Rope End
+ITEM_FRAYED_ROPE_END_DESC,"Pull it and it always feels like there is more length left, yet it stops at the same point every time."
+ITEM_CRUSHED_THIMBLE,A Crushed Thimble
+ITEM_CRUSHED_THIMBLE_DESC,"Too crushed to wear, yet the feeling of wearing it lingers."
+ITEM_TARNISHED_SPOON,A Tarnished Silver Spoon
+ITEM_TARNISHED_SPOON_DESC,"Polishing does not remove the tarnish, yet the reflected face is unusually clear."
+ITEM_CHIPPED_MILLSTONE_FRAGMENT,A Chipped Millstone Fragment
+ITEM_CHIPPED_MILLSTONE_FRAGMENT_DESC,"Traces of grinding remain, and the smell of flour never quite fades."
+ITEM_SHRUNKEN_GLOVE,A Shrunken Glove
+ITEM_SHRUNKEN_GLOVE_DESC,"Too small even for a child's hand, yet it fits an adult's hand perfectly when worn."
+ITEM_TORN_MAP_FRAGMENT,A Torn Map Fragment
+ITEM_TORN_MAP_FRAGMENT_DESC,"Only the middle of a road is drawn; neither its start nor its end can be found."
+ITEM_BENT_NEEDLE,A Bent Needle
+ITEM_BENT_NEEDLE_DESC,"It will not pass through straight cloth, but slides easily through cloth already creased."
+ITEM_HALF_SEASHELL,Half a Broken Seashell
+ITEM_HALF_SEASHELL_DESC,"Held to the ear, it plays not the sound of waves, but someone's footsteps."
+ITEM_BURNT_CANDLE_WICK,A Burnt Candle Wick
+ITEM_BURNT_CANDLE_WICK_DESC,"Long since burnt out, yet in darkness alone, its tip glows faintly."
+ITEM_WORN_SOAP,Worn-Down Soap
+ITEM_WORN_SOAP_DESC,"It should shrink with every wash, yet by morning it is back to the same size."
+ITEM_WORN_SANDAL_HALF,A Worn Half of a Sandal
+ITEM_WORN_SANDAL_HALF_DESC,"Only one side shows wear from walking; its match is nowhere to be found."
+ITEM_WARPED_RULER,A Warped Ruler
+ITEM_WARPED_RULER_DESC,"Try to draw a straight line with it, and the line always bends, just slightly."
+ITEM_EMPTY_MEDICINE_BOTTLE,An Empty Medicine Bottle
+ITEM_EMPTY_MEDICINE_BOTTLE_DESC,"Long empty, yet open the lid and the smell of medicine still lingers."
+ITEM_CRUSHED_RING,A Crushed Ring
+ITEM_CRUSHED_RING_DESC,"Warped out of shape, yet somehow it fits perfectly when slipped onto a finger."
+ITEM_UNYIELDING_BOW,A Bow That Will Not Come Undone
+ITEM_UNYIELDING_BOW_DESC,"Try to undo the knot, and it only pulls tighter."
+ITEM_CHIPPED_BELL,A Chipped Bell
+ITEM_CHIPPED_BELL_DESC,"Ring it from the chipped side, and instead of a clear tone, it sighs like someone breathing out."
+ITEM_WORN_PENCIL,A Worn-Down Pencil
+ITEM_WORN_PENCIL_DESC,"The tip has long gone round, yet whatever it writes still looks sharply pointed."
+ITEM_TORN_ENVELOPE,A Torn Envelope
+ITEM_TORN_ENVELOPE_DESC,"Empty inside, yet the spot where it was once sealed is still warm."
+ITEM_BENT_SPOON,A Bent Spoon
+ITEM_BENT_SPOON_DESC,"Hold it straight, and by the time it reaches your mouth, the angle has always shifted."
+ITEM_SINGLE_BRACELET,A Single Bracelet
+ITEM_SINGLE_BRACELET_DESC,"Wear it, and you recall even the weight of the one that used to match it."
+ITEM_CRACKED_TABLET_FRAGMENT,A Cracked Stone Tablet Fragment
+ITEM_CRACKED_TABLET_FRAGMENT_DESC,"Something like writing is carved into it, though no one can read it."
+ITEM_WORN_NOTEBOOK,A Worn-Out Notebook
+ITEM_WORN_NOTEBOOK_DESC,"Every page is blank, yet opening it always carries the smell of fresh ink."
+ITEM_MELTING_WAX_FINGER,A Melting Wax Finger
+ITEM_MELTING_WAX_FINGER_DESC,"Even in the cold tunnels, it keeps slowly losing its shape."
+ITEM_RUSTED_FLASHLIGHT,A Rusted Flashlight
+ITEM_RUSTED_FLASHLIGHT_DESC,"Batteries do nothing, yet holding it, your hand warms just slightly."
+ITEM_TORN_SHEET_MUSIC_FRAGMENT,A Torn Sheet Music Fragment
+ITEM_TORN_SHEET_MUSIC_FRAGMENT_DESC,"Only the final measure of notes can be read; no one knows the rest of the song."
+ITEM_CHIPPED_RING_BOX,A Chipped Ring Box
+ITEM_CHIPPED_RING_BOX_DESC,"Open the lid and it is empty, yet closing it always makes a small sound."
