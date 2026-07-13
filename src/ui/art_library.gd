@@ -9,6 +9,9 @@ extends RefCounted
 ##   minion_0.png .. minion_5.png  (variant = minion id % 6)
 ##   room_<room_id>.png  (e.g. room_dorm.png)
 ##   depot.png
+##   dialog_bg_<archive|treasure|shop|altar|guild|dorm>.png
+##   (illustrated backdrop behind a UDCardDialog's card grid)
+##   series_<series_id>.png  (e.g. series_journal.png, the archive shelf icon)
 ##
 ## Frame animation: add <key>_f2.png, <key>_f3.png, ... and the sprite
 ## cycles through them automatically (the base file is frame 1).
@@ -32,11 +35,14 @@ static func load_default(
 	item_ids: Array[String] = [],
 	shop_ids: Array[String] = [],
 	doc_ids: Array[String] = [],
+	series_ids: Array[String] = [],
 ) -> UDArtLibrary:
 	var lib := UDArtLibrary.new()
 	var keys: Array[String] = [
 		"terrain_soil", "terrain_rock", "terrain_wetrock",
 		"terrain_ruinstone", "terrain_air", "depot",
+		"dialog_bg_archive", "dialog_bg_treasure", "dialog_bg_shop",
+		"dialog_bg_altar", "dialog_bg_guild", "dialog_bg_dorm",
 	]
 	for i in MINION_VARIANTS:
 		keys.append("minion_%d" % i)
@@ -48,6 +54,8 @@ static func load_default(
 		keys.append("shop_%s" % shop_id)
 	for doc_id in doc_ids:
 		keys.append(doc_id)
+	for series_id in series_ids:
+		keys.append("series_%s" % series_id)
 	for key in keys:
 		var frames: Array = []
 		var base_path := "%s/%s.png" % [ART_DIR, key]

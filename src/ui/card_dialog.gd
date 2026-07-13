@@ -30,6 +30,7 @@ const GRID_COLUMNS: int = 4
 var _progress_label: Label
 var _back_button: Button
 var _grid: GridContainer
+var _background_rect: TextureRect
 var _detail_icon: TextureRect
 var _detail_title: Label
 var _detail_body: RichTextLabel
@@ -79,11 +80,22 @@ func _build(with_action: bool) -> void:
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(body)
 
+	var card_area := Control.new()
+	card_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_child(card_area)
+
+	_background_rect = TextureRect.new()
+	_background_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_background_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_background_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	_background_rect.visible = false
+	card_area.add_child(_background_rect)
+
 	var scroll := ScrollContainer.new()
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	body.add_child(scroll)
+	card_area.add_child(scroll)
 
 	_grid = GridContainer.new()
 	_grid.columns = GRID_COLUMNS
@@ -139,6 +151,13 @@ func _build(with_action: bool) -> void:
 
 func set_progress(text: String) -> void:
 	_progress_label.text = text
+
+
+## Optional illustrated backdrop behind the card grid (e.g. the archive's
+## library-desk scene). Pass null to fall back to the plain cabinet panel.
+func set_background(tex: Texture2D) -> void:
+	_background_rect.texture = tex
+	_background_rect.visible = tex != null
 
 
 ## Shows the "back to series" button on nested pages (archive shelves).

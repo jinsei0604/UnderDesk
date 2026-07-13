@@ -118,11 +118,14 @@ func _ready() -> void:
 	facility_db = UDShopDB.load_from_dir("res://data/facilities")
 	item_db = UDItemDB.load_from_dir("res://data/items")
 	shop_db = UDShopDB.load_from_dir("res://data/shop")
+	doc_series = UDDataLoader.load_json_dir("res://data/series")
+	var series_ids: Array[String] = []
+	for def: Variant in doc_series:
+		series_ids.append(str((def as Dictionary)["id"]))
 	art = UDArtLibrary.load_default(
-		facility_db.all_ids(), item_db.all_ids(), shop_db.all_ids(), doc_db.all_ids()
+		facility_db.all_ids(), item_db.all_ids(), shop_db.all_ids(), doc_db.all_ids(), series_ids
 	)
 	achievements = UDAchievements.load_default(UDPlatform.create())
-	doc_series = UDDataLoader.load_json_dir("res://data/series")
 	anomalies = UDDataLoader.load_json_dir("res://data/anomalies")
 	for anomaly: Variant in anomalies:
 		_anomaly_by_id[(anomaly as Dictionary)["id"]] = anomaly
@@ -848,6 +851,7 @@ func _build_archive_dialog() -> void:
 	_archive_dialog = UDCardDialog.create(locale.text("UI_ARCHIVE"), false)
 	_archive_dialog.card_selected.connect(_on_archive_card_selected)
 	_archive_dialog.back_pressed.connect(_show_archive_series_shelf)
+	_archive_dialog.set_background(art.texture("dialog_bg_archive"))
 	add_child(_archive_dialog)
 
 

@@ -77,6 +77,8 @@ image_data/frames/N/layer_1 を読める）。地形/部屋はまだ生成ドッ
 - **施設（祭壇/ギルド/宿舎）**: `data/facilities/xxx.json`（ショップと同スキーマ、max_level常に1の一回限り解禁）。地図配置は無く、ボタン一つで`buy_upgrade()`→即座にダイアログが開く。新しい施設を足す場合は`main.gd`の`_on_facility_button`にmatch節を1つ追加するだけ
 - **デイリー異変**: `data/anomalies/xxx.json`（effect: dig_power_add / doc_chance_add / gold_per_dig。新効果は sim に分岐追加＋テスト）
 - **アート**: `assets/art/` に PNG を置くだけ（terrain_soil.png, minion_0..5.png, room_altar.png/room_tavern.png/room_dorm.png（施設アイコン、キー接頭辞は`room_`のまま）, depot.png）。無ければ色矩形/プレースホルダーアイコンにフォールバック。置いたら `--import`
+- **書庫のシリーズアイコン**: `assets/art/series_<series_id>.png`（data/series/のid、例: series_journal.png）。`UDCardDialog`のシリーズ棚カードに使われる。`UDArtLibrary.load_default()`に`series_ids`（`doc_series`から抽出）を渡さないと認識されないので注意
+- **ダイアログの背景イラスト（2026-07-13〜、ユーザーの自作ドット絵を6画面に順次組み込む予定の1本目）**: `assets/art/dialog_bg_<archive|treasure|shop|altar|guild|dorm>.png` を置くと、対応する`UDCardDialog`のカードグリッド背後に敷かれる（`UDCardDialog.set_background(texture)`、`main.gd`の各`_build_xxx_dialog()`で`art.texture("dialog_bg_xxx")`を渡すだけ）。未配置なら非表示（従来通りの暗いキャビネット地）。書庫（archive）に実装済み。合成済みのモックアップ画像しか届かない場合は、Godotの`Image.get_region()`でカード領域・背景領域を切り出し、アイコン部分は`tools/extract_sprites.gd`と同じフラッドフィル透明化＋トリム＋正方形化を再利用する
 - **アニメ**: `<key>_f2.png, _f3.png...` を置くと自動でフレーム再生（基本ファイル=1フレーム目、0.4秒/コマ、IDLE中は1フレーム目固定）。アニメはUI側のみでシミュレーションに影響しない
 - **キャラの向き**: スプライトは全フレーム同じ向きに統一し（tools/extract_sprites.gd の FLIP_X_OUTPUTS で調整）、main.gd の MINION_NATIVE_FACING に素材の向きを登録。逆方向は描画時に自動反転。掘削の破片は _draw_debris が対象地形の色で生成するので、素材に土煙を焼き込まないこと
 - **掘削アニメ（2026-07-13更新）**: minion_0 は5コマ（idle + 振り上げ + 頂点 + 打ち込み開始 + ピーク/砂煙）。ユーザーがPixeloramaで直接描いた手描き素材に差し替え済み（旧AI生成シート版は破棄）
