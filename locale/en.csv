@@ -111,3 +111,5 @@ UI_GUILD_COST,Requires: rank %s ×%d
 UI_GUILD_CONSUMES,Will consume:
 UI_GUILD_SHORT,Not enough fodder (need rank %s ×%d)
 "UI_BUILD_MODE_HINT","Click an already-dug spot to place the %s."
+"UI_BUILD_CANNOT_AFFORD","Not enough coins to build the %s."
+"UI_BUILD_NO_SPACE","No dug space free for the %s yet — dig a bit further."

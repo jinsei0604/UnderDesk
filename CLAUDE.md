@@ -96,7 +96,7 @@ image_data/frames/N/layer_1 を読める）。地形/部屋はまだ生成ドッ
 - **調査書カード機能は削除済み（2026-07-12、ユーザー判断）**: 公開前は見せる相手がいないため撤去。マーケティング施策で必要になったら `git log` から `src/daily/survey_card.gd` / `src/window/clipboard.gd` を復元すること。デイリー異変システム自体（`UDDaily`・`data/anomalies/`）は現役
 - **手下の見た目バグ修正(2026-07-12)**: 仲間の描画アート/向きは`minion.id`（パーティ内の並び順）ではなく**companion_id由来のart_variant**（`UDMinion.art_variant_for_companion`、main.gdの`_minion_art_variant`）で決める。IDがずれると仲間が無名のプレースホルダー四角として表示される
 - **ダイアログのイラスト化**: ショップ/宝物/書庫は`UDCardDialog`（羊皮紙カードグリッド＋右の詳細パネル、src/ui/card_dialog.gd）。祭壇・ギルドも同じウィジェットを使用。カードのアイコンは`UDArtLibrary.icon_or_placeholder(key, seed, shape)`が実アート（`item_<id>.png`/`shop_<id>.png`/`<doc_id>.png`）があればそれを使い、無ければ`placeholder_icon`で手続き生成（gem/rune/book形状、seedからHSVで色決定）。実アートを置くだけで自動的に差し替わる
-- **建物クリックでの画面遷移**: 祭壇/ギルドはサイドパネルのボタンだけでなく、**ダンジョン画面上に建てたタイル自体をクリックしても画面が開く**（main.gdの`_room_id_at_cell`、DIGモードでのクリック時にまず建物判定してから掘削判定に落ちる）
+- **祭壇/ギルドはワンクリックで開く（2026-07-13、手動配置は撤廃）**: 未建設ならボタン押下時に`_auto_build`が拠点(depot)近くの掘削済み空きマスを自動検索して即建設し、そのままダイアログを開く（コスト消費は従来どおり、置き場所選択の手間だけ排除）。建設済みならダイアログを直接開く。手動配置(`_select_build_room`→掘削済みマスをクリックして配置)は**宿舎(dorm、フレーバー専用)にのみ残存**。ダンジョン画面上に建てたタイル自体をクリックしても画面が開く（main.gdの`_room_id_at_cell`、DIGモードでのクリック時にまず建物判定してから掘削判定に落ちる）
 
 ## 未実装（設計図）
 

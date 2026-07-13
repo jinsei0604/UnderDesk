@@ -781,17 +781,67 @@ func _set_mode(new_mode: Mode) -> void:
 	_refresh_mode_buttons()
 
 
-## Room buttons double as facility doors (user request 2026-07-12):
-## before the room exists the button arms build mode; once it stands,
-## the same button opens the room's own screen instead.
+## Room buttons double as facility doors (user request 2026-07-12,
+## revised 2026-07-13: manual placement felt like needless friction —
+## pressing the button now auto-builds altar/guild at the first free
+## dug spot and opens the screen in one click, same cost as before).
 func _on_room_button(room_id: String) -> void:
-	if room_id == "altar" and sim.altar_built():
+	if room_id == "altar":
+		if not sim.altar_built() and not _auto_build(room_id):
+			return
 		_open_altar()
 		return
-	if room_id == "tavern" and _guild_built():
+	if room_id == "tavern":
+		if not _guild_built() and not _auto_build(room_id):
+			return
 		_open_guild()
 		return
 	_select_build_room(room_id)
+
+
+## Places a room at the first dug, unoccupied spot near the depot
+## instead of making the player pick a location. Returns false (with a
+## toast) when it's unaffordable or there is nowhere dug yet to put it.
+func _auto_build(room_id: String) -> bool:
+	var def := room_db.get_room(room_id)
+	var cost: Dictionary = def["cost"]
+	for res: Variant in cost.keys():
+		if int(sim.inventory.get(res, 0)) < int(cost[res]):
+			_tally_text = locale.text("UI_BUILD_CANNOT_AFFORD") % locale.text(def["name_key"])
+			_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 2
+			return false
+	var pos := _find_room_spot(int(def["width"]), int(def["height"]))
+	if pos == UDMinion.NO_TARGET:
+		_tally_text = locale.text("UI_BUILD_NO_SPACE") % locale.text(def["name_key"])
+		_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 2
+		return false
+	return sim.build_room(def, pos)
+
+
+## Nearest-to-depot search for a footprint of walkable, room-free cells.
+func _find_room_spot(width: int, height: int) -> Vector2i:
+	var candidates: Array[Vector2i] = []
+	for y in sim.grid.height:
+		for x in sim.grid.width - width + 1:
+			candidates.append(Vector2i(x, y))
+	candidates.sort_custom(
+		func(a: Vector2i, b: Vector2i) -> bool:
+			return a.distance_squared_to(UD.DEPOT_POS) < b.distance_squared_to(UD.DEPOT_POS)
+	)
+	for pos in candidates:
+		var fits := true
+		for dy in height:
+			for dx in width:
+				var cell := pos + Vector2i(dx, dy)
+				if not sim.grid.is_walkable(cell) or cell == UD.DEPOT_POS \
+						or _room_id_at_cell(cell) != "":
+					fits = false
+					break
+			if not fits:
+				break
+		if fits:
+			return pos
+	return UDMinion.NO_TARGET
 
 
 func _select_build_room(room_id: String) -> void:

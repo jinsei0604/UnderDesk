@@ -111,3 +111,5 @@ UI_GUILD_COST,必要: %s ランク ×%d
 UI_GUILD_CONSUMES,消費内訳:
 UI_GUILD_SHORT,素材が足りない（%s ランク ×%d 必要）
 UI_BUILD_MODE_HINT,%sを建てる場所を、すでに掘った場所からクリックしてください
+UI_BUILD_CANNOT_AFFORD,%sを建てるコインが足りない
+UI_BUILD_NO_SPACE,%sを建てる場所がない（もう少し掘り進めてください）
