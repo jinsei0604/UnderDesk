@@ -114,3 +114,27 @@ UI_GUILD_SHORT,Not enough fodder (need rank %s ×%d)
 "FACILITY_GUILD_DESC","Raises dig power. Also opens rank-up treasure exchange."
 "FACILITY_DORM_DESC","Where the party rests."
 UI_PARTY,Party
+ITEM_RUSTED_SPOON,A Rusted Spoon
+ITEM_RUSTED_SPOON_DESC,"Scoop water with it, and there is less water afterward than before."
+ITEM_CRACKED_MIRROR,A Cracked Mirror Shard
+ITEM_CRACKED_MIRROR_DESC,The reflection blinks a beat after you do.
+ITEM_NAMELESS_KEY,A Nameless Key
+ITEM_NAMELESS_KEY_DESC,"It fits every lock, but every door it opens leads to the same room."
+ITEM_TORN_GLOVE,A Torn Glove
+ITEM_TORN_GLOVE_DESC,"Leave the pair together, and by morning both are right hands."
+ITEM_CLOUDED_HOURGLASS,A Clouded Hourglass
+ITEM_CLOUDED_HOURGLASS_DESC,"Turn it over and the sand does not fall. The day ends anyway."
+ITEM_CHIPPED_SEAL,A Chipped Seal
+ITEM_CHIPPED_SEAL_DESC,"Press it into anything, and only the mark stays warm for a while."
+ITEM_SPLIT_WHISTLE,A Two-Toned Whistle
+ITEM_SPLIT_WHISTLE_DESC,"Blow it once, and a second note answers from deeper in the tunnels a moment later."
+ITEM_BLANK_DIARY,A Blank-Paged Diary
+ITEM_BLANK_DIARY_DESC,"The pages stay blank, yet the diary gains one more sheet every time it is closed."
+ITEM_GEARLESS_WATCH,A Gearless Pocket Watch
+ITEM_GEARLESS_WATCH_DESC,"No hands, no face -- yet held to the ear, it ticks with perfect timing."
+ITEM_BOTTOMLESS_POUCH,A Bottomless Leather Pouch
+ITEM_BOTTOMLESS_POUCH_DESC,"Whatever you put in, the weight never changes. No one who has looked inside has come back yet."
+ITEM_SINGLE_SIGNATURE_CONTRACT,A Contract of a Single Signature
+ITEM_SINGLE_SIGNATURE_CONTRACT_DESC,"Every clause is blank; only the list of signatures keeps growing."
+ITEM_UPWARD_ROOT,A Root That Grows Upward
+ITEM_UPWARD_ROOT_DESC,"Buried in the strata, yet the moment it is dug up, it keeps growing toward the light."
