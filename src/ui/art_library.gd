@@ -14,8 +14,16 @@ extends RefCounted
 ##   series_<series_id>.png  (e.g. series_journal.png, the archive shelf icon)
 ##   item_rank_<Z|S|A|B|C|D>.png  (the treasure shelf's rank-card icon)
 ##
+## Spatial variants: <terrain_key>_v2.png, _v3.png, ... give the dig grid
+## per-cell texture variety (see variant_texture() below).
+##
 ## Frame animation: add <key>_f2.png, <key>_f3.png, ... and the sprite
 ## cycles through them automatically (the base file is frame 1).
+##
+## Spatial variants (2026-07-14, terrain tile variety): add <key>_v2.png,
+## <key>_v3.png, ... and variant_texture(key, seed) picks one deterministically
+## per call site (e.g. per dig-grid cell) instead of animating over time.
+## Unlike _fN frames these never change on their own.
 ##
 ## After adding files run the editor once or `godot --headless --import`.
 
@@ -24,6 +32,7 @@ const MINION_VARIANTS: int = 6
 const PLACEHOLDER_ICON_SIZE: int = 28
 
 var _frames: Dictionary = {}  # key -> Array[Texture2D]
+var _variants: Dictionary = {}  # key -> Array[Texture2D], [0] duplicates _frames[key][0]
 var _icon_cache: Dictionary = {}  # "shape:seed:size" -> Texture2D
 
 
@@ -73,6 +82,15 @@ static func load_default(
 				frame_index += 1
 		if not frames.is_empty():
 			lib._frames[key] = frames
+			var variants: Array = [frames[0]]
+			var variant_index := 2
+			while true:
+				var variant_path := "%s/%s_v%d.png" % [ART_DIR, key, variant_index]
+				if not ResourceLoader.exists(variant_path, "Texture2D"):
+					break
+				variants.append(load(variant_path))
+				variant_index += 1
+			lib._variants[key] = variants
 	return lib
 
 
@@ -98,6 +116,18 @@ func frame(key: String, index: int) -> Texture2D:
 		return null
 	var frames := _frames[key] as Array
 	return frames[posmod(index, frames.size())]
+
+
+## Deterministic spatial variant lookup (e.g. per dig-grid cell) so a
+## terrain tile isn't a single texture stamped identically everywhere.
+## `seed` should be stable per call site (e.g. a hash of the cell coords);
+## same seed always yields the same variant. Falls back to texture(key)
+## when no _vN files are shipped.
+func variant_texture(key: String, seed: int) -> Texture2D:
+	if not _variants.has(key):
+		return texture(key)
+	var variants := _variants[key] as Array
+	return variants[posmod(seed, variants.size())]
 
 
 func terrain_key(terrain: UD.Terrain) -> String:

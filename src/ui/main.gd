@@ -539,7 +539,7 @@ func _draw_grid() -> void:
 			if art.has_art(art_key):
 				var fade := maxf(DEPTH_FADE_FLOOR, 1.0 - y * DEPTH_FADE_PER_ROW)
 				draw_texture_rect(
-					art.texture(art_key), rect, false, Color(fade, fade, fade)
+					art.variant_texture(art_key, hash(cell)), rect, false, Color(fade, fade, fade)
 				)
 			else:
 				draw_rect(rect, _cell_color(terrain, y))
