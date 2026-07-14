@@ -17,6 +17,10 @@ const COLOR_RUINSTONE := Color(0.52, 0.47, 0.36)
 const COLOR_GRID_LINE := Color(0.0, 0.0, 0.0, 0.25)
 const COLOR_JOB_MARK := Color(1.0, 0.85, 0.3, 0.55)
 const COLOR_DEPOT := Color(0.85, 0.3, 0.25)
+## Placeholder dig backdrop/ground until dig_background.png is shipped.
+const COLOR_DIG_BACKDROP := Color(0.09, 0.075, 0.065)
+const COLOR_DIG_GROUND := Color(0.16, 0.12, 0.09)
+const COLOR_DIG_GROUND_EDGE := Color(0.28, 0.21, 0.14)
 const COLOR_MINION := Color(0.95, 0.85, 0.4)
 ## Slight per-minion tint variation: a crowd, not clones (§6).
 const MINION_COLORS: Array[Color] = [
@@ -510,15 +514,9 @@ func _draw_grid() -> void:
 	var first_col: int = maxi(0, int(-origin.x / cell_px))
 	var last_col: int = mini(sim.grid.width, first_col + int(size.x / cell_px) + 2)
 	var has_rock := art.has_art("terrain_rock")
-	# The permanent ground below the dig band (visual only): solid rock the
-	# miner stands on, so it never floats. Tiled seamlessly with the walls.
-	for y in range(sim.grid.height, _stack_rows()):
-		for x in range(first_col, last_col):
-			var cell := Vector2i(x, y)
-			if has_rock:
-				draw_texture_rect(art.tiled_texture("terrain_rock", cell), _cell_rect(origin, cell), false)
-			else:
-				draw_rect(_cell_rect(origin, cell), _cell_color(UD.Terrain.ROCK, y))
+	# Ground + backdrop is a single scrolling background (not per-cell tiles):
+	# no repeating seams, and it pans with the world as the tunnel advances.
+	_draw_background(origin)
 	# The dig band: unmined rock ahead, open (background) where already dug.
 	for y in sim.grid.height:
 		for x in range(first_col, last_col):
@@ -535,6 +533,34 @@ func _draw_grid() -> void:
 	_draw_depot(origin)
 	_draw_minions(origin)
 	_draw_debris(origin)
+
+
+## The ground + backdrop behind the dig band. A shipped dig_background.png
+## tiles horizontally and scrolls locked to the world (so the miner stays
+## planted on it as the tunnel advances). Until that art arrives, a plain
+## placeholder: a dark cave backdrop with a distinct ground band below the
+## floor line, so the miner reads as standing on solid ground.
+func _draw_background(origin: Vector2) -> void:
+	var cell_px := _cell_px()
+	var view_right := size.x if settings.resident_mode else size.x - float(PANEL_WIDTH)
+	var view_top := float(_hud_offset())
+	var floor_y := origin.y + sim.grid.height * cell_px
+	if art.has_art("dig_background"):
+		var tex := art.texture("dig_background")
+		var scale := (size.y - view_top) / float(tex.get_height())
+		var tile_w := tex.get_width() * scale
+		var tile_h := tex.get_height() * scale
+		# Lock to the world: the same wall x always shows the same backdrop.
+		var start := origin.x - ceilf(origin.x / tile_w) * tile_w
+		var tx := start
+		while tx < view_right:
+			draw_texture_rect(tex, Rect2(Vector2(tx, view_top), Vector2(tile_w, tile_h)), false)
+			tx += tile_w
+		return
+	# Placeholder backdrop above the floor, ground band below it.
+	draw_rect(Rect2(Vector2(0, view_top), Vector2(view_right, floor_y - view_top)), COLOR_DIG_BACKDROP)
+	draw_rect(Rect2(Vector2(0, floor_y), Vector2(view_right, size.y - floor_y)), COLOR_DIG_GROUND)
+	draw_rect(Rect2(Vector2(0, floor_y), Vector2(view_right, maxf(2.0, cell_px / 16.0))), COLOR_DIG_GROUND_EDGE)
 
 
 func _cell_color(terrain: UD.Terrain, depth: int) -> Color:

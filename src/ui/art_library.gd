@@ -11,6 +11,8 @@ extends RefCounted
 ##   depot.png
 ##   dialog_bg_<archive|treasure|shop|altar|guild|dorm>.png
 ##   (illustrated backdrop behind a UDCardDialog's card grid)
+##   dig_background.png  (the tunnel's ground + backdrop; tiled horizontally
+##   and scrolled with the world as the miner digs right)
 ##   series_<series_id>.png  (e.g. series_journal.png, the archive shelf icon)
 ##   item_rank_<Z|S|A|B|C|D>.png  (the treasure shelf's rank-card icon)
 ##
@@ -53,6 +55,7 @@ static func load_default(
 		"terrain_ruinstone", "terrain_air", "depot",
 		"dialog_bg_archive", "dialog_bg_treasure", "dialog_bg_shop",
 		"dialog_bg_altar", "dialog_bg_guild", "dialog_bg_dorm",
+		"dig_background",
 	]
 	for i in MINION_VARIANTS:
 		keys.append("minion_%d" % i)
