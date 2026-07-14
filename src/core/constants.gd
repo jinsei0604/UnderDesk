@@ -12,7 +12,11 @@ const MAX_OFFLINE_TICKS: int = 43200
 ## The dig is a horizontal corridor: a fixed-height tunnel that extends
 ## rightward forever (2026-07-14 redesign). y = the tunnel's thin vertical
 ## span; x = distance dug from the entrance, which the strata map onto.
-const CORRIDOR_HEIGHT: int = 3
+## The miner stands on solid ground (GROUND_ROWS, drawn below the dig band
+## in the UI only, never part of the sim grid) and carves a corridor two
+## blocks tall — its own height — so it never appears to float.
+const CORRIDOR_HEIGHT: int = 2
+const GROUND_ROWS: int = 3
 const GRID_INITIAL_WIDTH: int = 8
 ## Columns appended to the right when digging approaches the frontier.
 const GRID_EXPAND_COLS: int = 4

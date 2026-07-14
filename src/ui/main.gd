@@ -82,7 +82,10 @@ const BUTTON_MIN_SIZE := Vector2(118, 44)
 
 ## Expanded view zoom: near-native sprite resolution, tunnel close-up
 ## framing (about 7x5 cells in view).
-const EXPANDED_CELL_PX: int = 128
+## Blocks are half the miner's height (the miner sprite spans MINION_TALL
+## cells), so the character reads as a person standing among small rocks.
+const EXPANDED_CELL_PX: int = 64
+const MINION_TALL: int = 2
 ## UI-side sprite animation cadence (does not touch the simulation).
 const ANIM_FRAME_SECONDS: float = 0.4
 var unread_docs: Array[String] = []
@@ -326,22 +329,27 @@ func _hud_offset() -> int:
 	return 0 if settings.resident_mode else HUD_HEIGHT
 
 
-## The tunnel is a thin fixed-height corridor: size the cell so all
-## CORRIDOR_HEIGHT rows fit without any vertical scroll. The strip squeezes
-## them into the taskbar band; expanded fills the window height.
+## Total rows drawn: the diggable band plus the visual ground below it.
+func _stack_rows() -> int:
+	return sim.grid.height + UD.GROUND_ROWS
+
+
+## Size the cell so the dig band + ground stack fits without vertical
+## scroll. The strip squeezes it into the taskbar band; expanded uses a
+## fixed small cell (blocks half the miner) and centers the stack.
 func _cell_px() -> int:
 	if settings.resident_mode:
-		return clampi(int(size.y) / UD.CORRIDOR_HEIGHT, 8, 64)
+		return clampi(int(size.y) / _stack_rows(), 6, 48)
 	var avail_h := size.y - _hud_offset()
-	return mini(EXPANDED_CELL_PX, int(avail_h / UD.CORRIDOR_HEIGHT))
+	return mini(EXPANDED_CELL_PX, int(avail_h / _stack_rows()))
 
 
 func _visible_rows() -> int:
 	return maxi(1, int((size.y - _hud_offset()) / _cell_px()))
 
 
-## Camera: the corridor is centered vertically and follows the miner
-## horizontally (no scrolling — the view auto-pans as the tunnel advances).
+## Camera: the dig band + ground stack is centered vertically and follows
+## the miner horizontally (no scrolling — the view auto-pans rightward).
 func _grid_origin() -> Vector2:
 	var cell_px := _cell_px()
 	var star := _followed_minion()
@@ -350,7 +358,7 @@ func _grid_origin() -> Vector2:
 	# Keep the miner centered, but never scroll left past the entrance.
 	var origin_x := minf(view_width / 2.0 - (star_x + 0.5) * cell_px, 0.0)
 	var avail_h := size.y - _hud_offset()
-	var origin_y := _hud_offset() + (avail_h - sim.grid.height * cell_px) / 2.0
+	var origin_y := _hud_offset() + (avail_h - _stack_rows() * cell_px) / 2.0
 	return Vector2(origin_x, origin_y)
 
 
@@ -501,19 +509,27 @@ func _draw_grid() -> void:
 	# cells long, so never iterate the whole grid (§7.1 CPU budget).
 	var first_col: int = maxi(0, int(-origin.x / cell_px))
 	var last_col: int = mini(sim.grid.width, first_col + int(size.x / cell_px) + 2)
+	var has_rock := art.has_art("terrain_rock")
+	# The permanent ground below the dig band (visual only): solid rock the
+	# miner stands on, so it never floats. Tiled seamlessly with the walls.
+	for y in range(sim.grid.height, _stack_rows()):
+		for x in range(first_col, last_col):
+			var cell := Vector2i(x, y)
+			if has_rock:
+				draw_texture_rect(art.tiled_texture("terrain_rock", cell), _cell_rect(origin, cell), false)
+			else:
+				draw_rect(_cell_rect(origin, cell), _cell_color(UD.Terrain.ROCK, y))
+	# The dig band: unmined rock ahead, open (background) where already dug.
 	for y in sim.grid.height:
 		for x in range(first_col, last_col):
 			var cell := Vector2i(x, y)
-			var rect := _cell_rect(origin, cell)
-			var terrain := sim.grid.terrain_at(cell)
-			if terrain == UD.Terrain.AIR:
-				# Open, dug-out tunnel: just the dark background.
+			if sim.grid.terrain_at(cell) == UD.Terrain.AIR:
 				continue
-			var art_key := art.terrain_key(terrain)
-			if art.has_art(art_key):
-				draw_texture_rect(art.variant_texture(art_key, hash(cell)), rect, false)
+			var rect := _cell_rect(origin, cell)
+			if has_rock:
+				draw_texture_rect(art.tiled_texture("terrain_rock", cell), rect, false)
 			else:
-				draw_rect(rect, _cell_color(terrain, y))
+				draw_rect(rect, _cell_color(UD.Terrain.ROCK, y))
 				draw_rect(rect, COLOR_GRID_LINE, false, 1.0)
 	_draw_jobs(origin)
 	_draw_depot(origin)
@@ -600,12 +616,19 @@ func _draw_minions(origin: Vector2) -> void:
 		var bob := 0.0
 		if minion.state != UDMinion.State.IDLE:
 			bob = float(((sim.tick_count + minion.id) % 2) * maxi(1, cell_px / 12))
+		# The miner is MINION_TALL blocks tall with its feet planted on the
+		# ground line (bottom of the dig band), so it never floats no matter
+		# which row of the face it is carving.
+		var span := MINION_TALL * cell_px
+		var floor_y := origin.y + sim.grid.height * cell_px
+		var feet_center_x := origin.x + (minion.pos.x + 0.5) * cell_px
 		var art_variant := _minion_art_variant(slot_index)
 		var art_key := art.minion_key(art_variant)
 		if art.has_art(art_key):
 			# Illustrated sprites carry their own margins: use the full cell.
 			var sprite_rect := Rect2(
-				rect.position + Vector2(0, bob), Vector2(cell_px, cell_px - bob)
+				Vector2(feet_center_x - span / 2.0, floor_y - span + bob),
+				Vector2(span, span - bob)
 			)
 			var tex: Texture2D
 			# The frame set is a dig loop (§6: wind-up -> strike -> dust

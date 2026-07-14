@@ -130,6 +130,20 @@ func variant_texture(key: String, seed: int) -> Texture2D:
 	return variants[posmod(seed, variants.size())]
 
 
+## Seamless tiling: the _vN variants were sliced from one NxN source image
+## (row-major), so indexing them by (x, y) position reconstructs that image
+## tiled across the world — a coherent rock surface, not random fragments.
+func tiled_texture(key: String, cell: Vector2i) -> Texture2D:
+	if not _variants.has(key):
+		return texture(key)
+	var variants := _variants[key] as Array
+	var n := int(round(sqrt(float(variants.size()))))
+	if n < 1:
+		return variants[0]
+	var idx := posmod(cell.y, n) * n + posmod(cell.x, n)
+	return variants[posmod(idx, variants.size())]
+
+
 func terrain_key(terrain: UD.Terrain) -> String:
 	# Every solid stratum renders with the one rock tile set (2026-07-14:
 	# the user's rock illustration is the whole tunnel wall; strata differ
