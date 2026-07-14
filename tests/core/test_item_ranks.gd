@@ -14,7 +14,7 @@ func _sim(rng_seed: int = 3) -> UDSim:
 	for id: Variant in RANKS.keys():
 		pool.append(str(id))
 	pool.sort()
-	return UDSim.new_game(UDTestFixtures.strata(), rng_seed, pool, [], {}, RANKS)
+	return UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), rng_seed, pool, [], {}, RANKS)
 
 
 func test_rank_caps_and_helpers() -> void:
@@ -51,7 +51,6 @@ func test_chest_skips_capped_items() -> void:
 	for id: Variant in RANKS.keys():
 		sim.items[str(id)] = sim.item_cap(str(id))
 	var before := sim.items.duplicate()
-	sim.dig_policy = UD.DigPolicy.RIGHT
 	sim.advance(400)
 	assert_eq(sim.items, before, "everything at cap: chests only pay coins")
 
@@ -110,11 +109,11 @@ func test_altar_needs_building_and_coins() -> void:
 	sim.inventory[UD.RES_GOLD] = 10000
 	assert_false(sim.offer_at_altar(), "no altar built yet")
 	sim.upgrades["altar"] = {"level": 1, "effect": "doc_chance_add"}
-	var power_before := sim.dig_power()
+	var power_before := sim.party_atk_bonus()
 	var cost := sim.altar_offer_cost()
 	assert_true(sim.offer_at_altar())
 	assert_eq(sim.altar_level, 1)
-	assert_eq(sim.dig_power(), power_before + 1, "each level adds dig power")
+	assert_eq(sim.party_atk_bonus(), power_before + 1, "each level adds attack")
 	assert_eq(int(sim.inventory[UD.RES_GOLD]), 10000 - cost)
 	assert_gt(sim.altar_offer_cost(), cost, "cost scales per level")
 	sim.inventory[UD.RES_GOLD] = 0
@@ -184,7 +183,7 @@ func test_altar_level_survives_roundtrip() -> void:
 	sim.altar_level = 3
 	var restored := UDSim.from_dict(
 		JSON.parse_string(JSON.stringify(sim.to_dict())),
-		UDTestFixtures.strata(), [], [], {}, RANKS
+		UDTestFixtures.enemies(), UDTestFixtures.stages(), [], [], {}, RANKS
 	)
 	assert_eq(restored.altar_level, 3)
 
@@ -196,7 +195,7 @@ func test_v4_item_array_migrates_to_counts() -> void:
 	d["items"] = ["s1", "d1"]
 	var restored := UDSim.from_dict(
 		JSON.parse_string(JSON.stringify(d)),
-		UDTestFixtures.strata(), [], [], {}, RANKS
+		UDTestFixtures.enemies(), UDTestFixtures.stages(), [], [], {}, RANKS
 	)
 	assert_eq(restored.item_count("s1"), 1)
 	assert_eq(restored.item_count("d1"), 1)
@@ -209,7 +208,7 @@ func test_stacked_items_survive_roundtrip() -> void:
 	sim.items["d1"] = 123
 	var restored := UDSim.from_dict(
 		JSON.parse_string(JSON.stringify(sim.to_dict())),
-		UDTestFixtures.strata(), [], [], {}, RANKS
+		UDTestFixtures.enemies(), UDTestFixtures.stages(), [], [], {}, RANKS
 	)
 	assert_eq(restored.item_count("s1"), 7)
 	assert_eq(restored.item_count("d1"), 123)

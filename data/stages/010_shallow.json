@@ -1,0 +1,10 @@
+{
+	"id": "shallow",
+	"name_key": "STAGE_SHALLOW",
+	"stage_from": 1,
+	"stage_to": 9,
+	"trash_pool": ["cave_rat", "cave_bat"],
+	"boss_id": "",
+	"documents": ["doc_001", "doc_002", "doc_003", "doc_009", "doc_010"],
+	"document_chance": 0.08
+}

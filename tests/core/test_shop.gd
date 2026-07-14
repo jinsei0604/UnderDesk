@@ -9,7 +9,7 @@ func _pickaxe() -> Dictionary:
 		"desc_key": "SHOP_PICKAXE_DESC",
 		"base_cost": 100,
 		"cost_mult": 2.0,
-		"effect": "dig_power_add",
+		"effect": "atk_add",
 		"max_level": 2,
 	}
 
@@ -21,25 +21,25 @@ func test_cost_scales_per_level() -> void:
 
 
 func test_buy_rejects_insufficient_coins() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 1)
 	sim.inventory[UD.RES_GOLD] = 99
 	assert_false(sim.buy_upgrade(_pickaxe()))
 	assert_eq(int(sim.inventory[UD.RES_GOLD]), 99, "nothing charged")
 
 
 func test_buy_deducts_and_applies_effect() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 1)
 	sim.inventory[UD.RES_GOLD] = 300
 	assert_true(sim.buy_upgrade(_pickaxe()))
 	assert_eq(int(sim.inventory[UD.RES_GOLD]), 200)
-	assert_eq(sim.dig_power(), UD.MINION_DIG_POWER + 1)
+	assert_eq(sim.party_atk_bonus(), 1)
 	assert_true(sim.buy_upgrade(_pickaxe()))
 	assert_eq(int(sim.inventory[UD.RES_GOLD]), 0, "level 1 costs double")
-	assert_eq(sim.dig_power(), UD.MINION_DIG_POWER + 2)
+	assert_eq(sim.party_atk_bonus(), 2)
 
 
 func test_max_level_enforced() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 1)
 	sim.inventory[UD.RES_GOLD] = 10000
 	assert_true(sim.buy_upgrade(_pickaxe()))
 	assert_true(sim.buy_upgrade(_pickaxe()))
@@ -47,14 +47,14 @@ func test_max_level_enforced() -> void:
 
 
 func test_upgrades_survive_roundtrip() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 1)
 	sim.inventory[UD.RES_GOLD] = 300
 	sim.buy_upgrade(_pickaxe())
 	var restored := UDSim.from_dict(
-		JSON.parse_string(JSON.stringify(sim.to_dict())), UDTestFixtures.strata()
+		JSON.parse_string(JSON.stringify(sim.to_dict())), UDTestFixtures.enemies(), UDTestFixtures.stages()
 	)
 	assert_eq(restored.upgrade_level("pickaxe"), 1)
-	assert_eq(restored.dig_power(), UD.MINION_DIG_POWER + 1)
+	assert_eq(restored.party_atk_bonus(), 1)
 
 
 func test_shop_files_load_and_translate() -> void:

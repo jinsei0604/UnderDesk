@@ -1,17 +1,8 @@
 key,text
 APP_TITLE,UNDERDESK
-STRATUM_TOPSOIL,表土
-STRATUM_BEDROCK,岩盤
-STRATUM_AQUIFER,地下水脈
-STRATUM_RUINS,古代遺構
 ROOM_TAVERN,ギルド
 ROOM_ALTAR,祭壇
 ROOM_DORM,宿舎
-RES_SOIL,土
-RES_STONE,石
-RES_ORE,鉱石
-RES_MAGIC_STONE,魔石
-RES_FOOD,食料
 RES_GOLD,コイン
 UI_TREASURES,宝物
 ITEM_OLD_LANTERN,古いランタン
@@ -36,13 +27,13 @@ UI_COLLECTED,回収 +%d コイン
 UI_SHOP,ショップ
 UI_BUY,購入
 UI_COMPANION_JOINED,仲間が加わった: %s
-SHOP_PICKAXE,つるはし強化
-SHOP_PICKAXE_DESC,全員の掘削力+1
-SHOP_SURVEY,地質調査
-SHOP_SURVEY_DESC,文書の出土率+5%
-ANOMALY_LUSH_VEIN,肥沃な地脈（文書が出やすい）
-ANOMALY_SOFT_EARTH,柔らかい土（掘削+1）
-ANOMALY_GOLD_DUST,金粉の風（掘るたび金+1）
+SHOP_PICKAXE,武器の鍛錬
+SHOP_PICKAXE_DESC,パーティ全員の攻撃力+1
+SHOP_SURVEY,地図の写し
+SHOP_SURVEY_DESC,文書の発見率+5%
+ANOMALY_LUSH_VEIN,静かな洞窟（文書が出やすい）
+ANOMALY_SOFT_EARTH,闘志が漲る日（攻撃力+1）
+ANOMALY_GOLD_DUST,金運の日（倒すたび金+1）
 UI_OFFLINE_REPORT,留守の間に %d ティック進行した
 DOC_001_TITLE,坑夫の手記・一
 DOC_001_BODY,"三日目。土が柔らかい。掘れば掘るだけ賃金が出る、良い仕事だ。ただ、監督は妙なことを言う。「深さより先に、耳を慣らせ」と。何のことだか。夜、坑道の底のほうで、水音とも息遣いともつかない音がした。水脈だろう、とみんな笑った。おれも笑った。"
@@ -80,8 +71,8 @@ ACH_DOCS_10,読みすぎた者
 ACH_DOCS_10_DESC,文書を10編発掘する
 ACH_ITEMS_5,収集家の芽
 ACH_ITEMS_5_DESC,宝物を5種類集める
-ACH_DEPTH_20,深度二十
-ACH_DEPTH_20_DESC,深度20に到達する
+ACH_DEPTH_20,ステージ二十
+ACH_DEPTH_20_DESC,ステージ20に到達する
 UI_PROGRESS_DOCS,発見した文書 %d / %d
 UI_PROGRESS_ITEMS,収集した宝物 %d / %d
 UI_SELECT_HINT,カードを選ぶと詳細が表示される
@@ -98,7 +89,7 @@ UI_RANK,ランク
 UI_ALTAR,お供え
 UI_ALTAR_OFFER,捧げる
 UI_ALTAR_LEVEL,祭壇 Lv.%d
-UI_ALTAR_EFFECT,掘削力+1（この坑道の間ずっと有効）
+UI_ALTAR_EFFECT,攻撃力+1（このセーブの間ずっと有効）
 UI_ALTAR_COINS,コインを捧げる
 UI_ALTAR_NEED_RANK,%s ランクの宝物を1つ捧げる必要がある
 UI_ALTAR_NO_ITEM,%s ランクの宝物を持っていない
@@ -111,8 +102,8 @@ UI_GUILD_COST,必要: %s ランク ×%d
 UI_GUILD_CONSUMES,消費内訳:
 UI_GUILD_SHORT,素材が足りない（%s ランク ×%d 必要）
 UI_BUILD_CANNOT_AFFORD,%sを建てるコインが足りない
-FACILITY_ALTAR_DESC,文書の出土率が上がる。お供えでさらに掘削力も強化できる
-FACILITY_GUILD_DESC,掘削力が上がる。宝物のランクアップ交換もできるようになる
+FACILITY_ALTAR_DESC,文書の発見率が上がる。お供えでさらに攻撃力も強化できる
+FACILITY_GUILD_DESC,攻撃力が上がる。宝物のランクアップ交換もできるようになる
 FACILITY_DORM_DESC,仲間たちが休む場所
 UI_PARTY,仲間
 ITEM_RUSTED_SPOON,錆びたスプーン
@@ -141,8 +132,8 @@ ITEM_UPWARD_ROOT,逆さ吊りの根
 ITEM_UPWARD_ROOT_DESC,地層に埋まっているのに、掘り出した瞬間から光の方角へ伸び続ける。
 ACH_ITEMS_10,収集家
 ACH_ITEMS_10_DESC,宝物を10種類集める
-ACH_DEPTH_50,深度五十
-ACH_DEPTH_50_DESC,深度50に到達する
+ACH_DEPTH_50,ステージ五十
+ACH_DEPTH_50_DESC,ステージ50に到達する
 ACH_DOCS_20,文書中毒
 ACH_DOCS_20_DESC,文書を20編発掘する
 ITEM_BENT_PIN,曲がったピン
@@ -311,3 +302,23 @@ ITEM_TORN_SHEET_MUSIC_FRAGMENT,破れた楽譜の切れ端
 ITEM_TORN_SHEET_MUSIC_FRAGMENT_DESC,音符は最後の一小節だけが読めるが、曲の全体は誰も知らない。
 ITEM_CHIPPED_RING_BOX,欠けた指輪箱
 ITEM_CHIPPED_RING_BOX_DESC,蓋を開けても中は空だが、閉じる時だけ小さな音が鳴る。
+ENEMY_CAVE_RAT,洞窟ネズミ
+ENEMY_CAVE_BAT,洞窟コウモリ
+ENEMY_CAVE_SPIDER,洞窟グモ
+ENEMY_CAVE_TROLL,洞窟トロル
+STAGE_SHALLOW,浅い洞窟
+STAGE_GATE_10,トロルの間
+STAGE_DEEPER,深い洞窟
+SKILL_FIREBALL_NAME,ファイアボール
+SKILL_FIREBALL_DESC,敵に炎の玉をぶつける
+UI_STAGE,ステージ
+UI_FIGHT_GATE,挑む
+UI_FIGHT_NONE,-
+UI_BOSS_ATTACK,たたかう
+UI_BOSS_RESOLVE,決定
+UI_BOSS_FLEE,にげる
+UI_BOSS_WON,勝利した！
+UI_BOSS_LOST,力尽きて撤退した
+UI_LEVEL_UP,レベルアップ
+UI_LEVEL_UP_COST,必要EXP
+UI_OFFLINE_EARNED,留守の間に EXP %d・%dゴールドを稼いだ

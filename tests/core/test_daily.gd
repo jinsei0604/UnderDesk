@@ -25,39 +25,35 @@ func test_anomaly_pick_is_deterministic() -> void:
 
 
 func test_apply_daily_once_per_day() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
-	var anomaly := {"id": "gold_dust", "name_key": "X", "effect": "gold_per_dig"}
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 1)
+	var anomaly := {"id": "gold_dust", "name_key": "X", "effect": "gold_per_kill"}
 	assert_true(sim.apply_daily("2026-07-11", anomaly))
 	assert_false(sim.apply_daily("2026-07-11", anomaly), "same day is a no-op")
 	assert_true(sim.apply_daily("2026-07-12", anomaly), "next day applies")
 
 
-func test_gold_per_dig_effect() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 42)
-	sim.dig_policy = UD.DigPolicy.NONE
-	sim.apply_daily("2026-07-11", {"id": "gold_dust", "name_key": "X", "effect": "gold_per_dig"})
-	sim.add_dig_job(Vector2i(1, UD.DEPOT_POS.y))
+func test_gold_per_kill_effect() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 42)
+	sim.apply_daily("2026-07-11", {"id": "gold_dust", "name_key": "X", "effect": "gold_per_kill"})
 	sim.advance(30)
-	# One dig: +1 daily bonus immediately, +1 from tallying the bagged soil.
-	assert_true(int(sim.inventory[UD.RES_GOLD]) >= 1, "daily bonus paid on dig")
-	sim.collect_loot()
-	assert_true(int(sim.inventory[UD.RES_GOLD]) >= 2, "bagged soil tallied")
+	# Each kill: the enemy's own coin reward, +1 daily bonus.
+	assert_true(int(sim.inventory[UD.RES_GOLD]) >= 2, "daily bonus paid on kill")
 
 
-func test_dig_power_and_doc_chance_effects() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
-	sim.apply_daily("2026-07-11", {"id": "soft_earth", "name_key": "X", "effect": "dig_power_add"})
-	assert_eq(sim.dig_power(), UD.MINION_DIG_POWER + 1)
+func test_atk_and_doc_chance_effects() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 1)
+	sim.apply_daily("2026-07-11", {"id": "soft_earth", "name_key": "X", "effect": "atk_add"})
+	assert_eq(sim.party_atk_bonus(), 1)
 	sim.apply_daily("2026-07-12", {"id": "lush_vein", "name_key": "X", "effect": "doc_chance_add"})
-	assert_eq(sim.dig_power(), UD.MINION_DIG_POWER, "yesterday's effect gone")
+	assert_eq(sim.party_atk_bonus(), 0, "yesterday's effect gone")
 	assert_eq(sim.document_chance_bonus(), UD.DAILY_DOC_CHANCE_BONUS)
 
 
 func test_daily_state_survives_roundtrip() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 1)
 	sim.apply_daily("2026-07-11", {"id": "lush_vein", "name_key": "X", "effect": "doc_chance_add"})
 	var restored := UDSim.from_dict(
-		JSON.parse_string(JSON.stringify(sim.to_dict())), UDTestFixtures.strata()
+		JSON.parse_string(JSON.stringify(sim.to_dict())), UDTestFixtures.enemies(), UDTestFixtures.stages()
 	)
 	assert_eq(restored.daily_date_key, "2026-07-11")
 	assert_eq(restored.daily_anomaly_id, "lush_vein")

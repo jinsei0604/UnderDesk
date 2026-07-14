@@ -1,0 +1,10 @@
+{
+	"id": "cave_bat",
+	"name_key": "ENEMY_CAVE_BAT",
+	"hp": 6,
+	"atk": 3,
+	"def": 0,
+	"exp": 3,
+	"coins": 2,
+	"is_boss": false
+}

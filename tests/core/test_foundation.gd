@@ -4,11 +4,9 @@ extends GutTest
 
 func test_art_library_loads_shipped_art_and_falls_back() -> void:
 	var lib := UDArtLibrary.load_default(["dorm", "tavern", "altar"])
-	# Shipped: terrain set, rooms, depot, protagonist.
+	# Shipped: rooms, depot, protagonist.
 	for key: String in [
-		"terrain_soil", "terrain_rock", "terrain_wetrock", "terrain_ruinstone",
-		"terrain_air", "depot", "room_dorm", "room_tavern", "room_altar",
-		"minion_0",
+		"depot", "room_dorm", "room_tavern", "room_altar", "minion_0",
 	]:
 		assert_true(lib.has_art(key), "%s loads" % key)
 	# Companions without art yet fall back to placeholder rectangles.
@@ -19,7 +17,7 @@ func test_art_library_loads_shipped_art_and_falls_back() -> void:
 func test_art_frame_animation() -> void:
 	var lib := UDArtLibrary.load_default([])
 	assert_eq(lib.frame_count("minion_0"), 5, "protagonist has a 5-frame dig loop")
-	assert_eq(lib.frame_count("terrain_soil"), 1, "static tiles stay single-frame")
+	assert_eq(lib.frame_count("depot"), 1, "static art stays single-frame")
 	assert_eq(lib.frame_count("minion_1"), 0, "missing art has no frames")
 	assert_not_null(lib.frame("minion_0", 0))
 	assert_not_null(lib.frame("minion_0", 7), "frame index wraps")
@@ -28,10 +26,6 @@ func test_art_frame_animation() -> void:
 
 func test_art_keys() -> void:
 	var lib := UDArtLibrary.load_default([])
-	# Every solid stratum shares the one rock tile set; only AIR differs.
-	assert_eq(lib.terrain_key(UD.Terrain.SOIL), "terrain_rock")
-	assert_eq(lib.terrain_key(UD.Terrain.RUINSTONE), "terrain_rock")
-	assert_eq(lib.terrain_key(UD.Terrain.AIR), "terrain_air")
 	assert_eq(lib.minion_key(0), "minion_0")
 	assert_eq(lib.minion_key(7), "minion_1", "variants wrap at %d" % UDArtLibrary.MINION_VARIANTS)
 

@@ -1,0 +1,10 @@
+{
+	"id": "gate_10",
+	"name_key": "STAGE_GATE_10",
+	"stage_from": 10,
+	"stage_to": 10,
+	"trash_pool": ["cave_rat", "cave_bat"],
+	"boss_id": "cave_troll",
+	"documents": ["doc_004", "doc_005", "doc_006", "doc_007", "doc_008"],
+	"document_chance": 0.08
+}

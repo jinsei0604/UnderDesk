@@ -3,19 +3,21 @@ extends RefCounted
 ## Deterministic tick-based simulation (§7.2). All state is a pure function
 ## of (initial seed, player commands, tick count), so offline batch calculation
 ## and realtime progression share this exact code path (§7.1-4).
+##
+## 2026-07-15 redesign: dig -> cave exploration + turn-based combat. Idle
+## auto-battle clears trash mobs stage by stage (tick()); a stage flagged
+## as a boss gate halts advancement (trash still farms for exp/coins) until
+## the player manually wins a turn-based boss fight (player commands
+## start_boss_fight/resolve_boss_round/flee_boss_fight).
 
 signal document_discovered(doc_id: String)
 signal item_found(item_id: String)
 signal companion_joined(companion_id: String)
 
 var tick_count: int = 0
-var grid: UDGrid
-var strata: UDStrataDB
-var inventory: Dictionary = {}  # resource id -> int
+var inventory: Dictionary = {}  # resource id -> int ("gold" only, in practice)
 var minions: Array[UDMinion] = []
-var jobs: Array[UDJob] = []
 var discovered_documents: Array[String] = []
-var dig_policy: UD.DigPolicy = UD.DigPolicy.NONE
 ## Daily anomaly (§5.4). Applied as an explicit state change so offline
 ## and realtime progression stay equivalent.
 var daily_date_key: String = ""
@@ -24,54 +26,63 @@ var daily_effect: String = ""
 ## Treasure-chest collectibles owned: item id -> count. Items stack up
 ## to a per-rank cap (UD.ITEM_RANK_CAPS) so spares can feed the altar
 ## and the guild exchange. The candidate pool and rank map are injected
-## like the strata DB and not serialized.
+## like the enemy/stage DBs and not serialized.
 var items: Dictionary = {}
 var item_pool: Array[String] = []
 var item_ranks: Dictionary = {}  # item id -> "Z".."D"
-## Coins offered at the altar so far, +1 dig power per level.
+## Coins offered at the altar so far, +1 party attack (party_atk_bonus())
+## per level.
 var altar_level: int = 0
 ## Story companions who have joined (§ plan change: the protagonist
 ## starts alone; companions join as documents are discovered).
-## Definitions are injected like the strata DB, not serialized.
+## Definitions are injected like the enemy/stage DBs, not serialized.
 var companions: Array[String] = []
-var companion_defs: Array = []  # [{ id, name_key, join_at_docs }]
+var companion_defs: Array = []  # [{ id, name_key, join_at_docs, base_hp, hp_per_level, ... }]
 ## Unlock conditions per document id (data/documents "conditions" field).
-## Injected like the strata DB and not serialized. A document whose
-## conditions are unmet stays underground until they hold (§7.3).
+## Injected like the enemy/stage DBs and not serialized. A document whose
+## conditions are unmet stays hidden until they hold (§7.3).
 var doc_conditions: Dictionary = {}  # doc id -> { min_docs, requires_* }
-## Loot dug up but not yet tallied: resource id -> count. Filled on the
-## spot when a dig completes (no hauling trips); converted to coins in
-## one batch by collect_loot() when the player checks in.
-var pending_loot: Dictionary = {}
 ## Shop purchases: id -> { "level": int, "effect": String }.
 var upgrades: Dictionary = {}
 var _rng := RandomNumberGenerator.new()
 
+## --- Cave exploration + combat state ---------------------------------
+var stage_index: int = 1
+var enemy_id: String = ""
+var enemy_hp: int = 0
+## Shared party EXP bank, filled automatically by idle combat. Spent
+## explicitly by the player (level_up_companion()) on whichever party
+## member they choose — sidesteps "who fought"/kill-credit entirely.
+var exp_pool: int = 0
+var boss_active: bool = false
+var boss_hp: int = 0
+var stages: UDStageDB
+var enemies: UDEnemyDB
+var skills: UDSkillDB
+
 
 static func new_game(
-	p_strata: UDStrataDB,
+	p_enemies: UDEnemyDB,
+	p_stages: UDStageDB,
 	rng_seed: int,
 	p_item_pool: Array[String] = [],
 	p_companion_defs: Array = [],
 	p_doc_conditions: Dictionary = {},
 	p_item_ranks: Dictionary = {},
+	p_skills: UDSkillDB = null,
 ) -> UDSim:
 	var sim := UDSim.new()
-	sim.strata = p_strata
+	sim.enemies = p_enemies
+	sim.stages = p_stages
+	sim.skills = p_skills if p_skills != null else UDSkillDB.from_dicts([])
 	sim.item_pool = p_item_pool
 	sim.companion_defs = p_companion_defs
 	sim.doc_conditions = p_doc_conditions
 	sim.item_ranks = p_item_ranks
 	sim._rng.seed = rng_seed
-	sim.grid = UDGrid.new(UD.CORRIDOR_HEIGHT)
-	for x in UD.GRID_INITIAL_WIDTH:
-		sim.grid.append_column(p_strata.terrain_for_distance(x))
-	for res in UD.ALL_RESOURCES:
-		sim.inventory[res] = 0
+	sim.inventory[UD.RES_GOLD] = 0
 	for i in UD.INITIAL_MINION_COUNT:
-		sim.minions.append(UDMinion.create(i, UD.DEPOT_POS))
-	# Idle games should idle from minute one: new tunnels dig on their own.
-	sim.dig_policy = UD.DigPolicy.RIGHT
+		sim.minions.append(sim._new_unit_at_level(i, 1))
 	return sim
 
 
@@ -82,9 +93,8 @@ func advance(ticks: int) -> void:
 
 func tick() -> void:
 	tick_count += 1
-	_auto_designate()
-	for minion in minions:
-		_step_minion(minion)
+	if not boss_active:
+		_auto_battle()
 	_check_companion_joins()
 
 
@@ -98,89 +108,289 @@ func _check_companion_joins() -> void:
 			continue
 		if discovered_documents.size() >= int(companion["join_at_docs"]):
 			companions.append(id)
-			minions.append(UDMinion.create(minions.size(), UD.DEPOT_POS))
+			minions.append(_new_unit_at_level(minions.size(), 1))
 			companion_joined.emit(id)
 
 
-## Generates dig jobs from the current policy so play continues unattended.
-## Pure function of grid state -> deterministic across offline/realtime.
-## Only workable jobs count toward the limit: stale designations on buried
-## cells must not starve the policy.
-func _auto_designate() -> void:
-	if dig_policy == UD.DigPolicy.NONE:
+## --- Growth: per-unit stats computed from level, not stored ----------
+
+## Which growth curve a party slot uses: the protagonist (slot 0) has a
+## fixed curve in UD.*; companions (slot >= 1) use their own data file.
+## Falls back to UD.FALLBACK_GROWTH if the slot has no matching def yet
+## (should not normally happen).
+func _growth_def_for_unit(unit: UDMinion) -> Dictionary:
+	if unit.id == 0:
+		return {
+			"base_hp": UD.PROTAGONIST_BASE_HP, "hp_per_level": UD.PROTAGONIST_HP_PER_LEVEL,
+			"base_mp": UD.PROTAGONIST_BASE_MP, "mp_per_level": UD.PROTAGONIST_MP_PER_LEVEL,
+			"base_atk": UD.PROTAGONIST_BASE_ATK, "atk_per_level": UD.PROTAGONIST_ATK_PER_LEVEL,
+			"base_def": UD.PROTAGONIST_BASE_DEF, "def_per_level": UD.PROTAGONIST_DEF_PER_LEVEL,
+		}
+	var companion_index := unit.id - 1
+	if companion_index >= 0 and companion_index < companions.size():
+		var companion_id := companions[companion_index]
+		for def: Variant in companion_defs:
+			if str((def as Dictionary)["id"]) == companion_id:
+				return def as Dictionary
+	return UD.FALLBACK_GROWTH
+
+
+func unit_max_hp(unit: UDMinion) -> int:
+	var g := _growth_def_for_unit(unit)
+	return int(g["base_hp"]) + (unit.level - 1) * int(g["hp_per_level"])
+
+
+func unit_max_mp(unit: UDMinion) -> int:
+	var g := _growth_def_for_unit(unit)
+	return int(g["base_mp"]) + (unit.level - 1) * int(g["mp_per_level"])
+
+
+func unit_atk(unit: UDMinion) -> int:
+	var g := _growth_def_for_unit(unit)
+	return int(g["base_atk"]) + (unit.level - 1) * int(g["atk_per_level"])
+
+
+func unit_def(unit: UDMinion) -> int:
+	var g := _growth_def_for_unit(unit)
+	return int(g["base_def"]) + (unit.level - 1) * int(g["def_per_level"])
+
+
+func unit_skills(unit: UDMinion) -> Array[String]:
+	var g := _growth_def_for_unit(unit)
+	var known: Array[String] = []
+	for id: Variant in g.get("skills", []) as Array:
+		known.append(str(id))
+	return known
+
+
+func _new_unit_at_level(id: int, level: int) -> UDMinion:
+	var unit := UDMinion.create(id, level, 1, 1)
+	unit.hp = unit_max_hp(unit)
+	unit.mp = unit_max_mp(unit)
+	return unit
+
+
+func _unit_by_id(unit_id: int) -> UDMinion:
+	for unit in minions:
+		if unit.id == unit_id:
+			return unit
+	return null
+
+
+## Shared ledger bonuses (shop upgrades, altar, daily anomaly) added on
+## top of every living unit's own level-derived ATK/DEF — same "base +
+## upgrades + altar + daily" shape dig_power() used to have.
+func party_atk_bonus() -> int:
+	var bonus := 0
+	if daily_effect == "atk_add":
+		bonus += 1
+	bonus += UDSim._effect_levels_in(upgrades, "atk_add")
+	bonus += altar_level
+	return bonus
+
+
+func party_def_bonus() -> int:
+	var bonus := 0
+	if daily_effect == "def_add":
+		bonus += 1
+	bonus += UDSim._effect_levels_in(upgrades, "def_add")
+	return bonus
+
+
+func effective_atk(unit: UDMinion) -> int:
+	return unit_atk(unit) + party_atk_bonus()
+
+
+func effective_def(unit: UDMinion) -> int:
+	return unit_def(unit) + party_def_bonus()
+
+
+## Sum of every living party member's effective attack — the idle trash
+## loop's damage-per-tick (deterministic, no rng).
+func party_atk_total() -> int:
+	var total := 0
+	for unit in minions:
+		if unit.hp > 0:
+			total += effective_atk(unit)
+	return total
+
+
+## --- Idle auto-battle (tick-driven, risk-free trash combat) ----------
+
+func _auto_battle() -> void:
+	var stage := stages.stage_for_index(stage_index)
+	if enemy_id == "":
+		# Spawn only this tick: a freshly spawned enemy takes its first hit
+		# next tick, so the idle view always has at least one tick to show
+		# it at full HP instead of it dying invisibly the instant it appears
+		# (which would otherwise happen for every enemy once party attack
+		# outgrows its HP — an increasingly common case as the party levels).
+		_spawn_trash(stage)
 		return
-	var limit := minions.size()
-	var active := 0
-	for job in jobs:
-		if _has_walkable_neighbor(job.target):
-			active += 1
-	if active >= limit:
+	var def := enemies.get_enemy(enemy_id)
+	enemy_hp -= maxi(1, party_atk_total() - int(def["def"]))
+	if enemy_hp > 0:
+		return  # Trash combat is risk-free by design: no party HP loss.
+	_grant_kill_rewards(def, stage)
+	enemy_id = ""
+	if stages.is_boss_stage(stage_index):
+		return  # Gate: halt here. Trash keeps farming exp/coins until the
+		# player wins the manual boss fight (start_boss_fight/resolve_boss_round).
+	stage_index += 1
+
+
+func _spawn_trash(stage: Dictionary) -> void:
+	var pool: Array = stage.get("trash_pool", [])
+	if pool.is_empty():
+		enemy_id = ""
+		enemy_hp = 0
 		return
-	for cell in _policy_candidates():
-		if active >= limit:
-			break
-		if add_dig_job(cell):
-			active += 1
+	enemy_id = str(pool[_rng.randi_range(0, pool.size() - 1)])
+	enemy_hp = int(enemies.get_enemy(enemy_id)["hp"])
 
 
-func _has_walkable_neighbor(cell: Vector2i) -> bool:
-	for dir in UDPathfinder.DIRS:
-		if grid.is_walkable(cell + dir):
-			return true
-	return false
+func _grant_kill_rewards(def: Dictionary, stage: Dictionary) -> void:
+	exp_pool += int(def.get("exp", 0))
+	inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + int(def.get("coins", 0))
+	if daily_effect == "gold_per_kill":
+		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + 1
+	_roll_document(stage)
+	_roll_special_find()
 
 
-func _policy_candidates() -> Array[Vector2i]:
-	# The tunnel only ever advances rightward (2026-07-14 redesign): dig the
-	# whole face column top-to-bottom before moving on, so the corridor stays
-	# full height with no standing pillars. RIGHT and WIDEN behave alike here;
-	# WIDEN is retained for save-compat and future variants. No leftward digging.
-	var candidates: Array[Vector2i] = []
-	_ensure_cols(frontier_distance() + UD.GRID_EXPAND_COLS)
-	var face := _face_column()
-	if face < 0:
-		return candidates
-	for y in grid.height:
-		var cell := Vector2i(face, y)
-		if grid.terrain_at(cell) != UD.Terrain.AIR:
-			candidates.append(cell)
-	return candidates
+## --- Manual boss fight (turn-based, player commands) -----------------
 
-
-## Leftmost column that still holds solid terrain — the tunnel face the
-## crew works next. Returns -1 only if every known column is open.
-func _face_column() -> int:
-	for x in grid.width:
-		for y in grid.height:
-			if grid.terrain_at(Vector2i(x, y)) != UD.Terrain.AIR:
-				return x
-	return -1
-
-
-## The digging front: rightmost column with any open cell. Used by the
-## camera to follow the action and as the "depth" progress/achievement
-## metric (distance dug from the entrance).
-func frontier_distance() -> int:
-	for x in range(grid.width - 1, -1, -1):
-		for y in grid.height:
-			if grid.is_walkable(Vector2i(x, y)):
-				return x
-	return -1
-
-
-## Designates a cell for digging. Returns false when the cell is not diggable
-## or already designated. Unreachable cells stay queued without penalty (§5.1).
-func add_dig_job(target: Vector2i) -> bool:
-	if not grid.is_inside(target):
+## Opens the boss encounter at the current gate. Only callable when the
+## party is standing at an undefeated boss stage.
+func start_boss_fight() -> bool:
+	if boss_active:
 		return false
-	if grid.terrain_at(target) == UD.Terrain.AIR:
+	var stage := stages.stage_for_index(stage_index)
+	var boss_id := str(stage.get("boss_id", ""))
+	if boss_id == "":
 		return false
-	for job in jobs:
-		if job.target == target:
-			return false
-	jobs.append(UDJob.create(target))
+	boss_active = true
+	boss_hp = int(enemies.get_enemy(boss_id)["hp"])
 	return true
 
+
+## Leaves the boss encounter without resolving it (no penalty): the
+## party returns to idle-farming trash at the gate.
+func flee_boss_fight() -> bool:
+	if not boss_active:
+		return false
+	boss_active = false
+	boss_hp = 0
+	return true
+
+
+func _boss_def() -> Dictionary:
+	var stage := stages.stage_for_index(stage_index)
+	return enemies.get_enemy(str(stage["boss_id"]))
+
+
+## Resolves exactly one round: every living unit's action (in order),
+## then the boss's counter-attack on one target. `actions` is
+## [{ "unit_id": int, "action": "attack"|"skill", "skill_id": String }],
+## one entry per living unit (units without an entry simply do nothing
+## this round). Always resolves atomically — no mid-round state to save.
+func resolve_boss_round(actions: Array) -> Dictionary:
+	if not boss_active:
+		return {}
+	var boss := _boss_def()
+	for entry: Variant in actions:
+		var action := entry as Dictionary
+		var unit := _unit_by_id(int(action["unit_id"]))
+		if unit == null or unit.hp <= 0:
+			continue
+		match str(action.get("action", "attack")):
+			"attack":
+				boss_hp -= maxi(1, effective_atk(unit) - int(boss["def"]))
+			"skill":
+				_apply_skill(unit, str(action.get("skill_id", "")))
+	if boss_hp <= 0:
+		_grant_kill_rewards(boss, stages.stage_for_index(stage_index))
+		boss_active = false
+		boss_hp = 0
+		stage_index += 1
+		return {"won": true, "lost": false}
+	var target := _boss_target()
+	if target != null:
+		target.hp = maxi(0, target.hp - maxi(1, int(boss["atk"]) - effective_def(target)))
+	if _party_wiped():
+		boss_active = false
+		boss_hp = 0
+		_heal_party_full()
+		return {"won": false, "lost": true}
+	return {"won": false, "lost": false}
+
+
+func _apply_skill(unit: UDMinion, skill_id: String) -> void:
+	if not skills.has_skill(skill_id) or not unit_skills(unit).has(skill_id):
+		return
+	var skill := skills.get_skill(skill_id)
+	var cost := int(skill.get("mp_cost", 0))
+	if unit.mp < cost:
+		return
+	unit.mp -= cost
+	var power := int(skill.get("power", 0))
+	match str(skill.get("effect", "damage")):
+		"damage":
+			boss_hp -= maxi(1, power - int(_boss_def()["def"]))
+		"heal":
+			unit.hp = mini(unit_max_hp(unit), unit.hp + power)
+		# buff_atk / buff_def intentionally left as a future extension —
+		# no lasting per-encounter modifier state exists yet.
+
+
+## Target for the boss's counter-attack: the lowest-HP living unit (reads
+## as the boss "finishing off" whoever is most hurt).
+func _boss_target() -> UDMinion:
+	var target: UDMinion = null
+	for unit in minions:
+		if unit.hp <= 0:
+			continue
+		if target == null or unit.hp < target.hp:
+			target = unit
+	return target
+
+
+func _party_wiped() -> bool:
+	for unit in minions:
+		if unit.hp > 0:
+			return false
+	return true
+
+
+func _heal_party_full() -> void:
+	for unit in minions:
+		unit.hp = unit_max_hp(unit)
+		unit.mp = unit_max_mp(unit)
+
+
+## --- Leveling (player command: spends the shared exp_pool) -----------
+
+static func exp_cost_for_level(level: int) -> int:
+	return int(round(UD.EXP_BASE * pow(UD.EXP_MULT, level - 1)))
+
+
+## Spends the banked exp_pool to raise one party member a level, fully
+## healing them. Returns false when unaffordable or the unit is unknown.
+func level_up_companion(unit_id: int) -> bool:
+	var unit := _unit_by_id(unit_id)
+	if unit == null:
+		return false
+	var cost := UDSim.exp_cost_for_level(unit.level)
+	if exp_pool < cost:
+		return false
+	exp_pool -= cost
+	unit.level += 1
+	unit.hp = unit_max_hp(unit)
+	unit.mp = unit_max_mp(unit)
+	return true
+
+
+## --- Daily anomaly -----------------------------------------------------
 
 ## Switches to the given day's anomaly. Returns false when that day is
 ## already active.
@@ -191,118 +401,6 @@ func apply_daily(date_key: String, anomaly: Dictionary) -> bool:
 	daily_anomaly_id = str(anomaly.get("id", ""))
 	daily_effect = str(anomaly.get("effect", ""))
 	return true
-
-
-## Cancels an unstarted designation. Jobs a minion is already walking to
-## or digging stay (avoids stranding the minion mid-errand).
-func remove_dig_job(target: Vector2i) -> bool:
-	for job in jobs:
-		if job.target == target and job.claimed_by == -1:
-			jobs.erase(job)
-			return true
-	return false
-
-
-## Base power plus one per level of every dig_power_add source: shop
-## upgrades, the guild facility, and altar offerings all share the same
-## "upgrades" ledger (facilities are one-time, max_level-1 upgrades —
-## see data/facilities/).
-func dig_power() -> int:
-	var power := UD.MINION_DIG_POWER
-	if daily_effect == "dig_power_add":
-		power += 1
-	power += UDSim._effect_levels_in(upgrades, "dig_power_add")
-	power += altar_level
-	return power
-
-
-func _step_minion(minion: UDMinion) -> void:
-	match minion.state:
-		UDMinion.State.IDLE:
-			_try_claim_job(minion)
-		UDMinion.State.MOVING:
-			if not minion.path.is_empty():
-				minion.pos = minion.path.pop_front()
-			if minion.path.is_empty():
-				minion.state = UDMinion.State.DIGGING
-		UDMinion.State.DIGGING:
-			_dig(minion)
-		UDMinion.State.HAULING:
-			# Legacy state from pre-v3 saves; normalized away on load.
-			minion.state = UDMinion.State.IDLE
-
-
-func _try_claim_job(minion: UDMinion) -> void:
-	for job in jobs:
-		if job.claimed_by != -1:
-			continue
-		var best_path: Array[Vector2i] = []
-		for dir in UDPathfinder.DIRS:
-			var stand_cell: Vector2i = job.target + dir
-			if not grid.is_walkable(stand_cell):
-				continue
-			var candidate := UDPathfinder.find_path(grid, minion.pos, stand_cell)
-			if candidate.is_empty():
-				continue
-			if best_path.is_empty() or candidate.size() < best_path.size():
-				best_path = candidate
-		if best_path.is_empty():
-			continue
-		job.claimed_by = minion.id
-		minion.job_target = job.target
-		minion.path = best_path.slice(1)
-		minion.state = UDMinion.State.MOVING
-		return
-
-
-func _dig(minion: UDMinion) -> void:
-	var job := _job_for_target(minion.job_target)
-	if job == null:
-		minion.job_target = UDMinion.NO_TARGET
-		minion.state = UDMinion.State.IDLE
-		return
-	job.progress += dig_power()
-	if job.progress < strata.hardness_for_distance(job.target.x):
-		return
-	# Dig complete: open the cell, bag the yield on the spot, roll for
-	# a document. The minion moves straight on to its next job.
-	grid.set_terrain(job.target, UD.Terrain.AIR)
-	var stratum := strata.stratum_for_distance(job.target.x)
-	var yield_res: String = stratum["yield"]
-	pending_loot[yield_res] = int(pending_loot.get(yield_res, 0)) + 1
-	if daily_effect == "gold_per_dig":
-		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + 1
-	_roll_document(stratum)
-	_roll_special_find()
-	jobs.erase(job)
-	minion.job_target = UDMinion.NO_TARGET
-	_ensure_cols(job.target.x + UD.GRID_EXPAND_COLS)
-	minion.path.clear()
-	minion.state = UDMinion.State.IDLE
-
-
-## Tallies all pending loot into coins in one batch (player check-in).
-## Returns { "coins": int, "counts": Dictionary } for the UI report.
-func collect_loot() -> Dictionary:
-	var coins := 0
-	var counts: Dictionary = {}
-	for res: Variant in pending_loot.keys():
-		var count := int(pending_loot[res])
-		if count <= 0:
-			continue
-		counts[res] = count
-		coins += count * int(UD.COIN_VALUES.get(res, 1))
-	pending_loot.clear()
-	if coins > 0:
-		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + coins
-	return {"coins": coins, "counts": counts}
-
-
-func pending_loot_total() -> int:
-	var total := 0
-	for res: Variant in pending_loot.keys():
-		total += int(pending_loot[res])
-	return total
 
 
 func upgrade_level(id: String) -> int:
@@ -341,7 +439,7 @@ static func _effect_levels_in(entries: Dictionary, effect: String) -> int:
 
 ## Extra document drop chance from the altar facility, the survey shop
 ## upgrade, and the daily anomaly (altar/survey share the same ledger
-## and per-level bonus — see dig_power()'s comment).
+## and per-level bonus — see party_atk_bonus()'s comment).
 func document_chance_bonus() -> float:
 	var bonus := 0.0
 	if daily_effect == "doc_chance_add":
@@ -350,15 +448,15 @@ func document_chance_bonus() -> float:
 	return bonus
 
 
-func _roll_document(stratum: Dictionary) -> void:
-	var chance := float(stratum.get("document_chance", 0.0))
+func _roll_document(stage: Dictionary) -> void:
+	var chance := float(stage.get("document_chance", 0.0))
 	if chance > 0.0:
 		chance += document_chance_bonus()
 	if chance <= 0.0:
 		return
 	var roll := _rng.randf()
 	var pool: Array = []
-	for doc_id: Variant in stratum.get("documents", []) as Array:
+	for doc_id: Variant in stage.get("documents", []) as Array:
 		if not discovered_documents.has(doc_id) and _doc_unlocked(str(doc_id)):
 			pool.append(doc_id)
 	if roll >= chance or pool.is_empty():
@@ -411,9 +509,9 @@ func _add_item(item_id: String, amount: int) -> void:
 	items[item_id] = mini(item_count(item_id) + amount, item_cap(item_id))
 
 
-## Rare finds on dig completion: a chest always pays coins and also
-## holds a random collection item that is still under its rank cap;
-## a nugget pays far more than any hauled resource.
+## Rare finds on enemy defeat: a chest always pays coins and also holds a
+## random collection item still under its rank cap; a nugget pays far
+## more than a normal kill.
 func _roll_special_find() -> void:
 	var roll := _rng.randf()
 	if roll < UD.CHEST_CHANCE:
@@ -432,7 +530,7 @@ func _roll_special_find() -> void:
 
 ## --- Altar offerings -----------------------------------------------
 ## Coins (and, at higher levels, a collection item) buy permanent-for-
-## this-run dig power. Player command: deterministic, no rng.
+## this-run attack (party_atk_bonus()). Player command: deterministic, no rng.
 
 func altar_built() -> bool:
 	return upgrade_level("altar") > 0
@@ -464,7 +562,7 @@ func altar_required_item_rank() -> String:
 	return required
 
 
-## Offers coins (plus item_id when a rank is required) for +1 dig power.
+## Offers coins (plus item_id when a rank is required) for +1 attack.
 func offer_at_altar(item_id: String = "") -> bool:
 	if not altar_built():
 		return false
@@ -528,58 +626,49 @@ func exchange_item(target_id: String, consume: Dictionary) -> bool:
 	return true
 
 
-func _job_for_target(target: Vector2i) -> UDJob:
-	for job in jobs:
-		if job.target == target:
-			return job
-	return null
-
-
-func _ensure_cols(distance: int) -> void:
-	while grid.width <= distance:
-		grid.append_column(strata.terrain_for_distance(grid.width))
-
-
 func to_dict() -> Dictionary:
 	var minion_dicts: Array = []
 	for minion in minions:
 		minion_dicts.append(minion.to_dict())
-	var job_dicts: Array = []
-	for job in jobs:
-		job_dicts.append(job.to_dict())
 	return {
 		"version": UD.SAVE_VERSION,
 		"tick_count": tick_count,
 		# RNG seed/state are 64-bit; store as strings to survive JSON floats.
 		"rng_seed": str(_rng.seed),
 		"rng_state": str(_rng.state),
-		"grid": grid.to_dict(),
 		"inventory": inventory.duplicate(),
 		"minions": minion_dicts,
-		"jobs": job_dicts,
 		"discovered_documents": discovered_documents.duplicate(),
-		"dig_policy": int(dig_policy),
 		"daily_date_key": daily_date_key,
 		"daily_anomaly_id": daily_anomaly_id,
 		"daily_effect": daily_effect,
 		"items": items.duplicate(),
 		"altar_level": altar_level,
 		"companions": companions.duplicate(),
-		"pending_loot": pending_loot.duplicate(),
 		"upgrades": upgrades.duplicate(true),
+		"stage_index": stage_index,
+		"enemy_id": enemy_id,
+		"enemy_hp": enemy_hp,
+		"exp_pool": exp_pool,
+		"boss_active": boss_active,
+		"boss_hp": boss_hp,
 	}
 
 
 static func from_dict(
 	d: Dictionary,
-	p_strata: UDStrataDB,
+	p_enemies: UDEnemyDB,
+	p_stages: UDStageDB,
 	p_item_pool: Array[String] = [],
 	p_companion_defs: Array = [],
 	p_doc_conditions: Dictionary = {},
 	p_item_ranks: Dictionary = {},
+	p_skills: UDSkillDB = null,
 ) -> UDSim:
 	var sim := UDSim.new()
-	sim.strata = p_strata
+	sim.enemies = p_enemies
+	sim.stages = p_stages
+	sim.skills = p_skills if p_skills != null else UDSkillDB.from_dicts([])
 	sim.item_pool = p_item_pool
 	sim.companion_defs = p_companion_defs
 	sim.doc_conditions = p_doc_conditions
@@ -587,17 +676,12 @@ static func from_dict(
 	sim.tick_count = int(d["tick_count"])
 	sim._rng.seed = (d["rng_seed"] as String).to_int()
 	sim._rng.state = (d["rng_state"] as String).to_int()
-	sim.grid = UDGrid.from_dict(d["grid"])
 	for res: Variant in (d["inventory"] as Dictionary).keys():
 		sim.inventory[res] = int(d["inventory"][res])
 	for minion_dict: Variant in d["minions"] as Array:
 		sim.minions.append(UDMinion.from_dict(minion_dict))
-	for job_dict: Variant in d["jobs"] as Array:
-		sim.jobs.append(UDJob.from_dict(job_dict))
 	for doc_id: Variant in d["discovered_documents"] as Array:
 		sim.discovered_documents.append(doc_id)
-	# Missing in pre-policy saves: default to NONE.
-	sim.dig_policy = int(d.get("dig_policy", 0)) as UD.DigPolicy
 	sim.daily_date_key = str(d.get("daily_date_key", ""))
 	sim.daily_anomaly_id = str(d.get("daily_anomaly_id", ""))
 	sim.daily_effect = str(d.get("daily_effect", ""))
@@ -613,8 +697,6 @@ static func from_dict(
 	sim.altar_level = int(d.get("altar_level", 0))
 	for companion_id: Variant in d.get("companions", []) as Array:
 		sim.companions.append(str(companion_id))
-	for res: Variant in (d.get("pending_loot", {}) as Dictionary).keys():
-		sim.pending_loot[res] = int(d["pending_loot"][res])
 	for id: Variant in (d.get("upgrades", {}) as Dictionary).keys():
 		var entry := d["upgrades"][id] as Dictionary
 		sim.upgrades[id] = {
@@ -631,15 +713,12 @@ static func from_dict(
 		if facility_id in ["altar", "tavern", "dorm"] and not sim.upgrades.has(facility_id):
 			sim.upgrades[facility_id] = {"level": 1, "effect": str(rd.get("effect", ""))}
 	# v3 -> v4: the minion crew becomes protagonist + story companions.
-	# Rebuild the party and release job claims held by removed workers;
-	# companions re-join on the next ticks from the document count.
+	# Rebuild the party; companions re-join on the next ticks from the
+	# document count.
 	if int(d.get("version", 1)) < 4:
 		sim.minions.clear()
-		sim.minions.append(UDMinion.create(0, UD.DEPOT_POS))
+		sim.minions.append(sim._new_unit_at_level(0, 1))
 		sim.companions.clear()
-		for job in sim.jobs:
-			job.claimed_by = -1
-			job.progress = 0
 	# Companions whose definitions were removed (placeholder characters)
 	# leave the party; the crew is rebuilt when the roster changed. Runs
 	# whenever the save holds any companion — even if every definition was
@@ -657,45 +736,42 @@ static func from_dict(
 			sim.companions = kept
 			sim.minions.clear()
 			for i in kept.size() + 1:
-				sim.minions.append(UDMinion.create(i, UD.DEPOT_POS))
-			for job in sim.jobs:
-				job.claimed_by = -1
-	# Pre-v3 saves may hold minions mid-haul: bag their load and free them.
-	for minion in sim.minions:
-		if minion.state == UDMinion.State.HAULING or minion.carrying != "":
-			if minion.carrying != "":
-				sim.pending_loot[minion.carrying] = \
-					int(sim.pending_loot.get(minion.carrying, 0)) + 1
-				minion.carrying = ""
-			minion.path.clear()
-			minion.state = UDMinion.State.IDLE
-	# v1 -> v2 migration (§12-7): stockpiled raw resources become coins.
-	if int(d.get("version", 1)) < 2:
-		for res: String in UD.ALL_RESOURCES:
-			if res == UD.RES_GOLD:
-				continue
-			var count := int(sim.inventory.get(res, 0))
-			if count > 0:
-				sim.inventory[UD.RES_GOLD] = int(sim.inventory.get(UD.RES_GOLD, 0)) \
-					+ count * int(UD.COIN_VALUES.get(res, 1))
-				sim.inventory[res] = 0
-	# v6 -> v7: the dig turned from a downward shaft into a horizontal
-	# tunnel with a completely different grid shape. Old shafts can't be
-	# translated, so start a fresh corridor while keeping all other
-	# progress (coins, items, documents, companions, upgrades, altar).
-	# Also re-fires whenever the corridor height changed under an existing
-	# tunnel (dev tuning of CORRIDOR_HEIGHT), so saves never keep a stale
-	# band height.
-	if int(d.get("version", 1)) < 7 or sim.grid.height != UD.CORRIDOR_HEIGHT:
-		sim.grid = UDGrid.new(UD.CORRIDOR_HEIGHT)
-		for x in UD.GRID_INITIAL_WIDTH:
-			sim.grid.append_column(sim.strata.terrain_for_distance(x))
-		sim.jobs.clear()
-		for minion in sim.minions:
-			minion.pos = UD.DEPOT_POS
-			minion.job_target = UDMinion.NO_TARGET
-			minion.path.clear()
-			minion.state = UDMinion.State.IDLE
-		if sim.dig_policy == UD.DigPolicy.NONE:
-			sim.dig_policy = UD.DigPolicy.RIGHT
+				sim.minions.append(sim._new_unit_at_level(i, 1))
+	# v7 -> v8: the dig turned into cave exploration + combat, a
+	# completely different core loop. The old grid/jobs/dig_policy have
+	# no equivalent and are simply not read above; battle state starts
+	# fresh at stage 1 while everything the player earned (coins, items,
+	# documents, companions, upgrades, altar level) is preserved. Every
+	# party unit resets to level 1 at full HP/MP (their old dig-era
+	# dicts carried no level/hp/mp, so this also covers "no such key").
+	if int(d.get("version", 1)) < 8:
+		sim.stage_index = 1
+		sim.enemy_id = ""
+		sim.enemy_hp = 0
+		sim.exp_pool = 0
+		sim.boss_active = false
+		sim.boss_hp = 0
+		for unit in sim.minions:
+			unit.level = 1
+			unit.hp = sim.unit_max_hp(unit)
+			unit.mp = sim.unit_max_mp(unit)
+		# Bought upgrade levels are kept, but their "effect" string was
+		# baked in at purchase time under the old dig-era names — rename
+		# in place so e.g. an already-bought pickaxe level still does
+		# something (atk) instead of silently becoming inert.
+		const OLD_EFFECT_RENAMES := {
+			"dig_power_add": "atk_add",
+		}
+		for id: Variant in sim.upgrades.keys():
+			var entry := sim.upgrades[id] as Dictionary
+			var old_effect := str(entry.get("effect", ""))
+			if OLD_EFFECT_RENAMES.has(old_effect):
+				entry["effect"] = OLD_EFFECT_RENAMES[old_effect]
+	else:
+		sim.stage_index = int(d.get("stage_index", 1))
+		sim.enemy_id = str(d.get("enemy_id", ""))
+		sim.enemy_hp = int(d.get("enemy_hp", 0))
+		sim.exp_pool = int(d.get("exp_pool", 0))
+		sim.boss_active = bool(d.get("boss_active", false))
+		sim.boss_hp = int(d.get("boss_hp", 0))
 	return sim

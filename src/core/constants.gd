@@ -2,72 +2,44 @@ class_name UD
 extends RefCounted
 ## UNDERDESK core constants (§12-1: no magic numbers).
 
-const SAVE_VERSION: int = 7
+const SAVE_VERSION: int = 8
 
 ## Simulation tick length (§7.1: timer-driven, not per-frame).
 const TICK_SECONDS: float = 2.0
 ## Offline catch-up cap: 24 hours of 2-second ticks (§7.1-4).
 const MAX_OFFLINE_TICKS: int = 43200
 
-## The dig is a horizontal corridor: a fixed-height tunnel that extends
-## rightward forever (2026-07-14 redesign). y = the tunnel's thin vertical
-## span; x = distance dug from the entrance, which the strata map onto.
-## The miner stands on solid ground (GROUND_ROWS, drawn below the dig band
-## in the UI only, never part of the sim grid) and carves a corridor two
-## blocks tall — its own height — so it never appears to float.
-const CORRIDOR_HEIGHT: int = 2
-const GROUND_ROWS: int = 2
-const GRID_INITIAL_WIDTH: int = 8
-## Columns kept solid ahead of the frontier. Must exceed the on-screen
-## column count so fresh rock is always generated well off the right edge
-## and never visibly pops into view.
-const GRID_EXPAND_COLS: int = 24
-
-## Home depot at the tunnel mouth (left edge, mid-height) where minions
-## start and deposit resources.
-const DEPOT_POS := Vector2i(0, 1)
-
-enum Terrain { AIR = 0, SOIL = 1, ROCK = 2, WETROCK = 3, RUINSTONE = 4 }
-
-## Maps data-file terrain names to enum values.
-const TERRAIN_BY_NAME: Dictionary = {
-	"AIR": Terrain.AIR,
-	"SOIL": Terrain.SOIL,
-	"ROCK": Terrain.ROCK,
-	"WETROCK": Terrain.WETROCK,
-	"RUINSTONE": Terrain.RUINSTONE,
-}
-
 ## Extra document drop chance while the lush-vein daily anomaly is active.
 const DAILY_DOC_CHANCE_BONUS: float = 0.1
 ## Extra document drop chance per level of the survey shop upgrade.
 const UPGRADE_DOC_CHANCE: float = 0.05
 
-const RES_SOIL: String = "soil"
-const RES_STONE: String = "stone"
-const RES_ORE: String = "ore"
-const RES_MAGIC_STONE: String = "magic_stone"
-const RES_FOOD: String = "food"
 const RES_GOLD: String = "gold"
-const ALL_RESOURCES: Array[String] = [
-	RES_SOIL, RES_STONE, RES_ORE, RES_MAGIC_STONE, RES_FOOD, RES_GOLD,
-]
 
-## §4: dig commands are direction-level policies, not per-cell orders.
-## RIGHT advances the horizontal tunnel; WIDEN clears the tunnel's full
-## height at the frontier. (RIGHT kept enum value 1 for save-compat with
-## the old DOWN policy.)
-enum DigPolicy { NONE = 0, RIGHT = 1, WIDEN = 2 }
-
-## Economy: hauled resources convert to coins on deposit (shop currency).
-const COIN_VALUES: Dictionary = {
-	RES_SOIL: 1,
-	RES_STONE: 2,
-	RES_ORE: 5,
-	RES_MAGIC_STONE: 10,
-	RES_FOOD: 1,
-	RES_GOLD: 1,
+## Party unit growth (2026-07-15 redesign: dig -> cave exploration +
+## turn-based combat). Companions have their own data-driven growth curve
+## (data/companions/*.json: base_hp/hp_per_level/etc.); the protagonist
+## (party slot 0) is not a companion definition, so its curve lives here.
+const PROTAGONIST_BASE_HP: int = 24
+const PROTAGONIST_HP_PER_LEVEL: int = 5
+const PROTAGONIST_BASE_MP: int = 6
+const PROTAGONIST_MP_PER_LEVEL: int = 1
+const PROTAGONIST_BASE_ATK: int = 5
+const PROTAGONIST_ATK_PER_LEVEL: int = 1
+const PROTAGONIST_BASE_DEF: int = 3
+const PROTAGONIST_DEF_PER_LEVEL: int = 1
+## Fallback growth for a party slot with no matching definition (should
+## not normally be hit — see UDSim._growth_def_for_unit()).
+const FALLBACK_GROWTH: Dictionary = {
+	"base_hp": 10, "hp_per_level": 2, "base_mp": 0, "mp_per_level": 0,
+	"base_atk": 3, "atk_per_level": 1, "base_def": 1, "def_per_level": 1,
 }
+
+## EXP cost to level up from `level` to `level + 1` (banked in the shared
+## exp_pool, spent explicitly by the player via level_up_companion() —
+## same base*mult^level shape as UDSim.upgrade_cost()).
+const EXP_BASE: int = 10
+const EXP_MULT: float = 1.35
 
 ## Collection item ranks, best first (guild trading, altar offerings).
 const ITEM_RANKS: Array[String] = ["Z", "S", "A", "B", "C", "D"]
@@ -82,15 +54,16 @@ const ITEM_RANK_CAPS: Dictionary = {
 const ITEM_EXCHANGE_COSTS: Dictionary = {"Z": 3, "S": 5, "A": 7, "B": 10}
 
 ## Altar offerings (§5.2 rework): each offering costs scaling coins and
-## grants +1 dig power. From these altar levels on, the offering also
-## consumes one collection item of the given rank.
+## grants +1 attack (party-wide bonus, UDSim.party_atk_bonus()). From these
+## altar levels on, the offering also consumes one collection item of the
+## given rank.
 const ALTAR_OFFER_BASE_COST: int = 40
 const ALTAR_OFFER_COST_MULT: float = 1.4
 const ALTAR_ITEM_RANK_TIERS: Dictionary = {
 	5: "D", 10: "C", 15: "B", 20: "A", 25: "S", 30: "Z",
 }
 
-## Special finds rolled on each completed dig.
+## Special finds rolled on each enemy defeated.
 const CHEST_CHANCE: float = 0.02
 const NUGGET_CHANCE: float = 0.03
 const NUGGET_COINS: int = 25
@@ -98,8 +71,7 @@ const NUGGET_COINS: int = 25
 ## any remain (the collection grows with updates, ~100 items planned).
 const CHEST_COINS: int = 10
 
-const MINION_DIG_POWER: int = 1
-## The protagonist digs alone at first; story companions join later.
+## The protagonist explores alone at first; story companions join later.
 const INITIAL_MINION_COUNT: int = 1
 ## Protagonist + up to 4 story companions (data/companions/).
 const MINION_MAX: int = 5

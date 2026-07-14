@@ -1,0 +1,10 @@
+{
+	"id": "cave_spider",
+	"name_key": "ENEMY_CAVE_SPIDER",
+	"hp": 14,
+	"atk": 4,
+	"def": 1,
+	"exp": 5,
+	"coins": 4,
+	"is_boss": false
+}

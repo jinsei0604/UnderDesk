@@ -1,0 +1,10 @@
+{
+	"id": "cave_troll",
+	"name_key": "ENEMY_CAVE_TROLL",
+	"hp": 60,
+	"atk": 8,
+	"def": 3,
+	"exp": 40,
+	"coins": 30,
+	"is_boss": true
+}

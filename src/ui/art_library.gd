@@ -4,27 +4,22 @@ extends RefCounted
 ## it replaces the placeholder rectangle — no code changes needed (§6).
 ##
 ## Recognized names:
-##   terrain_soil.png / terrain_rock.png / terrain_wetrock.png /
-##   terrain_ruinstone.png / terrain_air.png
-##   minion_0.png .. minion_5.png  (variant = minion id % 6)
+##   minion_0.png .. minion_5.png  (variant = minion id % 6, party units)
+##   enemy_<enemy_id>.png  (trash mobs and bosses, data/enemies/ ids)
 ##   room_<room_id>.png  (e.g. room_dorm.png)
 ##   depot.png
 ##   dialog_bg_<archive|treasure|shop|altar|guild|dorm>.png
 ##   (illustrated backdrop behind a UDCardDialog's card grid)
-##   dig_background.png  (the tunnel's ground + backdrop; tiled horizontally
-##   and scrolled with the world as the miner digs right)
+##   dig_background.png  (the cave backdrop behind the battle view)
 ##   series_<series_id>.png  (e.g. series_journal.png, the archive shelf icon)
 ##   item_rank_<Z|S|A|B|C|D>.png  (the treasure shelf's rank-card icon)
-##
-## Spatial variants: <terrain_key>_v2.png, _v3.png, ... give the dig grid
-## per-cell texture variety (see variant_texture() below).
 ##
 ## Frame animation: add <key>_f2.png, <key>_f3.png, ... and the sprite
 ## cycles through them automatically (the base file is frame 1).
 ##
-## Spatial variants (2026-07-14, terrain tile variety): add <key>_v2.png,
-## <key>_v3.png, ... and variant_texture(key, seed) picks one deterministically
-## per call site (e.g. per dig-grid cell) instead of animating over time.
+## Spatial variants: add <key>_v2.png, <key>_v3.png, ... and
+## variant_texture(key, seed)/tiled_texture(key, cell) pick one
+## deterministically per call site instead of animating over time.
 ## Unlike _fN frames these never change on their own.
 ##
 ## After adding files run the editor once or `godot --headless --import`.
@@ -38,21 +33,21 @@ var _variants: Dictionary = {}  # key -> Array[Texture2D], [0] duplicates _frame
 var _icon_cache: Dictionary = {}  # "shape:seed:size" -> Texture2D
 
 
-## room_ids/item_ids/shop_ids/doc_ids are optional: passing them lets
-## shipped assets like room_<id>.png or item_<id>.png be found up front.
-## Anything missing still renders via icon_or_placeholder() and upgrades
-## automatically once the matching PNG is dropped in.
+## room_ids/item_ids/shop_ids/doc_ids/enemy_ids are optional: passing them
+## lets shipped assets like room_<id>.png or item_<id>.png be found up
+## front. Anything missing still renders via icon_or_placeholder() and
+## upgrades automatically once the matching PNG is dropped in.
 static func load_default(
 	room_ids: Array[String],
 	item_ids: Array[String] = [],
 	shop_ids: Array[String] = [],
 	doc_ids: Array[String] = [],
 	series_ids: Array[String] = [],
+	enemy_ids: Array[String] = [],
 ) -> UDArtLibrary:
 	var lib := UDArtLibrary.new()
 	var keys: Array[String] = [
-		"terrain_soil", "terrain_rock", "terrain_wetrock",
-		"terrain_ruinstone", "terrain_air", "depot",
+		"depot",
 		"dialog_bg_archive", "dialog_bg_treasure", "dialog_bg_shop",
 		"dialog_bg_altar", "dialog_bg_guild", "dialog_bg_dorm",
 		"dig_background",
@@ -71,6 +66,8 @@ static func load_default(
 		keys.append(doc_id)
 	for series_id in series_ids:
 		keys.append("series_%s" % series_id)
+	for enemy_id in enemy_ids:
+		keys.append("enemy_%s" % enemy_id)
 	for key in keys:
 		var frames: Array = []
 		var base_path := "%s/%s.png" % [ART_DIR, key]
@@ -145,15 +142,6 @@ func tiled_texture(key: String, cell: Vector2i) -> Texture2D:
 		return variants[0]
 	var idx := posmod(cell.y, n) * n + posmod(cell.x, n)
 	return variants[posmod(idx, variants.size())]
-
-
-func terrain_key(terrain: UD.Terrain) -> String:
-	# Every solid stratum renders with the one rock tile set (2026-07-14:
-	# the user's rock illustration is the whole tunnel wall; strata differ
-	# in yield/hardness, not looks). AIR is the open, dug-out tunnel.
-	if terrain == UD.Terrain.AIR:
-		return "terrain_air"
-	return "terrain_rock"
 
 
 func minion_key(minion_id: int) -> String:

@@ -2,14 +2,37 @@ extends GutTest
 ## Validates the shipped data files (§7.3) load and cross-reference correctly.
 
 
-func test_strata_files_load() -> void:
-	var strata := UDStrataDB.load_from_dir("res://data/strata")
-	assert_eq(strata.terrain_for_distance(0), UD.Terrain.AIR)
-	assert_eq(strata.terrain_for_distance(1), UD.Terrain.SOIL)
-	assert_eq(strata.terrain_for_distance(6), UD.Terrain.ROCK)
-	assert_eq(strata.terrain_for_distance(16), UD.Terrain.WETROCK)
-	assert_eq(strata.terrain_for_distance(31), UD.Terrain.RUINSTONE)
-	assert_eq(strata.terrain_for_distance(100), UD.Terrain.RUINSTONE, "deepest stratum repeats")
+func test_stage_files_load() -> void:
+	var stages := UDStageDB.load_from_dir("res://data/stages")
+	assert_false(stages.is_boss_stage(1), "stage 1 is not a gate")
+	assert_true(stages.is_boss_stage(10), "stage 10 is the first gate")
+	assert_false(stages.is_boss_stage(11), "past the gate, back to trash")
+	var far := stages.stage_for_index(9999)
+	assert_eq(str(far["id"]), "deeper", "distances past the last band reuse it")
+
+
+func test_enemy_files_load_and_translate() -> void:
+	var db := UDEnemyDB.load_from_dir("res://data/enemies")
+	assert_gt(db.all_ids().size(), 0)
+	var ja := UDLocale.load_locale("ja")
+	var en := UDLocale.load_locale("en")
+	for id in db.all_ids():
+		var enemy := db.get_enemy(id)
+		assert_gt(int(enemy["hp"]), 0)
+		for locale: UDLocale in [ja, en]:
+			assert_ne(locale.text(enemy["name_key"]), enemy["name_key"])
+
+
+func test_skill_files_load_and_translate() -> void:
+	var db := UDSkillDB.load_from_dir("res://data/skills")
+	assert_gt(db.all_ids().size(), 0)
+	var ja := UDLocale.load_locale("ja")
+	var en := UDLocale.load_locale("en")
+	for id in db.all_ids():
+		var skill := db.get_skill(id)
+		for locale: UDLocale in [ja, en]:
+			assert_ne(locale.text(skill["name_key"]), skill["name_key"])
+			assert_ne(locale.text(skill["desc_key"]), skill["desc_key"])
 
 
 func test_facility_files_load_and_translate() -> void:
@@ -93,9 +116,23 @@ func test_document_series_cross_reference() -> void:
 			"%s series %s is defined" % [doc_id, series_id])
 
 
-func test_strata_document_ids_exist() -> void:
+func test_stage_document_ids_exist() -> void:
 	var docs := UDDocumentDB.load_from_dir("res://data/documents")
-	var strata_defs := UDDataLoader.load_json_dir("res://data/strata")
-	for def: Variant in strata_defs:
+	var stage_defs := UDDataLoader.load_json_dir("res://data/stages")
+	for def: Variant in stage_defs:
 		for doc_id: Variant in (def as Dictionary).get("documents", []) as Array:
-			assert_true(docs.has_doc(doc_id), "%s referenced by strata exists" % doc_id)
+			assert_true(docs.has_doc(doc_id), "%s referenced by a stage band exists" % doc_id)
+
+
+func test_stage_trash_and_boss_ids_exist() -> void:
+	var enemies := UDEnemyDB.load_from_dir("res://data/enemies")
+	var stage_defs := UDDataLoader.load_json_dir("res://data/stages")
+	for def: Variant in stage_defs:
+		var stage := def as Dictionary
+		for enemy_id: Variant in stage.get("trash_pool", []) as Array:
+			assert_true(enemies.has_enemy(str(enemy_id)),
+				"%s trash_pool entry %s exists" % [stage["id"], enemy_id])
+		var boss_id := str(stage.get("boss_id", ""))
+		if boss_id != "":
+			assert_true(enemies.has_enemy(boss_id), "%s boss_id %s exists" % [stage["id"], boss_id])
+			assert_true(enemies.is_boss(boss_id), "%s boss_id %s is flagged is_boss" % [stage["id"], boss_id])

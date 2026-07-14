@@ -1,25 +1,25 @@
 class_name UDMinion
 extends RefCounted
-## A worker unit. Moves one cell per tick; digs, then hauls yield to the depot.
-
-enum State { IDLE = 0, MOVING = 1, DIGGING = 2, HAULING = 3 }
-
-const NO_TARGET := Vector2i(-1, -1)
+## A party unit (2026-07-15 redesign: dig -> cave exploration + combat).
+## No position/pathing — battle is not spatial. Growth (max HP/MP/ATK/DEF)
+## is computed from level via an injected growth-def Dictionary
+## (UDSim._growth_def_for_unit()), not stored, mirroring how dig_power()
+## used to be computed rather than saved.
 
 var id: int
 var display_name: String
-var pos: Vector2i
-var state: State = State.IDLE
-var path: Array[Vector2i] = []
-var job_target: Vector2i = NO_TARGET
-var carrying: String = ""
+var level: int = 1
+var hp: int = 1
+var mp: int = 0
 
 
-static func create(p_id: int, p_pos: Vector2i) -> UDMinion:
+static func create(p_id: int, p_level: int, p_hp: int, p_mp: int) -> UDMinion:
 	var minion := UDMinion.new()
 	minion.id = p_id
 	minion.display_name = UD.MINION_NAMES[p_id % UD.MINION_NAMES.size()]
-	minion.pos = p_pos
+	minion.level = p_level
+	minion.hp = p_hp
+	minion.mp = p_mp
 	return minion
 
 
@@ -39,33 +39,20 @@ static func art_variant_for_companion(companion_id: String) -> int:
 
 
 func to_dict() -> Dictionary:
-	var path_arrays: Array = []
-	for cell in path:
-		path_arrays.append([cell.x, cell.y])
 	return {
 		"id": id,
 		"display_name": display_name,
-		"pos": [pos.x, pos.y],
-		"state": int(state),
-		"path": path_arrays,
-		"job_target": [job_target.x, job_target.y],
-		"carrying": carrying,
+		"level": level,
+		"hp": hp,
+		"mp": mp,
 	}
 
 
 static func from_dict(d: Dictionary) -> UDMinion:
 	var minion := UDMinion.new()
 	minion.id = int(d["id"])
-	minion.display_name = d["display_name"]
-	var p: Array = d["pos"]
-	minion.pos = Vector2i(int(p[0]), int(p[1]))
-	minion.state = int(d["state"]) as State
-	var restored: Array[Vector2i] = []
-	for cell: Variant in d["path"] as Array:
-		var c: Array = cell
-		restored.append(Vector2i(int(c[0]), int(c[1])))
-	minion.path = restored
-	var jt: Array = d["job_target"]
-	minion.job_target = Vector2i(int(jt[0]), int(jt[1]))
-	minion.carrying = d["carrying"]
+	minion.display_name = str(d["display_name"])
+	minion.level = int(d.get("level", 1))
+	minion.hp = int(d.get("hp", 1))
+	minion.mp = int(d.get("mp", 0))
 	return minion

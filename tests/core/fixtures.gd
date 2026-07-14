@@ -1,30 +1,44 @@
 class_name UDTestFixtures
 extends RefCounted
-## Shared strata definitions for core tests (independent of data files).
+## Shared enemy/stage definitions for core tests (independent of data files).
 
 
-static func strata(document_chance: float = 0.0) -> UDStrataDB:
-	return UDStrataDB.from_dicts([
+static func enemies() -> UDEnemyDB:
+	return UDEnemyDB.from_dicts([
+		{"id": "test_trash", "name_key": "X", "hp": 4, "atk": 1, "def": 0,
+			"exp": 3, "coins": 2, "is_boss": false},
+		{"id": "test_boss", "name_key": "X", "hp": 20, "atk": 3, "def": 1,
+			"exp": 15, "coins": 10, "is_boss": true},
+	])
+
+
+## `document_chance` on the non-gate band, matching the old strata fixture's
+## optional param (0.0 by default so document rolls are opt-in per test).
+static func stages(document_chance: float = 0.0) -> UDStageDB:
+	return UDStageDB.from_dicts([
 		{
-			"id": "test_soil",
-			"name_key": "S",
-			"depth_from": 1,
-			"depth_to": 4,
-			"terrain": "SOIL",
-			"hardness": 2,
-			"yield": "soil",
-			"documents": ["d1", "d2", "d3"],
-			"document_chance": document_chance,
+			"id": "test_band", "name_key": "X",
+			"stage_from": 1, "stage_to": 4,
+			"trash_pool": ["test_trash"], "boss_id": "",
+			"documents": ["d1", "d2", "d3"], "document_chance": document_chance,
 		},
 		{
-			"id": "test_rock",
-			"name_key": "R",
-			"depth_from": 5,
-			"depth_to": 9,
-			"terrain": "ROCK",
-			"hardness": 4,
-			"yield": "stone",
-			"documents": ["d4"],
-			"document_chance": document_chance,
+			"id": "test_gate", "name_key": "X",
+			"stage_from": 5, "stage_to": 5,
+			"trash_pool": ["test_trash"], "boss_id": "test_boss",
+			"documents": ["d4"], "document_chance": document_chance,
 		},
+		{
+			"id": "test_deep", "name_key": "X",
+			"stage_from": 6, "stage_to": 9,
+			"trash_pool": ["test_trash"], "boss_id": "",
+			"documents": [], "document_chance": document_chance,
+		},
+	])
+
+
+static func skills() -> UDSkillDB:
+	return UDSkillDB.from_dicts([
+		{"id": "test_skill", "name_key": "X", "desc_key": "X",
+			"mp_cost": 2, "power": 5, "target": "enemy", "effect": "damage"},
 	])

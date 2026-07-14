@@ -1,0 +1,10 @@
+{
+	"id": "deeper",
+	"name_key": "STAGE_DEEPER",
+	"stage_from": 11,
+	"stage_to": 999,
+	"trash_pool": ["cave_bat", "cave_spider"],
+	"boss_id": "",
+	"documents": ["doc_011", "doc_012", "doc_013"],
+	"document_chance": 0.12
+}

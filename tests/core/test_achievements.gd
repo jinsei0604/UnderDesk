@@ -21,7 +21,7 @@ func _defs() -> Array:
 
 
 func test_nothing_unlocks_at_start() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 1)
 	var tracker := UDAchievements.from_defs(_defs(), UDPlatform.new())
 	assert_eq(tracker.evaluate(sim).size(), 0)
 	assert_eq(tracker.unlocked.size(), 0)
@@ -30,7 +30,7 @@ func test_nothing_unlocks_at_start() -> void:
 func test_unlocks_once_and_notifies_platform() -> void:
 	var platform := RecordingPlatform.new()
 	var tracker := UDAchievements.from_defs(_defs(), platform)
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 1)
 	sim.discovered_documents.append("d1")
 	sim.discovered_documents.append("d2")
 	var fresh := tracker.evaluate(sim)
@@ -42,10 +42,8 @@ func test_unlocks_once_and_notifies_platform() -> void:
 
 func test_depth_trigger() -> void:
 	var tracker := UDAchievements.from_defs(_defs(), UDPlatform.new())
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
-	for x in range(1, 4):
-		sim._ensure_cols(x + 2)
-		sim.grid.set_terrain(Vector2i(x, 1), UD.Terrain.AIR)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 1)
+	sim.stage_index = 3
 	var fresh := tracker.evaluate(sim)
 	assert_true(fresh.has("a_depth"))
 
@@ -56,7 +54,7 @@ func test_unlocks_survive_dict_roundtrip() -> void:
 	var restored := UDAchievements.from_defs(_defs(), UDPlatform.new())
 	restored.apply_dict(JSON.parse_string(JSON.stringify(tracker.to_dict())))
 	assert_eq(restored.unlocked, ["a_docs"] as Array[String])
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 1)
 	sim.discovered_documents.append("d1")
 	sim.discovered_documents.append("d2")
 	assert_eq(restored.evaluate(sim).size(), 0, "restored unlock not re-earned")

@@ -7,15 +7,9 @@ const SPLIT_TICK: int = 137
 
 
 func _new_sim_with_work(rng_seed: int) -> UDSim:
-	var sim := UDSim.new_game(UDTestFixtures.strata(0.5), rng_seed)
-	# A column straight down plus side branches: enough work to keep
-	# all three minions busy and consume RNG via document rolls.
-	for y in range(1, 7):
-		sim.add_dig_job(Vector2i(UD.DEPOT_POS.x, y))
-	sim.add_dig_job(Vector2i(UD.DEPOT_POS.x - 1, 1))
-	sim.add_dig_job(Vector2i(UD.DEPOT_POS.x + 1, 1))
-	sim.add_dig_job(Vector2i(UD.DEPOT_POS.x + 1, 2))
-	return sim
+	# document_chance 0.5 keeps rolls consuming RNG every kill, same as the
+	# old fixture's "enough work to consume RNG via document rolls".
+	return UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(0.5), rng_seed)
 
 
 func _snapshot(sim: UDSim) -> String:
@@ -40,7 +34,7 @@ func test_save_load_midway_does_not_diverge() -> void:
 	interrupted.advance(SPLIT_TICK)
 	# Simulate app kill + restart: serialize through actual JSON text.
 	var json_text := JSON.stringify(interrupted.to_dict())
-	var restored := UDSim.from_dict(JSON.parse_string(json_text), UDTestFixtures.strata(0.5))
+	var restored := UDSim.from_dict(JSON.parse_string(json_text), UDTestFixtures.enemies(), UDTestFixtures.stages(0.5))
 	restored.advance(TOTAL_TICKS - SPLIT_TICK)
 
 	assert_eq(_snapshot(continuous), _snapshot(restored))

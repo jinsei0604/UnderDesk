@@ -1,17 +1,8 @@
 key,text
 APP_TITLE,UNDERDESK
-STRATUM_TOPSOIL,Topsoil
-STRATUM_BEDROCK,Bedrock
-STRATUM_AQUIFER,Aquifer
-STRATUM_RUINS,Ancient Ruins
 ROOM_TAVERN,Guild
 ROOM_ALTAR,Altar
 ROOM_DORM,Dormitory
-RES_SOIL,Soil
-RES_STONE,Stone
-RES_ORE,Ore
-RES_MAGIC_STONE,Magic Stone
-RES_FOOD,Food
 RES_GOLD,Coins
 UI_TREASURES,Treasures
 ITEM_OLD_LANTERN,An Old Lantern
@@ -36,13 +27,13 @@ UI_COLLECTED,Collected +%d coins
 UI_SHOP,Shop
 UI_BUY,Buy
 UI_COMPANION_JOINED,A companion joined: %s
-SHOP_PICKAXE,Better Pickaxes
-SHOP_PICKAXE_DESC,Dig power +1 for the whole crew
-SHOP_SURVEY,Geological Survey
-SHOP_SURVEY_DESC,Documents unearthed +5%
-ANOMALY_LUSH_VEIN,Lush Ley Vein (documents more common)
-ANOMALY_SOFT_EARTH,Soft Earth (dig power +1)
-ANOMALY_GOLD_DUST,Gold Dust Wind (+1 gold per dig)
+SHOP_PICKAXE,Weapon Training
+SHOP_PICKAXE_DESC,Party attack +1 for everyone
+SHOP_SURVEY,Charted Map
+SHOP_SURVEY_DESC,Documents found +5%
+ANOMALY_LUSH_VEIN,Quiet Cavern (documents more common)
+ANOMALY_SOFT_EARTH,Fighting Spirit (attack +1)
+ANOMALY_GOLD_DUST,Lucky Coins (+1 gold per kill)
 UI_OFFLINE_REPORT,%d ticks passed while you were away
 DOC_001_TITLE,A Miner's Journal - I
 DOC_001_BODY,"Day three. The soil here is soft. The more you dig, the more you earn — good work, honest work. But the foreman says strange things. ""Train your ears before you train your depth,"" he tells us. Whatever that means. Last night, from somewhere far below the shaft, came a sound — not quite water, not quite breathing. An aquifer, everyone laughed. I laughed too."
@@ -80,8 +71,8 @@ ACH_DOCS_10,One Who Read Too Much
 ACH_DOCS_10_DESC,Unearth 10 documents
 ACH_ITEMS_5,Budding Collector
 ACH_ITEMS_5_DESC,Collect 5 treasures
-ACH_DEPTH_20,Depth Twenty
-ACH_DEPTH_20_DESC,Reach depth 20
+ACH_DEPTH_20,Stage Twenty
+ACH_DEPTH_20_DESC,Reach stage 20
 UI_PROGRESS_DOCS,Documents found %d / %d
 UI_PROGRESS_ITEMS,Treasures collected %d / %d
 UI_SELECT_HINT,Select a card to see its details.
@@ -98,7 +89,7 @@ UI_RANK,Rank
 UI_ALTAR,Offering
 UI_ALTAR_OFFER,Offer
 UI_ALTAR_LEVEL,Altar Lv.%d
-UI_ALTAR_EFFECT,+1 dig power for the life of this shaft
+UI_ALTAR_EFFECT,+1 attack for the life of this save
 UI_ALTAR_COINS,Offer coins
 UI_ALTAR_NEED_RANK,Requires offering one rank-%s treasure
 UI_ALTAR_NO_ITEM,You own no rank-%s treasure
@@ -111,8 +102,8 @@ UI_GUILD_COST,Requires: rank %s ×%d
 UI_GUILD_CONSUMES,Will consume:
 UI_GUILD_SHORT,Not enough fodder (need rank %s ×%d)
 "UI_BUILD_CANNOT_AFFORD","Not enough coins to build the %s."
-"FACILITY_ALTAR_DESC","Raises document discovery rate. Offerings here boost dig power further."
-"FACILITY_GUILD_DESC","Raises dig power. Also opens rank-up treasure exchange."
+"FACILITY_ALTAR_DESC","Raises document discovery rate. Offerings here boost attack further."
+"FACILITY_GUILD_DESC","Raises attack. Also opens rank-up treasure exchange."
 "FACILITY_DORM_DESC","Where the party rests."
 UI_PARTY,Party
 ITEM_RUSTED_SPOON,A Rusted Spoon
@@ -141,8 +132,8 @@ ITEM_UPWARD_ROOT,A Root That Grows Upward
 ITEM_UPWARD_ROOT_DESC,"Buried in the strata, yet the moment it is dug up, it keeps growing toward the light."
 ACH_ITEMS_10,Collector
 ACH_ITEMS_10_DESC,Collect 10 treasures
-ACH_DEPTH_50,Depth Fifty
-ACH_DEPTH_50_DESC,Reach depth 50
+ACH_DEPTH_50,Stage Fifty
+ACH_DEPTH_50_DESC,Reach stage 50
 ACH_DOCS_20,Document Addict
 ACH_DOCS_20_DESC,Unearth 20 documents
 ITEM_BENT_PIN,A Bent Pin
@@ -311,3 +302,23 @@ ITEM_TORN_SHEET_MUSIC_FRAGMENT,A Torn Sheet Music Fragment
 ITEM_TORN_SHEET_MUSIC_FRAGMENT_DESC,"Only the final measure of notes can be read; no one knows the rest of the song."
 ITEM_CHIPPED_RING_BOX,A Chipped Ring Box
 ITEM_CHIPPED_RING_BOX_DESC,"Open the lid and it is empty, yet closing it always makes a small sound."
+ENEMY_CAVE_RAT,Cave Rat
+ENEMY_CAVE_BAT,Cave Bat
+ENEMY_CAVE_SPIDER,Cave Spider
+ENEMY_CAVE_TROLL,Cave Troll
+STAGE_SHALLOW,Shallow Cavern
+STAGE_GATE_10,The Troll's Chamber
+STAGE_DEEPER,Deep Cavern
+SKILL_FIREBALL_NAME,Fireball
+SKILL_FIREBALL_DESC,Hurls a ball of fire at the enemy
+UI_STAGE,Stage
+UI_FIGHT_GATE,Fight
+UI_FIGHT_NONE,-
+UI_BOSS_ATTACK,Attack
+UI_BOSS_RESOLVE,Resolve
+UI_BOSS_FLEE,Flee
+UI_BOSS_WON,Victory!
+UI_BOSS_LOST,The party was overwhelmed and retreated
+UI_LEVEL_UP,Level Up
+UI_LEVEL_UP_COST,EXP needed
+UI_OFFLINE_EARNED,While away: +%d EXP, +%d gold

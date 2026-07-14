@@ -15,7 +15,7 @@ func _dorm_def() -> Dictionary:
 func _tavern_def() -> Dictionary:
 	return {
 		"id": "tavern", "name_key": "ROOM_TAVERN", "desc_key": "FACILITY_GUILD_DESC",
-		"base_cost": 40, "cost_mult": 1.0, "effect": "dig_power_add", "max_level": 1,
+		"base_cost": 40, "cost_mult": 1.0, "effect": "atk_add", "max_level": 1,
 	}
 
 
@@ -29,7 +29,7 @@ func _altar_def() -> Dictionary:
 func test_dorm_unlock_costs_coins_and_spawns_no_worker() -> void:
 	# Plan change: companions join through the story, so the dorm is
 	# flavor only and must not spawn workers.
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 3)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 3)
 	sim.inventory[UD.RES_GOLD] = 25
 	var before := sim.minions.size()
 	assert_true(sim.buy_upgrade(_dorm_def()))
@@ -39,37 +39,37 @@ func test_dorm_unlock_costs_coins_and_spawns_no_worker() -> void:
 
 
 func test_unlock_rejects_insufficient_coins() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 3)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 3)
 	sim.inventory[UD.RES_GOLD] = 24
 	assert_false(sim.buy_upgrade(_dorm_def()))
 	assert_false(sim.dorm_built())
 
 
 func test_unlock_is_one_time_only() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 3)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 3)
 	sim.inventory[UD.RES_GOLD] = 1000
 	assert_true(sim.buy_upgrade(_altar_def()))
 	assert_false(sim.buy_upgrade(_altar_def()), "max_level 1: no second purchase")
 
 
-func test_guild_unlock_adds_dig_power() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 3)
-	assert_eq(sim.dig_power(), UD.MINION_DIG_POWER)
+func test_guild_unlock_adds_atk() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 3)
+	assert_eq(sim.party_atk_bonus(), 0)
 	assert_false(sim.guild_built())
 	sim.inventory[UD.RES_GOLD] = 40
 	assert_true(sim.buy_upgrade(_tavern_def()))
 	assert_true(sim.guild_built())
-	assert_eq(sim.dig_power(), UD.MINION_DIG_POWER + 1)
+	assert_eq(sim.party_atk_bonus(), 1)
 	# The bonus must survive a save/load cycle.
 	var restored := UDSim.from_dict(
-		JSON.parse_string(JSON.stringify(sim.to_dict())), UDTestFixtures.strata()
+		JSON.parse_string(JSON.stringify(sim.to_dict())), UDTestFixtures.enemies(), UDTestFixtures.stages()
 	)
-	assert_eq(restored.dig_power(), UD.MINION_DIG_POWER + 1)
+	assert_eq(restored.party_atk_bonus(), 1)
 	assert_true(restored.guild_built())
 
 
 func test_altar_unlock_raises_document_chance() -> void:
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 3)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 3)
 	assert_eq(sim.document_chance_bonus(), 0.0)
 	assert_false(sim.altar_built())
 	sim.inventory[UD.RES_GOLD] = 80
@@ -77,7 +77,7 @@ func test_altar_unlock_raises_document_chance() -> void:
 	assert_true(sim.altar_built())
 	assert_eq(sim.document_chance_bonus(), UD.UPGRADE_DOC_CHANCE)
 	var restored := UDSim.from_dict(
-		JSON.parse_string(JSON.stringify(sim.to_dict())), UDTestFixtures.strata()
+		JSON.parse_string(JSON.stringify(sim.to_dict())), UDTestFixtures.enemies(), UDTestFixtures.stages()
 	)
 	assert_eq(restored.document_chance_bonus(), UD.UPGRADE_DOC_CHANCE)
 	assert_true(restored.altar_built())
@@ -87,28 +87,28 @@ func test_v5_room_migrates_to_upgrade() -> void:
 	# Pre-2026-07-13 saves recorded altar/tavern/dorm as placed rooms
 	# (an array of {id, pos, effect}). Loading one must carry the
 	# unlock over as a level-1 upgrade instead of losing it silently.
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 3)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 3)
 	var d := sim.to_dict()
 	d["version"] = 5
 	d["rooms"] = [
 		{"id": "altar", "pos": [5, 1], "effect": "doc_chance_add"},
-		{"id": "tavern", "pos": [7, 1], "effect": "dig_power_add"},
+		{"id": "tavern", "pos": [7, 1], "effect": "atk_add"},
 	]
-	var restored := UDSim.from_dict(JSON.parse_string(JSON.stringify(d)), UDTestFixtures.strata())
+	var restored := UDSim.from_dict(JSON.parse_string(JSON.stringify(d)), UDTestFixtures.enemies(), UDTestFixtures.stages())
 	assert_true(restored.altar_built())
 	assert_true(restored.guild_built())
 	assert_false(restored.dorm_built(), "dorm was never in this old save")
 	assert_eq(restored.document_chance_bonus(), UD.UPGRADE_DOC_CHANCE)
-	assert_eq(restored.dig_power(), UD.MINION_DIG_POWER + 1)
+	assert_eq(restored.party_atk_bonus(), 1)
 
 
 func test_v5_room_migration_does_not_override_existing_upgrade() -> void:
 	# Defensive: if a future re-save already has the upgrade recorded,
 	# the legacy rooms array must not clobber it (e.g. reset a level).
-	var sim := UDSim.new_game(UDTestFixtures.strata(), 3)
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 3)
 	var d := sim.to_dict()
 	d["version"] = 5
 	d["upgrades"] = {"altar": {"level": 1, "effect": "doc_chance_add"}}
 	d["rooms"] = [{"id": "altar", "pos": [5, 1], "effect": "doc_chance_add"}]
-	var restored := UDSim.from_dict(JSON.parse_string(JSON.stringify(d)), UDTestFixtures.strata())
+	var restored := UDSim.from_dict(JSON.parse_string(JSON.stringify(d)), UDTestFixtures.enemies(), UDTestFixtures.stages())
 	assert_eq(restored.upgrade_level("altar"), 1, "no double-application")

@@ -59,7 +59,9 @@ func _metric(sim: UDSim, type: String) -> int:
 		"items":
 			return sim.distinct_items()
 		"depth":
-			return sim.frontier_distance()
+			# Kept as "depth" for save/data-file compat; now reads the
+			# stage reached rather than dig distance (2026-07-15 redesign).
+			return sim.stage_index
 	return 0
 
 
