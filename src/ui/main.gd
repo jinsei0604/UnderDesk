@@ -167,6 +167,12 @@ func _ready() -> void:
 	_build_dorm_dialog()
 	_refresh_button_texts()
 	_apply_window_mode()
+	# A save written mid-boss-fight (boss_active true) otherwise reopens to
+	# an unbroken-looking but blank battle view: _draw_battle() only runs
+	# when not boss_active, and nothing else shows the fight without a
+	# click on "挑む" the player has no reason to make from a cold start.
+	if sim.boss_active:
+		_show_boss_panel()
 	queue_redraw()
 
 
