@@ -85,3 +85,17 @@ func test_removed_companion_defs_prune_saved_party() -> void:
 	assert_eq(restored.minions.size(), 2, "party rebuilt to protagonist + c1")
 
 
+func test_all_companions_removed_prunes_party_to_solo() -> void:
+	# Every companion definition was deleted (empty defs): a save still
+	# holding one must shed it and fall back to the solo protagonist.
+	var sim := UDSim.new_game(UDTestFixtures.strata(), 1, [], _defs())
+	sim.companions.append("c1")
+	sim.minions.append(UDMinion.create(1, UD.DEPOT_POS))
+	var restored := UDSim.from_dict(
+		JSON.parse_string(JSON.stringify(sim.to_dict())),
+		UDTestFixtures.strata(), [], []
+	)
+	assert_eq(restored.companions.size(), 0, "companion shed with no definitions")
+	assert_eq(restored.minions.size(), 1, "party is the solo protagonist")
+
+

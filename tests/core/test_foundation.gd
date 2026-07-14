@@ -4,11 +4,11 @@ extends GutTest
 
 func test_art_library_loads_shipped_art_and_falls_back() -> void:
 	var lib := UDArtLibrary.load_default(["dorm", "tavern", "altar"])
-	# Shipped: terrain set, rooms, depot, protagonist, Riko.
+	# Shipped: terrain set, rooms, depot, protagonist.
 	for key: String in [
 		"terrain_soil", "terrain_rock", "terrain_wetrock", "terrain_ruinstone",
 		"terrain_air", "depot", "room_dorm", "room_tavern", "room_altar",
-		"minion_0", "minion_2",
+		"minion_0",
 	]:
 		assert_true(lib.has_art(key), "%s loads" % key)
 	# Companions without art yet fall back to placeholder rectangles.
@@ -19,7 +19,6 @@ func test_art_library_loads_shipped_art_and_falls_back() -> void:
 func test_art_frame_animation() -> void:
 	var lib := UDArtLibrary.load_default([])
 	assert_eq(lib.frame_count("minion_0"), 5, "protagonist has a 5-frame dig loop")
-	assert_eq(lib.frame_count("minion_2"), 2, "Riko has a blink frame")
 	assert_eq(lib.frame_count("terrain_soil"), 1, "static tiles stay single-frame")
 	assert_eq(lib.frame_count("minion_1"), 0, "missing art has no frames")
 	assert_not_null(lib.frame("minion_0", 0))
@@ -64,7 +63,7 @@ func test_placeholder_icon_shapes_differ() -> void:
 
 
 func test_load_default_finds_real_art_for_extra_categories() -> void:
-	# minion_2.png ships for real (Riko); reuse it as a stand-in room id
-	# to prove the item/shop/doc id params get probed.
+	# room_dorm.png ships for real; the extra id params (items, etc.) get
+	# probed too and fall back cleanly when no art exists yet.
 	var lib := UDArtLibrary.load_default(["dorm"], ["old_lantern"])
 	assert_false(lib.has_art("item_old_lantern"), "no item art shipped yet")

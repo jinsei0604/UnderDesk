@@ -641,8 +641,10 @@ static func from_dict(
 			job.claimed_by = -1
 			job.progress = 0
 	# Companions whose definitions were removed (placeholder characters)
-	# leave the party; the crew is rebuilt when the roster changed.
-	if not p_companion_defs.is_empty():
+	# leave the party; the crew is rebuilt when the roster changed. Runs
+	# whenever the save holds any companion — even if every definition was
+	# removed (known_ids empty) — so a lingering one is pruned to solo.
+	if not sim.companions.is_empty():
 		var known_ids: Array[String] = []
 		for def: Variant in p_companion_defs:
 			known_ids.append(str((def as Dictionary)["id"]))

@@ -35,7 +35,6 @@ UI_DAILY,今日の異変
 UI_COLLECTED,回収 +%d コイン
 UI_SHOP,ショップ
 UI_BUY,購入
-COMPANION_2_NAME,リコ
 UI_COMPANION_JOINED,仲間が加わった: %s
 SHOP_PICKAXE,つるはし強化
 SHOP_PICKAXE_DESC,全員の掘削力+1

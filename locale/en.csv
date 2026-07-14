@@ -35,7 +35,6 @@ UI_DAILY,Today's Anomaly
 UI_COLLECTED,Collected +%d coins
 UI_SHOP,Shop
 UI_BUY,Buy
-COMPANION_2_NAME,Riko
 UI_COMPANION_JOINED,A companion joined: %s
 SHOP_PICKAXE,Better Pickaxes
 SHOP_PICKAXE_DESC,Dig power +1 for the whole crew
