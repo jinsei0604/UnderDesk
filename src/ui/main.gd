@@ -515,17 +515,20 @@ func _draw_grid() -> void:
 	var first_col: int = maxi(0, int(-origin.x / cell_px))
 	var last_col: int = mini(sim.grid.width, first_col + int(size.x / cell_px) + 2)
 	var has_rock := art.has_art("terrain_rock")
-	# Ground + backdrop is one scrolling rock mass (not per-cell tiles): no
+	var has_bg := art.has_art("dig_background")
+	# Ground + backdrop is one scrolling image (not per-cell tiles): no
 	# repeating seams, and it pans with the world as the tunnel advances.
 	_draw_background(origin)
-	# The dig band carves a 2-row passage through that mass: dug cells become
-	# the hollow tunnel; the unmined face ahead keeps the rock block texture.
+	# The dig band carves a 2-row passage through that mass: dug cells reveal
+	# the backdrop (or a plain hollow color without shipped art); the unmined
+	# face ahead keeps the rock block texture, blocking the backdrop.
 	for y in sim.grid.height:
 		for x in range(first_col, last_col):
 			var cell := Vector2i(x, y)
 			var rect := _cell_rect(origin, cell)
 			if sim.grid.terrain_at(cell) == UD.Terrain.AIR:
-				draw_rect(rect, COLOR_TUNNEL_HOLLOW)
+				if not has_bg:
+					draw_rect(rect, COLOR_TUNNEL_HOLLOW)
 			elif has_rock:
 				draw_texture_rect(art.tiled_texture("terrain_rock", cell), rect, false)
 			else:
