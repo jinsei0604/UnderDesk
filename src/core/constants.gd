@@ -2,20 +2,24 @@ class_name UD
 extends RefCounted
 ## UNDERDESK core constants (§12-1: no magic numbers).
 
-const SAVE_VERSION: int = 6
+const SAVE_VERSION: int = 7
 
 ## Simulation tick length (§7.1: timer-driven, not per-frame).
 const TICK_SECONDS: float = 2.0
 ## Offline catch-up cap: 24 hours of 2-second ticks (§7.1-4).
 const MAX_OFFLINE_TICKS: int = 43200
 
-const GRID_WIDTH: int = 60
-const GRID_INITIAL_HEIGHT: int = 8
-## Rows appended below when digging approaches the bottom.
-const GRID_EXPAND_ROWS: int = 4
+## The dig is a horizontal corridor: a fixed-height tunnel that extends
+## rightward forever (2026-07-14 redesign). y = the tunnel's thin vertical
+## span; x = distance dug from the entrance, which the strata map onto.
+const CORRIDOR_HEIGHT: int = 3
+const GRID_INITIAL_WIDTH: int = 8
+## Columns appended to the right when digging approaches the frontier.
+const GRID_EXPAND_COLS: int = 4
 
-## Home depot on the surface row where minions deposit resources.
-const DEPOT_POS := Vector2i(30, 0)
+## Home depot at the tunnel mouth (left edge, mid-height) where minions
+## start and deposit resources.
+const DEPOT_POS := Vector2i(0, 1)
 
 enum Terrain { AIR = 0, SOIL = 1, ROCK = 2, WETROCK = 3, RUINSTONE = 4 }
 
@@ -44,7 +48,10 @@ const ALL_RESOURCES: Array[String] = [
 ]
 
 ## §4: dig commands are direction-level policies, not per-cell orders.
-enum DigPolicy { NONE = 0, DOWN = 1, WIDEN = 2 }
+## RIGHT advances the horizontal tunnel; WIDEN clears the tunnel's full
+## height at the frontier. (RIGHT kept enum value 1 for save-compat with
+## the old DOWN policy.)
+enum DigPolicy { NONE = 0, RIGHT = 1, WIDEN = 2 }
 
 ## Economy: hauled resources convert to coins on deposit (shop currency).
 const COIN_VALUES: Dictionary = {

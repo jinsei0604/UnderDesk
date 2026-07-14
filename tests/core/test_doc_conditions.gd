@@ -11,8 +11,9 @@ func _conditions() -> Dictionary:
 	}
 
 
-func _dig_next(sim: UDSim, y: int) -> void:
-	sim.add_dig_job(Vector2i(UD.DEPOT_POS.x, y))
+func _dig_next(sim: UDSim, dist: int) -> void:
+	# Dig the next cell rightward along the tunnel (dist = distance from mouth).
+	sim.add_dig_job(Vector2i(dist, UD.DEPOT_POS.y))
 	sim.advance(30)
 
 
@@ -65,7 +66,7 @@ func test_gating_is_deterministic() -> void:
 	var a := UDSim.new_game(UDTestFixtures.strata(1.0), 11, [], [], _conditions())
 	var b := UDSim.new_game(UDTestFixtures.strata(1.0), 11, [], [], _conditions())
 	for sim: UDSim in [a, b]:
-		sim.dig_policy = UD.DigPolicy.DOWN
+		sim.dig_policy = UD.DigPolicy.RIGHT
 		sim.advance(200)
 	assert_eq(JSON.stringify(a.to_dict()), JSON.stringify(b.to_dict()))
 

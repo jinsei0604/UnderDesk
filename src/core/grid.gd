@@ -1,24 +1,32 @@
 class_name UDGrid
 extends RefCounted
-## 2D cross-section grid. y = 0 is the surface row; rows extend downward.
-## Engine-node independent (§12-2).
+## Horizontal tunnel grid (2026-07-14 redesign). Fixed height (the tunnel's
+## thin vertical span); x extends rightward as the dig advances. y = 0 is the
+## tunnel ceiling. Engine-node independent (§12-2). Stored row-major, so
+## appending a column rebuilds the backing array — cheap at the idle dig
+## cadence and the corridor's small height.
 
-var width: int
-var height: int = 0
+var width: int = 0
+var height: int
+
+
+func _init(p_height: int = UD.CORRIDOR_HEIGHT) -> void:
+	height = p_height
+
+
 var _cells: PackedInt32Array = PackedInt32Array()
 
 
-func _init(p_width: int = UD.GRID_WIDTH) -> void:
-	width = p_width
-
-
-## Appends one row at the bottom filled with the given terrain.
-func append_row(terrain: UD.Terrain) -> void:
-	var row := PackedInt32Array()
-	row.resize(width)
-	row.fill(terrain)
-	_cells.append_array(row)
-	height += 1
+## Appends one column at the right filled with the given terrain.
+func append_column(terrain: UD.Terrain) -> void:
+	var new_cells := PackedInt32Array()
+	new_cells.resize((width + 1) * height)
+	for y in height:
+		for x in width:
+			new_cells[y * (width + 1) + x] = _cells[y * width + x]
+		new_cells[y * (width + 1) + width] = terrain
+	_cells = new_cells
+	width += 1
 
 
 func is_inside(pos: Vector2i) -> bool:
@@ -48,8 +56,8 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(d: Dictionary) -> UDGrid:
-	var grid := UDGrid.new(int(d["width"]))
-	grid.height = int(d["height"])
+	var grid := UDGrid.new(int(d["height"]))
+	grid.width = int(d["width"])
 	var cells := PackedInt32Array()
 	for v: Variant in d["cells"] as Array:
 		cells.append(int(v))

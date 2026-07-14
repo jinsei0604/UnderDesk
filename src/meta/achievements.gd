@@ -59,7 +59,7 @@ func _metric(sim: UDSim, type: String) -> int:
 		"items":
 			return sim.distinct_items()
 		"depth":
-			return sim.deepest_air_row()
+			return sim.frontier_distance()
 	return 0
 
 

@@ -6,7 +6,7 @@ extends GutTest
 func test_dig_bags_loot_and_collect_converts() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 42)
 	sim.dig_policy = UD.DigPolicy.NONE
-	sim.add_dig_job(Vector2i(UD.DEPOT_POS.x, 1))
+	sim.add_dig_job(Vector2i(1, UD.DEPOT_POS.y))
 	sim.advance(30)
 	assert_eq(int(sim.pending_loot.get(UD.RES_SOIL, 0)), 1, "loot bagged on the spot")
 	var before := int(sim.inventory[UD.RES_GOLD])
@@ -72,7 +72,7 @@ func test_special_finds_are_deterministic() -> void:
 	var a := UDSim.new_game(UDTestFixtures.strata(), 777, pool)
 	var b := UDSim.new_game(UDTestFixtures.strata(), 777, pool)
 	for sim: UDSim in [a, b]:
-		sim.dig_policy = UD.DigPolicy.DOWN
+		sim.dig_policy = UD.DigPolicy.RIGHT
 		sim.advance(600)
 	assert_eq(JSON.stringify(a.to_dict()), JSON.stringify(b.to_dict()))
 	for item_id: Variant in a.items.keys():
@@ -81,7 +81,7 @@ func test_special_finds_are_deterministic() -> void:
 
 func test_chest_with_empty_pool_pays_coins_without_crashing() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 777)
-	sim.dig_policy = UD.DigPolicy.DOWN
+	sim.dig_policy = UD.DigPolicy.RIGHT
 	sim.advance(600)
 	sim.collect_loot()
 	assert_eq(sim.items.size(), 0, "no pool, no items")

@@ -7,7 +7,7 @@ const MAX_TICKS: int = 60
 func test_full_dig_haul_cycle() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 42)
 	sim.dig_policy = UD.DigPolicy.NONE
-	var target := Vector2i(UD.DEPOT_POS.x, 1)
+	var target := Vector2i(1, UD.DEPOT_POS.y)
 	assert_true(sim.add_dig_job(target))
 
 	var done := false
@@ -27,8 +27,8 @@ func test_full_dig_haul_cycle() -> void:
 
 func test_dig_job_validation() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 42)
-	assert_false(sim.add_dig_job(Vector2i(5, 0)), "air cell not diggable")
-	assert_false(sim.add_dig_job(Vector2i(-1, 3)), "out of bounds")
+	assert_false(sim.add_dig_job(Vector2i(0, 0)), "air cell (entrance) not diggable")
+	assert_false(sim.add_dig_job(Vector2i(-1, 1)), "out of bounds")
 	assert_true(sim.add_dig_job(Vector2i(5, 1)))
 	assert_false(sim.add_dig_job(Vector2i(5, 1)), "duplicate designation")
 
@@ -36,21 +36,21 @@ func test_dig_job_validation() -> void:
 func test_unreachable_job_stays_queued_without_breaking() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 42)
 	sim.dig_policy = UD.DigPolicy.NONE
-	assert_true(sim.add_dig_job(Vector2i(5, 3)), "buried cell can be designated")
+	# Column 5 is walled in on every side: reachable from nowhere yet.
+	assert_true(sim.add_dig_job(Vector2i(5, 1)), "buried cell can be designated")
 	sim.advance(20)
 	assert_eq(sim.jobs.size(), 1, "job waits until reachable (§5.1: no loss)")
 	for minion in sim.minions:
 		assert_eq(minion.state, UDMinion.State.IDLE)
 
 
-func test_digging_down_expands_grid() -> void:
+func test_digging_expands_grid_rightward() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 42)
-	var initial_height := sim.grid.height
-	# Dig a column downward; each completed dig near the bottom appends rows.
-	for y in range(1, initial_height):
-		sim.add_dig_job(Vector2i(UD.DEPOT_POS.x, y))
-	sim.advance(400)
-	assert_gt(sim.grid.height, initial_height, "grid expanded downward")
+	var initial_width := sim.grid.width
+	# The auto-tunnel keeps appending columns as the frontier advances.
+	sim.dig_policy = UD.DigPolicy.RIGHT
+	sim.advance(600)
+	assert_gt(sim.grid.width, initial_width, "grid expanded rightward")
 
 
 func test_document_discovery_is_deterministic() -> void:
@@ -58,7 +58,7 @@ func test_document_discovery_is_deterministic() -> void:
 	var sim_b := UDSim.new_game(UDTestFixtures.strata(1.0), 7)
 	for sim: UDSim in [sim_a, sim_b]:
 		sim.dig_policy = UD.DigPolicy.NONE
-		sim.add_dig_job(Vector2i(UD.DEPOT_POS.x, 1))
+		sim.add_dig_job(Vector2i(1, UD.DEPOT_POS.y))
 		sim.advance(30)
 	assert_eq(sim_a.discovered_documents.size(), 1, "chance 1.0 always drops")
 	assert_eq(sim_a.discovered_documents, sim_b.discovered_documents,

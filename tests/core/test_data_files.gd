@@ -4,12 +4,12 @@ extends GutTest
 
 func test_strata_files_load() -> void:
 	var strata := UDStrataDB.load_from_dir("res://data/strata")
-	assert_eq(strata.terrain_for_depth(0), UD.Terrain.AIR)
-	assert_eq(strata.terrain_for_depth(1), UD.Terrain.SOIL)
-	assert_eq(strata.terrain_for_depth(6), UD.Terrain.ROCK)
-	assert_eq(strata.terrain_for_depth(16), UD.Terrain.WETROCK)
-	assert_eq(strata.terrain_for_depth(31), UD.Terrain.RUINSTONE)
-	assert_eq(strata.terrain_for_depth(100), UD.Terrain.RUINSTONE, "deepest stratum repeats")
+	assert_eq(strata.terrain_for_distance(0), UD.Terrain.AIR)
+	assert_eq(strata.terrain_for_distance(1), UD.Terrain.SOIL)
+	assert_eq(strata.terrain_for_distance(6), UD.Terrain.ROCK)
+	assert_eq(strata.terrain_for_distance(16), UD.Terrain.WETROCK)
+	assert_eq(strata.terrain_for_distance(31), UD.Terrain.RUINSTONE)
+	assert_eq(strata.terrain_for_distance(100), UD.Terrain.RUINSTONE, "deepest stratum repeats")
 
 
 func test_facility_files_load_and_translate() -> void:

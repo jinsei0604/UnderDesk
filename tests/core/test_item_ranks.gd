@@ -51,7 +51,7 @@ func test_chest_skips_capped_items() -> void:
 	for id: Variant in RANKS.keys():
 		sim.items[str(id)] = sim.item_cap(str(id))
 	var before := sim.items.duplicate()
-	sim.dig_policy = UD.DigPolicy.DOWN
+	sim.dig_policy = UD.DigPolicy.RIGHT
 	sim.advance(400)
 	assert_eq(sim.items, before, "everything at cap: chests only pay coins")
 

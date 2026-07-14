@@ -43,9 +43,9 @@ func test_unlocks_once_and_notifies_platform() -> void:
 func test_depth_trigger() -> void:
 	var tracker := UDAchievements.from_defs(_defs(), UDPlatform.new())
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 1)
-	for y in range(1, 4):
-		sim._ensure_rows(y + 2)
-		sim.grid.set_terrain(Vector2i(5, y), UD.Terrain.AIR)
+	for x in range(1, 4):
+		sim._ensure_cols(x + 2)
+		sim.grid.set_terrain(Vector2i(x, 1), UD.Terrain.AIR)
 	var fresh := tracker.evaluate(sim)
 	assert_true(fresh.has("a_depth"))
 

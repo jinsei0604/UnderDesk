@@ -29,8 +29,9 @@ func test_art_frame_animation() -> void:
 
 func test_art_keys() -> void:
 	var lib := UDArtLibrary.load_default([])
-	assert_eq(lib.terrain_key(UD.Terrain.SOIL), "terrain_soil")
-	assert_eq(lib.terrain_key(UD.Terrain.RUINSTONE), "terrain_ruinstone")
+	# Every solid stratum shares the one rock tile set; only AIR differs.
+	assert_eq(lib.terrain_key(UD.Terrain.SOIL), "terrain_rock")
+	assert_eq(lib.terrain_key(UD.Terrain.RUINSTONE), "terrain_rock")
 	assert_eq(lib.terrain_key(UD.Terrain.AIR), "terrain_air")
 	assert_eq(lib.minion_key(0), "minion_0")
 	assert_eq(lib.minion_key(7), "minion_1", "variants wrap at %d" % UDArtLibrary.MINION_VARIANTS)

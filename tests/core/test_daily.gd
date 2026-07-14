@@ -36,7 +36,7 @@ func test_gold_per_dig_effect() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(), 42)
 	sim.dig_policy = UD.DigPolicy.NONE
 	sim.apply_daily("2026-07-11", {"id": "gold_dust", "name_key": "X", "effect": "gold_per_dig"})
-	sim.add_dig_job(Vector2i(UD.DEPOT_POS.x, 1))
+	sim.add_dig_job(Vector2i(1, UD.DEPOT_POS.y))
 	sim.advance(30)
 	# One dig: +1 daily bonus immediately, +1 from tallying the bagged soil.
 	assert_true(int(sim.inventory[UD.RES_GOLD]) >= 1, "daily bonus paid on dig")

@@ -63,15 +63,15 @@ static func new_game(
 	sim.doc_conditions = p_doc_conditions
 	sim.item_ranks = p_item_ranks
 	sim._rng.seed = rng_seed
-	sim.grid = UDGrid.new(UD.GRID_WIDTH)
-	for y in UD.GRID_INITIAL_HEIGHT:
-		sim.grid.append_row(p_strata.terrain_for_depth(y))
+	sim.grid = UDGrid.new(UD.CORRIDOR_HEIGHT)
+	for x in UD.GRID_INITIAL_WIDTH:
+		sim.grid.append_column(p_strata.terrain_for_distance(x))
 	for res in UD.ALL_RESOURCES:
 		sim.inventory[res] = 0
 	for i in UD.INITIAL_MINION_COUNT:
 		sim.minions.append(UDMinion.create(i, UD.DEPOT_POS))
-	# Idle games should idle from minute one: new dungeons dig on their own.
-	sim.dig_policy = UD.DigPolicy.DOWN
+	# Idle games should idle from minute one: new tunnels dig on their own.
+	sim.dig_policy = UD.DigPolicy.RIGHT
 	return sim
 
 
@@ -131,60 +131,40 @@ func _has_walkable_neighbor(cell: Vector2i) -> bool:
 
 
 func _policy_candidates() -> Array[Vector2i]:
+	# The tunnel only ever advances rightward (2026-07-14 redesign): dig the
+	# whole face column top-to-bottom before moving on, so the corridor stays
+	# full height with no standing pillars. RIGHT and WIDEN behave alike here;
+	# WIDEN is retained for save-compat and future variants. No leftward digging.
 	var candidates: Array[Vector2i] = []
-	var deepest := deepest_air_row()
-	if deepest < 0:
+	_ensure_cols(frontier_distance() + UD.GRID_EXPAND_COLS)
+	var face := _face_column()
+	if face < 0:
 		return candidates
-	_ensure_rows(deepest + UD.GRID_EXPAND_ROWS)
-	match dig_policy:
-		UD.DigPolicy.DOWN:
-			# Serpentine tunnel: odd rows dig left-to-right, even rows dig
-			# back right-to-left, dropping one row at each end. Progress
-			# reads as horizontal tunnelling (per the reference image)
-			# while depth still advances through the strata.
-			for y in range(1, grid.height):
-				var xs: Array[int] = []
-				if y % 2 == 1:
-					for x in grid.width:
-						xs.append(x)
-				else:
-					for x in range(grid.width - 1, -1, -1):
-						xs.append(x)
-				for x in xs:
-					var cell := Vector2i(x, y)
-					if grid.terrain_at(cell) != UD.Terrain.AIR:
-						candidates.append(cell)
-						if candidates.size() >= UD.MINION_MAX:
-							return candidates
-				if not candidates.is_empty():
-					return candidates
-		UD.DigPolicy.WIDEN:
-			for x in grid.width:
-				var air := Vector2i(x, deepest)
-				if not grid.is_walkable(air):
-					continue
-				for dx: int in [-1, 1]:
-					var side := air + Vector2i(dx, 0)
-					if grid.is_inside(side) and grid.terrain_at(side) != UD.Terrain.AIR:
-						candidates.append(side)
-			candidates.sort_custom(
-				func(a: Vector2i, b: Vector2i) -> bool:
-					var da := absi(a.x - UD.DEPOT_POS.x)
-					var db := absi(b.x - UD.DEPOT_POS.x)
-					if da != db:
-						return da < db
-					return a.x < b.x
-			)
+	for y in grid.height:
+		var cell := Vector2i(face, y)
+		if grid.terrain_at(cell) != UD.Terrain.AIR:
+			candidates.append(cell)
 	return candidates
 
 
-## The digging front: deepest row with any open cell. Also used by the
-## strip camera to follow the action.
-func deepest_air_row() -> int:
-	for y in range(grid.height - 1, -1, -1):
-		for x in grid.width:
+## Leftmost column that still holds solid terrain — the tunnel face the
+## crew works next. Returns -1 only if every known column is open.
+func _face_column() -> int:
+	for x in grid.width:
+		for y in grid.height:
+			if grid.terrain_at(Vector2i(x, y)) != UD.Terrain.AIR:
+				return x
+	return -1
+
+
+## The digging front: rightmost column with any open cell. Used by the
+## camera to follow the action and as the "depth" progress/achievement
+## metric (distance dug from the entrance).
+func frontier_distance() -> int:
+	for x in range(grid.width - 1, -1, -1):
+		for y in grid.height:
 			if grid.is_walkable(Vector2i(x, y)):
-				return y
+				return x
 	return -1
 
 
@@ -282,12 +262,12 @@ func _dig(minion: UDMinion) -> void:
 		minion.state = UDMinion.State.IDLE
 		return
 	job.progress += dig_power()
-	if job.progress < strata.hardness_for_depth(job.target.y):
+	if job.progress < strata.hardness_for_distance(job.target.x):
 		return
 	# Dig complete: open the cell, bag the yield on the spot, roll for
 	# a document. The minion moves straight on to its next job.
 	grid.set_terrain(job.target, UD.Terrain.AIR)
-	var stratum := strata.stratum_for_depth(job.target.y)
+	var stratum := strata.stratum_for_distance(job.target.x)
 	var yield_res: String = stratum["yield"]
 	pending_loot[yield_res] = int(pending_loot.get(yield_res, 0)) + 1
 	if daily_effect == "gold_per_dig":
@@ -296,7 +276,7 @@ func _dig(minion: UDMinion) -> void:
 	_roll_special_find()
 	jobs.erase(job)
 	minion.job_target = UDMinion.NO_TARGET
-	_ensure_rows(job.target.y + UD.GRID_EXPAND_ROWS)
+	_ensure_cols(job.target.x + UD.GRID_EXPAND_COLS)
 	minion.path.clear()
 	minion.state = UDMinion.State.IDLE
 
@@ -555,9 +535,9 @@ func _job_for_target(target: Vector2i) -> UDJob:
 	return null
 
 
-func _ensure_rows(depth: int) -> void:
-	while grid.height <= depth:
-		grid.append_row(strata.terrain_for_depth(grid.height))
+func _ensure_cols(distance: int) -> void:
+	while grid.width <= distance:
+		grid.append_column(strata.terrain_for_distance(grid.width))
 
 
 func to_dict() -> Dictionary:
@@ -697,4 +677,20 @@ static func from_dict(
 				sim.inventory[UD.RES_GOLD] = int(sim.inventory.get(UD.RES_GOLD, 0)) \
 					+ count * int(UD.COIN_VALUES.get(res, 1))
 				sim.inventory[res] = 0
+	# v6 -> v7: the dig turned from a downward shaft into a horizontal
+	# tunnel with a completely different grid shape. Old shafts can't be
+	# translated, so start a fresh corridor while keeping all other
+	# progress (coins, items, documents, companions, upgrades, altar).
+	if int(d.get("version", 1)) < 7:
+		sim.grid = UDGrid.new(UD.CORRIDOR_HEIGHT)
+		for x in UD.GRID_INITIAL_WIDTH:
+			sim.grid.append_column(sim.strata.terrain_for_distance(x))
+		sim.jobs.clear()
+		for minion in sim.minions:
+			minion.pos = UD.DEPOT_POS
+			minion.job_target = UDMinion.NO_TARGET
+			minion.path.clear()
+			minion.state = UDMinion.State.IDLE
+		if sim.dig_policy == UD.DigPolicy.NONE:
+			sim.dig_policy = UD.DigPolicy.RIGHT
 	return sim

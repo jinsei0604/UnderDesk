@@ -131,17 +131,12 @@ func variant_texture(key: String, seed: int) -> Texture2D:
 
 
 func terrain_key(terrain: UD.Terrain) -> String:
-	match terrain:
-		UD.Terrain.SOIL:
-			return "terrain_soil"
-		UD.Terrain.ROCK:
-			return "terrain_rock"
-		UD.Terrain.WETROCK:
-			return "terrain_wetrock"
-		UD.Terrain.RUINSTONE:
-			return "terrain_ruinstone"
-		_:
-			return "terrain_air"
+	# Every solid stratum renders with the one rock tile set (2026-07-14:
+	# the user's rock illustration is the whole tunnel wall; strata differ
+	# in yield/hardness, not looks). AIR is the open, dug-out tunnel.
+	if terrain == UD.Terrain.AIR:
+		return "terrain_air"
+	return "terrain_rock"
 
 
 func minion_key(minion_id: int) -> String:

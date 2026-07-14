@@ -19,7 +19,7 @@ func test_protagonist_starts_alone() -> void:
 func test_companion_joins_on_story_progress() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.strata(1.0), 7, [], _defs())
 	sim.dig_policy = UD.DigPolicy.NONE
-	sim.add_dig_job(Vector2i(UD.DEPOT_POS.x, 1))
+	sim.add_dig_job(Vector2i(1, UD.DEPOT_POS.y))
 	sim.advance(30)
 	assert_eq(sim.discovered_documents.size(), 1)
 	assert_eq(sim.companions.size(), 1, "first companion joined at 1 document")
@@ -31,7 +31,7 @@ func test_join_is_deterministic() -> void:
 	var a := UDSim.new_game(UDTestFixtures.strata(1.0), 7, [], _defs())
 	var b := UDSim.new_game(UDTestFixtures.strata(1.0), 7, [], _defs())
 	for sim: UDSim in [a, b]:
-		sim.dig_policy = UD.DigPolicy.DOWN
+		sim.dig_policy = UD.DigPolicy.RIGHT
 		sim.advance(200)
 	assert_eq(JSON.stringify(a.to_dict()), JSON.stringify(b.to_dict()))
 
@@ -63,7 +63,9 @@ func test_pre_v4_party_migrates_to_solo() -> void:
 		JSON.parse_string(JSON.stringify(d)), UDTestFixtures.strata(), [], _defs()
 	)
 	assert_eq(restored.minions.size(), 1, "party rebuilt as the solo protagonist")
-	assert_eq(restored.jobs[0].claimed_by, -1, "stale claim released")
+	# The v6 -> v7 tunnel redesign resets the dig entirely, so any stale
+	# jobs (claimed or not) are cleared rather than merely released.
+	assert_eq(restored.jobs.size(), 0, "pre-v7 tunnel reset clears jobs")
 
 
 func test_removed_companion_defs_prune_saved_party() -> void:

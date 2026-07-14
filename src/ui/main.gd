@@ -52,8 +52,6 @@ var _archive_series: String = ""
 var _treasure_rank: String = ""
 var companion_defs: Array = []
 var _companion_by_id: Dictionary = {}
-var scroll_y: int = 0
-var scroll_x: int = 0
 var _anim_frame: int = 0
 ## Per-minion dig-swing phase (UI-only, not simulation state): every
 ## swing starts at the wind-up frame instead of wherever the global
@@ -256,15 +254,10 @@ func _followed_minion() -> UDMinion:
 	return sim.minions[0]
 
 
+## The camera is computed live from the followed miner in _grid_origin(),
+## so following just needs a redraw as the miner advances rightward.
 func _follow_camera() -> void:
-	var star := _followed_minion()
-	if star == null:
-		return
-	var max_scroll: int = maxi(0, sim.grid.height - _visible_rows())
-	scroll_y = clampi(star.pos.y - _visible_rows() / 2, 0, max_scroll)
-	if not settings.resident_mode:
-		var max_scroll_x: int = maxi(0, sim.grid.width - _visible_cols())
-		scroll_x = clampi(star.pos.x - _visible_cols() / 2, 0, max_scroll_x)
+	queue_redraw()
 
 
 func _connect_sim_signals() -> void:
@@ -294,21 +287,12 @@ func _gui_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton and event.pressed:
 		var mouse := event as InputEventMouseButton
+		# No manual scrolling: the camera auto-follows the tunnel front.
 		match mouse.button_index:
 			MOUSE_BUTTON_LEFT:
 				_handle_click(mouse.position)
 			MOUSE_BUTTON_RIGHT:
 				_cancel_designation(mouse.position)
-			MOUSE_BUTTON_WHEEL_DOWN:
-				if mouse.shift_pressed:
-					_scroll_x_by(2)
-				else:
-					_scroll_by(1)
-			MOUSE_BUTTON_WHEEL_UP:
-				if mouse.shift_pressed:
-					_scroll_x_by(-2)
-				else:
-					_scroll_by(-1)
 	elif event is InputEventMouseMotion:
 		# Drag-paint dig designations instead of clicking cells one by one.
 		var motion := event as InputEventMouseMotion
@@ -337,54 +321,37 @@ func _cancel_designation(click_pos: Vector2) -> void:
 		queue_redraw()
 
 
-func _scroll_by(rows: int) -> void:
-	var max_scroll: int = maxi(0, sim.grid.height - _visible_rows())
-	scroll_y = clampi(scroll_y + rows, 0, max_scroll)
-	queue_redraw()
-
-
-func _visible_cols() -> int:
-	return maxi(1, int((size.x - PANEL_WIDTH) / _cell_px()))
-
-
-func _scroll_x_by(cols: int) -> void:
-	var max_scroll: int = maxi(0, sim.grid.width - _visible_cols())
-	scroll_x = clampi(scroll_x + cols, 0, max_scroll)
-	queue_redraw()
-
-
 ## The strip has no HUD bar: cells use the full height.
 func _hud_offset() -> int:
 	return 0 if settings.resident_mode else HUD_HEIGHT
 
 
-## Strip mode zooms in Taskbar-Heroes style: one big row where the
-## minions' motion is actually watchable. Expanded runs at 2x zoom.
+## The tunnel is a thin fixed-height corridor: size the cell so all
+## CORRIDOR_HEIGHT rows fit without any vertical scroll. The strip squeezes
+## them into the taskbar band; expanded fills the window height.
 func _cell_px() -> int:
 	if settings.resident_mode:
-		return clampi(int(size.y), CELL_PX, 64)
-	return EXPANDED_CELL_PX
+		return clampi(int(size.y) / UD.CORRIDOR_HEIGHT, 8, 64)
+	var avail_h := size.y - _hud_offset()
+	return mini(EXPANDED_CELL_PX, int(avail_h / UD.CORRIDOR_HEIGHT))
 
 
 func _visible_rows() -> int:
 	return maxi(1, int((size.y - _hud_offset()) / _cell_px()))
 
 
+## Camera: the corridor is centered vertically and follows the miner
+## horizontally (no scrolling — the view auto-pans as the tunnel advances).
 func _grid_origin() -> Vector2:
 	var cell_px := _cell_px()
-	var grid_px_width := float(sim.grid.width * cell_px)
-	if settings.resident_mode:
-		# The mini strip is narrower than the grid: center the followed worker.
-		var star := _followed_minion()
-		var star_x := float(star.pos.x) if star != null else float(UD.DEPOT_POS.x)
-		var desired := size.x / 2.0 - (star_x + 0.5) * cell_px
-		return Vector2(clampf(desired, minf(size.x - grid_px_width, 0.0), 0.0), 0.0)
-	# Expanded: the dig view keeps clear of the right-hand button panel
-	# and pans horizontally (zoomed cells no longer fit the width).
-	var view_width := size.x - PANEL_WIDTH
-	if grid_px_width <= view_width:
-		return Vector2((view_width - grid_px_width) / 2.0, _hud_offset())
-	return Vector2(-float(scroll_x * cell_px), _hud_offset())
+	var star := _followed_minion()
+	var star_x := float(star.pos.x) if star != null else float(UD.DEPOT_POS.x)
+	var view_width := size.x if settings.resident_mode else size.x - PANEL_WIDTH
+	# Keep the miner centered, but never scroll left past the entrance.
+	var origin_x := minf(view_width / 2.0 - (star_x + 0.5) * cell_px, 0.0)
+	var avail_h := size.y - _hud_offset()
+	var origin_y := _hud_offset() + (avail_h - sim.grid.height * cell_px) / 2.0
+	return Vector2(origin_x, origin_y)
 
 
 func _cell_at(point: Vector2) -> Vector2i:
@@ -393,7 +360,7 @@ func _cell_at(point: Vector2) -> Vector2i:
 	if local.x < 0.0 or local.y < 0.0:
 		return UDMinion.NO_TARGET
 	var cell_px := _cell_px()
-	var cell := Vector2i(int(local.x / cell_px), int(local.y / cell_px) + scroll_y)
+	var cell := Vector2i(int(local.x / cell_px), int(local.y / cell_px))
 	if not sim.grid.is_inside(cell):
 		return UDMinion.NO_TARGET
 	return cell
@@ -422,7 +389,7 @@ func _draw_hud() -> void:
 		"%s %d" % [locale.text("RES_GOLD"), int(sim.inventory[UD.RES_GOLD])],
 		"%s %d/%d" % [locale.text("UI_TREASURES"), sim.distinct_items(), item_db.all_ids().size()],
 		"⛏ %d" % sim.minions.size(),
-		"▼ %d" % sim.deepest_air_row(),
+		"▼ %d" % sim.frontier_distance(),
 		"tick %d" % sim.tick_count,
 	]
 	if sim.daily_anomaly_id != "" and _anomaly_by_id.has(sim.daily_anomaly_id):
@@ -503,7 +470,7 @@ func _draw_strip_overlay(font: Font) -> void:
 	var pending := sim.pending_loot_total()
 	if pending > 0:
 		coin_part += "(+%d)" % pending
-	var text := "%s ▼%d ⛏%d" % [coin_part, sim.deepest_air_row(), sim.minions.size()]
+	var text := "%s ▼%d ⛏%d" % [coin_part, sim.frontier_distance(), sim.minions.size()]
 	var text_width := font.get_string_size(
 		text, HORIZONTAL_ALIGNMENT_LEFT, -1, STRIP_FONT_SIZE
 	).x
@@ -529,18 +496,22 @@ func _draw_strip_overlay(font: Font) -> void:
 
 func _draw_grid() -> void:
 	var origin := _grid_origin()
-	var last_row: int = mini(sim.grid.height, scroll_y + _visible_rows())
-	for y in range(scroll_y, last_row):
-		for x in sim.grid.width:
+	var cell_px := _cell_px()
+	# Cull to the visible column window — the tunnel can be thousands of
+	# cells long, so never iterate the whole grid (§7.1 CPU budget).
+	var first_col: int = maxi(0, int(-origin.x / cell_px))
+	var last_col: int = mini(sim.grid.width, first_col + int(size.x / cell_px) + 2)
+	for y in sim.grid.height:
+		for x in range(first_col, last_col):
 			var cell := Vector2i(x, y)
 			var rect := _cell_rect(origin, cell)
 			var terrain := sim.grid.terrain_at(cell)
+			if terrain == UD.Terrain.AIR:
+				# Open, dug-out tunnel: just the dark background.
+				continue
 			var art_key := art.terrain_key(terrain)
 			if art.has_art(art_key):
-				var fade := maxf(DEPTH_FADE_FLOOR, 1.0 - y * DEPTH_FADE_PER_ROW)
-				draw_texture_rect(
-					art.variant_texture(art_key, hash(cell)), rect, false, Color(fade, fade, fade)
-				)
+				draw_texture_rect(art.variant_texture(art_key, hash(cell)), rect, false)
 			else:
 				draw_rect(rect, _cell_color(terrain, y))
 				draw_rect(rect, COLOR_GRID_LINE, false, 1.0)
@@ -570,13 +541,16 @@ func _cell_color(terrain: UD.Terrain, depth: int) -> Color:
 func _cell_rect(origin: Vector2, cell: Vector2i) -> Rect2:
 	var cell_px := _cell_px()
 	return Rect2(
-		origin + Vector2(cell.x * cell_px, (cell.y - scroll_y) * cell_px),
+		origin + Vector2(cell.x * cell_px, cell.y * cell_px),
 		Vector2(cell_px, cell_px)
 	)
 
 
 func _cell_visible(cell: Vector2i) -> bool:
-	return cell.y >= scroll_y and cell.y < scroll_y + _visible_rows()
+	if cell.y < 0 or cell.y >= sim.grid.height:
+		return false
+	var rect := _cell_rect(_grid_origin(), cell)
+	return rect.position.x + rect.size.x > 0.0 and rect.position.x < size.x
 
 
 func _draw_jobs(origin: Vector2) -> void:
@@ -770,7 +744,7 @@ func _refresh_button_texts() -> void:
 ## The button is a plain on/off toggle; WIDEN stays core-only.
 func _cycle_dig_policy() -> void:
 	if sim.dig_policy == UD.DigPolicy.NONE:
-		sim.dig_policy = UD.DigPolicy.DOWN
+		sim.dig_policy = UD.DigPolicy.RIGHT
 	else:
 		sim.dig_policy = UD.DigPolicy.NONE
 	_refresh_button_texts()
