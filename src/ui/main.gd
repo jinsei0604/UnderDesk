@@ -15,6 +15,7 @@ const COLOR_MP_BAR_BG := Color(0.05, 0.08, 0.15)
 const COLOR_MP_BAR := Color(0.25, 0.45, 0.85)
 const COLOR_ENEMY_HP_BAR := Color(0.8, 0.3, 0.15)
 const COLOR_GATE_BADGE := Color(1.0, 0.5, 0.2)
+const COLOR_DIG_ROCKMASS := Color(0.1, 0.09, 0.12)
 
 var sim: UDSim
 var settings: UDSettings
@@ -357,6 +358,12 @@ func _draw_strip_overlay(font: Font) -> void:
 const ENEMY_ICON_PX: int = 96
 const PARTY_ICON_PX: int = 64
 const BAR_HEIGHT: int = 6
+## Where dig_background.png's floor plane sits, as a fraction of the view
+## height (measured from the shipped art: the lit floor band runs roughly
+## 0.70-0.82 down the image). Enemy/party icons plant their feet here
+## instead of floating over the cave ceiling.
+const GROUND_FRAC: float = 0.78
+const SIDE_MARGIN_FRAC: float = 0.14
 
 
 func _view_rect() -> Rect2 :
@@ -367,22 +374,50 @@ func _view_rect() -> Rect2 :
 
 func _draw_battle() -> void:
 	var view := _view_rect()
+	_draw_backdrop(view)
 	_draw_enemy(view)
 	_draw_party_row(view)
 
 
+const SCROLL_PX_PER_KILL: float = 18.0
+
+
+## Cave backdrop behind the battle view. Digging no longer scrolls a grid,
+## so instead the tiled dig_background.png creeps right by a fixed step
+## every time sim.total_kills ticks up (i.e. every kill, trash or boss) —
+## a visible sense of walking forward each time an enemy falls.
+func _draw_backdrop(view: Rect2) -> void:
+	if not art.has_art("dig_background"):
+		draw_rect(view, COLOR_DIG_ROCKMASS)
+		return
+	var tex := art.texture("dig_background")
+	var scale := view.size.y / float(tex.get_height())
+	var tile_w := tex.get_width() * scale
+	var offset := fmod(float(sim.total_kills) * SCROLL_PX_PER_KILL, tile_w)
+	var tx := view.position.x - offset
+	while tx < view.position.x + view.size.x:
+		draw_texture_rect(tex, Rect2(Vector2(tx, view.position.y), Vector2(tile_w, view.size.y)), false)
+		tx += tile_w
+
+
+func _ground_y(view: Rect2) -> float:
+	return view.position.y + view.size.y * GROUND_FRAC
+
+
+## Enemy stands on the right, facing the party across the cave floor.
 func _draw_enemy(view: Rect2) -> void:
 	if sim.enemy_id == "" or not enemy_db.has_enemy(sim.enemy_id):
 		return
 	var def := enemy_db.get_enemy(sim.enemy_id)
 	var icon_px := ENEMY_ICON_PX if not settings.resident_mode else mini(int(view.size.y) - 4, 32)
-	var center_x := view.position.x + view.size.x / 2.0
-	var top := view.position.y + view.size.y * 0.18
+	var center_x := view.position.x + view.size.x * (1.0 - SIDE_MARGIN_FRAC)
+	var ground_y := _ground_y(view)
+	var top := maxf(view.position.y, ground_y - icon_px)
 	var icon := art.icon_or_placeholder("enemy_%s" % sim.enemy_id, sim.enemy_id, "gem")
 	var rect := Rect2(Vector2(center_x - icon_px / 2.0, top), Vector2(icon_px, icon_px))
 	draw_texture_rect(icon, rect, false)
 	var max_hp := int(def["hp"])
-	var bar_y := top + icon_px + 4
+	var bar_y := top - BAR_HEIGHT - 4
 	var bar_rect := Rect2(Vector2(center_x - icon_px / 2.0, bar_y), Vector2(icon_px, BAR_HEIGHT))
 	draw_rect(bar_rect, COLOR_HP_BAR_BG)
 	var frac := clampf(float(sim.enemy_hp) / float(maxi(1, max_hp)), 0.0, 1.0)
@@ -391,18 +426,21 @@ func _draw_enemy(view: Rect2) -> void:
 		var font := ThemeDB.fallback_font
 		var name_text := locale.text(str(def["name_key"]))
 		draw_string(
-			font, Vector2(center_x, bar_y + 20), name_text,
+			font, Vector2(center_x, bar_y - 6), name_text,
 			HORIZONTAL_ALIGNMENT_CENTER, icon_px * 2, 14, COLOR_HUD_TEXT
 		)
 
 
+## Party stands on the left, clustered near the protagonist rather than
+## spread across the view, facing the enemy on the right across the floor.
 func _draw_party_row(view: Rect2) -> void:
 	if settings.resident_mode or sim.minions.is_empty():
 		return
 	var count := sim.minions.size()
-	var spacing := minf(120.0, view.size.x / float(count + 1))
-	var start_x := view.position.x + (view.size.x - spacing * (count - 1)) / 2.0
-	var y := view.position.y + view.size.y - PARTY_ICON_PX - 40.0
+	var spacing := minf(PARTY_ICON_PX * 0.6, view.size.x / float(count + 1))
+	var start_x := view.position.x + view.size.x * SIDE_MARGIN_FRAC
+	var ground_y := _ground_y(view)
+	var top := maxf(view.position.y, ground_y - PARTY_ICON_PX)
 	var font := ThemeDB.fallback_font
 	for slot_index in count:
 		var unit: UDMinion = sim.minions[slot_index]
@@ -410,15 +448,15 @@ func _draw_party_row(view: Rect2) -> void:
 		var art_variant := _minion_art_variant(slot_index)
 		var art_key := art.minion_key(art_variant)
 		var icon := art.icon_or_placeholder(art_key, "minion_%d" % slot_index, "rune")
-		var rect := Rect2(Vector2(x - PARTY_ICON_PX / 2.0, y), Vector2(PARTY_ICON_PX, PARTY_ICON_PX))
+		var rect := Rect2(Vector2(x - PARTY_ICON_PX / 2.0, top), Vector2(PARTY_ICON_PX, PARTY_ICON_PX))
 		draw_texture_rect(icon, rect, false)
 		var bar_w := PARTY_ICON_PX
-		var hp_y := y + PARTY_ICON_PX + 4
+		var hp_y := top - BAR_HEIGHT - 4
 		draw_rect(Rect2(Vector2(x - bar_w / 2.0, hp_y), Vector2(bar_w, BAR_HEIGHT)), COLOR_HP_BAR_BG)
 		var hp_frac := clampf(float(unit.hp) / float(maxi(1, sim.unit_max_hp(unit))), 0.0, 1.0)
 		draw_rect(Rect2(Vector2(x - bar_w / 2.0, hp_y), Vector2(bar_w * hp_frac, BAR_HEIGHT)), COLOR_HP_BAR)
 		draw_string(
-			font, Vector2(x, hp_y + 20), "Lv.%d" % unit.level,
+			font, Vector2(x, hp_y - 6), "Lv.%d" % unit.level,
 			HORIZONTAL_ALIGNMENT_CENTER, bar_w * 2, 13, COLOR_HUD_TEXT
 		)
 

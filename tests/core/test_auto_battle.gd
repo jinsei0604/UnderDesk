@@ -45,6 +45,22 @@ func test_boss_gate_halts_advance_but_keeps_farming() -> void:
 	assert_gt(int(sim.inventory[UD.RES_GOLD]), gold_at_gate, "trash keeps paying coins while gated")
 
 
+func test_total_kills_counts_every_trash_kill() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 11)
+	assert_eq(sim.total_kills, 0, "no kills before the first tick")
+	sim.advance(300)
+	assert_gt(sim.total_kills, 0, "trash kills accumulate unattended")
+
+
+func test_total_kills_survives_save_roundtrip() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 11)
+	sim.advance(300)
+	var restored := UDSim.from_dict(
+		sim.to_dict(), UDTestFixtures.enemies(), UDTestFixtures.stages()
+	)
+	assert_eq(restored.total_kills, sim.total_kills, "kill count is not dig-era state")
+
+
 func test_auto_battle_is_deterministic() -> void:
 	var a := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(0.5), 99)
 	var b := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(0.5), 99)

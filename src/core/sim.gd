@@ -56,6 +56,10 @@ var enemy_hp: int = 0
 var exp_pool: int = 0
 var boss_active: bool = false
 var boss_hp: int = 0
+## Every trash + boss kill, ever. Monotonic (unlike exp_pool, which drains
+## on level-ups) — UI uses it to scroll the cave backdrop as a sense of
+## forward progress each time an enemy falls.
+var total_kills: int = 0
 var stages: UDStageDB
 var enemies: UDEnemyDB
 var skills: UDSkillDB
@@ -250,6 +254,7 @@ func _spawn_trash(stage: Dictionary) -> void:
 
 
 func _grant_kill_rewards(def: Dictionary, stage: Dictionary) -> void:
+	total_kills += 1
 	exp_pool += int(def.get("exp", 0))
 	inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + int(def.get("coins", 0))
 	if daily_effect == "gold_per_kill":
@@ -652,6 +657,7 @@ func to_dict() -> Dictionary:
 		"exp_pool": exp_pool,
 		"boss_active": boss_active,
 		"boss_hp": boss_hp,
+		"total_kills": total_kills,
 	}
 
 
@@ -774,4 +780,5 @@ static func from_dict(
 		sim.exp_pool = int(d.get("exp_pool", 0))
 		sim.boss_active = bool(d.get("boss_active", false))
 		sim.boss_hp = int(d.get("boss_hp", 0))
+		sim.total_kills = int(d.get("total_kills", 0))
 	return sim
