@@ -681,7 +681,10 @@ static func from_dict(
 	# tunnel with a completely different grid shape. Old shafts can't be
 	# translated, so start a fresh corridor while keeping all other
 	# progress (coins, items, documents, companions, upgrades, altar).
-	if int(d.get("version", 1)) < 7:
+	# Also re-fires whenever the corridor height changed under an existing
+	# tunnel (dev tuning of CORRIDOR_HEIGHT), so saves never keep a stale
+	# band height.
+	if int(d.get("version", 1)) < 7 or sim.grid.height != UD.CORRIDOR_HEIGHT:
 		sim.grid = UDGrid.new(UD.CORRIDOR_HEIGHT)
 		for x in UD.GRID_INITIAL_WIDTH:
 			sim.grid.append_column(sim.strata.terrain_for_distance(x))
