@@ -17,10 +17,11 @@ const COLOR_RUINSTONE := Color(0.52, 0.47, 0.36)
 const COLOR_GRID_LINE := Color(0.0, 0.0, 0.0, 0.25)
 const COLOR_JOB_MARK := Color(1.0, 0.85, 0.3, 0.55)
 const COLOR_DEPOT := Color(0.85, 0.3, 0.25)
-## Placeholder dig backdrop/ground until dig_background.png is shipped.
-const COLOR_DIG_BACKDROP := Color(0.09, 0.075, 0.065)
-const COLOR_DIG_GROUND := Color(0.16, 0.12, 0.09)
-const COLOR_DIG_GROUND_EDGE := Color(0.28, 0.21, 0.14)
+## Placeholder rock mass + carved-tunnel interior until dig_background.png
+## ships. The miner tunnels THROUGH solid rock: mass surrounds it, the dug
+## cells are the hollow 2-row passage.
+const COLOR_DIG_ROCKMASS := Color(0.30, 0.27, 0.25)
+const COLOR_TUNNEL_HOLLOW := Color(0.05, 0.045, 0.05)
 const COLOR_MINION := Color(0.95, 0.85, 0.4)
 ## Slight per-minion tint variation: a crowd, not clones (§6).
 const MINION_COLORS: Array[Color] = [
@@ -514,17 +515,18 @@ func _draw_grid() -> void:
 	var first_col: int = maxi(0, int(-origin.x / cell_px))
 	var last_col: int = mini(sim.grid.width, first_col + int(size.x / cell_px) + 2)
 	var has_rock := art.has_art("terrain_rock")
-	# Ground + backdrop is a single scrolling background (not per-cell tiles):
-	# no repeating seams, and it pans with the world as the tunnel advances.
+	# Ground + backdrop is one scrolling rock mass (not per-cell tiles): no
+	# repeating seams, and it pans with the world as the tunnel advances.
 	_draw_background(origin)
-	# The dig band: unmined rock ahead, open (background) where already dug.
+	# The dig band carves a 2-row passage through that mass: dug cells become
+	# the hollow tunnel; the unmined face ahead keeps the rock block texture.
 	for y in sim.grid.height:
 		for x in range(first_col, last_col):
 			var cell := Vector2i(x, y)
-			if sim.grid.terrain_at(cell) == UD.Terrain.AIR:
-				continue
 			var rect := _cell_rect(origin, cell)
-			if has_rock:
+			if sim.grid.terrain_at(cell) == UD.Terrain.AIR:
+				draw_rect(rect, COLOR_TUNNEL_HOLLOW)
+			elif has_rock:
 				draw_texture_rect(art.tiled_texture("terrain_rock", cell), rect, false)
 			else:
 				draw_rect(rect, _cell_color(UD.Terrain.ROCK, y))
@@ -535,16 +537,13 @@ func _draw_grid() -> void:
 	_draw_debris(origin)
 
 
-## The ground + backdrop behind the dig band. A shipped dig_background.png
-## tiles horizontally and scrolls locked to the world (so the miner stays
-## planted on it as the tunnel advances). Until that art arrives, a plain
-## placeholder: a dark cave backdrop with a distinct ground band below the
-## floor line, so the miner reads as standing on solid ground.
+## The rock mass + backdrop the tunnel is carved through. A shipped
+## dig_background.png tiles horizontally and scrolls locked to the world
+## (so the miner stays planted as the tunnel advances). Until that art
+## arrives, a plain solid rock-mass fill stands in.
 func _draw_background(origin: Vector2) -> void:
-	var cell_px := _cell_px()
 	var view_right := size.x if settings.resident_mode else size.x - float(PANEL_WIDTH)
 	var view_top := float(_hud_offset())
-	var floor_y := origin.y + sim.grid.height * cell_px
 	if art.has_art("dig_background"):
 		var tex := art.texture("dig_background")
 		var scale := (size.y - view_top) / float(tex.get_height())
@@ -557,10 +556,10 @@ func _draw_background(origin: Vector2) -> void:
 			draw_texture_rect(tex, Rect2(Vector2(tx, view_top), Vector2(tile_w, tile_h)), false)
 			tx += tile_w
 		return
-	# Placeholder backdrop above the floor, ground band below it.
-	draw_rect(Rect2(Vector2(0, view_top), Vector2(view_right, floor_y - view_top)), COLOR_DIG_BACKDROP)
-	draw_rect(Rect2(Vector2(0, floor_y), Vector2(view_right, size.y - floor_y)), COLOR_DIG_GROUND)
-	draw_rect(Rect2(Vector2(0, floor_y), Vector2(view_right, maxf(2.0, cell_px / 16.0))), COLOR_DIG_GROUND_EDGE)
+	# Placeholder: solid rock mass fills the whole view (ceiling, walls and
+	# floor). The dig band's dug cells are carved out as the hollow tunnel in
+	# _draw_grid, so a clear 2-row passage reads through the rock.
+	draw_rect(Rect2(Vector2(0, view_top), Vector2(view_right, size.y - view_top)), COLOR_DIG_ROCKMASS)
 
 
 func _cell_color(terrain: UD.Terrain, depth: int) -> Color:

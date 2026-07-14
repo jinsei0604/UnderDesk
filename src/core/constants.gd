@@ -18,8 +18,10 @@ const MAX_OFFLINE_TICKS: int = 43200
 const CORRIDOR_HEIGHT: int = 2
 const GROUND_ROWS: int = 2
 const GRID_INITIAL_WIDTH: int = 8
-## Columns appended to the right when digging approaches the frontier.
-const GRID_EXPAND_COLS: int = 4
+## Columns kept solid ahead of the frontier. Must exceed the on-screen
+## column count so fresh rock is always generated well off the right edge
+## and never visibly pops into view.
+const GRID_EXPAND_COLS: int = 24
 
 ## Home depot at the tunnel mouth (left edge, mid-height) where minions
 ## start and deposit resources.
