@@ -16,7 +16,7 @@ const MAX_OFFLINE_TICKS: int = 43200
 ## in the UI only, never part of the sim grid) and carves a corridor two
 ## blocks tall — its own height — so it never appears to float.
 const CORRIDOR_HEIGHT: int = 2
-const GROUND_ROWS: int = 3
+const GROUND_ROWS: int = 2
 const GRID_INITIAL_WIDTH: int = 8
 ## Columns appended to the right when digging approaches the frontier.
 const GRID_EXPAND_COLS: int = 4
