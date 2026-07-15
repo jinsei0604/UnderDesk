@@ -57,15 +57,3 @@ func test_upgrades_survive_roundtrip() -> void:
 	assert_eq(restored.party_atk_bonus(), 1)
 
 
-func test_shop_files_load_and_translate() -> void:
-	var db := UDShopDB.load_from_dir("res://data/shop")
-	assert_eq(db.all_ids().size(), 2, "hiring left the shop with the plan change")
-	var ja := UDLocale.load_locale("ja")
-	var en := UDLocale.load_locale("en")
-	for id in db.all_ids():
-		var good := db.get_good(id)
-		assert_gt(int(good["base_cost"]), 0)
-		assert_gt(float(good["cost_mult"]), 1.0)
-		for locale: UDLocale in [ja, en]:
-			assert_ne(locale.text(good["name_key"]), good["name_key"])
-			assert_ne(locale.text(good["desc_key"]), good["desc_key"])

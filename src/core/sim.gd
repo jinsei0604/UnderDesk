@@ -60,9 +60,15 @@ var boss_hp: int = 0
 ## on level-ups) — UI uses it to scroll the cave backdrop as a sense of
 ## forward progress each time an enemy falls.
 var total_kills: int = 0
+## The shop's weapon shelf: a single equipped slot, not an inventory —
+## buying a new weapon replaces whichever one you had (a classic "next
+## tier" weapon shop, no separate equip step).
+var equipped_weapon_id: String = ""
+var weapon_level: int = 0
 var stages: UDStageDB
 var enemies: UDEnemyDB
 var skills: UDSkillDB
+var weapons: UDShopDB
 
 
 static func new_game(
@@ -74,11 +80,13 @@ static func new_game(
 	p_doc_conditions: Dictionary = {},
 	p_item_ranks: Dictionary = {},
 	p_skills: UDSkillDB = null,
+	p_weapons: UDShopDB = null,
 ) -> UDSim:
 	var sim := UDSim.new()
 	sim.enemies = p_enemies
 	sim.stages = p_stages
 	sim.skills = p_skills if p_skills != null else UDSkillDB.from_dicts([])
+	sim.weapons = p_weapons if p_weapons != null else UDShopDB.from_dicts([])
 	sim.item_pool = p_item_pool
 	sim.companion_defs = p_companion_defs
 	sim.doc_conditions = p_doc_conditions
@@ -190,7 +198,15 @@ func party_atk_bonus() -> int:
 		bonus += 1
 	bonus += UDSim._effect_levels_in(upgrades, "atk_add")
 	bonus += altar_level
+	bonus += weapon_atk_bonus()
 	return bonus
+
+
+func weapon_atk_bonus() -> int:
+	if equipped_weapon_id == "" or not weapons.has_good(equipped_weapon_id):
+		return 0
+	var def := weapons.get_good(equipped_weapon_id)
+	return int(def["base_atk"]) + int(def["atk_per_level"]) * (weapon_level - 1)
 
 
 func party_def_bonus() -> int:
@@ -433,6 +449,71 @@ func buy_upgrade(good: Dictionary) -> bool:
 	return true
 
 
+## --- Weapon shop (buy replaces the equipped weapon; upgrade levels it) -
+
+static func weapon_upgrade_cost(weapon: Dictionary, level: int) -> int:
+	return int(round(
+		float(weapon["upgrade_base_cost"]) * pow(float(weapon["upgrade_cost_mult"]), level)
+	))
+
+
+## Buying a weapon you don't already have equipped replaces the current
+## one outright (fresh at level 1) — a shop shelf, not an inventory.
+func buy_weapon(weapon_id: String) -> bool:
+	if not weapons.has_good(weapon_id) or weapon_id == equipped_weapon_id:
+		return false
+	var def := weapons.get_good(weapon_id)
+	var cost := int(def["buy_cost"])
+	if int(inventory.get(UD.RES_GOLD, 0)) < cost:
+		return false
+	inventory[UD.RES_GOLD] = int(inventory[UD.RES_GOLD]) - cost
+	equipped_weapon_id = weapon_id
+	weapon_level = 1
+	return true
+
+
+## Levels up whichever weapon is currently equipped. False with nothing
+## equipped, already maxed, or unaffordable.
+func upgrade_weapon() -> bool:
+	if equipped_weapon_id == "" or not weapons.has_good(equipped_weapon_id):
+		return false
+	var def := weapons.get_good(equipped_weapon_id)
+	if weapon_level >= int(def["max_level"]):
+		return false
+	var cost := UDSim.weapon_upgrade_cost(def, weapon_level)
+	if int(inventory.get(UD.RES_GOLD, 0)) < cost:
+		return false
+	inventory[UD.RES_GOLD] = int(inventory[UD.RES_GOLD]) - cost
+	weapon_level += 1
+	return true
+
+
+## --- Item shop (coins <-> collection items, priced by rank) -----------
+
+## False on an unknown item, a full rank cap, or unaffordable.
+func buy_item(item_id: String) -> bool:
+	if not item_ranks.has(item_id):
+		return false
+	if item_count(item_id) >= item_cap(item_id):
+		return false
+	var cost := int(UD.ITEM_BUY_COST_BY_RANK.get(item_rank(item_id), 0))
+	if cost <= 0 or int(inventory.get(UD.RES_GOLD, 0)) < cost:
+		return false
+	inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) - cost
+	_add_item(item_id, 1)
+	return true
+
+
+## False when fewer than `count` are owned.
+func sell_item(item_id: String, count: int = 1) -> bool:
+	if count <= 0 or item_count(item_id) < count:
+		return false
+	var value := int(UD.ITEM_SELL_VALUE_BY_RANK.get(item_rank(item_id), 0))
+	items[item_id] = item_count(item_id) - count
+	inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + value * count
+	return true
+
+
 static func _effect_levels_in(entries: Dictionary, effect: String) -> int:
 	var total := 0
 	for id: Variant in entries.keys():
@@ -442,14 +523,20 @@ static func _effect_levels_in(entries: Dictionary, effect: String) -> int:
 	return total
 
 
-## Extra document drop chance from the altar facility, the survey shop
-## upgrade, and the daily anomaly (altar/survey share the same ledger
-## and per-level bonus — see party_atk_bonus()'s comment).
+## Extra document drop chance from the altar facility and the daily
+## anomaly. The "survey" shop upgrade that used to grant this is retired
+## (2026-07-15, shop redesign: pickaxe/survey folded into the weapon
+## system and the altar) — its per-level bonus now rides altar_level
+## instead, alongside altar's existing +1 atk/level (party_atk_bonus()).
+## _effect_levels_in() still reads any doc_chance_add already banked in
+## upgrades so a save with survey levels bought before the retirement
+## keeps that bonus frozen rather than losing it outright.
 func document_chance_bonus() -> float:
 	var bonus := 0.0
 	if daily_effect == "doc_chance_add":
 		bonus += UD.DAILY_DOC_CHANCE_BONUS
 	bonus += UDSim._effect_levels_in(upgrades, "doc_chance_add") * UD.UPGRADE_DOC_CHANCE
+	bonus += float(altar_level) * UD.UPGRADE_DOC_CHANCE
 	return bonus
 
 
@@ -658,6 +745,8 @@ func to_dict() -> Dictionary:
 		"boss_active": boss_active,
 		"boss_hp": boss_hp,
 		"total_kills": total_kills,
+		"equipped_weapon_id": equipped_weapon_id,
+		"weapon_level": weapon_level,
 	}
 
 
@@ -670,11 +759,13 @@ static func from_dict(
 	p_doc_conditions: Dictionary = {},
 	p_item_ranks: Dictionary = {},
 	p_skills: UDSkillDB = null,
+	p_weapons: UDShopDB = null,
 ) -> UDSim:
 	var sim := UDSim.new()
 	sim.enemies = p_enemies
 	sim.stages = p_stages
 	sim.skills = p_skills if p_skills != null else UDSkillDB.from_dicts([])
+	sim.weapons = p_weapons if p_weapons != null else UDShopDB.from_dicts([])
 	sim.item_pool = p_item_pool
 	sim.companion_defs = p_companion_defs
 	sim.doc_conditions = p_doc_conditions
@@ -781,4 +872,6 @@ static func from_dict(
 		sim.boss_active = bool(d.get("boss_active", false))
 		sim.boss_hp = int(d.get("boss_hp", 0))
 		sim.total_kills = int(d.get("total_kills", 0))
+		sim.equipped_weapon_id = str(d.get("equipped_weapon_id", ""))
+		sim.weapon_level = int(d.get("weapon_level", 0))
 	return sim

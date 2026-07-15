@@ -1,0 +1,11 @@
+{
+  "id": "iron_sword",
+  "name_key": "WEAPON_IRON_SWORD_NAME",
+  "desc_key": "WEAPON_IRON_SWORD_DESC",
+  "buy_cost": 600,
+  "base_atk": 10,
+  "atk_per_level": 2,
+  "upgrade_base_cost": 150,
+  "upgrade_cost_mult": 1.45,
+  "max_level": 8
+}

@@ -26,11 +26,31 @@ UI_DAILY,Today's Anomaly
 UI_COLLECTED,Collected +%d coins
 UI_SHOP,Shop
 UI_BUY,Buy
+UI_SELL,Sell
+UI_CLOSE,Close
+UI_SHOP_BUY_WEAPON,Buy Weapon
+UI_SHOP_BUY_WEAPON_DESC,Purchase a weapon
+UI_SHOP_UPGRADE_WEAPON,Upgrade Weapon
+UI_SHOP_UPGRADE_WEAPON_DESC,Strengthen your weapon
+UI_SHOP_BUY_ITEM,Buy Item
+UI_SHOP_BUY_ITEM_DESC,Purchase an item
+UI_SHOP_SELL_ITEM,Sell Item
+UI_SHOP_SELL_ITEM_DESC,Sell items you don't need
+UI_WEAPON_NONE,Unarmed
+UI_WEAPON_EQUIPPED,Equipped: %s (Lv.%d/%d)
+UI_EQUIPPED,Equipped
+UI_BUY_COST,Cost: %d coins
+UI_WEAPON_UPGRADE_COST,Upgrade: %d coins
+UI_SELL_VALUE,Sell value: %d coins each
+UI_SELL_TOTAL,Total: %d coins
+UI_SELL_NONE,Nothing to sell
+WEAPON_BRONZE_SWORD_NAME,Bronze Sword
+WEAPON_BRONZE_SWORD_DESC,The first blade any delver ever holds.
+WEAPON_IRON_SWORD_NAME,Iron Sword
+WEAPON_IRON_SWORD_DESC,Heavier, but it hits back just as hard.
+WEAPON_STEEL_SWORD_NAME,Steel Sword
+WEAPON_STEEL_SWORD_DESC,A well-forged edge that still gleams in the dark.
 UI_COMPANION_JOINED,A companion joined: %s
-SHOP_PICKAXE,Weapon Training
-SHOP_PICKAXE_DESC,Party attack +1 for everyone
-SHOP_SURVEY,Charted Map
-SHOP_SURVEY_DESC,Documents found +5%
 ANOMALY_LUSH_VEIN,Quiet Cavern (documents more common)
 ANOMALY_SOFT_EARTH,Fighting Spirit (attack +1)
 ANOMALY_GOLD_DUST,Lucky Coins (+1 gold per kill)

@@ -53,6 +53,15 @@ const ITEM_RANK_CAPS: Dictionary = {
 ## C and D have no exchange requirement.
 const ITEM_EXCHANGE_COSTS: Dictionary = {"Z": 3, "S": 5, "A": 7, "B": 10}
 
+## Shop item trading (buy_item/sell_item): coins per rank. Sell is well
+## below buy so the two can't be arbitraged into a free coin loop.
+const ITEM_BUY_COST_BY_RANK: Dictionary = {
+	"Z": 4000, "S": 800, "A": 300, "B": 120, "C": 50, "D": 20,
+}
+const ITEM_SELL_VALUE_BY_RANK: Dictionary = {
+	"Z": 1500, "S": 300, "A": 100, "B": 40, "C": 15, "D": 5,
+}
+
 ## Altar offerings (§5.2 rework): each offering costs scaling coins and
 ## grants +1 attack (party-wide bonus, UDSim.party_atk_bonus()). From these
 ## altar levels on, the offering also consumes one collection item of the

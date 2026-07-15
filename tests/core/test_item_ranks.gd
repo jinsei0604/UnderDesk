@@ -156,6 +156,18 @@ func test_altar_tier_boundaries_match_spec() -> void:
 			"altar_level %d requires rank at next offer" % int(level))
 
 
+## Retired "survey" shop upgrade folded into the altar (2026-07-15 shop
+## redesign): each offering now also raises document_chance_bonus, not
+## just party_atk_bonus.
+func test_altar_offering_also_raises_document_chance() -> void:
+	var sim := _sim()
+	sim.upgrades["altar"] = {"level": 1, "effect": "doc_chance_add"}
+	sim.inventory[UD.RES_GOLD] = 10000
+	var doc_chance_before := sim.document_chance_bonus()
+	assert_true(sim.offer_at_altar())
+	assert_eq(sim.document_chance_bonus(), doc_chance_before + UD.UPGRADE_DOC_CHANCE)
+
+
 func test_altar_offer_cost_scales_geometrically() -> void:
 	var sim := _sim()
 	sim.upgrades["altar"] = {"level": 1, "effect": "doc_chance_add"}

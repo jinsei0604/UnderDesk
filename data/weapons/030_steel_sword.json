@@ -1,0 +1,11 @@
+{
+  "id": "steel_sword",
+  "name_key": "WEAPON_STEEL_SWORD_NAME",
+  "desc_key": "WEAPON_STEEL_SWORD_DESC",
+  "buy_cost": 2000,
+  "base_atk": 20,
+  "atk_per_level": 3,
+  "upgrade_base_cost": 400,
+  "upgrade_cost_mult": 1.5,
+  "max_level": 10
+}

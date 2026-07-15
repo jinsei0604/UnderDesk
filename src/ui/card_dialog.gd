@@ -41,12 +41,13 @@ var _action_button: Button
 var _cards: Dictionary = {}  # id -> Button
 var _selected_id: String = ""
 var _card_area: Control
+var _action_requires_selection: bool = true
 ## Invisible click targets over a set_background() illustration (e.g. the
 ## guild's painted "アイテム交換" / "交換カウンター" signs), each a Rect2
 ## normalized to the background texture's own pixel size (0..1 on both
 ## axes) so they track STRETCH_KEEP_ASPECT_COVERED's crop-and-scale as
 ## the dialog resizes.
-var _hotspots: Array[Dictionary] = []  # [{ "rect": Rect2, "button": Button }]
+var _hotspots: Array[Dictionary] = []  # [{ "rect": Rect2, "button": Control }]
 
 
 static func create(dialog_title: String, with_action: bool) -> UDCardDialog:
@@ -174,7 +175,7 @@ func _build(with_action: bool) -> void:
 	_action_button.visible = with_action
 	_action_button.pressed.connect(
 		func() -> void:
-			if _selected_id != "":
+			if _selected_id != "" or not _action_requires_selection:
 				action_pressed.emit(_selected_id)
 	)
 	detail_box.add_child(_action_button)
@@ -206,6 +207,15 @@ func set_character(tex: Texture2D, feet_y: float = 1.0) -> void:
 	_character_rect.offset_bottom = -CHARACTER_BOTTOM_MARGIN
 
 
+## Drops the native OK button and window titlebar/close-X, for a dialog
+## whose set_background() art bakes in its own title and close control
+## (e.g. the shop's painted "閉じる" plaque) — two redundant, differently
+## styled close affordances read as a mistake, not two options.
+func hide_native_chrome() -> void:
+	get_ok_button().visible = false
+	borderless = true
+
+
 ## Shows the "back to series" button on nested pages (archive shelves).
 func set_back(label: String, visible_now: bool) -> void:
 	_back_button.text = "← " + label
@@ -231,22 +241,30 @@ func add_hotspot(rect_norm: Rect2, on_pressed: Callable) -> Button:
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.pressed.connect(on_pressed)
-	_card_area.add_child(button)
-	_hotspots.append({"rect": rect_norm, "button": button})
-	_layout_hotspots()
+	add_overlay(rect_norm, button)
 	return button
+
+
+## Positions any Control at `rect_norm` (fractions of the background
+## texture's own pixel size) using the same cover-scale math as
+## add_hotspot — e.g. a live Label masking a baked placeholder number in
+## the art. Tracked and cleared the same way as button hotspots.
+func add_overlay(rect_norm: Rect2, control: Control) -> void:
+	_card_area.add_child(control)
+	_hotspots.append({"rect": rect_norm, "button": control})
+	_layout_hotspots()
 
 
 func clear_hotspots() -> void:
 	for h: Variant in _hotspots:
-		((h as Dictionary)["button"] as Button).queue_free()
+		((h as Dictionary)["button"] as Control).queue_free()
 	_hotspots.clear()
 
 
-## Re-derives each hotspot's screen rect from the background's current
+## Re-derives each overlay's screen rect from the background's current
 ## cover-scale crop (same math STRETCH_KEEP_ASPECT_COVERED does
 ## internally, which TextureRect doesn't expose) whenever the dialog is
-## resized, so hotspots stay pinned to the art instead of drifting.
+## resized, so they stay pinned to the art instead of drifting.
 func _layout_hotspots() -> void:
 	if _background_rect.texture == null or _hotspots.is_empty():
 		return
@@ -260,9 +278,9 @@ func _layout_hotspots() -> void:
 	for h: Variant in _hotspots:
 		var entry := h as Dictionary
 		var r := entry["rect"] as Rect2
-		var button := entry["button"] as Button
-		button.position = offset + r.position * displayed
-		button.size = r.size * displayed
+		var control := entry["button"] as Control
+		control.position = offset + r.position * displayed
+		control.size = r.size * displayed
 
 
 ## A parchment card. Locked cards keep their slot on the shelf but show
@@ -348,9 +366,13 @@ func show_detail(title_text: String, body_bbcode: String, icon: Texture2D) -> vo
 	_detail_icon.visible = icon != null
 
 
-func set_action(label: String, disabled: bool) -> void:
+## `requires_selection` false lets the action fire with no card selected —
+## for pages with no grid at all (e.g. the shop's weapon-upgrade screen,
+## which acts on "whatever's currently equipped" rather than a pick).
+func set_action(label: String, disabled: bool, requires_selection: bool = true) -> void:
 	_action_button.text = label
 	_action_button.disabled = disabled
+	_action_requires_selection = requires_selection
 
 
 func has_cards() -> bool:

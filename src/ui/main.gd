@@ -23,7 +23,7 @@ var locale: UDLocale
 var doc_db: UDDocumentDB
 var facility_db: UDShopDB
 var item_db: UDItemDB
-var shop_db: UDShopDB
+var weapon_db: UDShopDB
 var enemy_db: UDEnemyDB
 var stage_db: UDStageDB
 var skill_db: UDSkillDB
@@ -99,7 +99,7 @@ func _ready() -> void:
 	doc_db = UDDocumentDB.load_from_dir("res://data/documents")
 	facility_db = UDShopDB.load_from_dir("res://data/facilities")
 	item_db = UDItemDB.load_from_dir("res://data/items")
-	shop_db = UDShopDB.load_from_dir("res://data/shop")
+	weapon_db = UDShopDB.load_from_dir("res://data/weapons")
 	enemy_db = UDEnemyDB.load_from_dir("res://data/enemies")
 	stage_db = UDStageDB.load_from_dir("res://data/stages")
 	skill_db = UDSkillDB.load_from_dir("res://data/skills")
@@ -108,8 +108,8 @@ func _ready() -> void:
 	for def: Variant in doc_series:
 		series_ids.append(str((def as Dictionary)["id"]))
 	art = UDArtLibrary.load_default(
-		facility_db.all_ids(), item_db.all_ids(), shop_db.all_ids(), doc_db.all_ids(),
-		series_ids, enemy_db.all_ids()
+		facility_db.all_ids(), item_db.all_ids(), [], doc_db.all_ids(),
+		series_ids, enemy_db.all_ids(), weapon_db.all_ids()
 	)
 	achievements = UDAchievements.load_default(UDPlatform.create())
 	anomalies = UDDataLoader.load_json_dir("res://data/anomalies")
@@ -124,12 +124,12 @@ func _ready() -> void:
 		sim = UDSim.new_game(
 			enemy_db, stage_db, int(Time.get_unix_time_from_system()),
 			item_db.all_ids(), companion_defs, doc_db.conditions_by_id(),
-			item_db.ranks_by_id(), skill_db
+			item_db.ranks_by_id(), skill_db, weapon_db
 		)
 	else:
 		sim = UDSim.from_dict(
 			payload["sim"], enemy_db, stage_db, item_db.all_ids(), companion_defs,
-			doc_db.conditions_by_id(), item_db.ranks_by_id(), skill_db
+			doc_db.conditions_by_id(), item_db.ranks_by_id(), skill_db, weapon_db
 		)
 	_connect_sim_signals()
 	if not payload.is_empty():
@@ -904,75 +904,264 @@ func _on_treasure_card_selected(card_id: String) -> void:
 	)
 
 
+## --- Shop (weapon shop + item trading) ---------------------------------
+## Fully art-driven, like the guild: dialog_bg_shop.png bakes in its own
+## title, four signed counters, and a close plaque, so the dialog runs
+## with its native OK/titlebar-X hidden (hide_native_chrome()) and the
+## art's own click targets do the navigating. The mockup's second (gem)
+## currency was placeholder decoration and was never shipped — only the
+## real coin count is live, overlaid on the coin badge's number.
+## pickaxe/survey (the old shop_db goods) are retired as of this redesign
+## (2026-07-15): atk now grows only through leveling and the weapon
+## below; document_chance_bonus()'s equivalent moved to the altar.
+
+var _shop_mode: String = ""
+
+const SHOP_BUY_WEAPON_HOTSPOT := Rect2(0.0052, 0.1777, 0.2174, 0.0898)
+const SHOP_UPGRADE_WEAPON_HOTSPOT := Rect2(0.0052, 0.3105, 0.2174, 0.0898)
+const SHOP_BUY_ITEM_HOTSPOT := Rect2(0.0052, 0.4434, 0.2174, 0.0898)
+const SHOP_SELL_ITEM_HOTSPOT := Rect2(0.0052, 0.5801, 0.2174, 0.0898)
+const SHOP_CLOSE_HOTSPOT := Rect2(0.7982, 0.0146, 0.1888, 0.0781)
+const SHOP_GOLD_OVERLAY := Rect2(0.0534, 0.0215, 0.1452, 0.0469)
+const SHOP_GOLD_COLOR := Color(0.95, 0.82, 0.55)
+
+
 func _build_shop_dialog() -> void:
 	_shop_dialog = UDCardDialog.create(locale.text("UI_SHOP"), true)
 	_shop_dialog.card_selected.connect(_on_shop_card_selected)
-	_shop_dialog.action_pressed.connect(_on_shop_buy)
+	_shop_dialog.action_pressed.connect(_on_shop_action)
+	_shop_dialog.back_pressed.connect(_show_shop_front)
+	_shop_dialog.set_background(art.texture("dialog_bg_shop"))
+	_shop_dialog.hide_native_chrome()
 	add_child(_shop_dialog)
 
 
 func _open_shop() -> void:
 	if settings.resident_mode:
 		_expand()
-	_populate_shop("")
-	_shop_dialog.title = locale.text("UI_SHOP")
+	_show_shop_front()
 	_shop_dialog.popup_centered()
 
 
-## Goods hang like framed wares (reference shot): the card carries name,
-## level and price; the detail panel sells it and holds the buy button.
-func _populate_shop(keep_selection: String) -> void:
+## Digit-group a coin amount ("123456" -> "123,456"); RES_GOLD has no
+## symbol prefix in this game, so plain grouping is all formatting needs.
+func _format_gold(amount: int) -> String:
+	var digits := str(amount)
+	var out := ""
+	for i in digits.length():
+		if i > 0 and (digits.length() - i) % 3 == 0:
+			out += ","
+		out += digits[i]
+	return out
+
+
+## Landing page: the four signed counters ("武器の購入" etc.) and the
+## "閉じる" plaque are the click targets, baked into dialog_bg_shop.png —
+## no cards. Only the coin count is live, masked over the art's baked
+## placeholder number.
+func _show_shop_front() -> void:
+	_shop_mode = "front"
 	_shop_dialog.clear_cards()
-	for good_id in shop_db.all_ids():
-		var good := shop_db.get_good(good_id)
-		var level := sim.upgrade_level(good_id)
-		var max_level := int(good["max_level"])
-		var subtitle := "Lv.%d/%d" % [level, max_level]
-		if level >= max_level:
-			subtitle += "  MAX"
-		else:
-			subtitle += "  $%d" % UDSim.upgrade_cost(good, level)
-		var icon := art.icon_or_placeholder("shop_%s" % good_id, good_id, "rune")
-		_shop_dialog.add_card(
-			good_id, locale.text(good["name_key"]), subtitle, icon, false
-		)
-	_shop_dialog.set_progress(
-		"%s %d" % [locale.text("RES_GOLD"), int(sim.inventory[UD.RES_GOLD])]
-	)
-	_shop_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
+	_shop_dialog.clear_hotspots()
+	_shop_dialog.set_back("", false)
 	_shop_dialog.set_action(locale.text("UI_BUY"), true)
-	var select_id := keep_selection
-	if select_id == "":
-		select_id = _shop_dialog.first_unlocked_id()
+	_shop_dialog.show_detail("", "", null)
+	var gold_label := Label.new()
+	gold_label.add_theme_font_size_override("font_size", 22)
+	gold_label.add_theme_color_override("font_color", SHOP_GOLD_COLOR)
+	gold_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	gold_label.text = _format_gold(int(sim.inventory.get(UD.RES_GOLD, 0)))
+	_shop_dialog.add_overlay(SHOP_GOLD_OVERLAY, gold_label)
+	_shop_dialog.add_hotspot(SHOP_BUY_WEAPON_HOTSPOT, _show_shop_buy_weapon)
+	_shop_dialog.add_hotspot(SHOP_UPGRADE_WEAPON_HOTSPOT, _show_shop_upgrade_weapon)
+	_shop_dialog.add_hotspot(SHOP_BUY_ITEM_HOTSPOT, _show_shop_buy_item)
+	_shop_dialog.add_hotspot(SHOP_SELL_ITEM_HOTSPOT, _show_shop_sell_item)
+	_shop_dialog.add_hotspot(SHOP_CLOSE_HOTSPOT, _shop_dialog.hide)
+
+
+## --- Buy weapon: a shelf of every weapon; buying replaces whichever's
+## equipped (no inventory, no separate equip step). ---------------------
+
+func _show_shop_buy_weapon() -> void:
+	_shop_mode = "buy_weapon"
+	_shop_dialog.clear_cards()
+	_shop_dialog.clear_hotspots()
+	_shop_dialog.set_back(locale.text("UI_BACK"), true)
+	_shop_dialog.set_action(locale.text("UI_BUY"), true)
+	for weapon_id in weapon_db.all_ids():
+		var weapon := weapon_db.get_good(weapon_id)
+		var equipped := weapon_id == sim.equipped_weapon_id
+		var subtitle := locale.text("UI_EQUIPPED") if equipped else (
+			"%s %d" % [locale.text("RES_GOLD"), int(weapon["buy_cost"])]
+		)
+		_shop_dialog.add_card(
+			weapon_id, locale.text(weapon["name_key"]), subtitle,
+			art.icon_or_placeholder("weapon_%s" % weapon_id, weapon_id, "rune"), false
+		)
+	_shop_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
+	var select_id := _shop_dialog.first_unlocked_id()
 	if select_id != "":
 		_shop_dialog.select_card(select_id)
 
 
-func _on_shop_card_selected(good_id: String) -> void:
-	var good := shop_db.get_good(good_id)
-	var level := sim.upgrade_level(good_id)
-	var max_level := int(good["max_level"])
-	var body := locale.text(good["desc_key"])
-	var maxed := level >= max_level
-	var cost := 0
-	if maxed:
-		body += "\n\n[b]Lv.%d/%d  MAX[/b]" % [level, max_level]
-	else:
-		cost = UDSim.upgrade_cost(good, level)
-		body += "\n\n[b]Lv.%d/%d[/b]   $%d" % [level, max_level, cost]
-	_shop_dialog.show_detail(
-		locale.text(good["name_key"]), body,
-		art.icon_or_placeholder("shop_%s" % good_id, good_id, "rune")
+func _show_weapon_buy_detail(weapon_id: String) -> void:
+	var weapon := weapon_db.get_good(weapon_id)
+	var equipped := weapon_id == sim.equipped_weapon_id
+	var body := locale.text(weapon["desc_key"])
+	body += "\n\n[b]ATK +%d[/b]" % int(weapon["base_atk"])
+	body += "\n\n%s" % (
+		locale.text("UI_EQUIPPED") if equipped
+		else locale.text("UI_BUY_COST") % int(weapon["buy_cost"])
 	)
-	var affordable := not maxed and int(sim.inventory[UD.RES_GOLD]) >= cost
+	_shop_dialog.show_detail(
+		locale.text(weapon["name_key"]), body,
+		art.icon_or_placeholder("weapon_%s" % weapon_id, weapon_id, "rune")
+	)
+	var affordable := not equipped and int(sim.inventory[UD.RES_GOLD]) >= int(weapon["buy_cost"])
 	_shop_dialog.set_action(locale.text("UI_BUY"), not affordable)
 
 
-func _on_shop_buy(good_id: String) -> void:
-	var good := shop_db.get_good(good_id)
-	if sim.buy_upgrade(good):
-		_populate_shop(good_id)
-		queue_redraw()
+## --- Upgrade weapon: no grid, just the equipped weapon's own stat card -
+
+func _show_shop_upgrade_weapon() -> void:
+	_shop_mode = "upgrade_weapon"
+	_shop_dialog.clear_cards()
+	_shop_dialog.clear_hotspots()
+	_shop_dialog.set_back(locale.text("UI_BACK"), true)
+	if sim.equipped_weapon_id == "":
+		_shop_dialog.show_detail("", locale.text("UI_WEAPON_NONE"), null)
+		_shop_dialog.set_action(locale.text("UI_SHOP_UPGRADE_WEAPON"), true, false)
+		return
+	var weapon := weapon_db.get_good(sim.equipped_weapon_id)
+	var max_level := int(weapon["max_level"])
+	var maxed := sim.weapon_level >= max_level
+	var body := locale.text(weapon["desc_key"])
+	body += "\n\n[b]Lv.%d/%d[/b]   ATK +%d" % [sim.weapon_level, max_level, sim.weapon_atk_bonus()]
+	var cost := 0
+	if maxed:
+		body += "\n\nMAX"
+	else:
+		cost = UDSim.weapon_upgrade_cost(weapon, sim.weapon_level)
+		body += "\n\n%s" % (locale.text("UI_WEAPON_UPGRADE_COST") % cost)
+	_shop_dialog.show_detail(
+		locale.text("UI_WEAPON_EQUIPPED") % [locale.text(weapon["name_key"]), sim.weapon_level, max_level],
+		body, art.icon_or_placeholder("weapon_%s" % sim.equipped_weapon_id, sim.equipped_weapon_id, "rune")
+	)
+	var affordable := not maxed and int(sim.inventory[UD.RES_GOLD]) >= cost
+	_shop_dialog.set_action(locale.text("UI_SHOP_UPGRADE_WEAPON"), not affordable, false)
+
+
+## --- Buy item: every collectible, priced by rank ----------------------
+
+func _show_shop_buy_item() -> void:
+	_shop_mode = "buy_item"
+	_shop_dialog.clear_cards()
+	_shop_dialog.clear_hotspots()
+	_shop_dialog.set_back(locale.text("UI_BACK"), true)
+	_shop_dialog.set_action(locale.text("UI_BUY"), true)
+	for item_id in item_db.all_ids():
+		var rank := item_db.rank(item_id)
+		var at_cap := sim.item_count(item_id) >= sim.item_cap(item_id)
+		var subtitle := "%s %d" % [locale.text("RES_GOLD"), int(UD.ITEM_BUY_COST_BY_RANK.get(rank, 0))]
+		if at_cap:
+			subtitle += "  MAX"
+		_shop_dialog.add_card(
+			item_id, locale.text(item_db.get_item(item_id)["name_key"]), subtitle,
+			art.icon_or_placeholder("item_%s" % item_id, item_id, "gem"), false
+		)
+	_shop_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
+	var select_id := _shop_dialog.first_unlocked_id()
+	if select_id != "":
+		_shop_dialog.select_card(select_id)
+
+
+func _show_item_buy_detail(item_id: String) -> void:
+	var item := item_db.get_item(item_id)
+	var rank := item_db.rank(item_id)
+	var cost := int(UD.ITEM_BUY_COST_BY_RANK.get(rank, 0))
+	var body := locale.text(item["desc_key"])
+	body += "\n\n[b]%s: %s[/b]   ×%d / %d" % [
+		locale.text("UI_RANK"), rank, sim.item_count(item_id), sim.item_cap(item_id),
+	]
+	body += "\n\n%s" % (locale.text("UI_BUY_COST") % cost)
+	_shop_dialog.show_detail(
+		locale.text(item["name_key"]), body,
+		art.icon_or_placeholder("item_%s" % item_id, item_id, "gem")
+	)
+	var at_cap := sim.item_count(item_id) >= sim.item_cap(item_id)
+	var affordable := not at_cap and int(sim.inventory[UD.RES_GOLD]) >= cost
+	_shop_dialog.set_action(locale.text("UI_BUY"), not affordable)
+
+
+## --- Sell item: only what's actually owned, selling the full stack ----
+
+func _show_shop_sell_item() -> void:
+	_shop_mode = "sell_item"
+	_shop_dialog.clear_cards()
+	_shop_dialog.clear_hotspots()
+	_shop_dialog.set_back(locale.text("UI_BACK"), true)
+	_shop_dialog.set_action(locale.text("UI_SELL"), true)
+	for item_id in item_db.all_ids():
+		var count := sim.item_count(item_id)
+		if count <= 0:
+			continue
+		_shop_dialog.add_card(
+			item_id, locale.text(item_db.get_item(item_id)["name_key"]), "×%d" % count,
+			art.icon_or_placeholder("item_%s" % item_id, item_id, "gem"), false
+		)
+	if not _shop_dialog.has_cards():
+		_shop_dialog.show_detail("", locale.text("UI_SELL_NONE"), null)
+		return
+	_shop_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
+	var select_id := _shop_dialog.first_unlocked_id()
+	if select_id != "":
+		_shop_dialog.select_card(select_id)
+
+
+func _show_item_sell_detail(item_id: String) -> void:
+	var item := item_db.get_item(item_id)
+	var rank := item_db.rank(item_id)
+	var value := int(UD.ITEM_SELL_VALUE_BY_RANK.get(rank, 0))
+	var count := sim.item_count(item_id)
+	var body := locale.text(item["desc_key"])
+	body += "\n\n[b]%s: %s[/b]   ×%d" % [locale.text("UI_RANK"), rank, count]
+	body += "\n\n%s" % (locale.text("UI_SELL_VALUE") % value)
+	body += "\n%s" % (locale.text("UI_SELL_TOTAL") % (value * count))
+	_shop_dialog.show_detail(
+		locale.text(item["name_key"]), body,
+		art.icon_or_placeholder("item_%s" % item_id, item_id, "gem")
+	)
+	_shop_dialog.set_action(locale.text("UI_SELL"), false)
+
+
+func _on_shop_card_selected(card_id: String) -> void:
+	match _shop_mode:
+		"buy_weapon":
+			_show_weapon_buy_detail(card_id)
+		"buy_item":
+			_show_item_buy_detail(card_id)
+		"sell_item":
+			_show_item_sell_detail(card_id)
+
+
+func _on_shop_action(card_id: String) -> void:
+	match _shop_mode:
+		"buy_weapon":
+			if sim.buy_weapon(card_id):
+				_show_shop_buy_weapon()
+				queue_redraw()
+		"upgrade_weapon":
+			if sim.upgrade_weapon():
+				_show_shop_upgrade_weapon()
+				queue_redraw()
+		"buy_item":
+			if sim.buy_item(card_id):
+				_show_shop_buy_item()
+				queue_redraw()
+		"sell_item":
+			if sim.sell_item(card_id, sim.item_count(card_id)):
+				_show_shop_sell_item()
+				queue_redraw()
 
 
 ## --- Dorm ---------------------------------------------------------

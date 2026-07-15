@@ -1,0 +1,11 @@
+{
+  "id": "bronze_sword",
+  "name_key": "WEAPON_BRONZE_SWORD_NAME",
+  "desc_key": "WEAPON_BRONZE_SWORD_DESC",
+  "buy_cost": 150,
+  "base_atk": 4,
+  "atk_per_level": 1,
+  "upgrade_base_cost": 60,
+  "upgrade_cost_mult": 1.4,
+  "max_level": 5
+}

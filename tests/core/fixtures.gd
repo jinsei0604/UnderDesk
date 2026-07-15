@@ -42,3 +42,14 @@ static func skills() -> UDSkillDB:
 		{"id": "test_skill", "name_key": "X", "desc_key": "X",
 			"mp_cost": 2, "power": 5, "target": "enemy", "effect": "damage"},
 	])
+
+
+static func weapons() -> UDShopDB:
+	return UDShopDB.from_dicts([
+		{"id": "test_dagger", "name_key": "X", "desc_key": "X",
+			"buy_cost": 100, "base_atk": 5, "atk_per_level": 2,
+			"upgrade_base_cost": 50, "upgrade_cost_mult": 1.5, "max_level": 3},
+		{"id": "test_axe", "name_key": "X", "desc_key": "X",
+			"buy_cost": 500, "base_atk": 15, "atk_per_level": 3,
+			"upgrade_base_cost": 100, "upgrade_cost_mult": 1.5, "max_level": 3},
+	])

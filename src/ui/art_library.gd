@@ -7,6 +7,7 @@ extends RefCounted
 ##   minion_0.png .. minion_5.png  (variant = minion id % 6, party units)
 ##   enemy_<enemy_id>.png  (trash mobs and bosses, data/enemies/ ids)
 ##   room_<room_id>.png  (e.g. room_dorm.png)
+##   weapon_<weapon_id>.png  (data/weapons/ ids)
 ##   depot.png
 ##   dialog_bg_<archive|treasure|shop|altar|guild|dorm>.png
 ##   (illustrated backdrop behind a UDCardDialog's card grid)
@@ -44,6 +45,7 @@ static func load_default(
 	doc_ids: Array[String] = [],
 	series_ids: Array[String] = [],
 	enemy_ids: Array[String] = [],
+	weapon_ids: Array[String] = [],
 ) -> UDArtLibrary:
 	var lib := UDArtLibrary.new()
 	var keys: Array[String] = [
@@ -68,6 +70,8 @@ static func load_default(
 		keys.append("series_%s" % series_id)
 	for enemy_id in enemy_ids:
 		keys.append("enemy_%s" % enemy_id)
+	for weapon_id in weapon_ids:
+		keys.append("weapon_%s" % weapon_id)
 	for key in keys:
 		var frames: Array = []
 		var base_path := "%s/%s.png" % [ART_DIR, key]
