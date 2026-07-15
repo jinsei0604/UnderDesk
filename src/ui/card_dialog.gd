@@ -40,6 +40,7 @@ var _detail_body: RichTextLabel
 var _action_button: Button
 var _cards: Dictionary = {}  # id -> Button
 var _selected_id: String = ""
+var _card_area: Control
 ## Invisible click targets over a set_background() illustration (e.g. the
 ## guild's painted "アイテム交換" / "交換カウンター" signs), each a Rect2
 ## normalized to the background texture's own pixel size (0..1 on both
@@ -93,6 +94,7 @@ func _build(with_action: bool) -> void:
 	card_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(card_area)
+	_card_area = card_area
 
 	_background_rect = TextureRect.new()
 	_background_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -100,6 +102,7 @@ func _build(with_action: bool) -> void:
 	_background_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	_background_rect.clip_contents = true
 	_background_rect.visible = false
+	_background_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_background_rect.resized.connect(_layout_hotspots)
 	card_area.add_child(_background_rect)
 
@@ -114,6 +117,12 @@ func _build(with_action: bool) -> void:
 	_character_rect.visible = false
 	card_area.add_child(_character_rect)
 
+	# Hotspots sit directly in card_area, siblings of (and added after, so
+	# drawn/hit-tested above) this scroll container. When the grid it holds
+	# is empty — the guild's landing page — an ordinary Control child added
+	# before the scroll would still lose clicks to it: ScrollContainer's
+	# default MOUSE_FILTER_STOP claims the whole card_area regardless of
+	# whether the grid inside has any cards.
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -222,7 +231,7 @@ func add_hotspot(rect_norm: Rect2, on_pressed: Callable) -> Button:
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.pressed.connect(on_pressed)
-	_background_rect.add_child(button)
+	_card_area.add_child(button)
 	_hotspots.append({"rect": rect_norm, "button": button})
 	_layout_hotspots()
 	return button
