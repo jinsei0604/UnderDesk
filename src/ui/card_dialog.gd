@@ -80,13 +80,28 @@ func _build(with_action: bool) -> void:
 	add_child(root)
 	_root_panel = root
 
-	# Background art fills the WHOLE dialog (child 0 of root, behind the
+	# PanelContainer is a Container: with multiple direct children it tries
+	# to manage each one's rect itself, and in practice only fit the ones
+	# that report their own minimum-size changes (the VBoxContainer below)
+	# to its CURRENT size — a plain full-rect Control child (the hotspot
+	# layer) got left sized to root's *initial* custom_minimum_size and
+	# never grew, silently mispositioning every hotspot once the dialog's
+	# real content made root bigger (2026-07-15, hunted via print-debugging
+	# global rects — "アイテム交換" landed ~90px off from the painted sign).
+	# A single plain Control absorbs that ambiguity: PanelContainer only
+	# ever has to size *one* child (this), and plain Controls don't fight
+	# their own children's anchors the way a Container does.
+	var content := Control.new()
+	content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(content)
+
+	# Background art fills the WHOLE dialog (child 0 of content, behind the
 	# column), not just the card body — otherwise the header strip and
 	# margins above/around the cards show the panel behind the art. Framed
 	# dialogs keep their cabinet border because root's content margin insets
 	# this rect; frameless ones (set_frame_visible false) let it reach the
-	# edges. Hotspots live in a matching full-rect layer on top (child 2) so
-	# their texture-normalized rects map 1:1 onto this same rect.
+	# edges. Hotspots live in a matching full-rect layer on top (last child)
+	# so their texture-normalized rects map 1:1 onto this same rect.
 	_background_rect = TextureRect.new()
 	_background_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_background_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -95,11 +110,12 @@ func _build(with_action: bool) -> void:
 	_background_rect.visible = false
 	_background_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_background_rect.resized.connect(_layout_hotspots)
-	root.add_child(_background_rect)
+	content.add_child(_background_rect)
 
 	var column := VBoxContainer.new()
+	column.set_anchors_preset(Control.PRESET_FULL_RECT)
 	column.add_theme_constant_override("separation", 8)
-	root.add_child(column)
+	content.add_child(column)
 
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 10)
@@ -200,7 +216,7 @@ func _build(with_action: bool) -> void:
 	detail_box.add_child(_action_button)
 
 	# Hotspot layer: a full-rect Control over everything (last child of
-	# root, same rect as _background_rect), holding the invisible click
+	# content, same rect as _background_rect), holding the invisible click
 	# targets. It must be MOUSE_FILTER_IGNORE, not PASS: PASS forwards the
 	# event to this layer's PARENT, never to the sibling column drawn
 	# behind it, so a full-rect PASS layer on top silently swallows every
@@ -213,7 +229,7 @@ func _build(with_action: bool) -> void:
 	_hotspot_layer = Control.new()
 	_hotspot_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_hotspot_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(_hotspot_layer)
+	content.add_child(_hotspot_layer)
 
 	# Drives animated backgrounds; started/stopped by _sync_bg_animation so
 	# it only runs while the dialog is actually visible.

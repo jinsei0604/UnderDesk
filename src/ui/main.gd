@@ -878,7 +878,10 @@ func _show_treasure_rank_shelf() -> void:
 	_treasure_dialog.set_progress(
 		locale.text("UI_PROGRESS_ITEMS") % [sim.distinct_items(), item_db.all_ids().size()]
 	)
-	_treasure_dialog.show_detail("", locale.text("UI_SELECT_RANK_HINT"), null)
+	# Same as the archive shelf: nothing is selected here (rank cards just
+	# drill in), so drop the detail panel instead of showing a hint no one
+	# asked for yet.
+	_treasure_dialog.set_detail_visible(false)
 
 
 func _show_treasure_rank(rank: String) -> void:
@@ -899,6 +902,7 @@ func _show_treasure_rank(rank: String) -> void:
 	_treasure_dialog.set_progress(
 		"%s   %d / %d" % [locale.text("UI_RANK_LABEL") % rank, owned, item_ids.size()]
 	)
+	_treasure_dialog.set_detail_visible(true)
 	_treasure_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
 	var first := _treasure_dialog.first_unlocked_id()
 	if first != "":
@@ -1371,7 +1375,6 @@ func _open_guild() -> void:
 	if settings.resident_mode:
 		_expand()
 	_show_guild_front()
-	_guild_dialog.title = locale.text("UI_GUILD")
 	_guild_dialog.popup_centered()
 
 
@@ -1389,9 +1392,18 @@ func _show_guild_front() -> void:
 	_guild_dialog.set_back("", false)
 	_guild_dialog.set_action(locale.text("UI_EXCHANGE"), true)
 	if not sim.guild_built():
+		_guild_dialog.set_detail_visible(true)
 		_guild_dialog.show_detail("", locale.text("UI_GUILD_NEEDS_ROOM"), null)
 		return
-	_guild_dialog.show_detail("", locale.text("UI_GUILD_NOTE"), null)
+	# No cards on this page — the two painted signs are the whole UI — so
+	# the detail panel has nothing to show and only ate into card_area's
+	# width. That width matters here specifically: card_area (and the
+	# background behind it) used to stop short of the panel, but now the
+	# background spans the WHOLE dialog, so with the panel left visible the
+	# "アイテム交換" sign (painted near the art's right edge) landed
+	# underneath it — clickable in theory, but covered and confusing, and
+	# in practice hard to hit exactly under the panel's own controls.
+	_guild_dialog.set_detail_visible(false)
 	_guild_dialog.add_hotspot(GUILD_ITEM_EXCHANGE_HOTSPOT, func() -> void: _populate_guild(""))
 	_guild_dialog.add_hotspot(GUILD_COUNTER_HOTSPOT, _show_guild_counter_soon)
 
@@ -1403,6 +1415,7 @@ func _show_guild_front() -> void:
 func _show_guild_counter_soon() -> void:
 	_guild_dialog.clear_cards()
 	_guild_dialog.clear_hotspots()
+	_guild_dialog.set_detail_visible(true)
 	_guild_dialog.set_back(locale.text("UI_BACK"), true)
 	_guild_dialog.set_action(locale.text("UI_EXCHANGE"), true)
 	_guild_dialog.show_detail(
@@ -1413,6 +1426,7 @@ func _show_guild_counter_soon() -> void:
 func _populate_guild(keep_selection: String) -> void:
 	_guild_dialog.clear_cards()
 	_guild_dialog.clear_hotspots()
+	_guild_dialog.set_detail_visible(true)
 	_guild_dialog.set_back(locale.text("UI_BACK"), true)
 	_guild_dialog.set_action(locale.text("UI_EXCHANGE"), true)
 	if not sim.guild_built():
@@ -1549,7 +1563,10 @@ func _show_archive_series_shelf() -> void:
 	_archive_dialog.set_progress(locale.text("UI_PROGRESS_DOCS") % [
 		sim.discovered_documents.size(), doc_db.count(),
 	])
-	_archive_dialog.show_detail("", locale.text("UI_SELECT_SERIES_HINT"), null)
+	# Nothing is selected on the shelf itself (only a series card, which
+	# immediately drills in), so the detail panel would otherwise just show
+	# a generic hint before the player has touched anything.
+	_archive_dialog.set_detail_visible(false)
 
 
 func _show_archive_series(series_id: String) -> void:
@@ -1581,6 +1598,7 @@ func _show_archive_series(series_id: String) -> void:
 			break
 	_archive_dialog.set_back(locale.text("UI_BACK"), true)
 	_archive_dialog.set_progress("%s   %d / %d" % [series_name, found, doc_ids.size()])
+	_archive_dialog.set_detail_visible(true)
 	_archive_dialog.show_detail("", locale.text("UI_SELECT_HINT"), null)
 	# Open on the newest unread page in this series, else the first found.
 	var select_id := ""
