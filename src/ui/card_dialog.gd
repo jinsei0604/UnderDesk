@@ -40,6 +40,12 @@ var _detail_body: RichTextLabel
 var _action_button: Button
 var _cards: Dictionary = {}  # id -> Button
 var _selected_id: String = ""
+## Invisible click targets over a set_background() illustration (e.g. the
+## guild's painted "アイテム交換" / "交換カウンター" signs), each a Rect2
+## normalized to the background texture's own pixel size (0..1 on both
+## axes) so they track STRETCH_KEEP_ASPECT_COVERED's crop-and-scale as
+## the dialog resizes.
+var _hotspots: Array[Dictionary] = []  # [{ "rect": Rect2, "button": Button }]
 
 
 static func create(dialog_title: String, with_action: bool) -> UDCardDialog:
@@ -94,6 +100,7 @@ func _build(with_action: bool) -> void:
 	_background_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	_background_rect.clip_contents = true
 	_background_rect.visible = false
+	_background_rect.resized.connect(_layout_hotspots)
 	card_area.add_child(_background_rect)
 
 	_character_rect = TextureRect.new()
@@ -201,6 +208,52 @@ func clear_cards() -> void:
 	_cards.clear()
 	for child in _grid.get_children():
 		child.queue_free()
+
+
+## Adds a fully transparent button over the background art at `rect_norm`
+## (fractions of the texture's own size) so a spot painted into the scene
+## — a sign, a counter — is clickable in place, instead of a parchment
+## card floating over it. Cleared independently of clear_cards(); call
+## clear_hotspots() before laying out a page that doesn't want any.
+func add_hotspot(rect_norm: Rect2, on_pressed: Callable) -> Button:
+	var button := Button.new()
+	button.flat = true
+	button.self_modulate = Color(1, 1, 1, 0)
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.pressed.connect(on_pressed)
+	_background_rect.add_child(button)
+	_hotspots.append({"rect": rect_norm, "button": button})
+	_layout_hotspots()
+	return button
+
+
+func clear_hotspots() -> void:
+	for h: Variant in _hotspots:
+		((h as Dictionary)["button"] as Button).queue_free()
+	_hotspots.clear()
+
+
+## Re-derives each hotspot's screen rect from the background's current
+## cover-scale crop (same math STRETCH_KEEP_ASPECT_COVERED does
+## internally, which TextureRect doesn't expose) whenever the dialog is
+## resized, so hotspots stay pinned to the art instead of drifting.
+func _layout_hotspots() -> void:
+	if _background_rect.texture == null or _hotspots.is_empty():
+		return
+	var tex_size := _background_rect.texture.get_size()
+	var rect_size := _background_rect.size
+	if rect_size.x <= 0.0 or rect_size.y <= 0.0 or tex_size.x <= 0.0 or tex_size.y <= 0.0:
+		return
+	var scale := maxf(rect_size.x / tex_size.x, rect_size.y / tex_size.y)
+	var displayed := tex_size * scale
+	var offset := (rect_size - displayed) / 2.0
+	for h: Variant in _hotspots:
+		var entry := h as Dictionary
+		var r := entry["rect"] as Rect2
+		var button := entry["button"] as Button
+		button.position = offset + r.position * displayed
+		button.size = r.size * displayed
 
 
 ## A parchment card. Locked cards keep their slot on the shelf but show

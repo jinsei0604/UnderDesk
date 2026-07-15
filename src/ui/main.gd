@@ -80,10 +80,6 @@ var _guild_dialog: UDCardDialog
 var _dorm_dialog: UDCardDialog
 ## Auto-picked consumption plan for the selected guild exchange target.
 var _guild_plan: Dictionary = {}
-## True on the guild's landing page (matches the "アイテム交換" counter in
-## the room art); the rank-up item grid only shows after that's picked.
-var _guild_at_front: bool = true
-const GUILD_ITEM_EXCHANGE_CARD_ID: String = "counter_item_exchange"
 
 ## Boss encounter panel (expanded-mode only): a turn menu per living
 ## unit (attack / one of their known skills), plus resolve/flee buttons.
@@ -1155,28 +1151,44 @@ func _open_guild() -> void:
 	_guild_dialog.popup_centered()
 
 
-## Landing page (matches the room art's "アイテム交換" counter sign): just
-## one card to walk up to it. The rank-up grid only opens once it's picked,
-## instead of dumping every owned item on the player the instant the
-## dialog opens.
+## Landing page: the room art's two painted signs ("アイテム交換" /
+## "交換カウンター") are the actual click targets — no parchment cards
+## floating over the scene. Rects are normalized to dialog_bg_guild.png's
+## own pixel size (1536x1024), read off the shipped art itself.
+const GUILD_ITEM_EXCHANGE_HOTSPOT := Rect2(0.8301, 0.4248, 0.1367, 0.0615)
+const GUILD_COUNTER_HOTSPOT := Rect2(0.0618, 0.3828, 0.2148, 0.0645)
+
+
 func _show_guild_front() -> void:
-	_guild_at_front = true
 	_guild_dialog.clear_cards()
+	_guild_dialog.clear_hotspots()
 	_guild_dialog.set_back("", false)
 	_guild_dialog.set_action(locale.text("UI_EXCHANGE"), true)
 	if not sim.guild_built():
 		_guild_dialog.show_detail("", locale.text("UI_GUILD_NEEDS_ROOM"), null)
 		return
-	_guild_dialog.add_card(
-		GUILD_ITEM_EXCHANGE_CARD_ID, locale.text("UI_GUILD_ITEM_EXCHANGE"), "",
-		art.icon_or_placeholder("room_tavern", "guild_item_exchange", "rune"), false
-	)
 	_guild_dialog.show_detail("", locale.text("UI_GUILD_NOTE"), null)
+	_guild_dialog.add_hotspot(GUILD_ITEM_EXCHANGE_HOTSPOT, func() -> void: _populate_guild(""))
+	_guild_dialog.add_hotspot(GUILD_COUNTER_HOTSPOT, _show_guild_counter_soon)
+
+
+## The counter sign is clickable, but real player-to-player trading needs
+## the network backend this project doesn't have yet (§ platform notes,
+## CLAUDE.md) — so it opens a plain "not yet" page instead of doing
+## nothing when pressed.
+func _show_guild_counter_soon() -> void:
+	_guild_dialog.clear_cards()
+	_guild_dialog.clear_hotspots()
+	_guild_dialog.set_back(locale.text("UI_BACK"), true)
+	_guild_dialog.set_action(locale.text("UI_EXCHANGE"), true)
+	_guild_dialog.show_detail(
+		locale.text("UI_GUILD_COUNTER"), locale.text("UI_GUILD_COUNTER_SOON"), null
+	)
 
 
 func _populate_guild(keep_selection: String) -> void:
-	_guild_at_front = false
 	_guild_dialog.clear_cards()
+	_guild_dialog.clear_hotspots()
 	_guild_dialog.set_back(locale.text("UI_BACK"), true)
 	_guild_dialog.set_action(locale.text("UI_EXCHANGE"), true)
 	if not sim.guild_built():
@@ -1230,9 +1242,6 @@ func _guild_exchange_plan(target_id: String) -> Dictionary:
 
 
 func _on_guild_card_selected(target_id: String) -> void:
-	if _guild_at_front:
-		_populate_guild("")
-		return
 	var item := item_db.get_item(target_id)
 	var rank := item_db.rank(target_id)
 	var fodder_rank := sim.rank_below(rank)
