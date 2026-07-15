@@ -96,6 +96,7 @@ UI_ALTAR_NO_ITEM,You own no rank-%s treasure
 UI_ALTAR_NEEDS_ROOM,Build an altar first
 UI_GUILD,Guild
 UI_EXCHANGE,Exchange
+UI_GUILD_ITEM_EXCHANGE,Item Exchange
 UI_GUILD_NOTE,Trading with other delvers opens with Steam. Rank-up exchange works today.
 UI_GUILD_NEEDS_ROOM,Build the guild first
 UI_GUILD_COST,Requires: rank %s ×%d

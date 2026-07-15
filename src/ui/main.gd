@@ -80,6 +80,10 @@ var _guild_dialog: UDCardDialog
 var _dorm_dialog: UDCardDialog
 ## Auto-picked consumption plan for the selected guild exchange target.
 var _guild_plan: Dictionary = {}
+## True on the guild's landing page (matches the "アイテム交換" counter in
+## the room art); the rank-up item grid only shows after that's picked.
+var _guild_at_front: bool = true
+const GUILD_ITEM_EXCHANGE_CARD_ID: String = "counter_item_exchange"
 
 ## Boss encounter panel (expanded-mode only): a turn menu per living
 ## unit (attack / one of their known skills), plus resolve/flee buttons.
@@ -1138,6 +1142,7 @@ func _build_guild_dialog() -> void:
 	_guild_dialog = UDCardDialog.create(locale.text("UI_GUILD"), true)
 	_guild_dialog.card_selected.connect(_on_guild_card_selected)
 	_guild_dialog.action_pressed.connect(_on_guild_exchange)
+	_guild_dialog.back_pressed.connect(_show_guild_front)
 	_guild_dialog.set_background(art.texture("dialog_bg_guild"))
 	add_child(_guild_dialog)
 
@@ -1145,15 +1150,34 @@ func _build_guild_dialog() -> void:
 func _open_guild() -> void:
 	if settings.resident_mode:
 		_expand()
-	_populate_guild("")
+	_show_guild_front()
 	_guild_dialog.title = locale.text("UI_GUILD")
 	_guild_dialog.popup_centered()
 
 
-func _populate_guild(keep_selection: String) -> void:
+## Landing page (matches the room art's "アイテム交換" counter sign): just
+## one card to walk up to it. The rank-up grid only opens once it's picked,
+## instead of dumping every owned item on the player the instant the
+## dialog opens.
+func _show_guild_front() -> void:
+	_guild_at_front = true
 	_guild_dialog.clear_cards()
 	_guild_dialog.set_back("", false)
-	_guild_dialog.set_progress(locale.text("UI_GUILD_NOTE"))
+	_guild_dialog.set_action(locale.text("UI_EXCHANGE"), true)
+	if not sim.guild_built():
+		_guild_dialog.show_detail("", locale.text("UI_GUILD_NEEDS_ROOM"), null)
+		return
+	_guild_dialog.add_card(
+		GUILD_ITEM_EXCHANGE_CARD_ID, locale.text("UI_GUILD_ITEM_EXCHANGE"), "",
+		art.icon_or_placeholder("room_tavern", "guild_item_exchange", "rune"), false
+	)
+	_guild_dialog.show_detail("", locale.text("UI_GUILD_NOTE"), null)
+
+
+func _populate_guild(keep_selection: String) -> void:
+	_guild_at_front = false
+	_guild_dialog.clear_cards()
+	_guild_dialog.set_back(locale.text("UI_BACK"), true)
 	_guild_dialog.set_action(locale.text("UI_EXCHANGE"), true)
 	if not sim.guild_built():
 		_guild_dialog.show_detail("", locale.text("UI_GUILD_NEEDS_ROOM"), null)
@@ -1206,6 +1230,9 @@ func _guild_exchange_plan(target_id: String) -> Dictionary:
 
 
 func _on_guild_card_selected(target_id: String) -> void:
+	if _guild_at_front:
+		_populate_guild("")
+		return
 	var item := item_db.get_item(target_id)
 	var rank := item_db.rank(target_id)
 	var fodder_rank := sim.rank_below(rank)
