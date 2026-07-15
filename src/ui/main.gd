@@ -942,11 +942,6 @@ func _build_shop_dialog() -> void:
 	_shop_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_shop"))
 	_shop_dialog.hide_native_chrome()
 	_shop_dialog.set_frame_visible(false)
-	# The art's own "閉じる" plaque (SHOP_CLOSE_HOTSPOT, front page only)
-	# sits under the detail panel on every item-list page, so it can't be
-	# the only way to close from there. A header close button works on
-	# every shop page regardless of what's showing below it.
-	_shop_dialog.add_header_close_button(locale.text("UI_CLOSE"))
 	add_child(_shop_dialog)
 
 
@@ -984,9 +979,6 @@ func _show_shop_front() -> void:
 	# card_area — and the background art's cover-scale crop — use the
 	# full dialog width instead of losing ~300px to an empty panel.
 	_shop_dialog.set_detail_visible(false)
-	# The art's own "閉じる" plaque is fully visible and already wired as
-	# a hotspot here — a second header close button would just double up.
-	_shop_dialog.set_header_close_visible(false)
 	var gold_label := Label.new()
 	gold_label.add_theme_font_size_override("font_size", 22)
 	gold_label.add_theme_color_override("font_color", SHOP_GOLD_COLOR)
@@ -1008,7 +1000,12 @@ func _show_shop_buy_weapon() -> void:
 	_shop_dialog.clear_cards()
 	_shop_dialog.clear_hotspots()
 	_shop_dialog.set_detail_visible(true)
-	_shop_dialog.set_header_close_visible(true)
+	# A real close button pinned to the same rect as the front page's
+	# "閉じる" plaque hotspot: the plaque itself is mostly hidden behind the
+	# detail panel here, leaving a confusing sliver of art poking out above
+	# it, so this draws over that whole rect instead of adding a second,
+	# differently-positioned close control.
+	_shop_dialog.add_solid_hotspot(SHOP_CLOSE_HOTSPOT, locale.text("UI_CLOSE"), _shop_dialog.hide)
 	_shop_dialog.set_back(locale.text("UI_BACK"), true)
 	_shop_dialog.set_action(locale.text("UI_BUY"), true)
 	for weapon_id in weapon_db.all_ids():
@@ -1051,7 +1048,12 @@ func _show_shop_upgrade_weapon() -> void:
 	_shop_dialog.clear_cards()
 	_shop_dialog.clear_hotspots()
 	_shop_dialog.set_detail_visible(true)
-	_shop_dialog.set_header_close_visible(true)
+	# A real close button pinned to the same rect as the front page's
+	# "閉じる" plaque hotspot: the plaque itself is mostly hidden behind the
+	# detail panel here, leaving a confusing sliver of art poking out above
+	# it, so this draws over that whole rect instead of adding a second,
+	# differently-positioned close control.
+	_shop_dialog.add_solid_hotspot(SHOP_CLOSE_HOTSPOT, locale.text("UI_CLOSE"), _shop_dialog.hide)
 	_shop_dialog.set_back(locale.text("UI_BACK"), true)
 	if sim.equipped_weapon_id == "":
 		_shop_dialog.show_detail("", locale.text("UI_WEAPON_NONE"), null)
@@ -1083,7 +1085,12 @@ func _show_shop_buy_item() -> void:
 	_shop_dialog.clear_cards()
 	_shop_dialog.clear_hotspots()
 	_shop_dialog.set_detail_visible(true)
-	_shop_dialog.set_header_close_visible(true)
+	# A real close button pinned to the same rect as the front page's
+	# "閉じる" plaque hotspot: the plaque itself is mostly hidden behind the
+	# detail panel here, leaving a confusing sliver of art poking out above
+	# it, so this draws over that whole rect instead of adding a second,
+	# differently-positioned close control.
+	_shop_dialog.add_solid_hotspot(SHOP_CLOSE_HOTSPOT, locale.text("UI_CLOSE"), _shop_dialog.hide)
 	_shop_dialog.set_back(locale.text("UI_BACK"), true)
 	_shop_dialog.set_action(locale.text("UI_BUY"), true)
 	for item_id in item_db.all_ids():
@@ -1127,7 +1134,12 @@ func _show_shop_sell_item() -> void:
 	_shop_dialog.clear_cards()
 	_shop_dialog.clear_hotspots()
 	_shop_dialog.set_detail_visible(true)
-	_shop_dialog.set_header_close_visible(true)
+	# A real close button pinned to the same rect as the front page's
+	# "閉じる" plaque hotspot: the plaque itself is mostly hidden behind the
+	# detail panel here, leaving a confusing sliver of art poking out above
+	# it, so this draws over that whole rect instead of adding a second,
+	# differently-positioned close control.
+	_shop_dialog.add_solid_hotspot(SHOP_CLOSE_HOTSPOT, locale.text("UI_CLOSE"), _shop_dialog.hide)
 	_shop_dialog.set_back(locale.text("UI_BACK"), true)
 	_shop_dialog.set_action(locale.text("UI_SELL"), true)
 	for item_id in item_db.all_ids():

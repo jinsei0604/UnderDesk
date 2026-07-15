@@ -411,6 +411,14 @@ func set_header_close_visible(visible_now: bool) -> void:
 	_header_close_button.visible = visible_now
 
 
+## Read back the header close button's current visibility (test hook —
+## regression guard for the 2026-07-15 bug where add_header_close_button()
+## created it hidden and nothing ever turned it back on for the five
+## enable_art_chrome() dialogs).
+func header_close_visible() -> bool:
+	return _header_close_button != null and _header_close_button.visible
+
+
 ## Shows the "back to series" button on nested pages (archive shelves).
 func set_back(label: String, visible_now: bool) -> void:
 	_back_button.text = "← " + label
@@ -433,6 +441,29 @@ func add_hotspot(rect_norm: Rect2, on_pressed: Callable) -> Button:
 	var button := Button.new()
 	button.flat = true
 	button.self_modulate = Color(1, 1, 1, 0)
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.pressed.connect(on_pressed)
+	add_overlay(rect_norm, button)
+	return button
+
+
+## A real, styled close/action button pinned to `rect_norm` (same texture-
+## normalized placement as add_hotspot) instead of the fully transparent
+## click target add_hotspot makes — for a spot in the art that isn't cleanly
+## visible everywhere it's needed (e.g. the shop's baked "閉じる" plaque:
+## the detail panel that appears on item-list pages covers most of it,
+## leaving only a confusing sliver of the art peeking out above the panel).
+## Drawn in the hotspot layer, so it renders on top of the detail panel and
+## fully covers whatever's beneath it at that rect — no gaps, no doubling.
+func add_solid_hotspot(rect_norm: Rect2, label: String, on_pressed: Callable) -> Button:
+	var button := Button.new()
+	button.text = label
+	button.add_theme_font_size_override("font_size", 16)
+	button.add_theme_color_override("font_color", COLOR_TEXT)
+	button.add_theme_stylebox_override("normal", _flat(COLOR_CABINET, COLOR_BORDER, 2, 8))
+	button.add_theme_stylebox_override("hover", _flat(COLOR_PAPER_HOVER, COLOR_BORDER, 2, 8))
+	button.add_theme_stylebox_override("pressed", _flat(COLOR_PAPER_SELECTED, COLOR_BORDER, 2, 8))
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.pressed.connect(on_pressed)
