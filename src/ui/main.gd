@@ -808,11 +808,22 @@ func _on_boss_flee() -> void:
 	_hide_boss_panel()
 
 
+## The animation frames shipped for a dialog backdrop key (dialog_bg_*),
+## in order: the base PNG plus any _f2/_f3/… siblings. One entry means a
+## static backdrop; drop in _fN files to make it loop (e.g. a flickering
+## candle in the archive). Reuses the same frame convention as sprites.
+func _dialog_bg_frames(key: String) -> Array:
+	var frames: Array = []
+	for i in art.frame_count(key):
+		frames.append(art.frame(key, i))
+	return frames
+
+
 func _build_archive_dialog() -> void:
 	_archive_dialog = UDCardDialog.create(locale.text("UI_ARCHIVE"), false)
 	_archive_dialog.card_selected.connect(_on_archive_card_selected)
 	_archive_dialog.back_pressed.connect(_show_archive_series_shelf)
-	_archive_dialog.set_background(art.texture("dialog_bg_archive"))
+	_archive_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_archive"))
 	_archive_dialog.enable_art_chrome(locale.text("UI_ARCHIVE"), locale.text("UI_CLOSE"))
 	add_child(_archive_dialog)
 
@@ -821,7 +832,7 @@ func _build_treasure_dialog() -> void:
 	_treasure_dialog = UDCardDialog.create(locale.text("UI_TREASURES"), false)
 	_treasure_dialog.card_selected.connect(_on_treasure_card_selected)
 	_treasure_dialog.back_pressed.connect(_show_treasure_rank_shelf)
-	_treasure_dialog.set_background(art.texture("dialog_bg_treasure"))
+	_treasure_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_treasure"))
 	_treasure_dialog.enable_art_chrome(locale.text("UI_TREASURES"), locale.text("UI_CLOSE"))
 	add_child(_treasure_dialog)
 
@@ -939,7 +950,7 @@ func _build_shop_dialog() -> void:
 	_shop_dialog.card_selected.connect(_on_shop_card_selected)
 	_shop_dialog.action_pressed.connect(_on_shop_action)
 	_shop_dialog.back_pressed.connect(_show_shop_front)
-	_shop_dialog.set_background(art.texture("dialog_bg_shop"))
+	_shop_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_shop"))
 	_shop_dialog.hide_native_chrome()
 	_shop_dialog.set_frame_visible(false)
 	add_child(_shop_dialog)
@@ -1189,7 +1200,7 @@ func _build_dorm_dialog() -> void:
 	_dorm_dialog = UDCardDialog.create(locale.text("ROOM_DORM"), true)
 	_dorm_dialog.card_selected.connect(_on_dorm_card_selected)
 	_dorm_dialog.action_pressed.connect(_on_dorm_level_up)
-	_dorm_dialog.set_background(art.texture("dialog_bg_dorm"))
+	_dorm_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_dorm"))
 	_dorm_dialog.enable_art_chrome(locale.text("ROOM_DORM"), locale.text("UI_CLOSE"))
 	add_child(_dorm_dialog)
 
@@ -1260,7 +1271,7 @@ func _build_altar_dialog() -> void:
 	_altar_dialog = UDCardDialog.create(locale.text("UI_ALTAR"), true)
 	_altar_dialog.card_selected.connect(_on_altar_card_selected)
 	_altar_dialog.action_pressed.connect(_on_altar_offer)
-	_altar_dialog.set_background(art.texture("dialog_bg_altar"))
+	_altar_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_altar"))
 	# Whichever party member is being enhanced stands on the altar table;
 	# hardcoded to the hero (minion 0) until per-companion altar upgrades
 	# and their effects are designed.
@@ -1347,7 +1358,7 @@ func _build_guild_dialog() -> void:
 	_guild_dialog.card_selected.connect(_on_guild_card_selected)
 	_guild_dialog.action_pressed.connect(_on_guild_exchange)
 	_guild_dialog.back_pressed.connect(_show_guild_front)
-	_guild_dialog.set_background(art.texture("dialog_bg_guild"))
+	_guild_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_guild"))
 	_guild_dialog.enable_art_chrome(locale.text("UI_GUILD"), locale.text("UI_CLOSE"))
 	add_child(_guild_dialog)
 

@@ -46,6 +46,11 @@ var _detail_panel: Control
 var _root_panel: PanelContainer
 var _hotspot_layer: Control
 var _header: HBoxContainer
+## Animated background support (dialog_bg_*_fN frames).
+const BG_ANIM_SECONDS: float = 0.22
+var _bg_frames: Array = []  # Array[Texture2D]
+var _bg_frame_index: int = 0
+var _bg_timer: Timer
 ## Invisible click targets over a set_background() illustration (e.g. the
 ## guild's painted "アイテム交換" / "交換カウンター" signs), each a Rect2
 ## normalized to the background texture's own pixel size (0..1 on both
@@ -210,6 +215,14 @@ func _build(with_action: bool) -> void:
 	_hotspot_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_hotspot_layer)
 
+	# Drives animated backgrounds; started/stopped by _sync_bg_animation so
+	# it only runs while the dialog is actually visible.
+	_bg_timer = Timer.new()
+	_bg_timer.wait_time = BG_ANIM_SECONDS
+	_bg_timer.timeout.connect(_advance_bg_frame)
+	add_child(_bg_timer)
+	visibility_changed.connect(_sync_bg_animation)
+
 
 func set_progress(text: String) -> void:
 	_progress_label.text = text
@@ -218,8 +231,36 @@ func set_progress(text: String) -> void:
 ## Optional illustrated backdrop behind the card grid (e.g. the archive's
 ## library-desk scene). Pass null to fall back to the plain cabinet panel.
 func set_background(tex: Texture2D) -> void:
-	_background_rect.texture = tex
-	_background_rect.visible = tex != null
+	set_background_frames([tex] if tex != null else [])
+
+
+## Animated backdrop: pass the frame list (e.g. the _fN sequence for
+## dialog_bg_archive so the candle flame flickers). One frame = a static
+## backdrop, no timer. The timer only ticks while the dialog is on screen
+## (see _sync_bg_animation), so a closed dialog costs nothing (§7.1).
+func set_background_frames(frames: Array) -> void:
+	_bg_frames = frames
+	_bg_frame_index = 0
+	_background_rect.texture = frames[0] if not frames.is_empty() else null
+	_background_rect.visible = not frames.is_empty()
+	_sync_bg_animation()
+
+
+func _sync_bg_animation() -> void:
+	if _bg_timer == null:
+		return
+	if visible and _bg_frames.size() > 1:
+		if _bg_timer.is_stopped():
+			_bg_timer.start()
+	else:
+		_bg_timer.stop()
+
+
+func _advance_bg_frame() -> void:
+	if _bg_frames.size() < 2:
+		return
+	_bg_frame_index = (_bg_frame_index + 1) % _bg_frames.size()
+	_background_rect.texture = _bg_frames[_bg_frame_index]
 
 
 ## Hides the right-side detail panel so card_area (and its background

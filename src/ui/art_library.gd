@@ -10,7 +10,8 @@ extends RefCounted
 ##   weapon_<weapon_id>.png  (data/weapons/ ids)
 ##   depot.png
 ##   dialog_bg_<archive|treasure|shop|altar|guild|dorm>.png
-##   (illustrated backdrop behind a UDCardDialog's card grid)
+##   (illustrated backdrop behind a UDCardDialog's card grid; add _fN
+##    frames to animate it, e.g. a flickering candle — see UDCardDialog)
 ##   dig_background.png  (the cave backdrop behind the battle view)
 ##   series_<series_id>.png  (e.g. series_journal.png, the archive shelf icon)
 ##   item_rank_<Z|S|A|B|C|D>.png  (the treasure shelf's rank-card icon)
