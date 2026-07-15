@@ -939,6 +939,7 @@ func _build_shop_dialog() -> void:
 	_shop_dialog.back_pressed.connect(_show_shop_front)
 	_shop_dialog.set_background(art.texture("dialog_bg_shop"))
 	_shop_dialog.hide_native_chrome()
+	_shop_dialog.set_frame_visible(false)
 	add_child(_shop_dialog)
 
 

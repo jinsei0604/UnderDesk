@@ -43,6 +43,7 @@ var _selected_id: String = ""
 var _card_area: Control
 var _action_requires_selection: bool = true
 var _detail_panel: Control
+var _root_panel: PanelContainer
 ## Invisible click targets over a set_background() illustration (e.g. the
 ## guild's painted "アイテム交換" / "交換カウンター" signs), each a Rect2
 ## normalized to the background texture's own pixel size (0..1 on both
@@ -64,6 +65,7 @@ func _build(with_action: bool) -> void:
 	root.custom_minimum_size = Vector2(920, 500)
 	root.add_theme_stylebox_override("panel", _flat(COLOR_CABINET, COLOR_BORDER_DIM, 2, 10))
 	add_child(root)
+	_root_panel = root
 
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 8)
@@ -226,6 +228,17 @@ func set_character(tex: Texture2D, feet_y: float = 1.0) -> void:
 func hide_native_chrome() -> void:
 	get_ok_button().visible = false
 	borderless = true
+
+
+## Drops the dark-cabinet border/margin the root panel normally draws
+## around every card dialog — for a dialog whose set_background() art
+## already reads as a complete scene (the shop), that extra frame just
+## shows up as an unrelated outer edge instead of matching the art.
+func set_frame_visible(visible_now: bool) -> void:
+	if visible_now:
+		_root_panel.add_theme_stylebox_override("panel", _flat(COLOR_CABINET, COLOR_BORDER_DIM, 2, 10))
+	else:
+		_root_panel.add_theme_stylebox_override("panel", _flat(COLOR_CABINET, COLOR_CABINET, 0, 0))
 
 
 ## Shows the "back to series" button on nested pages (archive shelves).
