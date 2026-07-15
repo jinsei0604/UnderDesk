@@ -59,6 +59,16 @@ var _bg_timer: Timer
 ## the dialog resizes.
 var _hotspots: Array[Dictionary] = []  # [{ "rect": Rect2, "button": Control }]
 var _character_feet_norm: Vector2 = Vector2(0.5, 1.0)
+## Pseudo-animation (no extra art): a brightness flicker on the background,
+## for scenes lit by candle/torch/embers where real animated frames aren't
+## available yet. Three summed sine waves at unrelated frequencies avoid the
+## "breathing" look a single sine gives. Deterministic function of elapsed
+## time — a pure visual effect that never touches sim state, so §12-1's RNG
+## rule doesn't apply, but there's no reason to use real randomness here
+## either. Only ticks while the dialog is visible (see _sync_flicker).
+var _flicker_enabled: bool = false
+var _flicker_intensity: float = 0.0
+var _flicker_time: float = 0.0
 
 
 static func create(dialog_title: String, with_action: bool) -> UDCardDialog:
@@ -242,6 +252,8 @@ func _build(with_action: bool) -> void:
 	_bg_timer.timeout.connect(_advance_bg_frame)
 	add_child(_bg_timer)
 	visibility_changed.connect(_sync_bg_animation)
+	visibility_changed.connect(_sync_flicker)
+	set_process(false)
 
 
 func set_progress(text: String) -> void:
@@ -281,6 +293,32 @@ func _advance_bg_frame() -> void:
 		return
 	_bg_frame_index = (_bg_frame_index + 1) % _bg_frames.size()
 	_background_rect.texture = _bg_frames[_bg_frame_index]
+
+
+## Enables a code-only brightness flicker on the background (no extra art
+## needed) — a stand-in for a real animated candle/torch until drawn frames
+## exist. `intensity` is the max fractional brightness swing (0.06 = flame-
+## light flicker, subtle; higher reads as more agitated). 0 disables it.
+func enable_flicker(intensity: float = 0.06) -> void:
+	_flicker_intensity = intensity
+	_flicker_enabled = intensity > 0.0
+	_flicker_time = 0.0
+	if not _flicker_enabled:
+		_background_rect.modulate = Color.WHITE
+	_sync_flicker()
+
+
+func _sync_flicker() -> void:
+	set_process(_flicker_enabled and visible)
+
+
+func _process(delta: float) -> void:
+	_flicker_time += delta
+	var t := _flicker_time
+	var v := 1.0 + _flicker_intensity * (
+		sin(t * 7.3) * 0.5 + sin(t * 2.9 + 1.7) * 0.3 + sin(t * 13.1 + 0.6) * 0.2
+	)
+	_background_rect.modulate = Color(v, v, v, 1.0)
 
 
 ## Hides the right-side detail panel so card_area (and its background

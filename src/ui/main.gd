@@ -806,6 +806,9 @@ func _build_archive_dialog() -> void:
 	_archive_dialog.card_selected.connect(_on_archive_card_selected)
 	_archive_dialog.back_pressed.connect(_show_archive_series_shelf)
 	_archive_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_archive"))
+	# Pseudo-animation (no drawn frames yet): a candlelight flicker on the
+	# archive's desk scene, standing in for a real animated flame sprite.
+	_archive_dialog.enable_flicker(0.06)
 	_archive_dialog.enable_art_chrome(locale.text("UI_ARCHIVE"), locale.text("UI_CLOSE"))
 	add_child(_archive_dialog)
 
@@ -1273,6 +1276,9 @@ func _build_altar_dialog() -> void:
 	_altar_dialog.card_selected.connect(_on_altar_card_selected)
 	_altar_dialog.action_pressed.connect(_on_altar_offer)
 	_altar_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_altar"))
+	# Pseudo-animation: a votive-flame flicker over the altar's stone scene,
+	# same technique as the archive (no drawn frames needed).
+	_altar_dialog.enable_flicker(0.05)
 	# Whichever party member is being enhanced stands on the altar table;
 	# hardcoded to the hero (minion 0) until per-companion altar upgrades
 	# and their effects are designed. Coordinates are the altar's stone
