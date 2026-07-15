@@ -196,13 +196,18 @@ func _build(with_action: bool) -> void:
 
 	# Hotspot layer: a full-rect Control over everything (last child of
 	# root, same rect as _background_rect), holding the invisible click
-	# targets. mouse_filter PASS so clicks that miss a hotspot button fall
-	# through to the cards below; the buttons themselves STOP. It shares
-	# _background_rect's rect exactly, so texture-normalized hotspot rects
-	# map straight onto the art wherever the cover-crop places it.
+	# targets. It must be MOUSE_FILTER_IGNORE, not PASS: PASS forwards the
+	# event to this layer's PARENT, never to the sibling column drawn
+	# behind it, so a full-rect PASS layer on top silently swallows every
+	# click meant for the cards / close button / action button in the
+	# column. IGNORE makes the layer itself transparent to the mouse while
+	# its own STOP button children (hotspots) still receive clicks — so
+	# everything behind stays clickable. It shares _background_rect's rect
+	# exactly, so texture-normalized hotspot rects map straight onto the
+	# art wherever the cover-crop places it.
 	_hotspot_layer = Control.new()
 	_hotspot_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_hotspot_layer.mouse_filter = Control.MOUSE_FILTER_PASS
+	_hotspot_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_hotspot_layer)
 
 
