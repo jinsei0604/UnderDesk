@@ -57,6 +57,7 @@ var _bg_timer: Timer
 ## axes) so they track STRETCH_KEEP_ASPECT_COVERED's crop-and-scale as
 ## the dialog resizes.
 var _hotspots: Array[Dictionary] = []  # [{ "rect": Rect2, "button": Control }]
+var _character_feet_norm: Vector2 = Vector2(0.5, 1.0)
 
 
 static func create(dialog_title: String, with_action: bool) -> UDCardDialog:
@@ -110,7 +111,20 @@ func _build(with_action: bool) -> void:
 	_background_rect.visible = false
 	_background_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_background_rect.resized.connect(_layout_hotspots)
+	_background_rect.resized.connect(_layout_character)
 	content.add_child(_background_rect)
+
+	# Positioned in texture-normalized space (like hotspots), not anchored
+	# within card_area — card_area is narrower than the full dialog (the
+	# detail panel eats width beside it), so a card_area-centered character
+	# doesn't land where the art's pedestal/altar actually is. Sits above
+	# the background but below the column, so cards/detail draw over it.
+	_character_rect = TextureRect.new()
+	_character_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_character_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_character_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_character_rect.visible = false
+	content.add_child(_character_rect)
 
 	var column := VBoxContainer.new()
 	column.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -146,17 +160,6 @@ func _build(with_action: bool) -> void:
 	card_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(card_area)
 	_card_area = card_area
-
-	_character_rect = TextureRect.new()
-	_character_rect.anchor_left = 0.5
-	_character_rect.anchor_right = 0.5
-	_character_rect.offset_left = -CHARACTER_SIZE / 2.0
-	_character_rect.offset_right = CHARACTER_SIZE / 2.0
-	_character_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_character_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_character_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_character_rect.visible = false
-	card_area.add_child(_character_rect)
 
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -290,18 +293,38 @@ func set_detail_visible(visible_now: bool) -> void:
 
 
 ## Optional character portrait posed over the backdrop (e.g. the hero
-## or a companion standing on the altar). `feet_y` is where the
-## character's feet line up, as a fraction of the card area's height
-## (0 = top, 1 = bottom); the sprite extends upward from that line.
-## Whichever party member is being upgraded can be swapped in later by
-## just calling this again with a different texture.
-func set_character(tex: Texture2D, feet_y: float = 1.0) -> void:
+## standing on the altar). `feet_x`/`feet_y` are where the character's
+## feet plant, as a fraction of the *background texture's own pixel
+## size* — same normalized space as add_hotspot(), read directly off
+## where the pedestal/altar sits in the art — not the card area (which
+## is narrower than the full dialog once the detail panel eats into it,
+## so a card-area-centered character wouldn't land on the art's altar).
+## The sprite is a fixed on-screen size, extending upward from that
+## point. Whichever party member is being upgraded can be swapped in
+## later by just calling this again with a different texture.
+func set_character(tex: Texture2D, feet_x: float, feet_y: float) -> void:
 	_character_rect.texture = tex
 	_character_rect.visible = tex != null
-	_character_rect.anchor_top = feet_y
-	_character_rect.anchor_bottom = feet_y
-	_character_rect.offset_top = -CHARACTER_SIZE - CHARACTER_BOTTOM_MARGIN
-	_character_rect.offset_bottom = -CHARACTER_BOTTOM_MARGIN
+	_character_feet_norm = Vector2(feet_x, feet_y)
+	_layout_character()
+
+
+func _layout_character() -> void:
+	if _character_rect.texture == null or _background_rect.texture == null:
+		return
+	var tex_size := _background_rect.texture.get_size()
+	var rect_size := _background_rect.size
+	if rect_size.x <= 0.0 or rect_size.y <= 0.0:
+		return
+	var scale := maxf(rect_size.x / tex_size.x, rect_size.y / tex_size.y)
+	var displayed := tex_size * scale
+	var offset := (rect_size - displayed) / 2.0
+	var feet_screen := offset + _character_feet_norm * displayed
+	_character_rect.position = Vector2(
+		feet_screen.x - CHARACTER_SIZE / 2.0,
+		feet_screen.y - CHARACTER_BOTTOM_MARGIN - CHARACTER_SIZE
+	)
+	_character_rect.size = Vector2(CHARACTER_SIZE, CHARACTER_SIZE)
 
 
 ## Drops the native OK button and window titlebar/close-X, for a dialog

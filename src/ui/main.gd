@@ -1282,8 +1282,12 @@ func _build_altar_dialog() -> void:
 	_altar_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_altar"))
 	# Whichever party member is being enhanced stands on the altar table;
 	# hardcoded to the hero (minion 0) until per-companion altar upgrades
-	# and their effects are designed.
-	_altar_dialog.set_character(art.texture(art.minion_key(0)), 0.68)
+	# and their effects are designed. Coordinates are the altar's stone
+	# top surface, read off dialog_bg_altar.png's own pixel grid (760x770)
+	# — normalized like a hotspot, not centered in the (narrower) card
+	# area, so the hero actually stands on the pedestal in the art instead
+	# of floating to its side.
+	_altar_dialog.set_character(art.texture(art.minion_key(0)), 0.5, 0.643)
 	_altar_dialog.enable_art_chrome(locale.text("UI_ALTAR"), locale.text("UI_CLOSE"))
 	add_child(_altar_dialog)
 
