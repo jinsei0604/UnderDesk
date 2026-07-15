@@ -412,6 +412,13 @@ func enable_art_chrome(title_text: String, close_label: String) -> void:
 	_header.add_child(title_lbl)
 	_header.move_child(title_lbl, 2)  # back, spacer, title, [progress(EXPAND)], close
 	add_header_close_button(close_label)
+	# Unlike the shop (which toggles this per-page around its own baked
+	# "閉じる" plaque), every art_chrome dialog's illustration has no close
+	# control of its own, so the header button must stay on the whole time —
+	# add_header_close_button() only creates it hidden, nothing else here
+	# was ever turning it on (2026-07-15: the close button was invisible on
+	# all 5 art_chrome dialogs since day one of this helper).
+	set_header_close_visible(true)
 
 
 ## Just the close button, in the header (stays last: the header's right
