@@ -45,6 +45,7 @@ var _action_requires_selection: bool = true
 var _detail_panel: Control
 var _root_panel: PanelContainer
 var _hotspot_layer: Control
+var _header: HBoxContainer
 ## Invisible click targets over a set_background() illustration (e.g. the
 ## guild's painted "アイテム交換" / "交換カウンター" signs), each a Rect2
 ## normalized to the background texture's own pixel size (0..1 on both
@@ -98,6 +99,7 @@ func _build(with_action: bool) -> void:
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 10)
 	column.add_child(header)
+	_header = header
 
 	_back_button = Button.new()
 	_back_button.custom_minimum_size = Vector2(90, 34)
@@ -258,6 +260,45 @@ func set_frame_visible(visible_now: bool) -> void:
 		_root_panel.add_theme_stylebox_override("panel", _flat(COLOR_CABINET, COLOR_BORDER_DIM, 2, 10))
 	else:
 		_root_panel.add_theme_stylebox_override("panel", _flat(COLOR_CABINET, COLOR_CABINET, 0, 0))
+
+
+## Full art-driven chrome for a dialog whose background fills the frame:
+## drops the OS titlebar and cabinet frame, then puts a title and a close
+## button into the header row over the art — the code equivalent of the
+## shop art's baked-in title/閉じる plaque, for the other dialogs whose
+## illustrations don't have them drawn in. Header-based (not free-floating)
+## so the container guarantees they're laid out and on-screen: a
+## hand-anchored top-right button kept collapsing to zero width.
+func enable_art_chrome(title_text: String, close_label: String) -> void:
+	hide_native_chrome()
+	set_frame_visible(false)
+
+	# A left spacer centers the title between the back button and the
+	# progress/close cluster; the title itself is natural-width (an EXPAND
+	# title was starving the close button of layout width, dropping it).
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_header.add_child(spacer)
+	_header.move_child(spacer, 1)
+
+	var title_lbl := Label.new()
+	title_lbl.text = title_text
+	title_lbl.add_theme_font_size_override("font_size", 22)
+	title_lbl.add_theme_color_override("font_color", COLOR_TITLE)
+	_header.add_child(title_lbl)
+	_header.move_child(title_lbl, 2)  # back, spacer, title, [progress(EXPAND)], close
+
+	var close_btn := Button.new()
+	close_btn.text = "✕ " + close_label
+	close_btn.add_theme_font_size_override("font_size", 16)
+	close_btn.add_theme_color_override("font_color", COLOR_TEXT)
+	close_btn.add_theme_stylebox_override("normal", _flat(COLOR_CABINET, COLOR_BORDER, 2, 8))
+	close_btn.add_theme_stylebox_override("hover", _flat(COLOR_PAPER_HOVER, COLOR_BORDER, 2, 8))
+	close_btn.add_theme_stylebox_override("pressed", _flat(COLOR_PAPER_SELECTED, COLOR_BORDER, 2, 8))
+	close_btn.custom_minimum_size = Vector2(96, 34)
+	close_btn.focus_mode = Control.FOCUS_NONE
+	close_btn.pressed.connect(hide)
+	_header.add_child(close_btn)  # stays last: the header's right end
 
 
 ## Shows the "back to series" button on nested pages (archive shelves).
