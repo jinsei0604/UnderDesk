@@ -44,6 +44,7 @@ var _card_area: Control
 var _action_requires_selection: bool = true
 var _detail_panel: Control
 var _root_panel: PanelContainer
+var _hotspot_layer: Control
 ## Invisible click targets over a set_background() illustration (e.g. the
 ## guild's painted "アイテム交換" / "交換カウンター" signs), each a Rect2
 ## normalized to the background texture's own pixel size (0..1 on both
@@ -61,11 +62,34 @@ static func create(dialog_title: String, with_action: bool) -> UDCardDialog:
 
 
 func _build(with_action: bool) -> void:
+	# Kill AcceptDialog's own gray theme panel: it shows through the content
+	# margin around `root` as a gray border, which reads as "leftover UI
+	# behind the art" on a fully illustrated dialog. A dark flat panel
+	# blends into the art's dark edges instead.
+	add_theme_stylebox_override("panel", _flat(COLOR_CABINET, COLOR_CABINET, 0, 0))
+
 	var root := PanelContainer.new()
 	root.custom_minimum_size = Vector2(920, 500)
 	root.add_theme_stylebox_override("panel", _flat(COLOR_CABINET, COLOR_BORDER_DIM, 2, 10))
 	add_child(root)
 	_root_panel = root
+
+	# Background art fills the WHOLE dialog (child 0 of root, behind the
+	# column), not just the card body — otherwise the header strip and
+	# margins above/around the cards show the panel behind the art. Framed
+	# dialogs keep their cabinet border because root's content margin insets
+	# this rect; frameless ones (set_frame_visible false) let it reach the
+	# edges. Hotspots live in a matching full-rect layer on top (child 2) so
+	# their texture-normalized rects map 1:1 onto this same rect.
+	_background_rect = TextureRect.new()
+	_background_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_background_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_background_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_background_rect.clip_contents = true
+	_background_rect.visible = false
+	_background_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_background_rect.resized.connect(_layout_hotspots)
+	root.add_child(_background_rect)
 
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 8)
@@ -100,16 +124,6 @@ func _build(with_action: bool) -> void:
 	body.add_child(card_area)
 	_card_area = card_area
 
-	_background_rect = TextureRect.new()
-	_background_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_background_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_background_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	_background_rect.clip_contents = true
-	_background_rect.visible = false
-	_background_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_background_rect.resized.connect(_layout_hotspots)
-	card_area.add_child(_background_rect)
-
 	_character_rect = TextureRect.new()
 	_character_rect.anchor_left = 0.5
 	_character_rect.anchor_right = 0.5
@@ -121,12 +135,6 @@ func _build(with_action: bool) -> void:
 	_character_rect.visible = false
 	card_area.add_child(_character_rect)
 
-	# Hotspots sit directly in card_area, siblings of (and added after, so
-	# drawn/hit-tested above) this scroll container. When the grid it holds
-	# is empty — the guild's landing page — an ordinary Control child added
-	# before the scroll would still lose clicks to it: ScrollContainer's
-	# default MOUSE_FILTER_STOP claims the whole card_area regardless of
-	# whether the grid inside has any cards.
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -183,6 +191,17 @@ func _build(with_action: bool) -> void:
 				action_pressed.emit(_selected_id)
 	)
 	detail_box.add_child(_action_button)
+
+	# Hotspot layer: a full-rect Control over everything (last child of
+	# root, same rect as _background_rect), holding the invisible click
+	# targets. mouse_filter PASS so clicks that miss a hotspot button fall
+	# through to the cards below; the buttons themselves STOP. It shares
+	# _background_rect's rect exactly, so texture-normalized hotspot rects
+	# map straight onto the art wherever the cover-crop places it.
+	_hotspot_layer = Control.new()
+	_hotspot_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hotspot_layer.mouse_filter = Control.MOUSE_FILTER_PASS
+	root.add_child(_hotspot_layer)
 
 
 func set_progress(text: String) -> void:
@@ -275,7 +294,7 @@ func add_hotspot(rect_norm: Rect2, on_pressed: Callable) -> Button:
 ## add_hotspot — e.g. a live Label masking a baked placeholder number in
 ## the art. Tracked and cleared the same way as button hotspots.
 func add_overlay(rect_norm: Rect2, control: Control) -> void:
-	_card_area.add_child(control)
+	_hotspot_layer.add_child(control)
 	_hotspots.append({"rect": rect_norm, "button": control})
 	_layout_hotspots()
 
