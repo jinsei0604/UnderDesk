@@ -917,12 +917,18 @@ func _on_treasure_card_selected(card_id: String) -> void:
 
 var _shop_mode: String = ""
 
-const SHOP_BUY_WEAPON_HOTSPOT := Rect2(0.0052, 0.1777, 0.2174, 0.0898)
-const SHOP_UPGRADE_WEAPON_HOTSPOT := Rect2(0.0052, 0.3105, 0.2174, 0.0898)
-const SHOP_BUY_ITEM_HOTSPOT := Rect2(0.0052, 0.4434, 0.2174, 0.0898)
-const SHOP_SELL_ITEM_HOTSPOT := Rect2(0.0052, 0.5801, 0.2174, 0.0898)
-const SHOP_CLOSE_HOTSPOT := Rect2(0.7982, 0.0146, 0.1888, 0.0781)
-const SHOP_GOLD_OVERLAY := Rect2(0.0534, 0.0215, 0.1452, 0.0469)
+## dialog_bg_shop.png got 280px of solid padding added above its original
+## top edge (2026-07-15): with the detail panel hidden, card_area is wide
+## enough that STRETCH_KEEP_ASPECT_COVERED's centered crop was slicing
+## ~100-200px off the top at typical dialog sizes — enough to lose the
+## coin badge and close plaque entirely. Rects below are normalized
+## against the padded 1536x1304 image.
+const SHOP_BUY_WEAPON_HOTSPOT := Rect2(0.0052, 0.3543, 0.2174, 0.0706)
+const SHOP_UPGRADE_WEAPON_HOTSPOT := Rect2(0.0052, 0.4586, 0.2174, 0.0706)
+const SHOP_BUY_ITEM_HOTSPOT := Rect2(0.0052, 0.5629, 0.2174, 0.0706)
+const SHOP_SELL_ITEM_HOTSPOT := Rect2(0.0052, 0.6702, 0.2174, 0.0706)
+const SHOP_CLOSE_HOTSPOT := Rect2(0.7982, 0.2262, 0.1888, 0.0614)
+const SHOP_GOLD_OVERLAY := Rect2(0.0534, 0.2316, 0.1452, 0.0368)
 const SHOP_GOLD_COLOR := Color(0.95, 0.82, 0.55)
 
 
