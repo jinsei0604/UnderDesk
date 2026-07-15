@@ -938,18 +938,21 @@ func _on_treasure_card_selected(card_id: String) -> void:
 
 var _shop_mode: String = ""
 
-## dialog_bg_shop.png got 280px of solid padding added above its original
-## top edge (2026-07-15): with the detail panel hidden, card_area is wide
-## enough that STRETCH_KEEP_ASPECT_COVERED's centered crop was slicing
-## ~100-200px off the top at typical dialog sizes — enough to lose the
-## coin badge and close plaque entirely. Rects below are normalized
-## against the padded 1536x1304 image.
-const SHOP_BUY_WEAPON_HOTSPOT := Rect2(0.0052, 0.3543, 0.2174, 0.0706)
-const SHOP_UPGRADE_WEAPON_HOTSPOT := Rect2(0.0052, 0.4586, 0.2174, 0.0706)
-const SHOP_BUY_ITEM_HOTSPOT := Rect2(0.0052, 0.5629, 0.2174, 0.0706)
-const SHOP_SELL_ITEM_HOTSPOT := Rect2(0.0052, 0.6702, 0.2174, 0.0706)
-const SHOP_CLOSE_HOTSPOT := Rect2(0.7982, 0.2262, 0.1888, 0.0614)
-const SHOP_GOLD_OVERLAY := Rect2(0.0534, 0.2316, 0.1452, 0.0368)
+## dialog_bg_shop.png has 160px of solid padding above its original top
+## edge (2026-07-15, reduced from an earlier 280px): the background
+## fills the whole dialog regardless of the detail panel, and
+## STRETCH_KEEP_ASPECT_COVERED's centered crop slices a chunk off both
+## top and bottom at typical dialog sizes — enough top padding to keep
+## the coin badge and close plaque on screen, but no more than that,
+## since every extra pixel of top padding taxes the *bottom* crop too
+## (280px was cutting the rug/floor row off entirely). Rects below are
+## normalized against the padded 1536x1184 image.
+const SHOP_BUY_WEAPON_HOTSPOT := Rect2(0.0052, 0.2889, 0.2174, 0.0777)
+const SHOP_UPGRADE_WEAPON_HOTSPOT := Rect2(0.0052, 0.4037, 0.2174, 0.0777)
+const SHOP_BUY_ITEM_HOTSPOT := Rect2(0.0052, 0.5186, 0.2174, 0.0777)
+const SHOP_SELL_ITEM_HOTSPOT := Rect2(0.0052, 0.6368, 0.2174, 0.0777)
+const SHOP_CLOSE_HOTSPOT := Rect2(0.7982, 0.1478, 0.1888, 0.0676)
+const SHOP_GOLD_OVERLAY := Rect2(0.0534, 0.1537, 0.1452, 0.0405)
 const SHOP_GOLD_COLOR := Color(0.95, 0.82, 0.55)
 
 
@@ -961,6 +964,11 @@ func _build_shop_dialog() -> void:
 	_shop_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_shop"))
 	_shop_dialog.hide_native_chrome()
 	_shop_dialog.set_frame_visible(false)
+	# The art's own "閉じる" plaque (SHOP_CLOSE_HOTSPOT, front page only)
+	# sits under the detail panel on every item-list page, so it can't be
+	# the only way to close from there. A header close button works on
+	# every shop page regardless of what's showing below it.
+	_shop_dialog.add_header_close_button(locale.text("UI_CLOSE"))
 	add_child(_shop_dialog)
 
 
@@ -998,6 +1006,9 @@ func _show_shop_front() -> void:
 	# card_area — and the background art's cover-scale crop — use the
 	# full dialog width instead of losing ~300px to an empty panel.
 	_shop_dialog.set_detail_visible(false)
+	# The art's own "閉じる" plaque is fully visible and already wired as
+	# a hotspot here — a second header close button would just double up.
+	_shop_dialog.set_header_close_visible(false)
 	var gold_label := Label.new()
 	gold_label.add_theme_font_size_override("font_size", 22)
 	gold_label.add_theme_color_override("font_color", SHOP_GOLD_COLOR)
@@ -1019,6 +1030,7 @@ func _show_shop_buy_weapon() -> void:
 	_shop_dialog.clear_cards()
 	_shop_dialog.clear_hotspots()
 	_shop_dialog.set_detail_visible(true)
+	_shop_dialog.set_header_close_visible(true)
 	_shop_dialog.set_back(locale.text("UI_BACK"), true)
 	_shop_dialog.set_action(locale.text("UI_BUY"), true)
 	for weapon_id in weapon_db.all_ids():
@@ -1061,6 +1073,7 @@ func _show_shop_upgrade_weapon() -> void:
 	_shop_dialog.clear_cards()
 	_shop_dialog.clear_hotspots()
 	_shop_dialog.set_detail_visible(true)
+	_shop_dialog.set_header_close_visible(true)
 	_shop_dialog.set_back(locale.text("UI_BACK"), true)
 	if sim.equipped_weapon_id == "":
 		_shop_dialog.show_detail("", locale.text("UI_WEAPON_NONE"), null)
@@ -1092,6 +1105,7 @@ func _show_shop_buy_item() -> void:
 	_shop_dialog.clear_cards()
 	_shop_dialog.clear_hotspots()
 	_shop_dialog.set_detail_visible(true)
+	_shop_dialog.set_header_close_visible(true)
 	_shop_dialog.set_back(locale.text("UI_BACK"), true)
 	_shop_dialog.set_action(locale.text("UI_BUY"), true)
 	for item_id in item_db.all_ids():
@@ -1135,6 +1149,7 @@ func _show_shop_sell_item() -> void:
 	_shop_dialog.clear_cards()
 	_shop_dialog.clear_hotspots()
 	_shop_dialog.set_detail_visible(true)
+	_shop_dialog.set_header_close_visible(true)
 	_shop_dialog.set_back(locale.text("UI_BACK"), true)
 	_shop_dialog.set_action(locale.text("UI_SELL"), true)
 	for item_id in item_db.all_ids():

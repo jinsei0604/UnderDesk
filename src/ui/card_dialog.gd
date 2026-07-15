@@ -46,6 +46,7 @@ var _detail_panel: Control
 var _root_panel: PanelContainer
 var _hotspot_layer: Control
 var _header: HBoxContainer
+var _header_close_button: Button
 ## Animated background support (dialog_bg_*_fN frames).
 const BG_ANIM_SECONDS: float = 0.22
 var _bg_frames: Array = []  # Array[Texture2D]
@@ -372,7 +373,18 @@ func enable_art_chrome(title_text: String, close_label: String) -> void:
 	title_lbl.add_theme_color_override("font_color", COLOR_TITLE)
 	_header.add_child(title_lbl)
 	_header.move_child(title_lbl, 2)  # back, spacer, title, [progress(EXPAND)], close
+	add_header_close_button(close_label)
 
+
+## Just the close button, in the header (stays last: the header's right
+## end). Split out of enable_art_chrome() for the shop: its landing page
+## already has a working art-painted "閉じる" hotspot, but that plaque
+## sits under the detail panel on every other shop page (item lists show
+## the panel; the hotspot's screen position doesn't move to dodge it).
+## Starts hidden — call set_header_close_visible(true) on pages where the
+## art's own close plaque is covered, and leave it off wherever the art
+## hotspot is already visible (double "閉じる" reads as a mistake).
+func add_header_close_button(close_label: String) -> void:
 	var close_btn := Button.new()
 	close_btn.text = "✕ " + close_label
 	close_btn.add_theme_font_size_override("font_size", 16)
@@ -382,8 +394,14 @@ func enable_art_chrome(title_text: String, close_label: String) -> void:
 	close_btn.add_theme_stylebox_override("pressed", _flat(COLOR_PAPER_SELECTED, COLOR_BORDER, 2, 8))
 	close_btn.custom_minimum_size = Vector2(96, 34)
 	close_btn.focus_mode = Control.FOCUS_NONE
+	close_btn.visible = false
+	_header_close_button = close_btn
 	close_btn.pressed.connect(hide)
-	_header.add_child(close_btn)  # stays last: the header's right end
+	_header.add_child(close_btn)
+
+
+func set_header_close_visible(visible_now: bool) -> void:
+	_header_close_button.visible = visible_now
 
 
 ## Shows the "back to series" button on nested pages (archive shelves).
