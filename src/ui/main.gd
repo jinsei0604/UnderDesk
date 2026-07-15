@@ -396,7 +396,11 @@ func _draw_backdrop(view: Rect2) -> void:
 	if not art.has_art("dig_background"):
 		draw_rect(view, COLOR_DIG_ROCKMASS)
 		return
-	var tex := art.texture("dig_background")
+	# Uses the shared _anim_frame counter, so dropping dig_background_f2.png,
+	# _f3.png … next to the base image loops the cave backdrop (flickering
+	# lanterns etc.) at the same cadence as the sprite frames; one frame
+	# stays static as before.
+	var tex := art.frame("dig_background", _anim_frame)
 	var scale := view.size.y / float(tex.get_height())
 	var tile_w := tex.get_width() * scale
 	var offset := fmod(float(sim.total_kills) * SCROLL_PX_PER_KILL, tile_w)
