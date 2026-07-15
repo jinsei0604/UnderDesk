@@ -9,8 +9,6 @@ const TICK_SECONDS: float = 2.0
 ## Offline catch-up cap: 24 hours of 2-second ticks (§7.1-4).
 const MAX_OFFLINE_TICKS: int = 43200
 
-## Extra document drop chance while the lush-vein daily anomaly is active.
-const DAILY_DOC_CHANCE_BONUS: float = 0.1
 ## Extra document drop chance per level of the survey shop upgrade.
 const UPGRADE_DOC_CHANCE: float = 0.05
 

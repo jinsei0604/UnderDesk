@@ -42,7 +42,6 @@ src/core/      純ロジック。UDSim が心臓部（tick制・2秒/tick）
   constants.gd UD.* 定数・enum
   *_db.gd      データローダ（strata/item/shop は同じパターン。facility も UDShopDB を再利用）
 src/meta/      セーブ（世代バックアップ3つ）・オフライン計算・設定
-src/daily/     日付→共通シード（FNV-1a自前実装）
 src/narrative/ 文書DB・ローカライズ（locale/*.csv手動パース）
 src/window/    常駐ウィンドウ（右下ミニ小窓⇔中央展開）・fps制御
 src/ui/        main.gd（全UI）・art_library.gd（PNG差し替え）
@@ -75,7 +74,6 @@ image_data/frames/N/layer_1 を読める）。地形/部屋はまだ生成ドッ
 - **コレクション（宝箱アイテム）**: `data/items/xxx.json`（id, name_key, desc_key, **rank**: Z/S/A/B/C/D）＋locale 2行×2言語。目標約100種、アップデートで追加。Z・Sランクの実アイテムは未定義（ストーリー確定後にユーザーと相談して追加）
 - **ショップ商品**: `data/shop/xxx.json`（base_cost, cost_mult, effect, max_level）。effect は sim 側実装が必要なら `dig_power()` / `document_chance_bonus()` / `buy_upgrade()` を参照
 - **施設（祭壇/ギルド/宿舎）**: `data/facilities/xxx.json`（ショップと同スキーマ、max_level常に1の一回限り解禁）。地図配置は無く、ボタン一つで`buy_upgrade()`→即座にダイアログが開く。新しい施設を足す場合は`main.gd`の`_on_facility_button`にmatch節を1つ追加するだけ
-- **デイリー異変**: `data/anomalies/xxx.json`（effect: dig_power_add / doc_chance_add / gold_per_dig。新効果は sim に分岐追加＋テスト）
 - **アート**: `assets/art/` に PNG を置くだけ（terrain_soil.png, minion_0..5.png, room_altar.png/room_tavern.png/room_dorm.png（施設アイコン、キー接頭辞は`room_`のまま）, depot.png）。無ければ色矩形/プレースホルダーアイコンにフォールバック。置いたら `--import`
 - **書庫のシリーズアイコン**: `assets/art/series_<series_id>.png`（data/series/のid、例: series_journal.png）。`UDCardDialog`のシリーズ棚カードに使われる。`UDArtLibrary.load_default()`に`series_ids`（`doc_series`から抽出）を渡さないと認識されないので注意
 - **ダイアログの背景イラスト（2026-07-13〜、ユーザーの自作ドット絵を6画面に順次組み込む予定の1本目）**: `assets/art/dialog_bg_<archive|treasure|shop|altar|guild|dorm>.png` を置くと、対応する`UDCardDialog`のカードグリッド背後に敷かれる。**背景はダイアログ全体を覆う**（`_background_rect`は`root`直下・全面、`STRETCH_KEEP_ASPECT_COVERED`）。6画面すべて`enable_art_chrome(title, close)`で**枠なし＋中央タイトル＋右上「✕ 閉じる」ボタン**のアート主導UIに統一済み（ショップはタイトル/閉じる/コインが画像に焼き込み＋看板ホットスポット、他5枚はコードでクロームを重ねる）。`main.gd`の各`_build_xxx_dialog()`で`set_background_frames(_dialog_bg_frames("dialog_bg_xxx"))`を渡すだけ。未配置なら非表示（従来通りの暗いキャビネット地）。合成済みのモックアップ画像しか届かない場合は、Godotの`Image.get_region()`でカード領域・背景領域を切り出し、アイコン部分は`tools/extract_sprites.gd`と同じフラッドフィル透明化＋トリム＋正方形化を再利用する
@@ -100,7 +98,8 @@ image_data/frames/N/layer_1 を読める）。地形/部屋はまだ生成ドッ
 - **宿舎**: 純フレーバー（ゲームプレイ効果なし）。解禁するとパーティ全員の顔ぶれをカードで見られるだけの画面（`_open_dorm`）。将来のドット絵UI差し替え先の一つ
 - **チュートリアル**: settings.tutorial_seen ＋ 最初の UD.TUTORIAL_TICKS の間、帯/大画面にローテーションヒント（TUT_HINT_*）
 - **文書の出土条件**: documents JSON の conditions（min_docs/requires_companions/requires_items）を `_roll_document` で判定
-- **調査書カード機能は削除済み（2026-07-12、ユーザー判断）**: 公開前は見せる相手がいないため撤去。マーケティング施策で必要になったら `git log` から `src/daily/survey_card.gd` / `src/window/clipboard.gd` を復元すること。デイリー異変システム自体（`UDDaily`・`data/anomalies/`）は現役
+- **調査書カード機能は削除済み（2026-07-12、ユーザー判断）**: 公開前は見せる相手がいないため撤去。マーケティング施策で必要になったら `git log` から `src/daily/survey_card.gd` / `src/window/clipboard.gd` を復元すること
+- **デイリー異変システムは削除済み（2026-07-15、ユーザー判断：不要と判断）**: `UDDaily`・`data/anomalies/`・`sim.daily_*`・HUDの「今日の異変」表示を全廃。復元する場合は `git log` から該当コミット以前を参照
 - **手下の見た目バグ修正(2026-07-12)**: 仲間の描画アート/向きは`minion.id`（パーティ内の並び順）ではなく**companion_id由来のart_variant**（`UDMinion.art_variant_for_companion`、main.gdの`_minion_art_variant`）で決める。IDがずれると仲間が無名のプレースホルダー四角として表示される
 - **ダイアログのイラスト化**: ショップ/宝物/書庫は`UDCardDialog`（羊皮紙カードグリッド＋右の詳細パネル、src/ui/card_dialog.gd）。祭壇・ギルドも同じウィジェットを使用。カードのアイコンは`UDArtLibrary.icon_or_placeholder(key, seed, shape)`が実アート（`item_<id>.png`/`shop_<id>.png`/`<doc_id>.png`）があればそれを使い、無ければ`placeholder_icon`で手続き生成（gem/rune/book形状、seedからHSVで色決定）。実アートを置くだけで自動的に差し替わる
 

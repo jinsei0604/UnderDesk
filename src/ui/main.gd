@@ -29,8 +29,6 @@ var stage_db: UDStageDB
 var skill_db: UDSkillDB
 var art: UDArtLibrary
 var achievements: UDAchievements
-var anomalies: Array = []
-var _anomaly_by_id: Dictionary = {}
 ## Document series defs (data/series/): filename order is display order.
 var doc_series: Array = []
 ## "" = the series-selection shelf; otherwise the open series id.
@@ -112,9 +110,6 @@ func _ready() -> void:
 		series_ids, enemy_db.all_ids(), weapon_db.all_ids()
 	)
 	achievements = UDAchievements.load_default(UDPlatform.create())
-	anomalies = UDDataLoader.load_json_dir("res://data/anomalies")
-	for anomaly: Variant in anomalies:
-		_anomaly_by_id[(anomaly as Dictionary)["id"]] = anomaly
 	companion_defs = UDDataLoader.load_json_dir("res://data/companions")
 	for companion: Variant in companion_defs:
 		_companion_by_id[(companion as Dictionary)["id"]] = companion
@@ -143,7 +138,6 @@ func _ready() -> void:
 		if offline_ticks_applied > 0:
 			_tally_text = _format_offline_summary()
 			_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 4
-	_sync_daily()
 
 	tick_timer.wait_time = UD.TICK_SECONDS
 	tick_timer.timeout.connect(_on_tick)
@@ -188,16 +182,6 @@ func _notification(what: int) -> void:
 			UDResidentWindow.apply_focus_fps(false)
 
 
-## Rolls the shared daily anomaly when the calendar day changes (§5.4).
-func _sync_daily() -> void:
-	var key := UDDaily.date_key(Time.get_date_dict_from_system())
-	if sim.daily_date_key == key:
-		return
-	var anomaly := UDDaily.anomaly_for_date_key(anomalies, key)
-	if not anomaly.is_empty():
-		sim.apply_daily(key, anomaly)
-
-
 ## Advances UI-side sprite animation only; the simulation is untouched.
 func _on_anim_tick() -> void:
 	_anim_frame += 1
@@ -205,7 +189,6 @@ func _on_anim_tick() -> void:
 
 
 func _on_tick() -> void:
-	_sync_daily()
 	sim.tick()
 	if not settings.tutorial_seen and sim.tick_count >= UD.TUTORIAL_TICKS:
 		settings.tutorial_seen = true
@@ -293,11 +276,6 @@ func _draw_hud() -> void:
 		"EXP %d" % sim.exp_pool,
 		"tick %d" % sim.tick_count,
 	]
-	if sim.daily_anomaly_id != "" and _anomaly_by_id.has(sim.daily_anomaly_id):
-		var anomaly: Dictionary = _anomaly_by_id[sim.daily_anomaly_id]
-		parts.append("%s: %s" % [
-			locale.text("UI_DAILY"), locale.text(anomaly["name_key"]),
-		])
 	if offline_ticks_applied > 0:
 		parts.append(locale.text("UI_OFFLINE_REPORT") % offline_ticks_applied)
 	draw_string(

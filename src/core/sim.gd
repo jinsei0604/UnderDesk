@@ -18,11 +18,6 @@ var tick_count: int = 0
 var inventory: Dictionary = {}  # resource id -> int ("gold" only, in practice)
 var minions: Array[UDMinion] = []
 var discovered_documents: Array[String] = []
-## Daily anomaly (§5.4). Applied as an explicit state change so offline
-## and realtime progression stay equivalent.
-var daily_date_key: String = ""
-var daily_anomaly_id: String = ""
-var daily_effect: String = ""
 ## Treasure-chest collectibles owned: item id -> count. Items stack up
 ## to a per-rank cap (UD.ITEM_RANK_CAPS) so spares can feed the altar
 ## and the guild exchange. The candidate pool and rank map are injected
@@ -189,13 +184,11 @@ func _unit_by_id(unit_id: int) -> UDMinion:
 	return null
 
 
-## Shared ledger bonuses (shop upgrades, altar, daily anomaly) added on
-## top of every living unit's own level-derived ATK/DEF — same "base +
-## upgrades + altar + daily" shape dig_power() used to have.
+## Shared ledger bonuses (shop upgrades, altar) added on top of every
+## living unit's own level-derived ATK/DEF — same "base + upgrades +
+## altar" shape dig_power() used to have.
 func party_atk_bonus() -> int:
 	var bonus := 0
-	if daily_effect == "atk_add":
-		bonus += 1
 	bonus += UDSim._effect_levels_in(upgrades, "atk_add")
 	bonus += altar_level
 	bonus += weapon_atk_bonus()
@@ -211,8 +204,6 @@ func weapon_atk_bonus() -> int:
 
 func party_def_bonus() -> int:
 	var bonus := 0
-	if daily_effect == "def_add":
-		bonus += 1
 	bonus += UDSim._effect_levels_in(upgrades, "def_add")
 	return bonus
 
@@ -273,8 +264,6 @@ func _grant_kill_rewards(def: Dictionary, stage: Dictionary) -> void:
 	total_kills += 1
 	exp_pool += int(def.get("exp", 0))
 	inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + int(def.get("coins", 0))
-	if daily_effect == "gold_per_kill":
-		inventory[UD.RES_GOLD] = int(inventory.get(UD.RES_GOLD, 0)) + 1
 	_roll_document(stage)
 	_roll_special_find()
 
@@ -411,19 +400,6 @@ func level_up_companion(unit_id: int) -> bool:
 	return true
 
 
-## --- Daily anomaly -----------------------------------------------------
-
-## Switches to the given day's anomaly. Returns false when that day is
-## already active.
-func apply_daily(date_key: String, anomaly: Dictionary) -> bool:
-	if daily_date_key == date_key:
-		return false
-	daily_date_key = date_key
-	daily_anomaly_id = str(anomaly.get("id", ""))
-	daily_effect = str(anomaly.get("effect", ""))
-	return true
-
-
 func upgrade_level(id: String) -> int:
 	if not upgrades.has(id):
 		return 0
@@ -523,18 +499,16 @@ static func _effect_levels_in(entries: Dictionary, effect: String) -> int:
 	return total
 
 
-## Extra document drop chance from the altar facility and the daily
-## anomaly. The "survey" shop upgrade that used to grant this is retired
-## (2026-07-15, shop redesign: pickaxe/survey folded into the weapon
-## system and the altar) — its per-level bonus now rides altar_level
-## instead, alongside altar's existing +1 atk/level (party_atk_bonus()).
-## _effect_levels_in() still reads any doc_chance_add already banked in
-## upgrades so a save with survey levels bought before the retirement
-## keeps that bonus frozen rather than losing it outright.
+## Extra document drop chance from the altar facility. The "survey" shop
+## upgrade that used to grant this is retired (2026-07-15, shop redesign:
+## pickaxe/survey folded into the weapon system and the altar) — its
+## per-level bonus now rides altar_level instead, alongside altar's
+## existing +1 atk/level (party_atk_bonus()). _effect_levels_in() still
+## reads any doc_chance_add already banked in upgrades so a save with
+## survey levels bought before the retirement keeps that bonus frozen
+## rather than losing it outright.
 func document_chance_bonus() -> float:
 	var bonus := 0.0
-	if daily_effect == "doc_chance_add":
-		bonus += UD.DAILY_DOC_CHANCE_BONUS
 	bonus += UDSim._effect_levels_in(upgrades, "doc_chance_add") * UD.UPGRADE_DOC_CHANCE
 	bonus += float(altar_level) * UD.UPGRADE_DOC_CHANCE
 	return bonus
@@ -731,9 +705,6 @@ func to_dict() -> Dictionary:
 		"inventory": inventory.duplicate(),
 		"minions": minion_dicts,
 		"discovered_documents": discovered_documents.duplicate(),
-		"daily_date_key": daily_date_key,
-		"daily_anomaly_id": daily_anomaly_id,
-		"daily_effect": daily_effect,
 		"items": items.duplicate(),
 		"altar_level": altar_level,
 		"companions": companions.duplicate(),
@@ -779,9 +750,6 @@ static func from_dict(
 		sim.minions.append(UDMinion.from_dict(minion_dict))
 	for doc_id: Variant in d["discovered_documents"] as Array:
 		sim.discovered_documents.append(doc_id)
-	sim.daily_date_key = str(d.get("daily_date_key", ""))
-	sim.daily_anomaly_id = str(d.get("daily_anomaly_id", ""))
-	sim.daily_effect = str(d.get("daily_effect", ""))
 	# v4 -> v5: the collection became stackable. Old saves hold a plain
 	# id array (one of each); new saves hold id -> count.
 	var saved_items: Variant = d.get("items", {})
