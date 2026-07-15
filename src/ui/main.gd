@@ -410,12 +410,18 @@ func _ground_y(view: Rect2) -> float:
 	return view.position.y + view.size.y * GROUND_FRAC
 
 
+## Icon size for the taskbar-look resident strip, shared by enemy and
+## party so neither dwarfs the other in the cramped view.
+func _resident_icon_px(view: Rect2) -> int:
+	return mini(int(view.size.y) - 4, 32)
+
+
 ## Enemy stands on the right, facing the party across the cave floor.
 func _draw_enemy(view: Rect2) -> void:
 	if sim.enemy_id == "" or not enemy_db.has_enemy(sim.enemy_id):
 		return
 	var def := enemy_db.get_enemy(sim.enemy_id)
-	var icon_px := ENEMY_ICON_PX if not settings.resident_mode else mini(int(view.size.y) - 4, 32)
+	var icon_px := ENEMY_ICON_PX if not settings.resident_mode else _resident_icon_px(view)
 	var center_x := view.position.x + view.size.x * (1.0 - SIDE_MARGIN_FRAC)
 	var ground_y := _ground_y(view)
 	var top := maxf(view.position.y, ground_y - icon_px)
@@ -439,14 +445,17 @@ func _draw_enemy(view: Rect2) -> void:
 
 ## Party stands on the left, clustered near the protagonist rather than
 ## spread across the view, facing the enemy on the right across the floor.
+## Drawn in the resident strip too (at the same size as the enemy there —
+## it used to be skipped entirely, making the protagonist invisible).
 func _draw_party_row(view: Rect2) -> void:
-	if settings.resident_mode or sim.minions.is_empty():
+	if sim.minions.is_empty():
 		return
+	var icon_px := PARTY_ICON_PX if not settings.resident_mode else _resident_icon_px(view)
 	var count := sim.minions.size()
-	var spacing := minf(PARTY_ICON_PX * 0.6, view.size.x / float(count + 1))
+	var spacing := minf(icon_px * 0.6, view.size.x / float(count + 1))
 	var start_x := view.position.x + view.size.x * SIDE_MARGIN_FRAC
 	var ground_y := _ground_y(view)
-	var top := maxf(view.position.y, ground_y - PARTY_ICON_PX)
+	var top := maxf(view.position.y, ground_y - icon_px)
 	var font := ThemeDB.fallback_font
 	for slot_index in count:
 		var unit: UDMinion = sim.minions[slot_index]
@@ -454,17 +463,18 @@ func _draw_party_row(view: Rect2) -> void:
 		var art_variant := _minion_art_variant(slot_index)
 		var art_key := art.minion_key(art_variant)
 		var icon := art.icon_or_placeholder(art_key, "minion_%d" % slot_index, "rune")
-		var rect := Rect2(Vector2(x - PARTY_ICON_PX / 2.0, top), Vector2(PARTY_ICON_PX, PARTY_ICON_PX))
+		var rect := Rect2(Vector2(x - icon_px / 2.0, top), Vector2(icon_px, icon_px))
 		draw_texture_rect(icon, rect, false)
-		var bar_w := PARTY_ICON_PX
+		var bar_w := icon_px
 		var hp_y := top - BAR_HEIGHT - 4
 		draw_rect(Rect2(Vector2(x - bar_w / 2.0, hp_y), Vector2(bar_w, BAR_HEIGHT)), COLOR_HP_BAR_BG)
 		var hp_frac := clampf(float(unit.hp) / float(maxi(1, sim.unit_max_hp(unit))), 0.0, 1.0)
 		draw_rect(Rect2(Vector2(x - bar_w / 2.0, hp_y), Vector2(bar_w * hp_frac, BAR_HEIGHT)), COLOR_HP_BAR)
-		draw_string(
-			font, Vector2(x, hp_y - 6), "Lv.%d" % unit.level,
-			HORIZONTAL_ALIGNMENT_CENTER, bar_w * 2, 13, COLOR_HUD_TEXT
-		)
+		if not settings.resident_mode:
+			draw_string(
+				font, Vector2(x, hp_y - 6), "Lv.%d" % unit.level,
+				HORIZONTAL_ALIGNMENT_CENTER, bar_w * 2, 13, COLOR_HUD_TEXT
+			)
 
 
 ## Party slot -> art variant. Slot 0 is always the protagonist; slot N
