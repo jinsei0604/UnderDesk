@@ -1138,6 +1138,7 @@ func _build_guild_dialog() -> void:
 	_guild_dialog = UDCardDialog.create(locale.text("UI_GUILD"), true)
 	_guild_dialog.card_selected.connect(_on_guild_card_selected)
 	_guild_dialog.action_pressed.connect(_on_guild_exchange)
+	_guild_dialog.set_background(art.texture("dialog_bg_guild"))
 	add_child(_guild_dialog)
 
 
