@@ -965,7 +965,11 @@ func _show_shop_front() -> void:
 	_shop_dialog.clear_hotspots()
 	_shop_dialog.set_back("", false)
 	_shop_dialog.set_action(locale.text("UI_BUY"), true)
-	_shop_dialog.show_detail("", "", null)
+	# Nothing on this page ever populates the detail panel (it's all
+	# hotspots over art, no cards to select), so hide it and let
+	# card_area — and the background art's cover-scale crop — use the
+	# full dialog width instead of losing ~300px to an empty panel.
+	_shop_dialog.set_detail_visible(false)
 	var gold_label := Label.new()
 	gold_label.add_theme_font_size_override("font_size", 22)
 	gold_label.add_theme_color_override("font_color", SHOP_GOLD_COLOR)
@@ -986,6 +990,7 @@ func _show_shop_buy_weapon() -> void:
 	_shop_mode = "buy_weapon"
 	_shop_dialog.clear_cards()
 	_shop_dialog.clear_hotspots()
+	_shop_dialog.set_detail_visible(true)
 	_shop_dialog.set_back(locale.text("UI_BACK"), true)
 	_shop_dialog.set_action(locale.text("UI_BUY"), true)
 	for weapon_id in weapon_db.all_ids():
@@ -1027,6 +1032,7 @@ func _show_shop_upgrade_weapon() -> void:
 	_shop_mode = "upgrade_weapon"
 	_shop_dialog.clear_cards()
 	_shop_dialog.clear_hotspots()
+	_shop_dialog.set_detail_visible(true)
 	_shop_dialog.set_back(locale.text("UI_BACK"), true)
 	if sim.equipped_weapon_id == "":
 		_shop_dialog.show_detail("", locale.text("UI_WEAPON_NONE"), null)
@@ -1057,6 +1063,7 @@ func _show_shop_buy_item() -> void:
 	_shop_mode = "buy_item"
 	_shop_dialog.clear_cards()
 	_shop_dialog.clear_hotspots()
+	_shop_dialog.set_detail_visible(true)
 	_shop_dialog.set_back(locale.text("UI_BACK"), true)
 	_shop_dialog.set_action(locale.text("UI_BUY"), true)
 	for item_id in item_db.all_ids():
@@ -1099,6 +1106,7 @@ func _show_shop_sell_item() -> void:
 	_shop_mode = "sell_item"
 	_shop_dialog.clear_cards()
 	_shop_dialog.clear_hotspots()
+	_shop_dialog.set_detail_visible(true)
 	_shop_dialog.set_back(locale.text("UI_BACK"), true)
 	_shop_dialog.set_action(locale.text("UI_SELL"), true)
 	for item_id in item_db.all_ids():

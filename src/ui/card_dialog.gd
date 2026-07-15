@@ -42,6 +42,7 @@ var _cards: Dictionary = {}  # id -> Button
 var _selected_id: String = ""
 var _card_area: Control
 var _action_requires_selection: bool = true
+var _detail_panel: Control
 ## Invisible click targets over a set_background() illustration (e.g. the
 ## guild's painted "アイテム交換" / "交換カウンター" signs), each a Rect2
 ## normalized to the background texture's own pixel size (0..1 on both
@@ -140,6 +141,7 @@ func _build(with_action: bool) -> void:
 	detail.custom_minimum_size = Vector2(280, 0)
 	detail.add_theme_stylebox_override("panel", _flat(COLOR_PAPER, COLOR_BORDER, 2, 14))
 	body.add_child(detail)
+	_detail_panel = detail
 
 	var detail_box := VBoxContainer.new()
 	detail_box.add_theme_constant_override("separation", 10)
@@ -190,6 +192,16 @@ func set_progress(text: String) -> void:
 func set_background(tex: Texture2D) -> void:
 	_background_rect.texture = tex
 	_background_rect.visible = tex != null
+
+
+## Hides the right-side detail panel so card_area (and its background
+## art) gets the full dialog width — for a hotspot-only page like the
+## shop's landing screen, where the panel would otherwise sit empty and
+## the art gets cropped tighter than it needs to (STRETCH_KEEP_ASPECT_
+## COVERED crops to whatever's left after the panel's width). HBoxContainer
+## skips invisible children's space, so this alone widens card_area.
+func set_detail_visible(visible_now: bool) -> void:
+	_detail_panel.visible = visible_now
 
 
 ## Optional character portrait posed over the backdrop (e.g. the hero
