@@ -78,6 +78,13 @@ const FRAME_MARGIN_SOURCE_PX: float = 190.0
 ## sit flush against the frame's inner edge.
 const FRAME_CONTENT_GAP: int = 6
 const BASE_MIN_SIZE := Vector2i(960, 560)
+## The narrowest a framed dialog's interior can get before a 4-column
+## card grid (GRID_COLUMNS * CARD_SIZE.x + separation, 578px) plus the
+## detail panel (280px fixed) + their separation (12px) — 870px — no
+## longer fits (ScrollContainer has horizontal scrolling disabled, so an
+## overflow there clips instead of scrolling). A little headroom over
+## that bare minimum.
+const FRAME_MIN_INTERIOR_W: float = 890.0
 var _frame_overlay: TextureRect
 var _content_margin: MarginContainer
 
@@ -309,15 +316,19 @@ func set_frame_overlay(tex: Texture2D) -> void:
 		_layout_frame_margin()
 		return
 	# Pick the dialog's own size so that, after the frame's border eats
-	# into it, the leftover interior still matches BASE_MIN_SIZE (an
-	# unframed dialog's working area) — sized at the frame's own aspect
-	# ratio so cover-fit needs no cropping and the border comes out even
-	# on all four sides. Whichever dimension (width or height) demands
-	# the bigger scale to fit BASE_MIN_SIZE wins, so both are satisfied.
+	# into it, the leftover interior is still wide enough for a 4-column
+	# card grid + the detail panel (FRAME_MIN_INTERIOR_W) — sized at the
+	# frame's own aspect ratio so cover-fit needs no cropping and the
+	# border comes out even on all four sides. Height isn't part of this:
+	# the card grid already scrolls vertically, so there's no hard height
+	# floor the way there is a hard width one, and solving for BASE_MIN_
+	# SIZE's full 560px height (like an unframed dialog) demanded a much
+	# bigger scale than width did — since the frame's fixed-size corner
+	# eats a bigger fraction of the shorter dimension — which is what
+	# blew the whole dialog up to ~1364x910 and ran off-screen
+	# (2026-07-16, caught by the user: "とんでもなくでかくなって見切れちゃってる").
 	var tex_size := tex.get_size()
-	var scale_for_w := (float(BASE_MIN_SIZE.x) + FRAME_CONTENT_GAP * 2.0) / (tex_size.x - FRAME_MARGIN_SOURCE_PX * 2.0)
-	var scale_for_h := (float(BASE_MIN_SIZE.y) + FRAME_CONTENT_GAP * 2.0) / (tex_size.y - FRAME_MARGIN_SOURCE_PX * 2.0)
-	var scale := maxf(scale_for_w, scale_for_h)
+	var scale := (FRAME_MIN_INTERIOR_W + FRAME_CONTENT_GAP * 2.0) / (tex_size.x - FRAME_MARGIN_SOURCE_PX * 2.0)
 	min_size = Vector2i(tex_size * scale)
 	_layout_frame_margin()
 
