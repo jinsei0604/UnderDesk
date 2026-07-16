@@ -1387,7 +1387,11 @@ func _build_guild_dialog() -> void:
 	_guild_dialog.back_pressed.connect(_show_guild_front)
 	_guild_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_guild"))
 	_guild_dialog.enable_art_chrome(locale.text("UI_GUILD"), locale.text("UI_CLOSE"))
-	_guild_dialog.set_frame_overlay(art.texture("dialog_frame"))
+	# No set_frame_overlay() here, same reasoning as the shop: the front
+	# page's "アイテム交換"/"交換カウンター" signs are baked into
+	# dialog_bg_guild.png close enough to the right/left edges that the
+	# frame's border clips them (confirmed by rendering a preview — the
+	# text visibly truncated).
 	add_child(_guild_dialog)
 
 
