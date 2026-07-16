@@ -944,7 +944,12 @@ func _build_shop_dialog() -> void:
 	_shop_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_shop"))
 	_shop_dialog.hide_native_chrome()
 	_shop_dialog.set_frame_visible(false)
-	_shop_dialog.set_frame_overlay(art.texture("dialog_frame"))
+	# No set_frame_overlay() here, unlike the other 5: the shop's art has
+	# its own baked-in buttons/coin badge/close plaque reaching close to
+	# every edge (see dialog_bg_shop.png), and the ornate frame's ~53px
+	# border visibly clips them (confirmed by rendering a preview) — the
+	# other 5 dialogs' generic art + code-drawn UI has no fixed content
+	# that close to the edge, so only they get the overlay.
 	add_child(_shop_dialog)
 
 
