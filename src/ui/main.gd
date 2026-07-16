@@ -807,7 +807,6 @@ func _build_archive_dialog() -> void:
 	_archive_dialog.back_pressed.connect(_show_archive_series_shelf)
 	_archive_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_archive"))
 	_archive_dialog.enable_art_chrome(locale.text("UI_ARCHIVE"), locale.text("UI_CLOSE"))
-	_archive_dialog.set_frame_overlay(art.texture("dialog_frame"))
 	add_child(_archive_dialog)
 
 
@@ -817,7 +816,6 @@ func _build_treasure_dialog() -> void:
 	_treasure_dialog.back_pressed.connect(_show_treasure_rank_shelf)
 	_treasure_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_treasure"))
 	_treasure_dialog.enable_art_chrome(locale.text("UI_TREASURES"), locale.text("UI_CLOSE"))
-	_treasure_dialog.set_frame_overlay(art.texture("dialog_frame"))
 	add_child(_treasure_dialog)
 
 
@@ -944,12 +942,6 @@ func _build_shop_dialog() -> void:
 	_shop_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_shop"))
 	_shop_dialog.hide_native_chrome()
 	_shop_dialog.set_frame_visible(false)
-	# No set_frame_overlay() here, unlike the other 5: the shop's art has
-	# its own baked-in buttons/coin badge/close plaque reaching close to
-	# every edge (see dialog_bg_shop.png), and the ornate frame's ~53px
-	# border visibly clips them (confirmed by rendering a preview) — the
-	# other 5 dialogs' generic art + code-drawn UI has no fixed content
-	# that close to the edge, so only they get the overlay.
 	add_child(_shop_dialog)
 
 
@@ -1223,7 +1215,6 @@ func _build_dorm_dialog() -> void:
 	_dorm_dialog.action_pressed.connect(_on_dorm_level_up)
 	_dorm_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_dorm"))
 	_dorm_dialog.enable_art_chrome(locale.text("ROOM_DORM"), locale.text("UI_CLOSE"))
-	_dorm_dialog.set_frame_overlay(art.texture("dialog_frame"))
 	add_child(_dorm_dialog)
 
 
@@ -1303,7 +1294,6 @@ func _build_altar_dialog() -> void:
 	# of floating to its side.
 	_altar_dialog.set_character(art.texture(art.minion_key(0)), 0.5, 0.643)
 	_altar_dialog.enable_art_chrome(locale.text("UI_ALTAR"), locale.text("UI_CLOSE"))
-	_altar_dialog.set_frame_overlay(art.texture("dialog_frame"))
 	add_child(_altar_dialog)
 
 
@@ -1387,11 +1377,6 @@ func _build_guild_dialog() -> void:
 	_guild_dialog.back_pressed.connect(_show_guild_front)
 	_guild_dialog.set_background_frames(_dialog_bg_frames("dialog_bg_guild"))
 	_guild_dialog.enable_art_chrome(locale.text("UI_GUILD"), locale.text("UI_CLOSE"))
-	# No set_frame_overlay() here, same reasoning as the shop: the front
-	# page's "アイテム交換"/"交換カウンター" signs are baked into
-	# dialog_bg_guild.png close enough to the right/left edges that the
-	# frame's border clips them (confirmed by rendering a preview — the
-	# text visibly truncated).
 	add_child(_guild_dialog)
 
 

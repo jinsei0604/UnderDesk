@@ -59,40 +59,12 @@ var _bg_timer: Timer
 ## the dialog resizes.
 var _hotspots: Array[Dictionary] = []  # [{ "rect": Rect2, "button": Control }]
 var _character_feet_norm: Vector2 = Vector2(0.5, 1.0)
-## Ornate picture-frame border, drawn over everything else in the dialog
-## (see set_frame_overlay()). Uses the same STRETCH_KEEP_ASPECT_COVERED
-## uniform-scale-and-crop approach as _background_rect — a 9-slice
-## (corners pixel-exact, edges stretched non-uniformly to fill the target
-## rect) was tried first but distorted the frame's own proportions
-## whenever the dialog's aspect ratio didn't match the source art's; a
-## uniform scale keeps the frame's true shape at the cost of a border
-## thickness that's proportional to the dialog's own size instead of a
-## fixed pixel count.
-## Corner ornament size in source pixels, measured off
-## assets/art/dialog_frame.png (a 1536x1024 canvas). Used both to size
-## the dialog itself (set_frame_overlay()) and to convert the frame's
-## current on-screen cover-scale into a content-clearance margin
-## (_layout_frame_margin()).
-const FRAME_MARGIN_SOURCE_PX: float = 190.0
-## Extra clearance beyond the measured border thickness so content doesn't
-## sit flush against the frame's inner edge.
-const FRAME_CONTENT_GAP: int = 6
-const BASE_MIN_SIZE := Vector2i(960, 560)
-## The narrowest a framed dialog's interior can get before a 4-column
-## card grid (GRID_COLUMNS * CARD_SIZE.x + separation, 578px) plus the
-## detail panel (280px fixed) + their separation (12px) — 870px — no
-## longer fits (ScrollContainer has horizontal scrolling disabled, so an
-## overflow there clips instead of scrolling). A little headroom over
-## that bare minimum.
-const FRAME_MIN_INTERIOR_W: float = 890.0
-var _frame_overlay: TextureRect
-var _content_margin: MarginContainer
 
 
 static func create(dialog_title: String, with_action: bool) -> UDCardDialog:
 	var dialog := UDCardDialog.new()
 	dialog.title = dialog_title
-	dialog.min_size = BASE_MIN_SIZE
+	dialog.min_size = Vector2i(960, 560)
 	dialog._build(with_action)
 	return dialog
 
@@ -155,19 +127,10 @@ func _build(with_action: bool) -> void:
 	_character_rect.visible = false
 	content.add_child(_character_rect)
 
-	# Wraps column so set_frame_overlay() can inset all real content (header
-	# title/close button, cards, detail panel) clear of the ornate frame's
-	# border band — without this, the frame (topmost, opaque) simply paints
-	# over whatever of the header/cards/detail happens to sit under it.
-	# Zero margin by default (no visible effect) until a frame is set.
-	_content_margin = MarginContainer.new()
-	_content_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	content.add_child(_content_margin)
-
 	var column := VBoxContainer.new()
 	column.set_anchors_preset(Control.PRESET_FULL_RECT)
 	column.add_theme_constant_override("separation", 8)
-	_content_margin.add_child(column)
+	content.add_child(column)
 
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 10)
@@ -272,22 +235,6 @@ func _build(with_action: bool) -> void:
 	_hotspot_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(_hotspot_layer)
 
-	# Ornate frame border: last child of content, so it draws over cards,
-	# the detail panel, and the hotspot layer alike — purely decorative
-	# (IGNORE). Same cover-scale fit as _background_rect, so the frame's
-	# own proportions never distort; _layout_frame() re-derives the actual
-	# on-screen border thickness whenever this resizes, to keep
-	# _content_margin's clearance in sync.
-	_frame_overlay = TextureRect.new()
-	_frame_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_frame_overlay.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_frame_overlay.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	_frame_overlay.clip_contents = true
-	_frame_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_frame_overlay.visible = false
-	_frame_overlay.resized.connect(_layout_frame_margin)
-	content.add_child(_frame_overlay)
-
 	# Drives animated backgrounds; started/stopped by _sync_bg_animation so
 	# it only runs while the dialog is actually visible.
 	_bg_timer = Timer.new()
@@ -299,58 +246,6 @@ func _build(with_action: bool) -> void:
 
 func set_progress(text: String) -> void:
 	_progress_label.text = text
-
-
-## Ornate 9-slice picture-frame border over the whole dialog. Pass null to
-## remove it. Independent of set_frame_visible()'s plain cabinet stylebox —
-## dialogs using this overlay should turn that off instead, so the two
-## borders don't stack. Also insets the header/cards/detail panel clear of
-## the border band (see _content_margin) — otherwise the frame, being
-## topmost and opaque, paints over the title, close button, and any card
-## or detail-panel content that reaches the dialog's edges.
-func set_frame_overlay(tex: Texture2D) -> void:
-	_frame_overlay.texture = tex
-	_frame_overlay.visible = tex != null
-	if tex == null:
-		min_size = BASE_MIN_SIZE
-		_layout_frame_margin()
-		return
-	# Pick the dialog's own size so that, after the frame's border eats
-	# into it, the leftover interior is still wide enough for a 4-column
-	# card grid + the detail panel (FRAME_MIN_INTERIOR_W) — sized at the
-	# frame's own aspect ratio so cover-fit needs no cropping and the
-	# border comes out even on all four sides. Height isn't part of this:
-	# the card grid already scrolls vertically, so there's no hard height
-	# floor the way there is a hard width one, and solving for BASE_MIN_
-	# SIZE's full 560px height (like an unframed dialog) demanded a much
-	# bigger scale than width did — since the frame's fixed-size corner
-	# eats a bigger fraction of the shorter dimension — which is what
-	# blew the whole dialog up to ~1364x910 and ran off-screen
-	# (2026-07-16, caught by the user: "とんでもなくでかくなって見切れちゃってる").
-	var tex_size := tex.get_size()
-	var scale := (FRAME_MIN_INTERIOR_W + FRAME_CONTENT_GAP * 2.0) / (tex_size.x - FRAME_MARGIN_SOURCE_PX * 2.0)
-	min_size = Vector2i(tex_size * scale)
-	_layout_frame_margin()
-
-
-## Re-derives the frame's actual on-screen border thickness from its
-## current cover-scale fit (same math _layout_hotspots uses) and updates
-## _content_margin so header/cards/detail stay clear of it. Connected to
-## _frame_overlay's resized signal, since set_frame_overlay() only gets
-## the sizing right for a dialog at exactly min_size — a user resize
-## changes the actual border thickness too (cover-fit's scale grows with
-## the dialog), unlike the old fixed-pixel 9-slice corners.
-func _layout_frame_margin() -> void:
-	var gap := 0
-	if _frame_overlay.texture != null and _frame_overlay.size.x > 0.0:
-		var tex_size := _frame_overlay.texture.get_size()
-		var rect_size := _frame_overlay.size
-		var scale := maxf(rect_size.x / tex_size.x, rect_size.y / tex_size.y)
-		gap = int(FRAME_MARGIN_SOURCE_PX * scale) + FRAME_CONTENT_GAP
-	_content_margin.add_theme_constant_override("margin_left", gap)
-	_content_margin.add_theme_constant_override("margin_right", gap)
-	_content_margin.add_theme_constant_override("margin_top", gap)
-	_content_margin.add_theme_constant_override("margin_bottom", gap)
 
 
 ## Optional illustrated backdrop behind the card grid (e.g. the archive's
