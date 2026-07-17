@@ -5,6 +5,6 @@
 	"stage_to": 10,
 	"trash_pool": ["cave_rat", "cave_bat"],
 	"boss_id": "cave_troll",
-	"documents": ["doc_004", "doc_005", "doc_006", "doc_007", "doc_008", "doc_015", "doc_017", "doc_020", "doc_025", "doc_027", "doc_029", "doc_033", "doc_037", "doc_038", "doc_042", "doc_044", "doc_048", "doc_050"],
+	"documents": ["doc_004", "doc_005", "doc_006", "doc_007", "doc_008", "doc_015", "doc_017", "doc_020", "doc_025", "doc_027", "doc_029", "doc_033", "doc_037", "doc_038", "doc_042", "doc_044", "doc_048", "doc_050", "doc_055", "doc_056"],
 	"document_chance": 0.08
 }
