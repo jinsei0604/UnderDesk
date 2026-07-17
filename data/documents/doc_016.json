@@ -1,0 +1,8 @@
+{
+	"id": "doc_016",
+	"title_key": "DOC_016_TITLE",
+	"body_key": "DOC_016_BODY",
+	"series": "journal",
+	"foreshadow_ids": ["F02"],
+	"reveal_stage": "surface"
+}

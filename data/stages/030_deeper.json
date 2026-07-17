@@ -5,6 +5,6 @@
 	"stage_to": 999,
 	"trash_pool": ["cave_bat", "cave_spider"],
 	"boss_id": "",
-	"documents": ["doc_011", "doc_012", "doc_013"],
+	"documents": ["doc_011", "doc_012", "doc_013", "doc_018", "doc_019"],
 	"document_chance": 0.12
 }

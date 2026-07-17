@@ -69,7 +69,7 @@ DOC_009_TITLE,Mining Charter
 DOC_009_BODY,"[Royal Bureau of Mines — Charter] The 170th petition to resume excavation is hereby GRANTED, on the following conditions: the workforce shall not exceed one hundred; no open flame shall be used below the fortieth stratum; the decision to withdraw rests entirely with the site foreman, and the capital need not be notified until the withdrawal is complete. — Note: the Bureau is obliged to record that all one hundred and sixty-nine previous petitions were written in the same hand."
 DOC_010_TITLE,Scratches on the Wall
 DOC_010_BODY,"(Scratched into the bedrock wall with a nail, or something like one) HERE SLEEPS MIM. a lie. not sleeping. awake. always awake. keep quiet and the work is easy. don't sing. don't count. don't answer. — And beneath that, one line in a different hand: ""Mim is doing fine. Please don't worry."""
-DOC_011_TITLE,Excavation Journal, Final Page
+DOC_011_TITLE,"Excavation Journal, Final Page"
 DOC_011_BODY,"We were not the first. In the thirty-fourth stratum we broke into scaffolding that was not ours, and the ruins of an archive that was not ours. The tree rings in the timber date it to twelve hundred years ago. Here the journal changes. The pages that follow are in our own surveyor's handwriting — but in letters none of us know. Only the final line can be read: ""The rest is below."""
 DOC_012_TITLE,Fragment of a Litany
 DOC_012_BODY,"[Inscription in the stone chamber] The digger shall be filled. That is the promise of this place. Soil into silver, silver doubled, the double doubled again. Seek the depth. Yield not the depth. ...Here the inscription breaks off, scraped away. On examination, the tool that scraped it was the same tool that carved it."
@@ -77,6 +77,18 @@ DOC_013_TITLE,A Miner's Journal - IV
 DOC_013_BODY,"Yorek quit. To be precise, he stopped coming to morning roll. His pack is still here. His bunk is still here. His wage pouch is still here. The foreman sent out no search party. All he said was: ""Those who go down are employed down there."" I took it for a joke, and laughed. Nobody laughed. Since this month, for some reason, there are two wage pouches with my name on them."
 DOC_008_TITLE,An Old Letter - II
 DOC_008_BODY,"Dear brother. You will recall I wrote that I cannot read. I can now. I do not remember learning. One morning I woke, and the marks on the tablets looked like plain dictation — just sounds, written down. They say it happens to everyone here. One of the old hands puts it differently: ""You haven't learned the tunnel's language. It has learned yours."" Either way, the pay is good. Only — these days, in my dreams, I find I am writing my letters to you in those marks."
+DOC_014_TITLE,Five-Petal Carving
+DOC_014_BODY,"Carved into the stone wall, a flower about the size of a palm. Five petals. This is the third time I've seen this exact pattern today — the other two were nowhere near here. Same mason's habit, or the same era's fashion? The foreman just shook his head when I asked. But the depth of the carving is identical, to the hair's width, all three times."
+DOC_015_TITLE,Patrol Log — Excerpt
+DOC_015_BODY,"In the margin of the patrol log, one line in careful handwriting: ""Moribito — passage confirmed."" The date is two hundred years before today. The log itself records nothing unusual for that day. Who confirmed what, and to whom? The same handwriting turns up more often the further back the records go."
+DOC_016_TITLE,A Surveyor's Scrawl
+DOC_016_BODY,"We were pressing our ears to the rock for the survey. Mim said she heard a bell. No one else could. Only Mim, she said. The foreman told her to see a doctor, but by the next day three more of us said we'd heard it too. Now the ones who can't hear it are the minority. I still can't."
+DOC_017_TITLE,A Site of Strangers
+DOC_017_BODY,"People come to this site from the east and from the west. The words are different, but the work-signals somehow carry across. No one taught them to, but everyone swings the hammer to the same beat. The other day I heard four men from four different countries humming — the words were all different. Only the tune was the same."
+DOC_018_TITLE,Survey Ledger — Comparison
+DOC_018_BODY,"Borrowed a ten-year-old survey map and laid it over today's shaft. The numbers don't line up. The depth on record is always a little shallower than what we've actually dug — as if the bottom drifts a little further away every time we reach it. The foreman just said, ""That's how it is down here."""
+DOC_019_TITLE,The Reply That Came Early
+DOC_019_BODY,"The reply arrived before I filed the requisition. Its date is three days before I submitted mine. What it said matched, word for word, what I was about to write. I hadn't told anyone. No one had asked me."
 "TUT_HINT_1","This is an idle game. It keeps digging while you work — come back whenever."
 "TUT_HINT_2","Click the strip to open the big window and cash in everything dug up."
 "TUT_HINT_3","Unearthed documents advance the story. Keep collecting — companions will join."

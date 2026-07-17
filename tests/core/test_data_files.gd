@@ -55,11 +55,11 @@ func test_facility_files_load_and_translate() -> void:
 
 func test_documents_and_locales_cross_reference() -> void:
 	var docs := UDDocumentDB.load_from_dir("res://data/documents")
-	assert_eq(docs.count(), 13)
+	assert_eq(docs.count(), 19)
 	var ja := UDLocale.load_locale("ja")
 	var en := UDLocale.load_locale("en")
 	var doc_ids: Array[String] = []
-	for n in range(1, 14):
+	for n in range(1, 20):
 		doc_ids.append("doc_%03d" % n)
 	for doc_id in doc_ids:
 		assert_true(docs.has_doc(doc_id))
