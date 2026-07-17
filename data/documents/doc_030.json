@@ -1,0 +1,8 @@
+{
+	"id": "doc_030",
+	"title_key": "DOC_030_TITLE",
+	"body_key": "DOC_030_BODY",
+	"series": "ruins",
+	"foreshadow_ids": ["F02"],
+	"reveal_stage": "mid"
+}

@@ -1,0 +1,8 @@
+{
+	"id": "doc_031",
+	"title_key": "DOC_031_TITLE",
+	"body_key": "DOC_031_BODY",
+	"series": "records",
+	"foreshadow_ids": ["F09"],
+	"reveal_stage": "mid"
+}
