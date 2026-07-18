@@ -1,0 +1,9 @@
+{
+	"id": "companion_3",
+	"name_key": "COMPANION_3_NAME",
+	"join_at_docs": 3,
+	"base_hp": 24, "hp_per_level": 5,
+	"base_mp": 7, "mp_per_level": 1,
+	"base_atk": 5, "atk_per_level": 1,
+	"base_def": 3, "def_per_level": 1
+}
