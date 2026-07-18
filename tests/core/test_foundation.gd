@@ -4,21 +4,22 @@ extends GutTest
 
 func test_art_library_loads_shipped_art_and_falls_back() -> void:
 	var lib := UDArtLibrary.load_default(["dorm", "tavern", "altar"])
-	# Shipped: rooms, depot, protagonist.
+	# Shipped: rooms, depot, protagonist, and Madoka (companion_1).
 	for key: String in [
-		"depot", "room_dorm", "room_tavern", "room_altar", "minion_0",
+		"depot", "room_dorm", "room_tavern", "room_altar", "minion_0", "minion_1",
 	]:
 		assert_true(lib.has_art(key), "%s loads" % key)
 	# Companions without art yet fall back to placeholder rectangles.
-	assert_false(lib.has_art("minion_1"))
-	assert_null(lib.texture("minion_1"))
+	assert_false(lib.has_art("minion_2"))
+	assert_null(lib.texture("minion_2"))
 
 
 func test_art_frame_animation() -> void:
 	var lib := UDArtLibrary.load_default([])
 	assert_eq(lib.frame_count("minion_0"), 5, "protagonist has a 5-frame dig loop")
 	assert_eq(lib.frame_count("depot"), 1, "static art stays single-frame")
-	assert_eq(lib.frame_count("minion_1"), 0, "missing art has no frames")
+	assert_eq(lib.frame_count("minion_1"), 8, "Madoka has an 8-frame idle loop")
+	assert_eq(lib.frame_count("minion_2"), 0, "missing art has no frames")
 	assert_not_null(lib.frame("minion_0", 0))
 	assert_not_null(lib.frame("minion_0", 7), "frame index wraps")
 	assert_ne(lib.frame("minion_0", 0), lib.frame("minion_0", 1))
