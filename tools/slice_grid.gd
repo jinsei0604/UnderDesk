@@ -73,6 +73,9 @@ const MIN_ISLAND := 20
 const CELL_INSET := 8
 
 const FILES := [
+	"sotiris_basic_1774x1110.png", "sotiris_skills_1774x1110.png",
+	"madoka_basic_1774x1110.png", "madoka_skills_1774x1110.png",
+	"vard_basic_1774x1110.png", "vard_skills_1774x1110.png",
 	"shiba_yo_basic_1774x1110.png", "shiba_yo_skills_1774x1110.png",
 	"sayu_basic_1774x1110.png", "sayu_skills_1774x1110.png",
 ]
@@ -104,17 +107,31 @@ func _init() -> void:
 		var cell_size := float(w) / COLS
 		var rows: int = ROW_OVERRIDE.get(fname, DEFAULT_ROWS)
 		var row_h := float(h) / rows if FULL_HEIGHT_SHEETS.has(fname) else cell_size
+		# Column edges: detected from the sheet's actual vertical divider
+		# lines when possible, uniform division otherwise (see
+		# _detect_column_edges - madoka_skills' grid is genuinely
+		# non-uniform, columns range 250px down to 162px).
+		var col_edges := _detect_column_edges(sheet)
+		if col_edges.size() != COLS + 1:
+			col_edges.clear()
+			for c in COLS + 1:
+				col_edges.append(int(round(float(c) * cell_size)))
+		else:
+			print("  (", fname, ": using detected column edges ", col_edges, ")")
 		var saved := 0
 		for row in rows:
 			for col in COLS:
-				var x0 := int(round(float(col) * cell_size)) + CELL_INSET
-				var x1 := int(round(float(col + 1) * cell_size)) - CELL_INSET
+				var x0: int = col_edges[col] + CELL_INSET
+				var x1: int = col_edges[col + 1] - CELL_INSET
 				var y0 := int(round(float(row) * row_h)) + CELL_INSET
 				var y1 := int(round(float(row + 1) * row_h)) - CELL_INSET
 				var cell := sheet.get_region(Rect2i(x0, y0, x1 - x0, y1 - y0))
-				_clear_background(cell, BG_TOLERANCE, _median_bg(cell))
+				var bg_ref := _median_bg(cell)
+				_clear_background(cell, BG_TOLERANCE, bg_ref)
 				_remove_small_islands(cell, MIN_ISLAND)
 				_remove_top_bleed(cell)
+				_remove_divider_lines(cell)
+				_remove_enclosed_background(cell, bg_ref)
 				var trimmed := _trim(cell)
 				if trimmed == null:
 					print("EMPTY: ", base_name, " r", row, "c", col)
@@ -126,6 +143,52 @@ func _init() -> void:
 				saved += 1
 		print("sliced ", fname, ": ", saved, " cells")
 	quit(0)
+
+
+## Detects the sheet's actual vertical divider-line positions instead of
+## trusting uniform division. Needed because madoka_skills' grid is
+## genuinely NON-uniform (measured divider centers: 250, 488, 727, 961,
+## 1193, 1412, 1612 - columns shrink from 250px to 162px left to right,
+## drifting up to ~60px from the uniform-division positions; this
+## re-confirms CLAUDE.md's old "AI生成シートは列幅が均一グリッド計算
+## どおりにならないことがある" pitfall). A divider column is one whose
+## pixels are consistently darker than the background over nearly the
+## full canvas height. Returns COLS+1 edges (canvas edges + 7 internal
+## divider centers) or an empty array when detection doesn't find
+## exactly 7 internal dividers (caller falls back to uniform division -
+## e.g. when bright effects crossing a divider break its dark run).
+func _detect_column_edges(sheet: Image) -> Array[int]:
+	var w := sheet.get_width()
+	var h := sheet.get_height()
+	var bg := sheet.get_pixel(2, 2)
+	var divider_cols: Array[int] = []
+	for x in range(4, w - 4):
+		var dark := 0
+		for y in range(0, h, 2):
+			var c := sheet.get_pixel(x, y)
+			var d := Vector3(c.r - bg.r, c.g - bg.g, c.b - bg.b).length()
+			if d > 0.04 and c.r < bg.r:
+				dark += 1
+		if float(dark) / (h / 2.0) > 0.85:
+			divider_cols.append(x)
+	# Group consecutive columns into divider centers.
+	var centers: Array[int] = []
+	var run_start := -10
+	var prev := -10
+	for x in divider_cols:
+		if x != prev + 1:
+			if run_start >= 0:
+				centers.append((run_start + prev) / 2)
+			run_start = x
+		prev = x
+	if run_start >= 0:
+		centers.append((run_start + prev) / 2)
+	if centers.size() != COLS - 1:
+		return []
+	var edges: Array[int] = [0]
+	edges.append_array(centers)
+	edges.append(w)
+	return edges
 
 
 ## Median color over a small patch at each corner, picking whichever
@@ -276,6 +339,119 @@ func _remove_top_bleed(img: Image) -> void:
 			if max_y < band:
 				for q2: Vector2i in comp:
 					img.set_pixel(q2.x, q2.y, Color(0, 0, 0, 0))
+
+
+## Kills surviving grid-divider fragments: components that are very wide
+## but only a few px tall (a shape no character or effect in these
+## sheets ever has - the flattest real effects, like wind streams and
+## flame jets, are 25px+ tall). Found the hard way: sayu_basic's row
+## dividers carry a soft shadow that extends past CELL_INSET into the
+## crop, the flood fill stops at the divider's own color boundary, and
+## the leftover reads as a gray bar under the character's feet in-game.
+## These bars also slipped through the contact-sheet review because a
+## bar at a sprite's bottom edge looks exactly like the contact sheet's
+## own cell boundary - which is why the contact sheet tools now draw
+## gaps between cells.
+func _remove_divider_lines(img: Image) -> void:
+	var w := img.get_width()
+	var h := img.get_height()
+	var visited: Dictionary = {}
+	for y in h:
+		for x in w:
+			var p := Vector2i(x, y)
+			if visited.has(p):
+				continue
+			if img.get_pixel(x, y).a <= 0.01:
+				visited[p] = true
+				continue
+			var comp: Array[Vector2i] = []
+			var stack: Array[Vector2i] = [p]
+			var min_x := w
+			var max_x := 0
+			var min_y := h
+			var max_y := 0
+			while not stack.is_empty():
+				var q: Vector2i = stack.pop_back()
+				if visited.has(q):
+					continue
+				if q.x < 0 or q.y < 0 or q.x >= w or q.y >= h:
+					continue
+				if img.get_pixel(q.x, q.y).a <= 0.01:
+					continue
+				visited[q] = true
+				comp.append(q)
+				min_x = mini(min_x, q.x)
+				max_x = maxi(max_x, q.x)
+				min_y = mini(min_y, q.y)
+				max_y = maxi(max_y, q.y)
+				stack.append(q + Vector2i(1, 0))
+				stack.append(q + Vector2i(-1, 0))
+				stack.append(q + Vector2i(0, 1))
+				stack.append(q + Vector2i(0, -1))
+			var comp_w := max_x - min_x + 1
+			var comp_h := max_y - min_y + 1
+			if comp_h <= 10 and comp_w >= w / 3:
+				for q2: Vector2i in comp:
+					img.set_pixel(q2.x, q2.y, Color(0, 0, 0, 0))
+
+
+## Clears background trapped inside closed content loops, which the
+## border-seeded flood fill can never reach (e.g. the flat gray patches
+## inside Shiba Yao's 呪縛 chain coil). A region qualifies only if ALL
+## of: every pixel matches the cell's background reference within a
+## strict tolerance (much tighter than the flood fill's), the region is
+## flat (near-zero color variance - real art like Sayu's silver-gray
+## hair, whose hue drifts near the warm-gray background, always carries
+## shading), and it is at least a few dozen px (never punch pinholes in
+## antialiased interiors). All three guards matter: Sayu's hair is the
+## reason a simple global "erase anything bg-colored" pass was rejected.
+func _remove_enclosed_background(img: Image, bg: Color) -> void:
+	const STRICT_TOL := 0.045
+	const FLATNESS := 0.0012
+	const MIN_REGION := 40
+	var w := img.get_width()
+	var h := img.get_height()
+	var visited: Dictionary = {}
+	for y in h:
+		for x in w:
+			var p := Vector2i(x, y)
+			if visited.has(p):
+				continue
+			var c0 := img.get_pixel(x, y)
+			if c0.a <= 0.01 or Vector3(c0.r - bg.r, c0.g - bg.g, c0.b - bg.b).length() > STRICT_TOL:
+				visited[p] = true
+				continue
+			# Grow the region of strictly-bg-like pixels.
+			var comp: Array[Vector2i] = []
+			var stack: Array[Vector2i] = [p]
+			var sum := Vector3.ZERO
+			while not stack.is_empty():
+				var q: Vector2i = stack.pop_back()
+				if visited.has(q):
+					continue
+				if q.x < 0 or q.y < 0 or q.x >= w or q.y >= h:
+					continue
+				var c := img.get_pixel(q.x, q.y)
+				if c.a <= 0.01 or Vector3(c.r - bg.r, c.g - bg.g, c.b - bg.b).length() > STRICT_TOL:
+					continue
+				visited[q] = true
+				comp.append(q)
+				sum += Vector3(c.r, c.g, c.b)
+				stack.append(q + Vector2i(1, 0))
+				stack.append(q + Vector2i(-1, 0))
+				stack.append(q + Vector2i(0, 1))
+				stack.append(q + Vector2i(0, -1))
+			if comp.size() < MIN_REGION:
+				continue
+			var mean := sum / comp.size()
+			var variance := 0.0
+			for q2: Vector2i in comp:
+				var c2 := img.get_pixel(q2.x, q2.y)
+				variance += Vector3(c2.r, c2.g, c2.b).distance_squared_to(mean)
+			variance /= comp.size()
+			if variance < FLATNESS:
+				for q3: Vector2i in comp:
+					img.set_pixel(q3.x, q3.y, Color(0, 0, 0, 0))
 
 
 func _trim(img: Image) -> Image:
