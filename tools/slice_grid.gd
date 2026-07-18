@@ -1,12 +1,16 @@
 extends SceneTree
 ## Bulk-slices the 8x4 battle/skill sheets into individual 128x128 game
 ## sprites, background-cleared and trimmed, saved with positional names
-## to a staging folder (NOT assets/art/ yet - these need a skill-name
-## mapping proposed and confirmed before they're wired into the game's
-## real naming convention).
+## (row/col) to a staging folder outside the project. The row->skill-name
+## mapping (walk/dash/attack/skill_<name>) is applied afterward by hand
+## when copying the confirmed cells into assets/art/ - see CLAUDE.md's
+## content recipe for the current naming.
 
 const DIR := "C:/Users/jinch/OneDrive/デスクトップ/UNDERDESK設定/"
-const OUT_DIR := "res://tools/_staging/"
+## Outside res:// on purpose - Godot auto-imports anything under the
+## project tree, and 200 throwaway staging PNGs previously bloated the
+## import cache with .import files that had to be cleaned up by hand.
+const OUT_DIR := "C:/Users/jinch/AppData/Local/Temp/claude/C--src-underdesk/6fface6a-af13-4854-9b42-ba0bf7c0b720/scratchpad/sprite_staging2/"
 const COLS := 8
 const DEFAULT_ROWS := 4
 ## Madoka's skill sheet has 5 rows, not 4 - the design doc gives her 5
@@ -18,8 +22,37 @@ const ROW_OVERRIDE := {
 	"madoka_skills_1774x1110.png": 5,
 }
 const SPRITE_SIZE := 128
-const BG_TOLERANCE := 0.075
+const BG_TOLERANCE := 0.09
 const MIN_ISLAND := 20
+## 2026-07-18: the first extraction pass (committed, then found broken by
+## the user - "ドット絵に背景が入ってしまっている") left real gray
+## background behind most frames. Two compounding bugs, both fixed here:
+## 1. Cell boundaries computed by simple division land ON the sheet's
+##    grid divider lines (~4-5px, darker than the flat background), not
+##    cleanly between cells. Sampling the flood-fill's background
+##    reference color from a crop's own (0,0) corner then picks up the
+##    grid-line color instead of true background, and the fill barely
+##    propagates. Fixed by CELL_INSET (crop a few px past the divider).
+## 2. Even past the divider, a single reference pixel is fragile - the
+##    sheets have visible grain/noise (adjacent background pixels can
+##    differ by ~0.05-0.1), and any content that happens to graze a
+##    crop's exact corner throws it off completely. Fixed by sampling a
+##    small patch at each of the 4 corners and using whichever patch has
+##    the lowest internal variance (least likely to contain content).
+## Do NOT validate this kind of fix by checking alpha at a handful of
+## border pixels (tried that, got misleading 100+/200 "failures" - trim()
+## guarantees content touches its own bounding edges, especially the
+## bottom since _square() bottom-aligns, so "opaque pixel at the border"
+## is often correct, not a bug). What actually caught the real bug: a
+## single composite "contact sheet" of every frame tiled on a bright
+## green backdrop (impossible to miss a leftover gray square at a
+## glance) - the fastest reliable way to audit background-removal
+## quality on a batch this size.
+## far from that sample point (only dropped the failure rate to
+## 180/200). The fix that actually worked: inset each crop, then sample
+## the background reference **per cell** (still from that cell's own
+## corner, just past the divider now instead of on top of it).
+const CELL_INSET := 6
 
 const FILES := [
 	"madoka_basic_1774x1110.png", "madoka_skills_1774x1110.png",
@@ -46,12 +79,12 @@ func _init() -> void:
 		var saved := 0
 		for row in rows:
 			for col in COLS:
-				var x0 := int(round(float(col) * cell_size))
-				var x1 := int(round(float(col + 1) * cell_size))
-				var y0 := int(round(float(row) * cell_size))
-				var y1 := int(round(float(row + 1) * cell_size))
+				var x0 := int(round(float(col) * cell_size)) + CELL_INSET
+				var x1 := int(round(float(col + 1) * cell_size)) - CELL_INSET
+				var y0 := int(round(float(row) * cell_size)) + CELL_INSET
+				var y1 := int(round(float(row + 1) * cell_size)) - CELL_INSET
 				var cell := sheet.get_region(Rect2i(x0, y0, x1 - x0, y1 - y0))
-				_clear_background(cell, BG_TOLERANCE)
+				_clear_background(cell, BG_TOLERANCE, _median_bg(cell))
 				_remove_small_islands(cell, MIN_ISLAND)
 				var trimmed := _trim(cell)
 				if trimmed == null:
@@ -66,10 +99,51 @@ func _init() -> void:
 	quit(0)
 
 
-func _clear_background(img: Image, tolerance: float) -> void:
+## Median color over a small patch at each corner, picking whichever
+## corner patch has the lowest internal variance (most likely to be
+## clean background rather than grazing a character/effect). Far more
+## robust than a single pixel, which regularly landed on grain noise or
+## a sliver of content and made the whole flood-fill reference wrong.
+func _median_bg(img: Image) -> Color:
 	var w := img.get_width()
 	var h := img.get_height()
-	var bg := img.get_pixel(0, 0)
+	var patch := 10
+	var corners := [
+		Vector2i(0, 0), Vector2i(w - patch, 0),
+		Vector2i(0, h - patch), Vector2i(w - patch, h - patch),
+	]
+	var best_color := Color.MAGENTA
+	var best_variance := INF
+	for c: Vector2i in corners:
+		var sum := Vector3.ZERO
+		var count := 0
+		for y in range(c.y, c.y + patch):
+			for x in range(c.x, c.x + patch):
+				if x < 0 or y < 0 or x >= w or y >= h:
+					continue
+				var px := img.get_pixel(x, y)
+				sum += Vector3(px.r, px.g, px.b)
+				count += 1
+		if count == 0:
+			continue
+		var mean := sum / count
+		var variance := 0.0
+		for y in range(c.y, c.y + patch):
+			for x in range(c.x, c.x + patch):
+				if x < 0 or y < 0 or x >= w or y >= h:
+					continue
+				var px := img.get_pixel(x, y)
+				variance += Vector3(px.r, px.g, px.b).distance_squared_to(mean)
+		variance /= count
+		if variance < best_variance:
+			best_variance = variance
+			best_color = Color(mean.x, mean.y, mean.z)
+	return best_color
+
+
+func _clear_background(img: Image, tolerance: float, bg: Color) -> void:
+	var w := img.get_width()
+	var h := img.get_height()
 	var visited: Dictionary = {}
 	var queue: Array[Vector2i] = []
 	for x in w:

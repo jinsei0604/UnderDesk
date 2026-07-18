@@ -1226,13 +1226,12 @@ func _open_dorm() -> void:
 	_dorm_dialog.popup_centered()
 
 
-## The dorm favors a full-body "立ち絵" portrait (UDArtLibrary
-## "portrait_minion_N") when the art ships one; otherwise it falls back to
-## the same small minion_N icon/placeholder used in the party row.
+## The dorm shows the same standing pixel-art idle sprite used in the
+## party row (not the big "立ち絵" portrait - 2026-07-18 user judgment:
+## the illustrated portraits read as inconsistent next to the game's
+## pixel-art identity, so portrait_minion_N is unused here even when
+## shipped. Falls back to the placeholder rectangle like everywhere else.
 func _dorm_icon(art_variant: int, minion_id: String) -> Texture2D:
-	var portrait_key := "portrait_minion_%d" % art_variant
-	if art.has_art(portrait_key):
-		return art.texture(portrait_key)
 	return art.icon_or_placeholder("minion_%d" % art_variant, minion_id, "rune")
 
 
