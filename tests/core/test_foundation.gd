@@ -4,25 +4,26 @@ extends GutTest
 
 func test_art_library_loads_shipped_art_and_falls_back() -> void:
 	var lib := UDArtLibrary.load_default(["dorm", "tavern", "altar"])
-	# Shipped: rooms, depot, the protagonist's dorm portrait (redesign
-	# pending, so no minion_0 pixel sprite right now - see CLAUDE.md).
+	# Shipped: rooms, depot, the redesigned protagonist/Madoka/Vard's
+	# dorm portraits and their new idle pixel sprites.
 	for key: String in [
-		"depot", "room_dorm", "room_tavern", "room_altar", "portrait_minion_0",
+		"depot", "room_dorm", "room_tavern", "room_altar",
+		"portrait_minion_0", "portrait_minion_1", "portrait_minion_2",
+		"minion_0", "minion_1", "minion_2",
 	]:
 		assert_true(lib.has_art(key), "%s loads" % key)
-	# The pixel sprite itself, and companions in general, fall back to
-	# placeholder rectangles until their art ships.
-	assert_false(lib.has_art("minion_0"))
-	assert_null(lib.texture("minion_0"))
-	assert_false(lib.has_art("minion_1"))
-	assert_null(lib.texture("minion_1"))
+	# Companions without art yet fall back to placeholder rectangles.
+	assert_false(lib.has_art("minion_3"))
+	assert_null(lib.texture("minion_3"))
 
 
 func test_art_frame_animation() -> void:
 	var lib := UDArtLibrary.load_default([])
 	assert_eq(lib.frame_count("depot"), 1, "static art stays single-frame")
-	assert_eq(lib.frame_count("minion_0"), 0, "protagonist sprite not shipped yet (redesign pending)")
-	assert_eq(lib.frame_count("minion_1"), 0, "missing art has no frames")
+	assert_eq(lib.frame_count("minion_0"), 8, "protagonist has an 8-frame idle loop")
+	assert_eq(lib.frame_count("minion_1"), 8, "Madoka has an 8-frame idle loop")
+	assert_eq(lib.frame_count("minion_2"), 8, "Vard has an 8-frame idle loop")
+	assert_eq(lib.frame_count("minion_3"), 0, "missing art has no frames")
 
 
 func test_art_keys() -> void:
