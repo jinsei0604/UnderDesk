@@ -51,6 +51,7 @@ WEAPON_STEEL_SWORD_NAME,鋼の剣
 WEAPON_STEEL_SWORD_DESC,鍛え抜かれた刃は、坑道の闇でも鈍く光る。
 UI_COMPANION_JOINED,仲間が加わった: %s
 COMPANION_1_NAME,円
+COMPANION_2_NAME,ヴァルド
 UI_OFFLINE_REPORT,留守の間に %d ティック進行した
 DOC_001_TITLE,坑夫の手記・一
 DOC_001_BODY,"三日目。土が柔らかい。掘れば掘るだけ賃金が出る、良い仕事だ。ただ、監督は妙なことを言う。「深さより先に、耳を慣らせ」と。何のことだか。夜、坑道の底のほうで、水音とも息遣いともつかない音がした。水脈だろう、とみんな笑った。おれも笑った。"

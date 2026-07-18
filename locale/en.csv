@@ -51,6 +51,7 @@ WEAPON_STEEL_SWORD_NAME,Steel Sword
 WEAPON_STEEL_SWORD_DESC,A well-forged edge that still gleams in the dark.
 UI_COMPANION_JOINED,A companion joined: %s
 COMPANION_1_NAME,Madoka
+COMPANION_2_NAME,Vard
 UI_OFFLINE_REPORT,%d ticks passed while you were away
 DOC_001_TITLE,A Miner's Journal - I
 DOC_001_BODY,"Day three. The soil here is soft. The more you dig, the more you earn — good work, honest work. But the foreman says strange things. ""Train your ears before you train your depth,"" he tells us. Whatever that means. Last night, from somewhere far below the shaft, came a sound — not quite water, not quite breathing. An aquifer, everyone laughed. I laughed too."

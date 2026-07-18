@@ -73,6 +73,23 @@ const PRESETS := {
 			"minion_1_f8": [1236, 35, 96, 125],
 		},
 	},
+	## Vard Strand (companion_2) idle row (§待機モーション(アイドル), y39-122,
+	## measured with the same row/column-cluster analysis as madoka_idle).
+	## High-contrast character (blonde/silver/blue on black) so the
+	## default BG_TOLERANCE works, unlike Madoka's dark-on-dark case.
+	"vard_idle": {
+		"src": "C:/Users/jinch/OneDrive/デスクトップ/UNDERDESK設定/e3dbb26d-d058-4077-ab40-5c91c0cb2470.png",
+		"crops": {
+			"minion_2": [474, 30, 88, 102],
+			"minion_2_f2": [582, 30, 85, 102],
+			"minion_2_f3": [690, 30, 90, 102],
+			"minion_2_f4": [800, 30, 89, 102],
+			"minion_2_f5": [914, 30, 88, 102],
+			"minion_2_f6": [1028, 30, 88, 102],
+			"minion_2_f7": [1135, 30, 94, 102],
+			"minion_2_f8": [1231, 30, 111, 102],
+		},
+	},
 }
 
 ## Cell-local rect to blank out before background clearing (kills the
