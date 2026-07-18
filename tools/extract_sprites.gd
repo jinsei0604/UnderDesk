@@ -23,6 +23,11 @@ const MIN_ISLAND_OVERRIDE := {
 ## In-game sprites are resampled to this size (matches the expanded
 ## view's cell) so nearest-neighbor drawing stays crisp.
 const GAME_SPRITE_SIZE := 128
+## Portrait illustrations (UDArtLibrary "portrait_minion_N") display at
+## just 36-88px (card_dialog.gd's CARD_ICON_PX/DETAIL_ICON_PX) today, but
+## keep more headroom than a pixel sprite since they're detailed art, not
+## nearest-neighbor pixel work.
+const PORTRAIT_SIZE := 256
 
 ## Outputs flipped horizontally so every frame of a character faces the
 ## same way (the game mirrors at draw time for the other direction).
@@ -90,6 +95,27 @@ const PRESETS := {
 			"minion_2_f8": [1231, 30, 111, 102],
 		},
 	},
+	## Full-body "立ち絵" (standing portrait) illustrations for the dorm's
+	## big-illustration display (UDArtLibrary "portrait_minion_N" naming,
+	## §6 art recipe) — a different, higher-detail source than the pixel
+	## sprite sheets, on a flat mid-gray background (not black), so no
+	## tolerance override is needed. 2026-07-18: protagonist redesign +
+	## Madoka/Vard redesigns delivered as portraits only; matching pixel
+	## sprites (battle/overworld) come separately later. One preset per
+	## file since each portrait is its own full image, not a sub-crop of
+	## a shared sheet.
+	"portrait_protagonist": {
+		"src": "C:/Users/jinch/OneDrive/デスクトップ/UNDERDESK設定/d21b89f3-974a-4bf2-a56e-ce6405b92f8e.png",
+		"crops": {"portrait_minion_0": [0, 0, 1254, 1254]},
+	},
+	"portrait_madoka_v2": {
+		"src": "C:/Users/jinch/OneDrive/デスクトップ/UNDERDESK設定/exec-df8308f2-1a08-4deb-a60f-3e69103683ae.png",
+		"crops": {"portrait_minion_1": [0, 0, 1254, 1254]},
+	},
+	"portrait_vard_v2": {
+		"src": "C:/Users/jinch/OneDrive/デスクトップ/UNDERDESK設定/27ecab65-48ff-435a-a76c-27c390245e55.png",
+		"crops": {"portrait_minion_2": [0, 0, 1254, 1254]},
+	},
 }
 
 ## Cell-local rect to blank out before background clearing (kills the
@@ -149,7 +175,9 @@ func _init() -> void:
 			print("EMPTY after trim: ", out_name)
 			continue
 		var squared := _square(trimmed)
-		if out_name.begins_with("minion_"):
+		if out_name.begins_with("portrait_"):
+			squared.resize(PORTRAIT_SIZE, PORTRAIT_SIZE, Image.INTERPOLATE_LANCZOS)
+		elif out_name.begins_with("minion_"):
 			squared.resize(GAME_SPRITE_SIZE, GAME_SPRITE_SIZE, Image.INTERPOLATE_LANCZOS)
 		if FLIP_X_OUTPUTS.has(out_name):
 			squared.flip_x()

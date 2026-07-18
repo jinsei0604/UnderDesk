@@ -5,6 +5,10 @@ extends RefCounted
 ##
 ## Recognized names:
 ##   minion_0.png .. minion_5.png  (variant = minion id % 6, party units)
+##   portrait_minion_0.png .. portrait_minion_5.png  (optional full-body
+##   "立ち絵" illustration per party unit, same variant numbering as
+##   minion_N; shown in the dorm in place of the small minion_N icon when
+##   present — see main.gd's _populate_dorm/_on_dorm_card_selected)
 ##   enemy_<enemy_id>.png  (trash mobs and bosses, data/enemies/ ids)
 ##   room_<room_id>.png  (e.g. room_dorm.png)
 ##   weapon_<weapon_id>.png  (data/weapons/ ids)
@@ -57,6 +61,7 @@ static func load_default(
 	]
 	for i in MINION_VARIANTS:
 		keys.append("minion_%d" % i)
+		keys.append("portrait_minion_%d" % i)
 	for rank in UD.ITEM_RANKS:
 		keys.append("item_rank_%s" % rank)
 	for room_id in room_ids:

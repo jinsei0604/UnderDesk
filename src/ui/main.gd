@@ -1226,6 +1226,16 @@ func _open_dorm() -> void:
 	_dorm_dialog.popup_centered()
 
 
+## The dorm favors a full-body "立ち絵" portrait (UDArtLibrary
+## "portrait_minion_N") when the art ships one; otherwise it falls back to
+## the same small minion_N icon/placeholder used in the party row.
+func _dorm_icon(art_variant: int, minion_id: String) -> Texture2D:
+	var portrait_key := "portrait_minion_%d" % art_variant
+	if art.has_art(portrait_key):
+		return art.texture(portrait_key)
+	return art.icon_or_placeholder("minion_%d" % art_variant, minion_id, "rune")
+
+
 func _populate_dorm(keep_selection: String) -> void:
 	_dorm_dialog.clear_cards()
 	for slot_index in sim.minions.size():
@@ -1235,7 +1245,7 @@ func _populate_dorm(keep_selection: String) -> void:
 		var display_name := _unit_display_name(unit)
 		_dorm_dialog.add_card(
 			minion_id, display_name, "Lv.%d" % unit.level,
-			art.icon_or_placeholder("minion_%d" % art_variant, minion_id, "rune"), false
+			_dorm_icon(art_variant, minion_id), false
 		)
 	_dorm_dialog.set_progress("%s %d/%d   EXP %d" % [
 		locale.text("UI_PARTY"), sim.minions.size(), UD.MINION_MAX, sim.exp_pool,
@@ -1260,10 +1270,7 @@ func _on_dorm_card_selected(minion_id: String) -> void:
 		locale.text("FACILITY_DORM_DESC"), unit.level, unit.hp, sim.unit_max_hp(unit),
 		unit.mp, sim.unit_max_mp(unit), locale.text("UI_LEVEL_UP_COST"), sim.exp_pool, cost,
 	]
-	_dorm_dialog.show_detail(
-		display_name, body,
-		art.icon_or_placeholder("minion_%d" % art_variant, minion_id, "rune")
-	)
+	_dorm_dialog.show_detail(display_name, body, _dorm_icon(art_variant, minion_id))
 	_dorm_dialog.set_action(locale.text("UI_LEVEL_UP"), sim.exp_pool < cost)
 
 
