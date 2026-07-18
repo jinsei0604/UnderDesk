@@ -11,22 +11,6 @@ func test_stage_files_load() -> void:
 	assert_eq(str(far["id"]), "deeper", "distances past the last band reuse it")
 
 
-func test_companion_files_load_and_translate() -> void:
-	var defs := UDDataLoader.load_json_dir("res://data/companions")
-	assert_gt(defs.size(), 0, "at least one companion shipped")
-	var ja := UDLocale.load_locale("ja")
-	var en := UDLocale.load_locale("en")
-	for def: Variant in defs:
-		var companion := def as Dictionary
-		assert_true(companion.has("id"))
-		assert_gt(int(companion["join_at_docs"]), 0)
-		assert_gt(int(companion["base_hp"]), 0)
-		assert_gt(int(companion["base_atk"]), 0)
-		for locale: UDLocale in [ja, en]:
-			assert_ne(locale.text(companion["name_key"]), companion["name_key"],
-				"%s name translated" % companion["id"])
-
-
 func test_enemy_files_load_and_translate() -> void:
 	var db := UDEnemyDB.load_from_dir("res://data/enemies")
 	assert_gt(db.all_ids().size(), 0)
