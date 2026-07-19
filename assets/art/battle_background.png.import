@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cccc84ivlv2rd"
-path="res://.godot/imported/dig_background_f3.png-f12c6e7c153a02d2c61d6152a1f944e8.ctex"
+uid="uid://c5q26e1yxpgvs"
+path="res://.godot/imported/battle_background.png-41814eb7d62b003082fa7697c89015b1.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/art/dig_background_f3.png"
-dest_files=["res://.godot/imported/dig_background_f3.png-f12c6e7c153a02d2c61d6152a1f944e8.ctex"]
+source_file="res://assets/art/battle_background.png"
+dest_files=["res://.godot/imported/battle_background.png-41814eb7d62b003082fa7697c89015b1.ctex"]
 
 [params]
 

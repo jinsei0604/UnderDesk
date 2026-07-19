@@ -122,7 +122,70 @@ func test_boss_fight_survives_save_roundtrip() -> void:
 	)
 	assert_eq(restored.boss_active, sim.boss_active)
 	assert_eq(restored.boss_hp, sim.boss_hp)
+	assert_eq(restored.boss_enemy_id, sim.boss_enemy_id)
 	assert_eq(restored.stage_index, sim.stage_index)
+
+
+func _win_fight(sim: UDSim) -> Dictionary:
+	var result := {}
+	for i in 20:
+		if not sim.boss_active:
+			break
+		result = sim.resolve_boss_round([{"unit_id": 0, "action": "attack"}])
+	return result
+
+
+func test_cleared_gate_boss_can_be_rematched() -> void:
+	var sim := _sim_at_gate()
+	sim.start_boss_fight()
+	_win_fight(sim)
+	assert_eq(sim.stage_index, 6, "gate cleared")
+	assert_true(sim.start_boss_fight(), "rematch opens past the gate")
+	assert_eq(sim.boss_enemy_id, "test_boss", "rematch targets the cleared gate's boss")
+	assert_eq(sim.boss_hp, int(UDTestFixtures.enemies().get_enemy("test_boss")["hp"]),
+		"boss hp resets for the rematch")
+
+
+func test_rematch_win_pays_rewards_but_does_not_advance() -> void:
+	var sim := _sim_at_gate()
+	sim.start_boss_fight()
+	_win_fight(sim)
+	var exp_before := sim.exp_pool
+	sim.start_boss_fight()
+	var result := _win_fight(sim)
+	assert_true(result.get("won", false))
+	assert_eq(sim.stage_index, 6, "rematch never advances the stage")
+	assert_gt(sim.exp_pool, exp_before, "rematch still pays rewards")
+	assert_true(sim.start_boss_fight(), "and can be fought again indefinitely")
+
+
+func test_no_rematch_before_reaching_any_gate() -> void:
+	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 11)
+	assert_eq(sim.stage_index, 1)
+	assert_false(sim.start_boss_fight(), "no gate at or below stage 1")
+
+
+func test_rematch_is_deterministic() -> void:
+	var a := _sim_at_gate(3)
+	var b := _sim_at_gate(3)
+	for sim: UDSim in [a, b]:
+		sim.start_boss_fight()
+		_win_fight(sim)
+		sim.start_boss_fight()
+		sim.resolve_boss_round([{"unit_id": 0, "action": "attack"}])
+	assert_eq(JSON.stringify(a.to_dict()), JSON.stringify(b.to_dict()))
+
+
+func test_pre_rematch_save_mid_fight_derives_boss_id() -> void:
+	# A save written before boss_enemy_id existed can be mid-fight at a
+	# gate; loading it must recover which boss is being fought.
+	var sim := _sim_at_gate()
+	sim.start_boss_fight()
+	var d: Dictionary = JSON.parse_string(JSON.stringify(sim.to_dict()))
+	d.erase("boss_enemy_id")
+	var restored := UDSim.from_dict(d, UDTestFixtures.enemies(), UDTestFixtures.stages())
+	assert_true(restored.boss_active)
+	assert_eq(restored.boss_enemy_id, "test_boss", "derived from the gate band")
 
 
 func test_level_up_companion_spends_exp_pool() -> void:

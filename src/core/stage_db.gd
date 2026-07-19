@@ -34,3 +34,18 @@ func stage_for_index(i: int) -> Dictionary:
 
 func is_boss_stage(i: int) -> bool:
 	return str(stage_for_index(i).get("boss_id", "")) != ""
+
+
+## The most recent gate's boss at or below stage i ("" when the party
+## has not reached any gate yet). Lets a cleared gate be re-challenged
+## (sim.start_boss_fight) instead of the fight disappearing forever
+## once won.
+func last_boss_id_at_or_below(i: int) -> String:
+	var found := ""
+	for band in _bands:
+		if int(band["stage_from"]) > i:
+			break
+		var boss_id := str(band.get("boss_id", ""))
+		if boss_id != "":
+			found = boss_id
+	return found

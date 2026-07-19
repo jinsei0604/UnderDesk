@@ -255,6 +255,11 @@ func _draw() -> void:
 	_draw_hud()
 	if not sim.boss_active:
 		_draw_battle()
+	elif not settings.resident_mode:
+		# The resident strip stays plain during a boss fight (its whole
+		# layout is getting redesigned separately); the expanded window
+		# shows the boss arena behind the command panel.
+		_draw_boss_battle()
 
 
 const STRIP_FONT_SIZE: int = 11
@@ -340,14 +345,27 @@ func _draw_strip_overlay(font: Font) -> void:
 ## interactive — the only input here is "click the strip to expand".
 
 const ENEMY_ICON_PX: int = 96
+const BOSS_ICON_PX: int = 176
 const PARTY_ICON_PX: int = 64
 const BAR_HEIGHT: int = 6
-## Where dig_background.png's floor plane sits, as a fraction of the view
-## height (measured from the shipped art: the lit floor band runs roughly
-## 0.70-0.82 down the image). Enemy/party icons plant their feet here
-## instead of floating over the cave ceiling.
+## Where the chapter-0 backgrounds' paved floor sits, as a fraction of
+## the view height. Enemy/party icons plant their feet around here
+## instead of floating over the scenery.
 const GROUND_FRAC: float = 0.78
 const SIDE_MARGIN_FRAC: float = 0.14
+## Party formation, one (x_frac, feet_y_frac) per slot, matching the
+## user's placement reference (ボス戦仲間配置.png): a loose two-row
+## cluster on the left half - protagonist front and closest to the
+## enemy, two flankers low behind, two more further back and higher
+## (reads as depth). Used by both the idle view and the boss arena;
+## drawn back-to-front so nearer sprites overlap farther ones.
+const PARTY_FORMATION: Array[Vector2] = [
+	Vector2(0.36, 0.78),  # slot 0: protagonist, point position
+	Vector2(0.27, 0.84),  # slot 1: front row, left of the protagonist
+	Vector2(0.14, 0.80),  # slot 2: far left flank
+	Vector2(0.19, 0.66),  # slot 3: back row (higher = further away)
+	Vector2(0.28, 0.63),  # slot 4: back row, center
+]
 
 
 func _view_rect() -> Rect2 :
@@ -358,34 +376,70 @@ func _view_rect() -> Rect2 :
 
 func _draw_battle() -> void:
 	var view := _view_rect()
-	_draw_backdrop(view)
+	_draw_backdrop(view, "battle_background")
 	_draw_enemy(view)
 	_draw_party_row(view)
 
 
-const SCROLL_PX_PER_KILL: float = 18.0
+## The boss arena: same composition as the idle view (party formation
+## left, opponent right) but on the boss background, with the gate's
+## boss drawn large. The turn-command panel floats over this.
+func _draw_boss_battle() -> void:
+	var view := _view_rect()
+	_draw_backdrop(view, "boss_background")
+	_draw_boss_enemy(view)
+	_draw_party_row(view)
 
 
-## Cave backdrop behind the battle view. Digging no longer scrolls a grid,
-## so instead the tiled dig_background.png creeps right by a fixed step
-## every time sim.total_kills ticks up (i.e. every kill, trash or boss) —
-## a visible sense of walking forward each time an enemy falls.
-func _draw_backdrop(view: Rect2) -> void:
-	if not art.has_art("dig_background"):
+func _draw_boss_enemy(view: Rect2) -> void:
+	if sim.boss_enemy_id == "" or not enemy_db.has_enemy(sim.boss_enemy_id):
+		return
+	var def := enemy_db.get_enemy(sim.boss_enemy_id)
+	var icon_px := BOSS_ICON_PX
+	var center_x := view.position.x + view.size.x * (1.0 - SIDE_MARGIN_FRAC)
+	var ground_y := _ground_y(view)
+	var top := maxf(view.position.y, ground_y - icon_px)
+	var icon := art.icon_or_placeholder(
+		"enemy_%s" % sim.boss_enemy_id, sim.boss_enemy_id, "gem")
+	draw_texture_rect(
+		icon, Rect2(Vector2(center_x - icon_px / 2.0, top), Vector2(icon_px, icon_px)), false)
+	var max_hp := int(def["hp"])
+	var bar_y := top - BAR_HEIGHT - 4
+	var bar_rect := Rect2(
+		Vector2(center_x - icon_px / 2.0, bar_y), Vector2(icon_px, BAR_HEIGHT))
+	draw_rect(bar_rect, COLOR_HP_BAR_BG)
+	var frac := clampf(float(sim.boss_hp) / float(maxi(1, max_hp)), 0.0, 1.0)
+	draw_rect(
+		Rect2(bar_rect.position, Vector2(bar_rect.size.x * frac, BAR_HEIGHT)),
+		COLOR_ENEMY_HP_BAR)
+	draw_string(
+		ThemeDB.fallback_font, Vector2(center_x, bar_y - 6),
+		locale.text(str(def["name_key"])),
+		HORIZONTAL_ALIGNMENT_CENTER, icon_px * 2, 14, COLOR_HUD_TEXT)
+
+
+## Scenic backdrop behind the battle view (battle_background.png for
+## idle, boss_background.png during a boss fight). These are single
+## full-scene illustrations, not tiles: cover-fit (fill the view,
+## preserve aspect, crop the overflow), no scrolling. The old tiled
+## dig_background cave that crept sideways per kill is gone with the
+## chapter-0 art direction (2026-07-19); its code lives in git history.
+func _draw_backdrop(view: Rect2, key: String) -> void:
+	if not art.has_art(key):
 		draw_rect(view, COLOR_DIG_ROCKMASS)
 		return
-	# Uses the shared _anim_frame counter, so dropping dig_background_f2.png,
-	# _f3.png … next to the base image loops the cave backdrop (flickering
-	# lanterns etc.) at the same cadence as the sprite frames; one frame
-	# stays static as before.
-	var tex := art.frame("dig_background", _anim_frame)
-	var scale := view.size.y / float(tex.get_height())
-	var tile_w := tex.get_width() * scale
-	var offset := fmod(float(sim.total_kills) * SCROLL_PX_PER_KILL, tile_w)
-	var tx := view.position.x - offset
-	while tx < view.position.x + view.size.x:
-		draw_texture_rect(tex, Rect2(Vector2(tx, view.position.y), Vector2(tile_w, view.size.y)), false)
-		tx += tile_w
+	# art.frame keeps the _fN animation convention working here (unused
+	# by the current chapter-0 scenes, but free if frames ever ship).
+	var tex := art.frame(key, _anim_frame)
+	var scale := maxf(
+		view.size.x / float(tex.get_width()),
+		view.size.y / float(tex.get_height()))
+	var displayed := Vector2(tex.get_width() * scale, tex.get_height() * scale)
+	var offset := view.position + (view.size - displayed) / 2.0
+	draw_texture_rect_region(
+		tex,
+		view,
+		Rect2((view.position - offset) / scale, view.size / scale))
 
 
 func _ground_y(view: Rect2) -> float:
@@ -425,38 +479,72 @@ func _draw_enemy(view: Rect2) -> void:
 		)
 
 
-## Party stands on the left, clustered near the protagonist rather than
-## spread across the view, facing the enemy on the right across the floor.
-## Drawn in the resident strip too (at the same size as the enemy there —
-## it used to be skipped entirely, making the protagonist invisible).
+## Party stands on the left in the PARTY_FORMATION cluster (per the
+## user's placement reference), facing the enemy on the right. The
+## resident strip keeps the old compact row instead - its layout is
+## getting redesigned separately.
 func _draw_party_row(view: Rect2) -> void:
 	if sim.minions.is_empty():
 		return
-	var icon_px := PARTY_ICON_PX if not settings.resident_mode else _resident_icon_px(view)
+	if settings.resident_mode:
+		_draw_party_row_strip(view)
+		return
+	var icon_px := PARTY_ICON_PX
+	var font := ThemeDB.fallback_font
+	# Back-to-front (higher feet = further away), so nearer units overlap.
+	var order: Array[int] = []
+	for slot_index in sim.minions.size():
+		order.append(slot_index)
+	order.sort_custom(
+		func(a: int, b: int) -> bool:
+			return _formation_pos(a).y < _formation_pos(b).y
+	)
+	for slot_index in order:
+		var unit: UDMinion = sim.minions[slot_index]
+		var pos := _formation_pos(slot_index)
+		var x := view.position.x + view.size.x * pos.x
+		var feet_y := view.position.y + view.size.y * pos.y
+		var top := maxf(view.position.y, feet_y - icon_px)
+		var art_variant := _minion_art_variant(slot_index)
+		var art_key := art.minion_key(art_variant)
+		var icon := art.icon_or_placeholder(art_key, "minion_%d" % slot_index, "rune")
+		draw_texture_rect(
+			icon, Rect2(Vector2(x - icon_px / 2.0, top), Vector2(icon_px, icon_px)), false)
+		var bar_w := icon_px
+		var hp_y := top - BAR_HEIGHT - 4
+		draw_rect(Rect2(Vector2(x - bar_w / 2.0, hp_y), Vector2(bar_w, BAR_HEIGHT)), COLOR_HP_BAR_BG)
+		var hp_frac := clampf(float(unit.hp) / float(maxi(1, sim.unit_max_hp(unit))), 0.0, 1.0)
+		draw_rect(Rect2(Vector2(x - bar_w / 2.0, hp_y), Vector2(bar_w * hp_frac, BAR_HEIGHT)), COLOR_HP_BAR)
+		draw_string(
+			font, Vector2(x, hp_y - 6), "Lv.%d" % unit.level,
+			HORIZONTAL_ALIGNMENT_CENTER, bar_w * 2, 13, COLOR_HUD_TEXT
+		)
+
+
+func _formation_pos(slot_index: int) -> Vector2:
+	return PARTY_FORMATION[slot_index % PARTY_FORMATION.size()]
+
+
+## The old compact linear row, kept for the resident strip only.
+func _draw_party_row_strip(view: Rect2) -> void:
+	var icon_px := _resident_icon_px(view)
 	var count := sim.minions.size()
 	var spacing := minf(icon_px * 0.6, view.size.x / float(count + 1))
 	var start_x := view.position.x + view.size.x * SIDE_MARGIN_FRAC
 	var ground_y := _ground_y(view)
 	var top := maxf(view.position.y, ground_y - icon_px)
-	var font := ThemeDB.fallback_font
 	for slot_index in count:
 		var unit: UDMinion = sim.minions[slot_index]
 		var x := start_x + spacing * slot_index
 		var art_variant := _minion_art_variant(slot_index)
 		var art_key := art.minion_key(art_variant)
 		var icon := art.icon_or_placeholder(art_key, "minion_%d" % slot_index, "rune")
-		var rect := Rect2(Vector2(x - icon_px / 2.0, top), Vector2(icon_px, icon_px))
-		draw_texture_rect(icon, rect, false)
-		var bar_w := icon_px
+		draw_texture_rect(
+			icon, Rect2(Vector2(x - icon_px / 2.0, top), Vector2(icon_px, icon_px)), false)
 		var hp_y := top - BAR_HEIGHT - 4
-		draw_rect(Rect2(Vector2(x - bar_w / 2.0, hp_y), Vector2(bar_w, BAR_HEIGHT)), COLOR_HP_BAR_BG)
+		draw_rect(Rect2(Vector2(x - icon_px / 2.0, hp_y), Vector2(icon_px, BAR_HEIGHT)), COLOR_HP_BAR_BG)
 		var hp_frac := clampf(float(unit.hp) / float(maxi(1, sim.unit_max_hp(unit))), 0.0, 1.0)
-		draw_rect(Rect2(Vector2(x - bar_w / 2.0, hp_y), Vector2(bar_w * hp_frac, BAR_HEIGHT)), COLOR_HP_BAR)
-		if not settings.resident_mode:
-			draw_string(
-				font, Vector2(x, hp_y - 6), "Lv.%d" % unit.level,
-				HORIZONTAL_ALIGNMENT_CENTER, bar_w * 2, 13, COLOR_HUD_TEXT
-			)
+		draw_rect(Rect2(Vector2(x - icon_px / 2.0, hp_y), Vector2(icon_px * hp_frac, BAR_HEIGHT)), COLOR_HP_BAR)
 
 
 ## Party slot -> art variant. Slot 0 is always the protagonist; slot N
@@ -555,8 +643,15 @@ func _refresh_fight_button() -> void:
 	if _fight_button == null:
 		return
 	var at_gate := stage_db.is_boss_stage(sim.stage_index)
-	_fight_button.disabled = not at_gate
-	_fight_button.text = locale.text("UI_FIGHT_GATE") if at_gate else locale.text("UI_FIGHT_NONE")
+	var rematch := not at_gate \
+		and stage_db.last_boss_id_at_or_below(sim.stage_index) != ""
+	_fight_button.disabled = not (at_gate or rematch)
+	if at_gate:
+		_fight_button.text = locale.text("UI_FIGHT_GATE")
+	elif rematch:
+		_fight_button.text = locale.text("UI_FIGHT_REMATCH")
+	else:
+		_fight_button.text = locale.text("UI_FIGHT_NONE")
 
 
 func _refresh_button_texts() -> void:
@@ -703,8 +798,9 @@ func _hide_boss_panel() -> void:
 func _refresh_boss_panel() -> void:
 	if not sim.boss_active:
 		return
-	var stage := stage_db.stage_for_index(sim.stage_index)
-	var boss := enemy_db.get_enemy(str(stage["boss_id"]))
+	# The fight's own boss id, NOT the current band's boss_id: during a
+	# rematch the party is past the gate and the current band has none.
+	var boss := enemy_db.get_enemy(sim.boss_enemy_id)
 	_boss_enemy_label.text = locale.text(str(boss["name_key"]))
 	_boss_hp_bar.max_value = int(boss["hp"])
 	_boss_hp_bar.value = sim.boss_hp

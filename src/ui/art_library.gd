@@ -16,7 +16,8 @@ extends RefCounted
 ##   dialog_bg_<archive|treasure|shop|altar|guild|dorm>.png
 ##   (illustrated backdrop behind a UDCardDialog's card grid; add _fN
 ##    frames to animate it, e.g. a flickering candle — see UDCardDialog)
-##   dig_background.png  (the cave backdrop behind the battle view)
+##   battle_background.png  (scenic backdrop behind the idle battle view)
+##   boss_background.png  (scenic backdrop behind a boss fight)
 ##   series_<series_id>.png  (e.g. series_journal.png, the archive shelf icon)
 ##   item_rank_<Z|S|A|B|C|D>.png  (the treasure shelf's rank-card icon)
 ##
@@ -57,7 +58,7 @@ static func load_default(
 		"depot",
 		"dialog_bg_archive", "dialog_bg_treasure", "dialog_bg_shop",
 		"dialog_bg_altar", "dialog_bg_guild", "dialog_bg_dorm",
-		"dig_background",
+		"battle_background", "boss_background",
 	]
 	for i in MINION_VARIANTS:
 		keys.append("minion_%d" % i)

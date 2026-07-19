@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b33p4jobhouv7"
-path="res://.godot/imported/dig_background_f7.png-52285c19ab60ce93083b28c2d73f8da0.ctex"
+uid="uid://blvb8m7erie6n"
+path="res://.godot/imported/boss_background.png-e91e0cb6a7905b87981084f6d56afd83.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/art/dig_background_f7.png"
-dest_files=["res://.godot/imported/dig_background_f7.png-52285c19ab60ce93083b28c2d73f8da0.ctex"]
+source_file="res://assets/art/boss_background.png"
+dest_files=["res://.godot/imported/boss_background.png-e91e0cb6a7905b87981084f6d56afd83.ctex"]
 
 [params]
 

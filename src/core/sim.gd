@@ -51,6 +51,11 @@ var enemy_hp: int = 0
 var exp_pool: int = 0
 var boss_active: bool = false
 var boss_hp: int = 0
+## Which enemy the active boss fight is against. Needed because a fight
+## is no longer always "the current band's boss": a cleared gate can be
+## re-challenged from any later stage, where the current band has no
+## boss_id of its own.
+var boss_enemy_id: String = ""
 ## Every trash + boss kill, ever. Monotonic (unlike exp_pool, which drains
 ## on level-ups) — UI uses it to scroll the cave backdrop as a sense of
 ## forward progress each time an enemy falls.
@@ -270,16 +275,21 @@ func _grant_kill_rewards(def: Dictionary, stage: Dictionary) -> void:
 
 ## --- Manual boss fight (turn-based, player commands) -----------------
 
-## Opens the boss encounter at the current gate. Only callable when the
-## party is standing at an undefeated boss stage.
+## Opens a boss encounter: the current gate's boss when standing at an
+## undefeated gate, otherwise a REMATCH against the most recent cleared
+## gate's boss (repeatable at will - a rematch pays rewards again but
+## never advances the stage, see resolve_boss_round).
 func start_boss_fight() -> bool:
 	if boss_active:
 		return false
 	var stage := stages.stage_for_index(stage_index)
 	var boss_id := str(stage.get("boss_id", ""))
 	if boss_id == "":
+		boss_id = stages.last_boss_id_at_or_below(stage_index)
+	if boss_id == "":
 		return false
 	boss_active = true
+	boss_enemy_id = boss_id
 	boss_hp = int(enemies.get_enemy(boss_id)["hp"])
 	return true
 
@@ -291,12 +301,12 @@ func flee_boss_fight() -> bool:
 		return false
 	boss_active = false
 	boss_hp = 0
+	boss_enemy_id = ""
 	return true
 
 
 func _boss_def() -> Dictionary:
-	var stage := stages.stage_for_index(stage_index)
-	return enemies.get_enemy(str(stage["boss_id"]))
+	return enemies.get_enemy(boss_enemy_id)
 
 
 ## Resolves exactly one round: every living unit's action (in order),
@@ -319,10 +329,15 @@ func resolve_boss_round(actions: Array) -> Dictionary:
 			"skill":
 				_apply_skill(unit, str(action.get("skill_id", "")))
 	if boss_hp <= 0:
-		_grant_kill_rewards(boss, stages.stage_for_index(stage_index))
+		var stage := stages.stage_for_index(stage_index)
+		_grant_kill_rewards(boss, stage)
+		# Only an undefeated gate advances the stage; a rematch against an
+		# already-cleared gate's boss farms rewards but stays put.
+		if str(stage.get("boss_id", "")) == boss_enemy_id:
+			stage_index += 1
 		boss_active = false
 		boss_hp = 0
-		stage_index += 1
+		boss_enemy_id = ""
 		return {"won": true, "lost": false}
 	var target := _boss_target()
 	if target != null:
@@ -330,6 +345,7 @@ func resolve_boss_round(actions: Array) -> Dictionary:
 	if _party_wiped():
 		boss_active = false
 		boss_hp = 0
+		boss_enemy_id = ""
 		_heal_party_full()
 		return {"won": false, "lost": true}
 	return {"won": false, "lost": false}
@@ -715,6 +731,7 @@ func to_dict() -> Dictionary:
 		"exp_pool": exp_pool,
 		"boss_active": boss_active,
 		"boss_hp": boss_hp,
+		"boss_enemy_id": boss_enemy_id,
 		"total_kills": total_kills,
 		"equipped_weapon_id": equipped_weapon_id,
 		"weapon_level": weapon_level,
@@ -839,6 +856,15 @@ static func from_dict(
 		sim.exp_pool = int(d.get("exp_pool", 0))
 		sim.boss_active = bool(d.get("boss_active", false))
 		sim.boss_hp = int(d.get("boss_hp", 0))
+		sim.boss_enemy_id = str(d.get("boss_enemy_id", ""))
+		# A save from before rematches existed can be mid-fight without
+		# recording which boss: derive it from the gate it must be at.
+		if sim.boss_active and sim.boss_enemy_id == "":
+			sim.boss_enemy_id = str(
+				p_stages.stage_for_index(sim.stage_index).get("boss_id", ""))
+			if sim.boss_enemy_id == "":
+				sim.boss_active = false
+				sim.boss_hp = 0
 		sim.total_kills = int(d.get("total_kills", 0))
 		sim.equipped_weapon_id = str(d.get("equipped_weapon_id", ""))
 		sim.weapon_level = int(d.get("weapon_level", 0))
