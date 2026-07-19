@@ -413,7 +413,7 @@ func _draw_boss_enemy(view: Rect2) -> void:
 		Rect2(bar_rect.position, Vector2(bar_rect.size.x * frac, BAR_HEIGHT)),
 		COLOR_ENEMY_HP_BAR)
 	draw_string(
-		ThemeDB.fallback_font, Vector2(center_x, bar_y - 6),
+		ThemeDB.fallback_font, Vector2(center_x - icon_px, bar_y - 6),
 		locale.text(str(def["name_key"])),
 		HORIZONTAL_ALIGNMENT_CENTER, icon_px * 2, 14, COLOR_HUD_TEXT)
 
@@ -473,8 +473,10 @@ func _draw_enemy(view: Rect2) -> void:
 	if not settings.resident_mode:
 		var font := ThemeDB.fallback_font
 		var name_text := locale.text(str(def["name_key"]))
+		# The draw_string position is the text box's LEFT edge; to center
+		# on the icon the box must start icon_px left of center.
 		draw_string(
-			font, Vector2(center_x, bar_y - 6), name_text,
+			font, Vector2(center_x - icon_px, bar_y - 6), name_text,
 			HORIZONTAL_ALIGNMENT_CENTER, icon_px * 2, 14, COLOR_HUD_TEXT
 		)
 
