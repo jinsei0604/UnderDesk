@@ -40,7 +40,11 @@ static func stages(document_chance: float = 0.0) -> UDStageDB:
 static func skills() -> UDSkillDB:
 	return UDSkillDB.from_dicts([
 		{"id": "test_skill", "name_key": "X", "desc_key": "X",
-			"mp_cost": 2, "power": 5, "target": "enemy", "effect": "damage"},
+			"sp_cost": 2, "power": 5, "target": "enemy", "effect": "damage"},
+		{"id": "test_heal_skill", "name_key": "X", "desc_key": "X",
+			"sp_cost": 2, "power": 10, "target": "ally", "effect": "heal"},
+		{"id": "test_heal_skill_no_power", "name_key": "X", "desc_key": "X",
+			"sp_cost": 0, "target": "ally", "effect": "heal"},
 	])
 
 

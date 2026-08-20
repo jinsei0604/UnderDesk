@@ -9,10 +9,16 @@ extends RefCounted
 ## as a boss gate halts advancement (trash still farms for exp/coins) until
 ## the player manually wins a turn-based boss fight (player commands
 ## start_boss_fight/resolve_boss_round/flee_boss_fight).
+##
+## 2026-08-18 「新企画v1」フェーズ0/1: 段階加入(join_at_docs)を廃止し、party
+## は new_game() の時点で主人公+全companion_defsが揃う。ボス戦にREWIND
+## (§10)と部位破壊(§8)を追加: start_boss_fight()が突入直前のスナップ
+## ショット(boss_checkpoint)を取り、全滅または任意コマンドで
+## rewind_boss_fight()がそこへ戻す。boss_intel(§12: 見た攻撃/破壊した
+## 部位)だけはREWINDの対象外で、セーブを跨いで残る「プレイヤーの知識」。
 
 signal document_discovered(doc_id: String)
 signal item_found(item_id: String)
-signal companion_joined(companion_id: String)
 
 var tick_count: int = 0
 var inventory: Dictionary = {}  # resource id -> int ("gold" only, in practice)
@@ -28,8 +34,10 @@ var item_ranks: Dictionary = {}  # item id -> "Z".."D"
 ## Coins offered at the altar so far, +1 party attack (party_atk_bonus())
 ## per level.
 var altar_level: int = 0
-## Story companions who have joined (§ plan change: the protagonist
-## starts alone; companions join as documents are discovered).
+## Every story companion, present from turn one (新企画v1 §1, 2026-08-18:
+## the staged join-by-document-count system is gone — new_game() fills
+## this from every def in companion_defs immediately). Order determines
+## party slot: minions[i+1] corresponds to companions[i].
 ## Definitions are injected like the enemy/stage DBs, not serialized.
 var companions: Array[String] = []
 var companion_defs: Array = []  # [{ id, name_key, join_at_docs, base_hp, hp_per_level, ... }]
@@ -56,6 +64,27 @@ var boss_hp: int = 0
 ## re-challenged from any later stage, where the current band has no
 ## boss_id of its own.
 var boss_enemy_id: String = ""
+## --- REWIND + body-part destruction (新企画v1 §8/§10, 2026-08-18) -----
+## Snapshot captured once by start_boss_fight() (party HP/SP, boss_hp,
+## boss_part_hp, RNG state) and restored verbatim by rewind_boss_fight().
+## Empty outside of a boss fight.
+var boss_checkpoint: Dictionary = {}
+## Remaining HP of each of the active boss's body parts (data/enemies'
+## optional "parts" array), part id -> int. Empty for a boss with no
+## parts data — such a boss works exactly as it did before this system.
+var boss_part_hp: Dictionary = {}
+## Part ids reduced to 0 HP this attempt. Destroying a part only takes
+## it out of boss_hp's separate main pool indirectly (via the boss's own
+## action list honoring requires_part_intact, see _boss_choose_action) —
+## a part's own HP is a distinct pool from boss_hp, never subtracted
+## from it. Reset to [] by rewind_boss_fight(); see boss_intel below for
+## what persists through a rewind instead.
+var boss_parts_destroyed: Array[String] = []
+## What the player has learned about a boss so far this save (新企画v1
+## §12): boss id -> {"attacks_seen": Array[String], "parts_destroyed_
+## seen": Array[String]}. Deliberately NOT part of boss_checkpoint — the
+## one thing REWIND does not undo.
+var boss_intel: Dictionary = {}
 ## Every trash + boss kill, ever. Monotonic (unlike exp_pool, which drains
 ## on level-ups) — UI uses it to scroll the cave backdrop as a sense of
 ## forward progress each time an enemy falls.
@@ -93,7 +122,12 @@ static func new_game(
 	sim.item_ranks = p_item_ranks
 	sim._rng.seed = rng_seed
 	sim.inventory[UD.RES_GOLD] = 0
-	for i in UD.INITIAL_MINION_COUNT:
+	# 新企画v1 §1: 全5人が最初から仲間 — 段階加入(join_at_docs)は廃止。
+	# companions は起動時に注入された companion_defs の並び順そのまま
+	# (companion_1..4 = 円/ヴァルド/司馬燿/サユ)、party slot 0 が主人公。
+	for def: Variant in p_companion_defs:
+		sim.companions.append(str((def as Dictionary)["id"]))
+	for i in sim.companions.size() + 1:
 		sim.minions.append(sim._new_unit_at_level(i, 1))
 	return sim
 
@@ -107,21 +141,6 @@ func tick() -> void:
 	tick_count += 1
 	if not boss_active:
 		_auto_battle()
-	_check_companion_joins()
-
-
-## Story progression: companions join when enough documents have been
-## unearthed (thresholds live in data/companions/).
-func _check_companion_joins() -> void:
-	for def: Variant in companion_defs:
-		var companion := def as Dictionary
-		var id := str(companion["id"])
-		if companions.has(id) or minions.size() >= UD.MINION_MAX:
-			continue
-		if discovered_documents.size() >= int(companion["join_at_docs"]):
-			companions.append(id)
-			minions.append(_new_unit_at_level(minions.size(), 1))
-			companion_joined.emit(id)
 
 
 ## --- Growth: per-unit stats computed from level, not stored ----------
@@ -134,9 +153,10 @@ func _growth_def_for_unit(unit: UDMinion) -> Dictionary:
 	if unit.id == 0:
 		return {
 			"base_hp": UD.PROTAGONIST_BASE_HP, "hp_per_level": UD.PROTAGONIST_HP_PER_LEVEL,
-			"base_mp": UD.PROTAGONIST_BASE_MP, "mp_per_level": UD.PROTAGONIST_MP_PER_LEVEL,
+			"base_sp": UD.PROTAGONIST_BASE_SP, "sp_per_level": UD.PROTAGONIST_SP_PER_LEVEL,
 			"base_atk": UD.PROTAGONIST_BASE_ATK, "atk_per_level": UD.PROTAGONIST_ATK_PER_LEVEL,
 			"base_def": UD.PROTAGONIST_BASE_DEF, "def_per_level": UD.PROTAGONIST_DEF_PER_LEVEL,
+			"skills": UD.PROTAGONIST_SKILLS,
 		}
 	var companion_index := unit.id - 1
 	if companion_index >= 0 and companion_index < companions.size():
@@ -152,9 +172,9 @@ func unit_max_hp(unit: UDMinion) -> int:
 	return int(g["base_hp"]) + (unit.level - 1) * int(g["hp_per_level"])
 
 
-func unit_max_mp(unit: UDMinion) -> int:
+func unit_max_sp(unit: UDMinion) -> int:
 	var g := _growth_def_for_unit(unit)
-	return int(g["base_mp"]) + (unit.level - 1) * int(g["mp_per_level"])
+	return int(g["base_sp"]) + (unit.level - 1) * int(g["sp_per_level"])
 
 
 func unit_atk(unit: UDMinion) -> int:
@@ -178,7 +198,7 @@ func unit_skills(unit: UDMinion) -> Array[String]:
 func _new_unit_at_level(id: int, level: int) -> UDMinion:
 	var unit := UDMinion.create(id, level, 1, 1)
 	unit.hp = unit_max_hp(unit)
-	unit.mp = unit_max_mp(unit)
+	unit.sp = unit_max_sp(unit)
 	return unit
 
 
@@ -244,9 +264,12 @@ func _auto_battle() -> void:
 		_spawn_trash(stage)
 		return
 	var def := enemies.get_enemy(enemy_id)
-	enemy_hp -= maxi(1, party_atk_total() - int(def["def"]))
-	if enemy_hp > 0:
-		return  # Trash combat is risk-free by design: no party HP loss.
+	# RPG_SYSTEM_DESIGN_v5 §5.1: idle-mode trash dies to a single hit
+	# regardless of its stats — enemy HP/ATK/DEF only matter in manual
+	# battles (they're designed as boss-fight companions). This keeps
+	# idle pacing independent of the real chapter-scaled stat table
+	# (hp 100 vs a low-level party would otherwise take minutes a kill).
+	enemy_hp = 0
 	_grant_kill_rewards(def, stage)
 	enemy_id = ""
 	if stages.is_boss_stage(stage_index):
@@ -278,7 +301,9 @@ func _grant_kill_rewards(def: Dictionary, stage: Dictionary) -> void:
 ## Opens a boss encounter: the current gate's boss when standing at an
 ## undefeated gate, otherwise a REMATCH against the most recent cleared
 ## gate's boss (repeatable at will - a rematch pays rewards again but
-## never advances the stage, see resolve_boss_round).
+## never advances the stage, see resolve_boss_round). The party is healed
+## to full and a REWIND checkpoint (§10) is captured at this exact
+## moment — start_boss_fight() is always "full strength, attempt zero".
 func start_boss_fight() -> bool:
 	if boss_active:
 		return false
@@ -288,20 +313,96 @@ func start_boss_fight() -> bool:
 		boss_id = stages.last_boss_id_at_or_below(stage_index)
 	if boss_id == "":
 		return false
+	_heal_party_full()
 	boss_active = true
 	boss_enemy_id = boss_id
-	boss_hp = int(enemies.get_enemy(boss_id)["hp"])
+	var def := enemies.get_enemy(boss_id)
+	boss_hp = int(def["hp"])
+	boss_part_hp = _initial_part_hp(def)
+	boss_parts_destroyed = []
+	boss_checkpoint = _capture_checkpoint()
 	return true
 
 
-## Leaves the boss encounter without resolving it (no penalty): the
-## party returns to idle-farming trash at the gate.
+## Starting HP for each of a boss def's optional body parts (新企画v1
+## §8, data/enemies "parts" array). {} for a boss with none.
+func _initial_part_hp(def: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	for entry: Variant in def.get("parts", []) as Array:
+		var part := entry as Dictionary
+		result[str(part["id"])] = int(part["hp"])
+	return result
+
+
+## Only the fight-scoped fields (HP/SP) per unit, keyed by str(unit.id) —
+## deliberately NOT unit.to_dict() (which also carries level, a permanent-
+## progress field REWIND must never touch, 新企画v1仕様書 v2 §11/§29-12).
+func _capture_checkpoint() -> Dictionary:
+	var unit_hp_sp: Dictionary = {}
+	for unit in minions:
+		unit_hp_sp[str(unit.id)] = {"hp": unit.hp, "sp": unit.sp}
+	return {
+		"unit_hp_sp": unit_hp_sp,
+		"boss_hp": boss_hp,
+		"boss_part_hp": boss_part_hp.duplicate(),
+		# 64-bit RNG state as strings (鉄則4): a raw int here would risk the
+		# usual JSON-float corruption once this dict is serialized.
+		"rng_seed": str(_rng.seed),
+		"rng_state": str(_rng.state),
+	}
+
+
+## Leaves the boss encounter entirely without resolving it (no penalty):
+## the party returns to idle-farming trash at the gate. Distinct from
+## rewind_boss_fight() below, which restarts the same attempt instead of
+## exiting it.
 func flee_boss_fight() -> bool:
 	if not boss_active:
 		return false
 	boss_active = false
 	boss_hp = 0
 	boss_enemy_id = ""
+	boss_part_hp = {}
+	boss_parts_destroyed = []
+	boss_checkpoint = {}
+	return true
+
+
+## Rewinds the CURRENT boss encounter to the checkpoint start_boss_fight()
+## captured: party HP/SP, boss HP, and part durability all return to what
+## they were at the start of this attempt (新企画v1 §10 — REWIND always
+## returns to the start of the fight, never a mid-fight moment). The
+## encounter stays active (boss_active is untouched) — this restarts the
+## same fight, it does not leave it, unlike flee_boss_fight() above. Two
+## triggers call this exact same command: automatically from resolve_
+## boss_round() on a party wipe, and the player's own "REWIND" command at
+## any point mid-fight (deliberately bailing out of a bad plan costs
+## nothing extra over an accidental wipe). What does NOT come back:
+## boss_intel (what the player has learned this save, §12 — the one
+## thing REWIND does not undo) and anything outside the fight itself
+## (coins, items, documents, level).
+func rewind_boss_fight() -> bool:
+	if not boss_active or boss_checkpoint.is_empty():
+		return false
+	var snapshot := boss_checkpoint
+	# In-place HP/SP restore on the EXISTING minion objects, not a
+	# minions.clear()+rebuild — a rebuilt-from-dict unit would only be as
+	# safe as UDMinion.to_dict()/from_dict()'s field list, and that list
+	# also includes level (see _capture_checkpoint()'s doc comment).
+	# .get(...,{}) throughout tolerates a checkpoint from an older shape or
+	# a unit id it doesn't recognize by simply leaving that unit's current
+	# HP/SP untouched, rather than failing the whole rewind.
+	var unit_hp_sp := snapshot.get("unit_hp_sp", {}) as Dictionary
+	for unit in minions:
+		var saved := unit_hp_sp.get(str(unit.id), {}) as Dictionary
+		if not saved.is_empty():
+			unit.hp = int(saved["hp"])
+			unit.sp = int(saved["sp"])
+	boss_hp = int(snapshot["boss_hp"])
+	boss_part_hp = (snapshot["boss_part_hp"] as Dictionary).duplicate()
+	boss_parts_destroyed = []
+	_rng.seed = (snapshot["rng_seed"] as String).to_int()
+	_rng.state = (snapshot["rng_state"] as String).to_int()
 	return true
 
 
@@ -311,23 +412,69 @@ func _boss_def() -> Dictionary:
 
 ## Resolves exactly one round: every living unit's action (in order),
 ## then the boss's counter-attack on one target. `actions` is
-## [{ "unit_id": int, "action": "attack"|"skill", "skill_id": String }],
-## one entry per living unit (units without an entry simply do nothing
-## this round). Always resolves atomically — no mid-round state to save.
+## [{ "unit_id": int, "action": "attack"|"skill", "skill_id": String,
+## "target_part": String }], one entry per living unit (units without an
+## entry simply do nothing this round). `target_part` (新企画v1 §8,
+## optional) names a body part from the boss's data; omitted or "" hits
+## the boss's main HP exactly like before this system existed. Always
+## resolves atomically — a party wipe here is handled by rewinding to
+## the checkpoint within this same call (see below), never by leaving
+## anything half-applied.
+##
+## The returned "log" (2026-07-19, added for the battle motion sequencer)
+## is one entry per unit that actually acted this round, in `actions`
+## order: {unit_id, action, skill_id, effect, target_type, target_id,
+## target_part, amount}. It is a pure by-value report of what already
+## happened — the round is still resolved atomically in this one call,
+## nothing about it is deferred or replayable — so it needs no save-schema
+## changes (it is a return value, not sim state) and does not change
+## determinism: two sims fed identical actions from identical seeds
+## produce identical logs because every field in it is derived from
+## values already covered by the existing determinism tests. UI code uses
+## it to *time* when an already-known result is revealed on screen (see
+## main.gd), not to decide anything. A round that ends in a party wipe
+## also carries "rewound": true — the sim has already rewound itself back
+## to the checkpoint by the time this call returns, so boss_active/
+## boss_hp/boss_part_hp already reflect the restarted attempt, not the
+## moment of death.
 func resolve_boss_round(actions: Array) -> Dictionary:
 	if not boss_active:
 		return {}
 	var boss := _boss_def()
+	var log: Array[Dictionary] = []
 	for entry: Variant in actions:
 		var action := entry as Dictionary
 		var unit := _unit_by_id(int(action["unit_id"]))
 		if unit == null or unit.hp <= 0:
 			continue
+		var target_part := str(action.get("target_part", ""))
 		match str(action.get("action", "attack")):
 			"attack":
-				boss_hp -= maxi(1, effective_atk(unit) - int(boss["def"]))
+				var amount := maxi(1, effective_atk(unit) - int(boss["def"]))
+				_apply_boss_damage(amount, target_part)
+				log.append({
+					"unit_id": unit.id, "action": "attack", "skill_id": "",
+					"effect": "damage", "target_type": "enemy",
+					"target_id": boss_enemy_id, "target_part": target_part,
+					"amount": amount,
+				})
 			"skill":
-				_apply_skill(unit, str(action.get("skill_id", "")))
+				var skill_id := str(action.get("skill_id", ""))
+				var target_id := int(action.get("target_id", unit.id))
+				var amount := _apply_skill(unit, skill_id, target_id, target_part)
+				var skill_effect := ""
+				var skill_target_type := "enemy"
+				if skills.has_skill(skill_id):
+					var skill := skills.get_skill(skill_id)
+					skill_effect = str(skill.get("effect", "damage"))
+					skill_target_type = str(skill.get("target", "enemy"))
+				log.append({
+					"unit_id": unit.id, "action": "skill", "skill_id": skill_id,
+					"effect": skill_effect, "target_type": skill_target_type,
+					"target_id": (target_id if skill_target_type == "ally" else boss_enemy_id),
+					"target_part": (target_part if skill_target_type == "enemy" else ""),
+					"amount": amount,
+				})
 	if boss_hp <= 0:
 		var stage := stages.stage_for_index(stage_index)
 		_grant_kill_rewards(boss, stage)
@@ -338,35 +485,151 @@ func resolve_boss_round(actions: Array) -> Dictionary:
 		boss_active = false
 		boss_hp = 0
 		boss_enemy_id = ""
-		return {"won": true, "lost": false}
+		boss_part_hp = {}
+		boss_parts_destroyed = []
+		boss_checkpoint = {}
+		return {"won": true, "lost": false, "log": log}
 	var target := _boss_target()
+	var boss_counter: Dictionary = {}
 	if target != null:
-		target.hp = maxi(0, target.hp - maxi(1, int(boss["atk"]) - effective_def(target)))
+		var chosen := _boss_choose_action(boss)
+		var counter_amount := maxi(
+			1, int(chosen.get("power", boss.get("atk", 0))) - effective_def(target))
+		target.hp = maxi(0, target.hp - counter_amount)
+		boss_counter = {
+			"target_unit_id": target.id, "amount": counter_amount,
+			"action_id": str(chosen.get("id", "attack")),
+		}
+		_record_boss_action_seen(str(chosen.get("id", "attack")))
 	if _party_wiped():
-		boss_active = false
-		boss_hp = 0
-		boss_enemy_id = ""
-		_heal_party_full()
-		return {"won": false, "lost": true}
-	return {"won": false, "lost": false}
+		rewind_boss_fight()
+		return {
+			"won": false, "lost": true, "rewound": true,
+			"log": log, "boss_counter": boss_counter,
+		}
+	return {"won": false, "lost": false, "log": log, "boss_counter": boss_counter}
 
 
-func _apply_skill(unit: UDMinion, skill_id: String) -> void:
+## Routes damage to a body part's own durability pool when a valid,
+## not-yet-destroyed part is targeted (新企画v1 §8) — otherwise (no part
+## chosen, an already-destroyed part, or an unknown part id) it hits the
+## boss's main HP exactly like before this system existed. A part and
+## boss_hp are separate pools: destroying every part does not by itself
+## reduce boss_hp — only boss_hp reaching 0 wins the fight (§7); parts
+## instead change what the boss can still DO (see _boss_choose_action).
+func _apply_boss_damage(amount: int, target_part: String) -> void:
+	if target_part != "" and boss_part_hp.has(target_part) \
+			and not boss_parts_destroyed.has(target_part):
+		boss_part_hp[target_part] = int(boss_part_hp[target_part]) - amount
+		if int(boss_part_hp[target_part]) <= 0:
+			boss_part_hp[target_part] = 0
+			boss_parts_destroyed.append(target_part)
+			_record_boss_part_destroyed(target_part)
+		return
+	boss_hp -= amount
+
+
+## Picks one of the boss's available actions this round (新企画v1 §8),
+## honoring requires_part_intact gating against boss_parts_destroyed — an
+## action naming a part the player has already broken is off the
+## candidate list this and every future round of this attempt. A boss
+## with no "actions" data in its def (every boss except the ones this
+## system has been added to so far) falls back to a single unnamed
+## "attack" action using its flat atk stat, unaffected by this system.
+func _boss_choose_action(boss: Dictionary) -> Dictionary:
+	var candidates: Array[Dictionary] = []
+	for entry: Variant in boss.get("actions", []) as Array:
+		var action := entry as Dictionary
+		var requires := str(action.get("requires_part_intact", ""))
+		if requires != "" and boss_parts_destroyed.has(requires):
+			continue
+		candidates.append(action)
+	if candidates.is_empty():
+		return {"id": "attack", "power": int(boss.get("atk", 0))}
+	return candidates[_rng.randi_range(0, candidates.size() - 1)]
+
+
+func _boss_intel_entry(boss_id: String) -> Dictionary:
+	if boss_intel.has(boss_id):
+		return boss_intel[boss_id] as Dictionary
+	return {"attacks_seen": [], "parts_destroyed_seen": []}
+
+
+## Only named (data-driven) actions are worth recording — the universal
+## flat-atk fallback ("attack") is not information about this specific
+## boss.
+func _record_boss_action_seen(action_id: String) -> void:
+	if action_id == "" or action_id == "attack":
+		return
+	var entry := _boss_intel_entry(boss_enemy_id)
+	var seen := entry["attacks_seen"] as Array
+	if not seen.has(action_id):
+		seen.append(action_id)
+	boss_intel[boss_enemy_id] = entry
+
+
+func _record_boss_part_destroyed(part_id: String) -> void:
+	var entry := _boss_intel_entry(boss_enemy_id)
+	var seen := entry["parts_destroyed_seen"] as Array
+	if not seen.has(part_id):
+		seen.append(part_id)
+	boss_intel[boss_enemy_id] = entry
+
+
+## target_id is the ally to heal for an "ally"-target skill (defaults to
+## the caster — self-heal — when omitted, matching the behavior before
+## ally targeting existed). target_part (新企画v1 §8) only matters for a
+## "damage" skill — see _apply_boss_damage(). Returns the amount of
+## damage/healing actually applied (0 for an insufficient-SP no-op or an
+## effect with no numeric result yet, e.g. buff_atk/buff_def/debuff/
+## special) — 2026-07-19, added so resolve_boss_round's log can report a
+## real number for the motion sequencer to show instead of just
+## "something happened".
+func _apply_skill(
+		unit: UDMinion, skill_id: String, target_id: int = -1, target_part: String = "") -> int:
 	if not skills.has_skill(skill_id) or not unit_skills(unit).has(skill_id):
-		return
+		return 0
 	var skill := skills.get_skill(skill_id)
-	var cost := int(skill.get("mp_cost", 0))
-	if unit.mp < cost:
-		return
-	unit.mp -= cost
+	# sp_cost: null means "not balanced yet" (RPG_SYSTEM_DESIGN_v5 skills
+	# not yet given a number) — treated as free rather than guessing a
+	# figure; once real data supplies a cost this reads it normally.
+	var raw_cost: Variant = skill.get("sp_cost", 0)
+	var cost := 0 if raw_cost == null else int(raw_cost)
+	if unit.sp < cost:
+		return 0
+	unit.sp -= cost
 	var power := int(skill.get("power", 0))
 	match str(skill.get("effect", "damage")):
 		"damage":
-			boss_hp -= maxi(1, power - int(_boss_def()["def"]))
+			var amount := maxi(1, power - int(_boss_def()["def"]))
+			_apply_boss_damage(amount, target_part)
+			return amount
 		"heal":
-			unit.hp = mini(unit_max_hp(unit), unit.hp + power)
-		# buff_atk / buff_def intentionally left as a future extension —
-		# no lasting per-encounter modifier state exists yet.
+			var target := _unit_by_id(target_id) if target_id != -1 else unit
+			if target == null or target.hp <= 0:
+				target = unit
+			# Same floor as the damage branch above, applied to "power"
+			# instead of "power - def" (heals have no defense to net
+			# against): most companion heals still have no "power" set
+			# (RPG_SYSTEM_DESIGN_v5 numbers pending), and healing for 0 is
+			# indistinguishable from the skill silently failing. This is a
+			# floor, not an invented balance number — a skill with a real
+			# power value is unaffected (maxi(1, 10) == 10).
+			# The RETURNED amount is the actual hp delta after clamping to
+			# max, not the requested/floored amount — a target already at
+			# full hp has nothing to gain, and the caller (the boss-fight UI)
+			# used to show a phantom "+1" heal popup on a full-hp ally
+			# because it trusted the pre-clamp floor value instead of what
+			# actually changed (2026-07-26 user report).
+			var before_hp := target.hp
+			var requested := maxi(1, power)
+			target.hp = mini(unit_max_hp(target), before_hp + requested)
+			return target.hp - before_hp
+		_:
+			# buff_atk / buff_def / debuff / special intentionally left as
+			# a future extension — no lasting per-encounter modifier state
+			# exists yet, so these skills consume SP and otherwise no-op.
+			return 0
 
 
 ## Target for the boss's counter-attack: the lowest-HP living unit (reads
@@ -391,7 +654,7 @@ func _party_wiped() -> bool:
 func _heal_party_full() -> void:
 	for unit in minions:
 		unit.hp = unit_max_hp(unit)
-		unit.mp = unit_max_mp(unit)
+		unit.sp = unit_max_sp(unit)
 
 
 ## --- Leveling (player command: spends the shared exp_pool) -----------
@@ -412,7 +675,7 @@ func level_up_companion(unit_id: int) -> bool:
 	exp_pool -= cost
 	unit.level += 1
 	unit.hp = unit_max_hp(unit)
-	unit.mp = unit_max_mp(unit)
+	unit.sp = unit_max_sp(unit)
 	return true
 
 
@@ -732,6 +995,10 @@ func to_dict() -> Dictionary:
 		"boss_active": boss_active,
 		"boss_hp": boss_hp,
 		"boss_enemy_id": boss_enemy_id,
+		"boss_part_hp": boss_part_hp.duplicate(),
+		"boss_parts_destroyed": boss_parts_destroyed.duplicate(),
+		"boss_checkpoint": boss_checkpoint.duplicate(true),
+		"boss_intel": boss_intel.duplicate(true),
 		"total_kills": total_kills,
 		"equipped_weapon_id": equipped_weapon_id,
 		"weapon_level": weapon_level,
@@ -836,7 +1103,7 @@ static func from_dict(
 		for unit in sim.minions:
 			unit.level = 1
 			unit.hp = sim.unit_max_hp(unit)
-			unit.mp = sim.unit_max_mp(unit)
+			unit.sp = sim.unit_max_sp(unit)
 		# Bought upgrade levels are kept, but their "effect" string was
 		# baked in at purchase time under the old dig-era names — rename
 		# in place so e.g. an already-bought pickaxe level still does
@@ -865,7 +1132,41 @@ static func from_dict(
 			if sim.boss_enemy_id == "":
 				sim.boss_active = false
 				sim.boss_hp = 0
+		# 新企画v1 §8/§10 (2026-08-18): all optional/additive — a save from
+		# before this system existed simply has none, same as a boss with
+		# no "parts" data in its def.
+		for part_id: Variant in (d.get("boss_part_hp", {}) as Dictionary).keys():
+			sim.boss_part_hp[str(part_id)] = int((d["boss_part_hp"] as Dictionary)[part_id])
+		for part_id: Variant in d.get("boss_parts_destroyed", []) as Array:
+			sim.boss_parts_destroyed.append(str(part_id))
+		sim.boss_checkpoint = (d.get("boss_checkpoint", {}) as Dictionary).duplicate(true)
+		for boss_id: Variant in (d.get("boss_intel", {}) as Dictionary).keys():
+			var intel_entry := (d["boss_intel"] as Dictionary)[boss_id] as Dictionary
+			var attacks_seen: Array[String] = []
+			for a: Variant in intel_entry.get("attacks_seen", []) as Array:
+				attacks_seen.append(str(a))
+			var parts_seen: Array[String] = []
+			for p: Variant in intel_entry.get("parts_destroyed_seen", []) as Array:
+				parts_seen.append(str(p))
+			sim.boss_intel[str(boss_id)] = {
+				"attacks_seen": attacks_seen, "parts_destroyed_seen": parts_seen,
+			}
 		sim.total_kills = int(d.get("total_kills", 0))
 		sim.equipped_weapon_id = str(d.get("equipped_weapon_id", ""))
 		sim.weapon_level = int(d.get("weapon_level", 0))
+	# v8 -> v9 (新企画v1 §1, 2026-08-18): companions no longer gate on
+	# join_at_docs — every companion definition is present in the party
+	# from the very start. An old save (whose companions array may hold
+	# 0-3 of the 4 defs, mid-way through the old staged join) is
+	# normalized to the full roster, same "rebuild party structure, keep
+	# everything else" judgment as v7 -> v8 above (coins, items,
+	# documents, upgrades, altar level are untouched).
+	if int(d.get("version", 1)) < 9:
+		var known_ids: Array[String] = []
+		for def: Variant in p_companion_defs:
+			known_ids.append(str((def as Dictionary)["id"]))
+		sim.companions = known_ids
+		sim.minions.clear()
+		for i in known_ids.size() + 1:
+			sim.minions.append(sim._new_unit_at_level(i, 1))
 	return sim

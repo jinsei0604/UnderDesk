@@ -1,0 +1,9 @@
+{
+	"id": "skill_gekka_ranbu",
+	"name_key": "SKILL_GEKKA_RANBU_NAME",
+	"desc_key": "SKILL_GEKKA_RANBU_DESC",
+	"sp_cost": null,
+	"target": "enemy",
+	"effect": "damage",
+	"motion": "melee"
+}

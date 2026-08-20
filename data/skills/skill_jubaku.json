@@ -1,0 +1,8 @@
+{
+	"id": "skill_jubaku",
+	"name_key": "SKILL_JUBAKU_NAME",
+	"desc_key": "SKILL_JUBAKU_DESC",
+	"sp_cost": null,
+	"target": "enemy",
+	"effect": "debuff"
+}

@@ -36,6 +36,26 @@ func is_boss_stage(i: int) -> bool:
 	return str(stage_for_index(i).get("boss_id", "")) != ""
 
 
+## Narrative chapter (0..4, matching the delivered chapter_bg_<n>_* art
+## sets) a stage index belongs to. Optional field, defaults to 0 so the
+## existing shallow/gate10/deeper bands (all chapter-0 content) need no
+## edits.
+func chapter_for_index(i: int) -> int:
+	return int(stage_for_index(i).get("chapter", 0))
+
+
+## The stage_from of the earliest band sharing this chapter, so the
+## seg1/seg2/normal backdrop cycle runs continuously across a whole
+## chapter even when it is split into several bands (gate stages,
+## trash-pool changes) rather than resetting at each band boundary.
+func chapter_origin_index(i: int) -> int:
+	var chapter := chapter_for_index(i)
+	for band in _bands:
+		if int(band.get("chapter", 0)) == chapter:
+			return int(band["stage_from"])
+	return 1
+
+
 ## The most recent gate's boss at or below stage i ("" when the party
 ## has not reached any gate yet). Lets a cleared gate be re-challenged
 ## (sim.start_boss_fight) instead of the fight disappearing forever

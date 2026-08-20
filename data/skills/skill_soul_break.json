@@ -1,0 +1,8 @@
+{
+	"id": "skill_soul_break",
+	"name_key": "SKILL_SOUL_BREAK_NAME",
+	"desc_key": "SKILL_SOUL_BREAK_DESC",
+	"sp_cost": null,
+	"target": "enemy",
+	"effect": "damage"
+}

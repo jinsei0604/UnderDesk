@@ -4,11 +4,9 @@ extends RefCounted
 ## it replaces the placeholder rectangle — no code changes needed (§6).
 ##
 ## Recognized names:
-##   minion_0.png .. minion_5.png  (variant = minion id % 6, party units)
-##   portrait_minion_0.png .. portrait_minion_5.png  (optional full-body
-##   "立ち絵" illustration per party unit, same variant numbering as
-##   minion_N; shown in the dorm in place of the small minion_N icon when
-##   present — see main.gd's _populate_dorm/_on_dorm_card_selected)
+##   minion_0.png .. minion_5.png  (variant = minion id % 6, party units;
+##   this is the only party-unit art — the illustrated "立ち絵" portraits
+##   were retired 2026-07-19, see CLAUDE.md)
 ##   enemy_<enemy_id>.png  (trash mobs and bosses, data/enemies/ ids)
 ##   room_<room_id>.png  (e.g. room_dorm.png)
 ##   weapon_<weapon_id>.png  (data/weapons/ ids)
@@ -16,10 +14,22 @@ extends RefCounted
 ##   dialog_bg_<archive|treasure|shop|altar|guild|dorm>.png
 ##   (illustrated backdrop behind a UDCardDialog's card grid; add _fN
 ##    frames to animate it, e.g. a flickering candle — see UDCardDialog)
-##   battle_background.png  (scenic backdrop behind the idle battle view)
-##   boss_background.png  (scenic backdrop behind a boss fight)
+##   chapter_bg_<N>_<seg1|seg2|normal|boss>.png  (scenic backdrop behind
+##   the battle view, N = narrative chapter 0..4. seg1/seg2/normal cycle
+##   as the party advances through the chapter (main.gd's _idle_bg_key,
+##   a Monster Strike quest-map-style progression read); boss replaces
+##   them only while sim.boss_active is true. Chapter is read from the
+##   current stage band's optional "chapter" field (UDStageDB).
 ##   series_<series_id>.png  (e.g. series_journal.png, the archive shelf icon)
 ##   item_rank_<Z|S|A|B|C|D>.png  (the treasure shelf's rank-card icon)
+##   battle_button_<attack|skill|item|start>.png  (こうげき/スキル/どうぐ/
+##   行動開始 in the battle command bar — full button art with the label
+##   already baked in, shown via TextureButton with no separate Label)
+##   walk_minion_N / dash_minion_N / attack_minion_N / skill_minion_N_<name>
+##   (battle motion clips, N = art variant 0..4, see main.gd's
+##   SKILL_MOTION and _battle_anim_* — the "which keys exist" list is
+##   passed in as `motion_keys` since only main.gd knows which skill ids
+##   map to which sprite sheet names)
 ##
 ## Frame animation: add <key>_f2.png, <key>_f3.png, ... and the sprite
 ## cycles through them automatically (the base file is frame 1).
@@ -34,6 +44,8 @@ extends RefCounted
 const ART_DIR: String = "res://assets/art"
 const MINION_VARIANTS: int = 6
 const PLACEHOLDER_ICON_SIZE: int = 28
+const CHAPTER_COUNT: int = 5
+const CHAPTER_BG_SEGMENTS: Array[String] = ["seg1", "seg2", "normal", "boss"]
 
 var _frames: Dictionary = {}  # key -> Array[Texture2D]
 var _variants: Dictionary = {}  # key -> Array[Texture2D], [0] duplicates _frames[key][0]
@@ -52,17 +64,22 @@ static func load_default(
 	series_ids: Array[String] = [],
 	enemy_ids: Array[String] = [],
 	weapon_ids: Array[String] = [],
+	motion_keys: Array[String] = [],
 ) -> UDArtLibrary:
 	var lib := UDArtLibrary.new()
 	var keys: Array[String] = [
 		"depot",
 		"dialog_bg_archive", "dialog_bg_treasure", "dialog_bg_shop",
 		"dialog_bg_altar", "dialog_bg_guild", "dialog_bg_dorm",
-		"battle_background", "boss_background",
+		"battle_button_attack", "battle_button_skill", "battle_button_item",
+		"battle_button_start",
 	]
+	keys.append_array(motion_keys)
+	for chapter in CHAPTER_COUNT:
+		for seg in CHAPTER_BG_SEGMENTS:
+			keys.append("chapter_bg_%d_%s" % [chapter, seg])
 	for i in MINION_VARIANTS:
 		keys.append("minion_%d" % i)
-		keys.append("portrait_minion_%d" % i)
 	for rank in UD.ITEM_RANKS:
 		keys.append("item_rank_%s" % rank)
 	for room_id in room_ids:

@@ -1,0 +1,9 @@
+{
+	"id": "skill_rapid_slash",
+	"name_key": "SKILL_RAPID_SLASH_NAME",
+	"desc_key": "SKILL_RAPID_SLASH_DESC",
+	"sp_cost": null,
+	"target": "enemy",
+	"effect": "damage",
+	"motion": "melee"
+}

@@ -1,10 +1,16 @@
 class_name UDCardDialog
-extends AcceptDialog
+extends Control
 ## Shared card-catalogue dialog (§6, user reference shots 2026-07-12):
 ## a dark cabinet holding a grid of parchment cards on the left and a
 ## large detail panel on the right — the shop / treasure / archive
 ## screens all read as "a real collection", not a text list. Undiscovered
 ## entries stay as locked "?????" cards so the shelf shows its true size.
+## A full-screen embedded Control (2026-07-19), not a popup Window: opening
+## one replaces the current screen the same way the boss-battle transition
+## does, instead of a separate window appearing over the game (user
+## direction — "画面が切り替わる" like 挑む/再戦, not "a new screen pops up").
+## See open()/main.gd's _unhandled_input for the close/ESC handling a real
+## Window used to give for free.
 
 signal card_selected(id: String)
 signal action_pressed(id: String)
@@ -61,10 +67,14 @@ var _hotspots: Array[Dictionary] = []  # [{ "rect": Rect2, "button": Control }]
 var _character_feet_norm: Vector2 = Vector2(0.5, 1.0)
 
 
-static func create(dialog_title: String, with_action: bool) -> UDCardDialog:
+static func create(_dialog_title: String, with_action: bool) -> UDCardDialog:
 	var dialog := UDCardDialog.new()
-	dialog.title = dialog_title
-	dialog.min_size = Vector2i(960, 560)
+	# _dialog_title has no on-screen effect by itself — every dialog calls
+	# enable_art_chrome(title, ...) (or, for the shop, has the title baked
+	# into its art) which draws the real, visible title. Kept as a param
+	# for callers that still pass one; nothing reads it here anymore.
+	dialog.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dialog.visible = false
 	dialog._build(with_action)
 	return dialog
 
@@ -77,6 +87,7 @@ func _build(with_action: bool) -> void:
 	add_theme_stylebox_override("panel", _flat(COLOR_CABINET, COLOR_CABINET, 0, 0))
 
 	var root := PanelContainer.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.custom_minimum_size = Vector2(920, 500)
 	root.add_theme_stylebox_override("panel", _flat(COLOR_CABINET, COLOR_BORDER_DIM, 2, 10))
 	add_child(root)
@@ -244,6 +255,16 @@ func _build(with_action: bool) -> void:
 	visibility_changed.connect(_sync_bg_animation)
 
 
+## Replaces the old popup_centered(): shows this dialog full-screen over
+## whatever was there before (2026-07-19 — see the class doc). move_to_front
+## is a cheap defensive guarantee that it draws above every other main.gd
+## child regardless of build order, since (unlike a real popup Window) a
+## Control only renders on top because it's the last sibling.
+func open() -> void:
+	move_to_front()
+	show()
+
+
 func set_progress(text: String) -> void:
 	_progress_label.text = text
 
@@ -328,13 +349,14 @@ func _layout_character() -> void:
 	_character_rect.size = Vector2(CHARACTER_SIZE, CHARACTER_SIZE)
 
 
-## Drops the native OK button and window titlebar/close-X, for a dialog
-## whose set_background() art bakes in its own title and close control
-## (e.g. the shop's painted "閉じる" plaque) — two redundant, differently
-## styled close affordances read as a mistake, not two options.
+## No-op since the 2026-07-19 Window -> Control conversion (there is no
+## more native OK button or OS titlebar to hide — a plain Control never
+## had either). Kept as a callable no-op rather than deleted so call
+## sites (shop, enable_art_chrome) don't need to change; the "one dialog,
+## art bakes in its own close control" intent it used to express is now
+## just the absence of a header close button (see set_header_close_visible).
 func hide_native_chrome() -> void:
-	get_ok_button().visible = false
-	borderless = true
+	pass
 
 
 ## Drops the dark-cabinet border/margin the root panel normally draws

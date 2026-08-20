@@ -1,0 +1,14 @@
+{
+	"id": "hole_wanderer",
+	"name_key": "ENEMY_HOLE_WANDERER",
+	"hp": 100,
+	"atk": 25,
+	"def": 20,
+	"elem_atk": 15,
+	"elem_def": 15,
+	"spd": 30,
+	"element": "none",
+	"exp": 3,
+	"coins": 2,
+	"is_boss": false
+}

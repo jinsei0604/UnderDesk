@@ -2,8 +2,9 @@
 	"id": "companion_4",
 	"name_key": "COMPANION_4_NAME",
 	"join_at_docs": 4,
-	"base_hp": 26, "hp_per_level": 5,
-	"base_mp": 7, "mp_per_level": 1,
+	"base_hp": 55, "hp_per_level": 5,
+	"base_sp": 55, "sp_per_level": 1,
 	"base_atk": 5, "atk_per_level": 1,
-	"base_def": 3, "def_per_level": 1
+	"base_def": 3, "def_per_level": 1,
+	"skills": ["skill_shoukon", "skill_kagura", "skill_hyoui", "skill_chinkon"]
 }

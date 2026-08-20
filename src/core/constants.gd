@@ -2,7 +2,7 @@ class_name UD
 extends RefCounted
 ## UNDERDESK core constants (§12-1: no magic numbers).
 
-const SAVE_VERSION: int = 8
+const SAVE_VERSION: int = 9
 
 ## Simulation tick length (§7.1: timer-driven, not per-frame).
 const TICK_SECONDS: float = 2.0
@@ -18,18 +18,27 @@ const RES_GOLD: String = "gold"
 ## turn-based combat). Companions have their own data-driven growth curve
 ## (data/companions/*.json: base_hp/hp_per_level/etc.); the protagonist
 ## (party slot 0) is not a companion definition, so its curve lives here.
-const PROTAGONIST_BASE_HP: int = 24
+## base_hp/base_sp are the real Lv1 baseline from RPG_SYSTEM_DESIGN_v5
+## (user-provided, 2026-07-19); *_per_level growth rates are still the
+## pre-migration placeholder scale (ATK/DEF baselines below are too —
+## the user only gave HP/SP numbers this round).
+const PROTAGONIST_BASE_HP: int = 50
 const PROTAGONIST_HP_PER_LEVEL: int = 5
-const PROTAGONIST_BASE_MP: int = 6
-const PROTAGONIST_MP_PER_LEVEL: int = 1
+const PROTAGONIST_BASE_SP: int = 50
+const PROTAGONIST_SP_PER_LEVEL: int = 1
 const PROTAGONIST_BASE_ATK: int = 5
 const PROTAGONIST_ATK_PER_LEVEL: int = 1
 const PROTAGONIST_BASE_DEF: int = 3
 const PROTAGONIST_DEF_PER_LEVEL: int = 1
+## Sotiris's pre-awakening skill set (RPG_SYSTEM_DESIGN_v5 §4, delivered
+## 2026-07-19; data/skills/*.json, all sp_cost: null — not yet balanced).
+const PROTAGONIST_SKILLS: Array[String] = [
+	"skill_rapid_slash", "skill_healing", "skill_soul_break", "skill_eos_burst",
+]
 ## Fallback growth for a party slot with no matching definition (should
 ## not normally be hit — see UDSim._growth_def_for_unit()).
 const FALLBACK_GROWTH: Dictionary = {
-	"base_hp": 10, "hp_per_level": 2, "base_mp": 0, "mp_per_level": 0,
+	"base_hp": 10, "hp_per_level": 2, "base_sp": 0, "sp_per_level": 0,
 	"base_atk": 3, "atk_per_level": 1, "base_def": 1, "def_per_level": 1,
 }
 
@@ -78,8 +87,9 @@ const NUGGET_COINS: int = 25
 ## any remain (the collection grows with updates, ~100 items planned).
 const CHEST_COINS: int = 10
 
-## The protagonist explores alone at first; story companions join later.
-const INITIAL_MINION_COUNT: int = 1
+## 新企画v1 §1: 全5人が最初から仲間として存在する（段階加入は廃止、
+## 2026-08-18）。UDSim.new_game() は起動時の p_companion_defs の件数から
+## パーティ人数を導く（このMINION_MAXは表示用の上限として残す）。
 ## Protagonist + up to 4 story companions (data/companions/).
 const MINION_MAX: int = 5
 const MINION_NAMES: Array[String] = ["主人公", "仲間・一", "仲間・二", "仲間・三", "仲間・四"]
@@ -121,4 +131,11 @@ const REVEAL_STAGES: Array[String] = ["surface", "mid", "payoff"]
 ## requirements must hold before the document can be unearthed.
 const DOC_CONDITION_KEYS: Array[String] = [
 	"min_docs", "requires_companions", "requires_items",
+]
+
+## Fixed left-to-right seating for the battle command bar's character
+## cards (main.gd's _battle_display_order): Sotiris (unit 0, implicit)
+## then these four in order, regardless of join_at_docs join order.
+const BATTLE_CARD_COMPANION_ORDER: Array[String] = [
+	"companion_1", "companion_2", "companion_3", "companion_4",
 ]

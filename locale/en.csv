@@ -1,5 +1,6 @@
 key,text
 APP_TITLE,UNDERDESK
+UNIT_PROTAGONIST_NAME,Sotiris
 ROOM_TAVERN,Guild
 ROOM_ALTAR,Altar
 ROOM_DORM,Dormitory
@@ -24,6 +25,14 @@ UI_COLLAPSE,Back to Taskbar
 UI_NEW_DOC,A new document was unearthed
 UI_COLLECTED,Collected +%d coins
 UI_SHOP,Shop
+UI_INN,Inn
+INN_ACTIVITY_1,Maintaining a sword
+INN_ACTIVITY_2,Reading a book
+INN_ACTIVITY_3,Having a meal
+INN_ACTIVITY_4,Sleeping
+INN_ACTIVITY_5,Looking out the window
+INN_ACTIVITY_6,Chatting with a companion
+INN_ACTIVITY_7,Drinking something warm
 UI_BUY,Buy
 UI_SELL,Sell
 UI_CLOSE,Close
@@ -421,18 +430,99 @@ ENEMY_CAVE_RAT,Cave Rat
 ENEMY_CAVE_BAT,Cave Bat
 ENEMY_CAVE_SPIDER,Cave Spider
 ENEMY_CAVE_TROLL,Cave Troll
+ENEMY_HOLE_WANDERER,Hole Wanderer
+ENEMY_LOST_SHADOW,Lost Shadow
+ENEMY_GUARDIAN_PURSUER,Warden's Pursuer
 STAGE_SHALLOW,Shallow Cavern
 STAGE_GATE_10,The Troll's Chamber
 STAGE_DEEPER,Deep Cavern
 SKILL_FIREBALL_NAME,Fireball
 SKILL_FIREBALL_DESC,Hurls a ball of fire at the enemy
+SKILL_RAPID_SLASH_NAME,Rapid Slash
+SKILL_RAPID_SLASH_DESC,A quick flurry of slashes against one enemy.
+SKILL_HEALING_NAME,Healing
+SKILL_HEALING_DESC,Restores HP to one ally.
+SKILL_SOUL_BREAK_NAME,Soul Break
+SKILL_SOUL_BREAK_DESC,A powerful blow against one enemy.
+SKILL_EOS_BURST_NAME,Finisher: Eos Burst
+SKILL_EOS_BURST_DESC,An all-out finishing move dealing heavy damage to one enemy.
+SKILL_SHUNEI_ZAN_NAME,Instant Shadow Slash
+SKILL_SHUNEI_ZAN_DESC,Attacks one enemy. Ignores defense.
+SKILL_GEKKA_RANBU_NAME,Moonflower Dance
+SKILL_GEKKA_RANBU_DESC,Attacks all enemies.
+SKILL_TSUKUYOMI_NAME,Tsukuyomi
+SKILL_TSUKUYOMI_DESC,Spends SP for a multi-hit attack on one enemy.
+SKILL_YOMOGUN_NAME,Yomotsu Legion
+SKILL_YOMOGUN_DESC,Calls up an army of the dead from the underworld to strike the enemy.
+SKILL_YOMOTSUHIRASAKA_DAN_NAME,Finisher: Yomotsuhirasaka Cleave
+SKILL_YOMOTSUHIRASAKA_DAN_DESC,A finishing move named for her blade. Heavy damage to one enemy.
+SKILL_HEIL_NAME,Heil
+SKILL_HEIL_DESC,Restores HP to the whole party.
+SKILL_LIF_NAME,Lif
+SKILL_LIF_DESC,Restores HP to one ally.
+SKILL_SKJALDBORG_NAME,Skjaldborg
+SKILL_SKJALDBORG_DESC,Grants the party a defense buff and covers for an ally.
+SKILL_HEITSKJOLDR_NAME,Finisher: Heitskjoldr
+SKILL_HEITSKJOLDR_DESC,Sharply reduces damage taken by the party while attacking all enemies.
+SKILL_GENKAFU_NAME,Genkafu
+SKILL_GENKAFU_DESC,Attacks one enemy and inflicts a burn.
+SKILL_JUBAKU_NAME,Binding Curse
+SKILL_JUBAKU_DESC,Disables one enemy.
+SKILL_JUMON_NAME,Curse Sigil
+SKILL_JUMON_DESC,Lowers ATK and DEF for all enemies.
+SKILL_SHIGYAKU_NAME,Finisher: Regicide
+SKILL_SHIGYAKU_DESC,Heavy damage to one enemy with a guaranteed status ailment.
+SKILL_SHOUKON_NAME,Soul Summons
+SKILL_SHOUKON_DESC,Grants one ally an ATK/DEF buff.
+SKILL_KAGURA_NAME,Kagura
+SKILL_KAGURA_DESC,Grants the party a SPD buff while attacking all enemies.
+SKILL_HYOUI_NAME,Possession
+SKILL_HYOUI_DESC,Channels a spirit to gain an extra action.
+SKILL_CHINKON_NAME,Finisher: Requiem
+SKILL_CHINKON_DESC,A major heal and full buffs for the whole party.
 UI_STAGE,Stage
 UI_FIGHT_GATE,Fight
 UI_FIGHT_REMATCH,Rematch
 UI_FIGHT_NONE,-
 UI_BOSS_ATTACK,Attack
-UI_BOSS_RESOLVE,Resolve
-UI_BOSS_FLEE,Flee
+UI_BOSS_RESOLVE,Start Turn
+UI_BOSS_SKILL,Skill
+UI_BOSS_SKILL_TITLE,%s's Skills
+UI_BOSS_EFFECT,Effect
+UI_BOSS_ITEM,Item
+UI_BOSS_ITEM_EMPTY,No usable items
+UI_SP_UNSET,SP --
+UI_BOSS_QUIT,Quit
+UI_BOSS_REWIND,REWIND
+UI_REWIND,Rewound
+UI_REWIND_LOST,Wiped out... REWINDing to try again
+UI_REWIND_CONFIRM_TEXT,Restart this fight from the beginning?
+UI_BOSS_BACK,Back
+UI_BOSS_CONFIRM,Confirm
+UI_BOSS_TARGET_TITLE,Select a Target
+UI_BOSS_TARGET_INSTRUCTION,Choose an enemy.
+UI_BOSS_TARGET_TITLE_ALLY,Select a Target
+UI_BOSS_TARGET_INSTRUCTION_ALLY,Choose an ally to heal.
+UI_BOSS_TARGET_SKILL_LABEL,Skill
+UI_BOSS_TARGET_LABEL,Target
+UI_PART_MAIN_BODY,Body
+UI_BOSS_TARGET_MAIN_BODY_LABEL,%s (Body)
+UI_PART_STATUS_DESTROYED,Destroyed
+UI_PART_BROKEN_POPUP,Destroyed
+TROLL_PART_ARM,Right Arm
+TROLL_PART_LEG,Leg
+UI_BATTLE_MSG_ATTACK,%s attacks!
+UI_BATTLE_MSG_SKILL,%s uses %s!
+UI_BATTLE_MSG_DAMAGE_BOSS,%s takes %d damage!
+UI_BATTLE_MSG_DAMAGE_PART,%s's %s takes %d damage!
+UI_BATTLE_MSG_PART_DESTROYED,Destroyed %s's %s!
+UI_BATTLE_MSG_HEAL,%s's HP recovered by %d!
+UI_BATTLE_MSG_BOSS_ATTACK_GENERIC,%s attacks!
+UI_BATTLE_MSG_BOSS_ATTACK_NAMED,%s uses %s!
+UI_BATTLE_MSG_DAMAGE_ALLY,%s took %d damage!
+UI_BATTLE_MSG_REWIND_DIVIDER,――  REWIND  ――
+UI_BATTLE_MSG_DEMO_TROLL_ENRAGED,The cave troll trembles with rage!!
+TROLL_ACTION_CLUB_SMASH,Club Smash
 UI_BOSS_WON,Victory!
 UI_BOSS_LOST,The party was overwhelmed and retreated
 UI_LEVEL_UP,Level Up

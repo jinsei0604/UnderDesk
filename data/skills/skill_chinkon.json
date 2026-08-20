@@ -1,0 +1,8 @@
+{
+	"id": "skill_chinkon",
+	"name_key": "SKILL_CHINKON_NAME",
+	"desc_key": "SKILL_CHINKON_DESC",
+	"sp_cost": null,
+	"target": "ally",
+	"effect": "heal"
+}

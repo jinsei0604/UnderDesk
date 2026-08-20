@@ -1,0 +1,8 @@
+{
+	"id": "skill_heitskjoldr",
+	"name_key": "SKILL_HEITSKJOLDR_NAME",
+	"desc_key": "SKILL_HEITSKJOLDR_DESC",
+	"sp_cost": null,
+	"target": "enemy",
+	"effect": "damage"
+}

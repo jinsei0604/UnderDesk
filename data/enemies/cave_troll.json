@@ -1,10 +1,17 @@
 {
 	"id": "cave_troll",
 	"name_key": "ENEMY_CAVE_TROLL",
-	"hp": 60,
+	"hp": 600,
 	"atk": 8,
 	"def": 3,
 	"exp": 40,
 	"coins": 30,
-	"is_boss": true
+	"is_boss": true,
+	"parts": [
+		{"id": "arm", "hp": 180, "name_key": "TROLL_PART_ARM"},
+		{"id": "leg", "hp": 220, "name_key": "TROLL_PART_LEG"}
+	],
+	"actions": [
+		{"id": "club_smash", "power": 18, "requires_part_intact": "arm", "name_key": "TROLL_ACTION_CLUB_SMASH"}
+	]
 }

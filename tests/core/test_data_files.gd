@@ -37,6 +37,18 @@ func test_enemy_files_load_and_translate() -> void:
 		assert_gt(int(enemy["hp"]), 0)
 		for locale: UDLocale in [ja, en]:
 			assert_ne(locale.text(enemy["name_key"]), enemy["name_key"])
+		# 新企画v1仕様書 v2 §8 (2026-08-21): a boss's optional "parts" entry
+		# may carry its own name_key (main.gd's _boss_part_display_name())
+		# — same translate-both-locales check, applied to every part that
+		# declares one.
+		for entry: Variant in enemy.get("parts", []) as Array:
+			var part := entry as Dictionary
+			assert_gt(int(part["hp"]), 0, "%s part %s" % [id, part["id"]])
+			var part_name_key := str(part.get("name_key", ""))
+			if part_name_key != "":
+				for locale: UDLocale in [ja, en]:
+					assert_ne(locale.text(part_name_key), part_name_key,
+						"%s part %s" % [id, part["id"]])
 
 
 func test_skill_files_load_and_translate() -> void:

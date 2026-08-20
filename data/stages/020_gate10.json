@@ -1,9 +1,10 @@
 {
 	"id": "gate_10",
 	"name_key": "STAGE_GATE_10",
+	"chapter": 0,
 	"stage_from": 10,
 	"stage_to": 10,
-	"trash_pool": ["cave_rat", "cave_bat"],
+	"trash_pool": ["hole_wanderer", "lost_shadow"],
 	"boss_id": "cave_troll",
 	"documents": ["doc_004", "doc_005", "doc_006", "doc_007", "doc_008", "doc_015", "doc_017", "doc_020", "doc_025", "doc_027", "doc_029", "doc_033", "doc_037", "doc_038", "doc_042", "doc_044", "doc_048", "doc_050", "doc_055", "doc_056"],
 	"document_chance": 0.08

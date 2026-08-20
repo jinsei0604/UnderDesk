@@ -1,0 +1,8 @@
+{
+	"id": "skill_jumon",
+	"name_key": "SKILL_JUMON_NAME",
+	"desc_key": "SKILL_JUMON_DESC",
+	"sp_cost": null,
+	"target": "enemy",
+	"effect": "debuff"
+}

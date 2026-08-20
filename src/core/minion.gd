@@ -1,25 +1,27 @@
 class_name UDMinion
 extends RefCounted
 ## A party unit (2026-07-15 redesign: dig -> cave exploration + combat).
-## No position/pathing — battle is not spatial. Growth (max HP/MP/ATK/DEF)
+## No position/pathing — battle is not spatial. Growth (max HP/SP/ATK/DEF)
 ## is computed from level via an injected growth-def Dictionary
 ## (UDSim._growth_def_for_unit()), not stored, mirroring how dig_power()
 ## used to be computed rather than saved.
+## SP (not MP) is the battle resource (2026-07-19 rename, RPG_SYSTEM_DESIGN_v5):
+## skills cost SP, a plain attack restores some. See CLAUDE.md.
 
 var id: int
 var display_name: String
 var level: int = 1
 var hp: int = 1
-var mp: int = 0
+var sp: int = 0
 
 
-static func create(p_id: int, p_level: int, p_hp: int, p_mp: int) -> UDMinion:
+static func create(p_id: int, p_level: int, p_hp: int, p_sp: int) -> UDMinion:
 	var minion := UDMinion.new()
 	minion.id = p_id
 	minion.display_name = UD.MINION_NAMES[p_id % UD.MINION_NAMES.size()]
 	minion.level = p_level
 	minion.hp = p_hp
-	minion.mp = p_mp
+	minion.sp = p_sp
 	return minion
 
 
@@ -44,7 +46,7 @@ func to_dict() -> Dictionary:
 		"display_name": display_name,
 		"level": level,
 		"hp": hp,
-		"mp": mp,
+		"sp": sp,
 	}
 
 
@@ -54,5 +56,9 @@ static func from_dict(d: Dictionary) -> UDMinion:
 	minion.display_name = str(d["display_name"])
 	minion.level = int(d.get("level", 1))
 	minion.hp = int(d.get("hp", 1))
-	minion.mp = int(d.get("mp", 0))
+	# "sp" is the current key; "mp" is read as a fallback so saves written
+	# before the 2026-07-19 MP->SP rename still load correctly (no
+	# SAVE_VERSION bump needed — this is a same-meaning field rename, not
+	# a structural change).
+	minion.sp = int(d.get("sp", d.get("mp", 0)))
 	return minion

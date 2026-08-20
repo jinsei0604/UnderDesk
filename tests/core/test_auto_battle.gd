@@ -25,12 +25,27 @@ func test_trash_combat_never_costs_party_hp() -> void:
 
 func test_stage_advances_past_a_non_gate_band() -> void:
 	var sim := UDSim.new_game(UDTestFixtures.enemies(), UDTestFixtures.stages(), 11)
-	# The fixture trash (hp 4) dies the tick after it spawns against the
-	# level-1 protagonist (atk 5): tick 1 spawns, tick 2 kills and clears
-	# a stage. 2 ticks lands mid-band, well short of the gate at stage 5.
+	# Trash dies the tick after it spawns (tick 1 spawns, tick 2 kills and
+	# clears a stage). 2 ticks lands mid-band, well short of the gate at
+	# stage 5.
 	sim.advance(2)
 	assert_gt(sim.stage_index, 1, "stage advanced past the opening band")
 	assert_lt(sim.stage_index, 5, "halted at the gate, not past it")
+
+
+## RPG_SYSTEM_DESIGN_v5 §5.1: idle trash dies to one hit no matter its
+## stats (real HP/DEF only matter in manual battles). A wall of HP/DEF
+## far beyond the level-1 party must still fall one tick after spawning.
+func test_idle_trash_dies_in_one_hit_regardless_of_stats() -> void:
+	var enemies := UDEnemyDB.from_dicts([
+		{"id": "test_trash", "name_key": "X", "hp": 1000, "atk": 1, "def": 999,
+			"exp": 3, "coins": 2, "is_boss": false},
+		{"id": "test_boss", "name_key": "X", "hp": 20, "atk": 3, "def": 1,
+			"exp": 15, "coins": 10, "is_boss": true},
+	])
+	var sim := UDSim.new_game(enemies, UDTestFixtures.stages(), 11)
+	sim.advance(2)
+	assert_gt(sim.total_kills, 0, "hp 1000 def 999 trash still dies in one idle hit")
 
 
 func test_boss_gate_halts_advance_but_keeps_farming() -> void:
