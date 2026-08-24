@@ -6,6 +6,7 @@
 	"base_sp": 40, "sp_per_level": 1,
 	"base_atk": 6, "atk_per_level": 1,
 	"base_def": 4, "def_per_level": 1,
+	"base_spd": 30, "spd_per_level": 1,
 	"skills": [
 		"skill_shunei_zan", "skill_gekka_ranbu", "skill_tsukuyomi",
 		"skill_yomogun", "skill_yomotsuhirasaka_dan"

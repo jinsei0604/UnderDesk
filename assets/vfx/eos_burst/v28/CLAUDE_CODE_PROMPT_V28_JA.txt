@@ -1,0 +1,60 @@
+ソティリスのEos Burst V28表示修正を既存Godotプロジェクトへ実装してください。
+
+【最重要】
+この依頼は実装だけです。テストや動作確認を一切実行しないでください。
+
+禁止事項:
+- ゲームを起動しない
+- Godotを起動しない。ヘッドレス起動も禁止
+- テスト、検証スクリプト、ビルド、エクスポートを実行しない
+- プレビュー動画を生成しない
+- ffmpegや画像処理を実行しない
+- インポート完了を待たない
+- 実装後に確認目的のコマンドを実行しない
+- 別エージェントや別プロセスへテストを依頼しない
+
+動作確認はユーザーが行います。必要な既存ファイルを静的に読んで編集するだけにしてください。完了後は変更ファイルと実装内容を報告し、「テスト未実行」と明記して終了してください。
+
+【実機で確認された不具合】
+Eos Burst中、剣オーラの角度とフレームは進むが、画面上のソティリスは通常の待機姿勢で固定されている。原因は、通常戦闘Sprite2DがEos用モーションSprite2Dを上から覆うか、待機AnimationPlayerがモーションSprite2Dのframeを上書きしていること。
+
+【必須修正】
+godot/eos_burst_v28_reference.gd の表示所有ロックを既存実装へ反映してください。
+
+1. 通常表示中のソティリスをoriginal_sotirisとして特定する
+2. Eos専用のSprite2DをMotionAとMotionBの2つ用意する。既存に専用ノードがあれば再利用してよい
+3. original_sotiris、MotionA、MotionBは必ず別ノードにする。同じSprite2Dを複数引数へ渡さない
+4. MotionAとMotionBを待機AnimationPlayer、AnimationTree、通常攻撃アニメーションのトラック対象にしない
+5. MotionAとMotionBへ sotiris_eos_downslash_17f_frontside_v28.png を設定し、hframes=17、vframes=1、nearest表示にする
+6. Eos開始時、MotionAとMotionBのZ値を通常ソティリスの元Z値+20へ設定する
+7. 通常ソティリスのZ値を元Z値-20へ設定し、visible=false、self_modulate.a=0へする
+8. キャラクターのwhileループ内で、毎process_frameごとに次を再設定する
+   - original_sotiris.visible=false
+   - original_sotiris.z_index=original_z-20
+   - MotionA.texture=V28の17コマシート
+   - MotionA.hframes=17
+   - MotionA.frame=frame_index
+   - MotionA.visible=true
+   - MotionA.z_index=original_z+20
+   - MotionB.texture=V28の17コマシート
+   - MotionB.hframes=17
+   - MotionB.frame=next_frame
+   - MotionB.visible=true
+   - MotionB.z_index=original_z+20
+9. 剣オーラは同じframe_index、next_frame、frame_mixを使う
+10. スキル終了時はsnapshotした通常ソティリスのtexture、hframes、frame、position、scale、rotation、Z値、visible、self_modulateをすべて復元する
+
+【変更しないもの】
+- カットインは削除されたまま
+- CHARACTER_FRAME_TIMES
+- SWORD_SEGMENTS
+- RELEASE_FRAME_INDEX=12
+- CHARACTER_RELEASE_TIME=3.280秒
+- BURST_LEAD_IN込みのリリース3.400秒
+- 前方振り下ろしの17コマ画像内容
+- 剣オーラ、水平斬撃、着弾、外側爆発
+- 他のキャラクター、他のスキル、戦闘システム、BGM、UI
+
+V28一式は res://assets/vfx/eos_burst/v28/ へ配置する前提です。既存プロジェクトのノード名が異なる場合だけ読み替えてください。新しい画像は生成・加工しないでください。
+
+実装が終わったら変更内容を短く報告して終了してください。テストは絶対に実行しないでください。

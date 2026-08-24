@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://bg8i162a3balg"
+
+[deps]
+
+files=["res://assets/vfx/eos_burst/v27/TIMELINE_V27.event.translation", "res://assets/vfx/eos_burst/v27/TIMELINE_V27.start.translation", "res://assets/vfx/eos_burst/v27/TIMELINE_V27.end.translation", "res://assets/vfx/eos_burst/v27/TIMELINE_V27.duration.translation", "res://assets/vfx/eos_burst/v27/TIMELINE_V27.contract.translation"]
+
+source_file="res://assets/vfx/eos_burst/v27/TIMELINE_V27.csv"
+dest_files=["res://assets/vfx/eos_burst/v27/TIMELINE_V27.event.translation", "res://assets/vfx/eos_burst/v27/TIMELINE_V27.start.translation", "res://assets/vfx/eos_burst/v27/TIMELINE_V27.end.translation", "res://assets/vfx/eos_burst/v27/TIMELINE_V27.duration.translation", "res://assets/vfx/eos_burst/v27/TIMELINE_V27.contract.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

@@ -4,6 +4,7 @@
 	"hp": 600,
 	"atk": 8,
 	"def": 3,
+	"spd": 16,
 	"exp": 40,
 	"coins": 30,
 	"is_boss": true,
@@ -13,5 +14,17 @@
 	],
 	"actions": [
 		{"id": "club_smash", "power": 18, "requires_part_intact": "arm", "name_key": "TROLL_ACTION_CLUB_SMASH"}
-	]
+	],
+	"action_set": {
+		"id": "club_windup",
+		"start_condition": {"requires_part_intact": "arm"},
+		"steps": [
+			{"gap": 0, "action": {
+				"id": "club_windup_telegraph", "name_key": "TROLL_ACTION_CLUB_WINDUP",
+				"deals_damage": false}},
+			{"gap": 2, "action": {
+				"id": "club_smash_strong", "name_key": "TROLL_ACTION_CLUB_SMASH_STRONG",
+				"power": 30, "requires_part_intact": "arm"}}
+		]
+	}
 }

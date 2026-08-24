@@ -6,5 +6,6 @@
 	"base_sp": 55, "sp_per_level": 1,
 	"base_atk": 5, "atk_per_level": 1,
 	"base_def": 3, "def_per_level": 1,
+	"base_spd": 18, "spd_per_level": 1,
 	"skills": ["skill_shoukon", "skill_kagura", "skill_hyoui", "skill_chinkon"]
 }

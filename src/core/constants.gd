@@ -12,6 +12,14 @@ const MAX_OFFLINE_TICKS: int = 43200
 ## Extra document drop chance per level of the survey shop upgrade.
 const UPGRADE_DOC_CHANCE: float = 0.05
 
+## HP/SPポーション追加 (2026-08-25、§3/§18): 各ボス戦開始時に付与する
+## どうぐ個数——HPポーション/SPポーションとも共通のこの1個の値を使う
+## （個別アイテムの回復率(heal_percent)はdata/battle_items/*.jsonへ移した
+## が、"開始時の個数"はどのアイテムにも共通の一律ルールのため定数のまま）。
+## 前のボス戦の残数は持ち越さない——毎回start_boss_fight()でこの値へ
+## リセットされる。
+const BATTLE_ITEM_START_COUNT: int = 3
+
 const RES_GOLD: String = "gold"
 
 ## Party unit growth (2026-07-15 redesign: dig -> cave exploration +
@@ -30,6 +38,12 @@ const PROTAGONIST_BASE_ATK: int = 5
 const PROTAGONIST_ATK_PER_LEVEL: int = 1
 const PROTAGONIST_BASE_DEF: int = 3
 const PROTAGONIST_DEF_PER_LEVEL: int = 1
+## 新戦闘進行システム v1 §7/§8 (2026-08-24, 仮値): SPDは今回新設。成長は
+## 「ごく小さく」という指示どおりHP(5/lv)やATK(1/lv)よりさらに控えめな
+## 値にしてあるが、正式な数値バランスはプロトタイプ確認後に別途調整
+## する前提（指示書§8「正式値は一度プロトタイプを触ってから調整」）。
+const PROTAGONIST_BASE_SPD: int = 24
+const PROTAGONIST_SPD_PER_LEVEL: int = 1
 ## Sotiris's pre-awakening skill set (RPG_SYSTEM_DESIGN_v5 §4, delivered
 ## 2026-07-19; data/skills/*.json, all sp_cost: null — not yet balanced).
 const PROTAGONIST_SKILLS: Array[String] = [
@@ -40,6 +54,7 @@ const PROTAGONIST_SKILLS: Array[String] = [
 const FALLBACK_GROWTH: Dictionary = {
 	"base_hp": 10, "hp_per_level": 2, "base_sp": 0, "sp_per_level": 0,
 	"base_atk": 3, "atk_per_level": 1, "base_def": 1, "def_per_level": 1,
+	"base_spd": 10, "spd_per_level": 0,
 }
 
 ## EXP cost to level up from `level` to `level + 1` (banked in the shared

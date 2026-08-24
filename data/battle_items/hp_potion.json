@@ -1,0 +1,7 @@
+{
+	"id": "hp_potion",
+	"name_key": "BATTLE_ITEM_HP_POTION_NAME",
+	"desc_key": "BATTLE_ITEM_HP_POTION_DESC",
+	"heal_stat": "hp",
+	"heal_percent": 0.3
+}

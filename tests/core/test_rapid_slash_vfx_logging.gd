@@ -26,27 +26,26 @@ func _run_one_rapid_slash_round() -> Control:
 		m.sp = main.sim.unit_max_sp(m)
 	if not main.sim.boss_active:
 		main.sim.start_boss_fight()
-	# _battle_order (which _build_battle_anim_queue depends on to know who
-	# actually acted) is only populated by the normal "挑む" UI flow
-	# (_show_boss_panel -> _refresh_boss_panel), never by sim.start_boss_
-	# fight() alone. Without this the queue silently comes back empty
+	# _battle_order (which the card row depends on) is only populated by the
+	# normal "挑む" UI flow (_show_boss_panel -> _refresh_boss_panel), never
+	# by sim.start_boss_fight() alone. Without this playback never lines up
 	# whenever the on-disk save this scene loads happens to NOT already be
 	# mid-fight (boss_active: false) — a real, reproducible flake this test
 	# hit in practice, not something the rapid_slash feature itself caused.
 	main._show_boss_panel()
 
-	main._battle_pending_actions.clear()
-	main._battle_pending_actions[0] = {
-		"action": "skill", "skill_id": "skill_rapid_slash",
-		"target_type": "enemy", "target_id": main.sim.boss_enemy_id,
-	}
-	for m in main.sim.minions:
-		if m.id == 0:
-			continue
-		main._battle_pending_actions[m.id] = {
-			"action": "attack", "target_type": "enemy", "target_id": main.sim.boss_enemy_id,
-		}
-	main._on_boss_resolve_round()
+	# 新戦闘進行システム v1 (2026-08-24): 誰の番かはSPD順で決まる——
+	# ソティリス(unit 0)の番が来るまで、間の味方の番を通常攻撃で消化する。
+	# 他ユニットが実際に攻撃してもラピッドスラッシュ自身のログ検証には
+	# 影響しない（各行動は独立して解決・再生されるため）。
+	while main.sim.current_actor_token() != "ally:0":
+		var token: String = main.sim.current_actor_token()
+		assert_true(token.begins_with("ally:"))
+		main._set_battle_action(
+			int(token.substr(5)), "attack", "", "enemy", main.sim.boss_enemy_id, "")
+		while main._battle_anim_step >= 0:
+			main._on_battle_anim_tick()
+	main._set_battle_action(0, "skill", "skill_rapid_slash", "enemy", main.sim.boss_enemy_id, "")
 	return main
 
 

@@ -110,17 +110,26 @@ func test_ally_targeted_skill_round_completes_without_crashing() -> void:
 	var main := await _start_cave_troll_fight()
 	for m in main.sim.minions:
 		m.hp = 1  # ヒーリングの効果が実際に見えるよう先に負傷させておく
-	main._battle_pending_actions.clear()
-	main._battle_pending_actions[0] = {
-		"action": "skill", "skill_id": "skill_healing",
-		"target_type": "ally", "target_id": "1",
-	}
-	main._on_boss_resolve_round()
-	# resolve_boss_round()はパーティの行動とボスの反撃を1回の呼び出しで
-	# 丸ごと確定させる（このプロジェクト既存の仕様）——反撃が回復対象
-	# （円）を狙って追加ダメージを与える可能性があるため、「最終HP」を
-	# 見ると回復量そのものではなく反撃込みの結果になってしまう。ログの
-	# healエントリ自体（sim側が確定させた回復量）を直接確認する。
+	# skill_healingはソティリス（unit 0）専有——新戦闘進行システムv1では
+	# 誰の番かはSPD順で決まるため、まずunit 0の番まで進める。
+	var guard := 0
+	while main.sim.current_actor_token() != "ally:0":
+		var token: String = main.sim.current_actor_token()
+		assert_true(token.begins_with("ally:"))
+		main._set_battle_action(
+			int(token.substr(5)), "attack", "", "enemy", main.sim.boss_enemy_id, "")
+		var pump_guard := 0
+		while main._battle_anim_step >= 0:
+			main._on_battle_anim_tick()
+			pump_guard += 1
+			assert_lt(pump_guard, 5000, "battle animation never settled")
+		guard += 1
+		assert_lt(guard, 10, "fast-forward looped too many times")
+
+	main._set_battle_action(0, "skill", "skill_healing", "ally", "1", "")
+	# 単一行動の解決結果はこの1体分のみ（反撃はまだ別の行動者のターン扱い
+	# なのでここには混ざらない）——ログのhealエントリ自体（sim側が確定
+	# させた回復量）を直接確認する。
 	var log: Array = main._battle_pending_round_result.get("log", [])
 	var heal_amount := -1
 	for entry: Variant in log:
@@ -129,11 +138,11 @@ func test_ally_targeted_skill_round_completes_without_crashing() -> void:
 			heal_amount = int(e.get("amount", -1))
 	assert_gt(heal_amount, 0, "healing actually applied a positive amount to Madoka")
 
-	var guard := 0
-	while main._battle_anim_step >= 0 and main._battle_anim_step < main._battle_anim_queue.size():
+	var finish_guard := 0
+	while main._battle_anim_step >= 0:
 		main._on_battle_anim_tick()
-		guard += 1
-		assert_lt(guard, 5000, "battle animation never finished")
+		finish_guard += 1
+		assert_lt(finish_guard, 5000, "battle animation never finished")
 
 
 ## §7「盤面上のLv表示・味方HPゲージは戦闘中は不要」の直接検証: 頭上HP

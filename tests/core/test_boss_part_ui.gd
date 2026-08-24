@@ -59,7 +59,7 @@ func test_boss_parts_column_shows_both_parts_with_readable_values() -> void:
 func test_enemy_target_rows_list_body_and_both_parts_and_track_selection() -> void:
 	var main := await _start_cave_troll_fight()
 	main._enter_target_selection("attack", "", "enemy")
-	var rows_container: HFlowContainer = main._target_confirm_panel.find_child(
+	var rows_container: VBoxContainer = main._target_confirm_panel.find_child(
 		"enemy_target_rows", true, false)
 	# §2/§3: 洞窟トロル［本体］/ 右腕 / 脚 — one selectable row per entry in
 	# _battle_enemy_targets(), not just the crosshair's invisible cycling.
@@ -71,29 +71,43 @@ func test_enemy_target_rows_list_body_and_both_parts_and_track_selection() -> vo
 	assert_string_contains(target_line.text, "右腕")
 
 
+## 新戦闘進行システム v1 (2026-08-24): 誰の番かはSPD順で決まる——unit 0の
+## 番まで、間の味方の番を通常攻撃（本体狙い、target_part=""）で消化して
+## から、unit 0自身にだけ腕を狙わせる。他ユニットは腕へ一切触れないので
+## 「a single hit can't come close to destroying the arm's 180 HP」という
+## 前提（boss_hp未変化の検証）は元の設計どおり成立する。
+func _fast_forward_to_ally_turn(main: Control, unit_id: int) -> void:
+	var guard := 0
+	while main.sim.current_actor_token() != "ally:%d" % unit_id:
+		var token: String = main.sim.current_actor_token()
+		assert_true(token.begins_with("ally:"))
+		main._set_battle_action(
+			int(token.substr(5)), "attack", "", "enemy", main.sim.boss_enemy_id, "")
+		var pump_guard := 0
+		while main._battle_anim_step >= 0:
+			main._on_battle_anim_tick()
+			pump_guard += 1
+			assert_lt(pump_guard, 5000, "battle animation never settled")
+		guard += 1
+		assert_lt(guard, 10, "fast-forward looped too many times")
+
+
 func test_part_targeted_attack_round_animates_without_crashing_and_leaves_boss_hp_untouched() -> void:
 	var main := await _start_cave_troll_fight()
-	main._battle_pending_actions.clear()
-	# Only unit 0 acts this round ("units without an entry simply do
-	# nothing", resolve_boss_round()'s own doc comment) — deliberately not
-	# every party member: a single hit can't come close to destroying the
-	# arm's 180 HP, so boss_hp's "must stay untouched" assertion below
-	# stays valid regardless of live party ATK numbers (a multi-unit round
-	# risks the arm actually breaking mid-round and a LATER hit legitimately
-	# redirecting to boss_hp per sim's own _apply_boss_damage() — correct
-	# behavior, just not what this particular test is checking).
-	main._battle_pending_actions[0] = {
-		"action": "attack", "target_type": "enemy",
-		"target_id": main.sim.boss_enemy_id, "target_part": "arm",
-	}
-	main._on_boss_resolve_round()
+	_fast_forward_to_ally_turn(main, 0)
+	# 円がunit 0より先に番を持つ実データのため、fast-forward中に円自身の
+	# 通常攻撃（本体狙い）がboss_hpを正当に削っている——このテストが検証
+	# したいのは「その後のunit 0自身の"腕"狙いの一撃が本体HPへ波及しない
+	# こと」だけなので、600固定ではなくunit 0の行動直前の実値を基準にする。
+	var boss_hp_before_this_hit: int = main.sim.boss_hp
+	main._set_battle_action(0, "attack", "", "enemy", main.sim.boss_enemy_id, "arm")
 	var guard := 0
-	while main._battle_anim_step >= 0 and main._battle_anim_step < main._battle_anim_queue.size():
+	while main._battle_anim_step >= 0:
 		main._on_battle_anim_tick()
 		guard += 1
 		assert_lt(guard, 5000, "battle animation never finished")
 	# §12: a part-targeted hit must never have touched the main body's pool.
-	assert_eq(main.sim.boss_hp, 600)
+	assert_eq(main.sim.boss_hp, boss_hp_before_this_hit)
 	assert_lt(int(main.sim.boss_part_hp["arm"]), 180, "the arm actually took damage")
 	# §4/§8: the panel's own rows (rebuilt by _finish_battle_round's trailing
 	# _refresh_boss_panel) must reflect that same real, post-round value —

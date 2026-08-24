@@ -49,6 +49,17 @@ func test_enemy_files_load_and_translate() -> void:
 				for locale: UDLocale in [ja, en]:
 					assert_ne(locale.text(part_name_key), part_name_key,
 						"%s part %s" % [id, part["id"]])
+			# Boss Action Set (D2、2026-08-25、§35-36): action_set.steps[].
+			# action.name_keyにも同じtranslate-both-locales検証を適用する
+			# ——予兆/強攻撃の名前がロケール未整備のまま出荷されない保険。
+			var action_set := enemy.get("action_set", {}) as Dictionary
+			for step: Variant in action_set.get("steps", []) as Array:
+				var action := (step as Dictionary).get("action", {}) as Dictionary
+				var action_name_key := str(action.get("name_key", ""))
+				if action_name_key != "":
+					for locale: UDLocale in [ja, en]:
+						assert_ne(locale.text(action_name_key), action_name_key,
+							"%s action_set step %s" % [id, action.get("id", "")])
 
 
 func test_skill_files_load_and_translate() -> void:

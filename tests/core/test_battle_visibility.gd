@@ -65,7 +65,7 @@ func test_enemy_target_row_selection_is_deep_red_while_skill_list_stays_blue() -
 	_start_cave_troll_fight(main)
 	main._enter_target_selection("attack", "", "enemy")
 
-	var rows_container: HFlowContainer = main._target_confirm_panel.find_child(
+	var rows_container: VBoxContainer = main._target_confirm_panel.find_child(
 		"enemy_target_rows", true, false)
 	assert_eq(rows_container.get_child_count(), 3, "main body + arm + leg")
 	var arm_target_id: String = str(main.sim.boss_enemy_id) + "#arm"
@@ -105,7 +105,7 @@ func test_switching_selected_row_moves_the_highlight_not_duplicates_it() -> void
 	var main := await _start_expanded_main()
 	_start_cave_troll_fight(main)
 	main._enter_target_selection("attack", "", "enemy")
-	var rows_container: HFlowContainer = main._target_confirm_panel.find_child(
+	var rows_container: VBoxContainer = main._target_confirm_panel.find_child(
 		"enemy_target_rows", true, false)
 
 	var arm_id: String = str(main.sim.boss_enemy_id) + "#arm"

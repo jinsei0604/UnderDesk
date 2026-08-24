@@ -5,5 +5,6 @@
 	"sp_cost": null,
 	"target": "enemy",
 	"effect": "damage",
+	"power": 180,
 	"motion": "melee"
 }

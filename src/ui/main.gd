@@ -27,6 +27,7 @@ var weapon_db: UDShopDB
 var enemy_db: UDEnemyDB
 var stage_db: UDStageDB
 var skill_db: UDSkillDB
+var battle_item_db: UDBattleItemDB
 var art: UDArtLibrary
 var achievements: UDAchievements
 ## Document series defs (data/series/): filename order is display order.
@@ -124,19 +125,25 @@ var _boss_body_hp_label: Label
 ## the other half of that fix.
 var _boss_parts_column: VBoxContainer
 var _boss_part_rows: Dictionary = {}  # part id -> {"bar":ProgressBar,"name":Label,"text":Label}
-## Shadow HP for the currently-playing round's damage, kept per part id —
+## Shadow HP for the currently-playing action's damage, kept per part id —
 ## the exact same "reveal the already-decided result at hit-time, not
 ## instantly" pattern _battle_boss_hp_display already used for the main
-## body (see _on_boss_resolve_round/_fire_battle_anim_hit). Populated by
-## _on_boss_resolve_round() from sim.boss_part_hp *before* resolve_boss_
-## round() mutates it.
+## body (see _resolve_ally_action/_fire_battle_anim_hit). Populated by
+## _resolve_ally_action() from sim.boss_part_hp *before* resolve_player_
+## action() mutates it.
 var _battle_boss_part_hp_display: Dictionary = {}  # part id -> int
 var _battle_bar: Control
 var _battle_cards: Dictionary = {}  # unit id -> {panel: PanelContainer, style: StyleBoxFlat}
 var _battle_attack_button: TextureButton
 var _battle_skill_button: TextureButton
 var _battle_item_button: TextureButton
-var _battle_start_button: TextureButton
+## 下部UI横幅再配分（2026-08-25、§8）: 防御は本機能未実装のため、実アート
+## (battle_button_defense.png等)を持たない——他3ボタンと同じTextureButton
+## ではなく、_style_button()の既存disabledスタイル（グレーアウト、
+## COLOR_TEXTURE_BUTTON_DISABLEDと同じ「使えない」語彙）を流用した通常の
+## Buttonで仮実装する。実アートが届き次第、_make_texture_command_button
+## 経由へ差し替え可能な設計（呼び出し箇所は_build_battle_bar内の1箇所のみ）。
+var _battle_defend_button: Button
 var _battle_list_panel: PanelContainer
 ## Top-right REWIND button (originally やめる/flee, 2026-07-19; repurposed
 ## 2026-08-18 for 新企画v1 §10 — sim.rewind_boss_fight() restarts THIS
@@ -159,30 +166,73 @@ var _leave_battle_button: Button
 ## edge cases (see card_dialog.gd's history), so a genuine sub-window here
 ## would reintroduce exactly that class of bug for a one-off Yes/No prompt.
 var _rewind_confirm_panel: PanelContainer
+## REWINDⅡ（新企画v1仕様書v2「REWINDⅡ」、2026-08-28）: sim.rewind2_
+## unlockedが解放済みの間だけ表示する第3のボタン——REWIND/やめるの
+## どちらとも独立した別スロット。設定前は「この地点をREWINDⅡの戻り先に
+## 設定」、設定後は「設定地点へ戻る」——ボタンのラベル自体は常に
+## "REWINDⅡ"のまま（§7）で、開く確認文だけを状態で切り替える
+## （_on_rewind2_button_pressed参照）。使用済みならdisabled（§24）。
+var _rewind2_button: Button
+## REWINDⅡ用のもどる/決定確認パネル——_rewind_confirm_panelと全く同じ
+## 構造だが、表示するメッセージ（設定 or 使用の確認）と決定時の挙動が
+## 状態依存で切り替わる（_on_rewind2_confirm参照）ため専用に1枚持つ。
+var _rewind2_confirm_panel: PanelContainer
 ## Currently shown entries for the skill/item picker panel, and which row
 ## is highlighted (select-then-confirm: highlighting previews the
 ## description, 決定 commits it). -1 = nothing selectable (empty list).
 var _battle_list_entries: Array = []
 var _battle_list_selected_index: int = -1
-## unit_id -> {"action": "attack"/"skill", "skill_id": String}, filled in
-## as the player picks a command per unit and submitted together via
-## sim.resolve_boss_round() when 行動開始 is pressed.
-var _battle_pending_actions: Dictionary = {}
 ## Fixed left-to-right seating (Sotiris, then companion_1..4 = Madoka,
 ## Vard, Shiba Yao, Sayu) regardless of join order, per the reference
 ## layout — not sim.minions' array order. Living units only; rebuilt on
-## every _refresh_boss_panel so a death mid-fight drops that card.
+## every _refresh_boss_panel so a death mid-fight drops that card. Purely
+## a display order — has no bearing on WHO acts when (that's sim.turn_
+## order, SPD-based, see below); a card still shows here even while it's
+## someone else's turn.
 var _battle_order: Array[int] = []
+## 新戦闘進行システム v1 (2026-08-24〜): SPD順ターン制の下では「今まさに
+## 誰の番か」の唯一の正はsim.current_actor_token()——このvarはそこから
+## 派生した表示用の値でしかない。味方の番になるたびに_begin_current_
+## turn()が更新し(そのユニットのカードへ金枠を出す/コマンド選択画面の
+## 対象を決める)、敵の番の間は直前に開いていた味方の値のまま残る（敵の
+## 番はプレイヤー入力なしで自動解決されるため、コマンド選択自体が開か
+## ない——値が古いままでも実害は無い、次に味方の番が来ればまた上書き
+## される）。
 var _battle_selected_unit: int = -1
+## --- NEXT5 (Phase 5、新戦闘進行システムv1、2026-08-25) ------------------
+## 現在行動者の次に実際に行動する予定の最大5件——sim.peek_next_actors()
+## （実際の戦闘進行が使うsim.turn_order/turn_cursorそのものを覗き見る、
+## 状態を一切変えない純粋関数）から取得した生のトークン列をそのまま
+## 名前へ変換して表示するだけ。UI側で独自にSPDを再計算する経路は無い
+## （§18/§19/§20）。_refresh_next_panel()が_begin_current_turn()からのみ
+## 呼ばれる——1行動の演出が完全に終わり次の行動者が確定した瞬間にだけ
+## 更新される（§17「演出途中で先送りしない」）。
+const BATTLE_NEXT_MAX_ENTRIES := 5
+var _battle_next_column: VBoxContainer
+var _battle_next_labels: Array[Label] = []
 ## Target selection (2026-07-19 addition). Phase names match the user's
 ## spec vocabulary verbatim (commandSelection/skillSelection/
 ## targetSelection/actionConfirmed/executing) so they map 1:1 to that
 ## design doc; UI visibility is driven off this rather than inferred from
 ## which panel happens to be visible.
+## 下部サブメニュー統合 (2026-08-27、§14): "itemSelection"を追加——旧
+## どうぐ一覧は専用フェーズを持たず_battle_phaseが実質skillSelectionの
+## ままだったため、「対象選択→もどる」でどうぐ一覧へ戻る経路自体は
+## _battle_target_source(下記)で正しく分岐できていたが、どうぐ一覧を
+## 開く_on_battle_item()自身がこのフェーズ・共通サブメニュー領域の表示
+## 状態を一切更新していなかった（_on_battle_skill()は更新していた）ため、
+## 「対象選択パネルを表示したまま」にどうぐ一覧が重なって見える・
+## _battle_list_panelが二度と正しく再表示されない、という実機バグの
+## 直接原因になっていた。_sync_battle_submenu_visibility()がこの5フェーズ
+## （commandSelection/skillSelection/itemSelection/targetSelection/
+## executing）をただ1つの真実の源として読み、_commands_column/
+## _battle_list_panel/_target_confirm_panelのうち該当する1つだけを表示
+## する——以後、この関数を通さない個別の.visible=手動トグルを増やさない
+## こと。
 var _battle_phase: String = "commandSelection"
-## "attack" or "skill" — which command opened target selection, so もどる
-## knows whether to return to the plain command view or reopen the skill
-## list (see _on_target_back).
+## "attack"/"skill"/"item" — which command opened target selection, so
+## もどる knows whether to return to the plain command view or reopen the
+## skill/item list (see _on_target_back).
 var _battle_target_source: String = ""
 var _battle_pending_skill_id: String = ""
 ## "enemy" or "ally" — which pool _battle_selected_target_id/
@@ -203,35 +253,63 @@ var _battle_selected_ally_target: int = -1
 var _commands_column: VBoxContainer
 var _target_confirm_panel: PanelContainer
 
-## --- Battle message (新企画v1仕様書, 2026-08-22〜22b) ---------------------
+## --- Battle message (新企画v1仕様書, 2026-08-22〜2026-09-02) --------------
 ## 2026-08-22bで「複数行動者ぶんを溜めるログ」から「現在行動している
 ## 1キャラクター/敵の内容だけを表示するメッセージ」へ設計転換——実機
-## 確認で「ログが戦闘画面を覆う」と判断されたため。新しい行動者の
-## ターンが始まった瞬間に_clear_battle_message()で全消去してから積み
-## 直す。1ターン内（宣言→命中→部位破壊 等）は最大BATTLE_MESSAGE_MAX_
-## LINES行まで積み上がる——複数ターンを跨いでは絶対に蓄積しない。
+## 確認で「ログが戦闘画面を覆う」と判断されたため。2026-09-01で一旦
+## 「常に1行だけを差し替える」へ全面統一したが、2026-09-02の実機報告
+## 「すべて1行表示は採用しない」により再修正: **味方の行動(宣言＋結果)は
+## 従来どおり2行、敵側(通常行動/予兆/Action Set/特殊反応/不発/状態変化)
+## だけ1行**という非対称な仕様へ確定した。カテゴリは_battle_message_
+## categoryという1つの明示フィールドで管理し(§16「文章数だけ見て判断
+## しない」)、_append_battle_message()がこのフィールドと呼び出し側が
+## 渡すcategoryを比較して、切り替わった瞬間だけ自動的に前の内容を
+## 一掃する——§6/§19「敵メッセージが出たら味方2行を消す／敵1行の後は
+## 次の味方2行へ切り替わる」を、呼び出し側ごとの個別clear()呼び出しに
+## 頼らずこの1箇所で一元的に保証する。
 ## Direct references (not find_child string lookups) to the fixed row of
 ## Labels built once in _build_battle_bar() — see _refresh_battle_message_labels.
 var _battle_message_panel: PanelContainer
+## BATTLE_MESSAGE_LABEL_COUNT個（=味方2行のための最大値）を常設。敵1行
+## 表示時はlabels[0]だけがvisible=trueになり、column.alignment=CENTERに
+## より縦方向中央へ来る（§13）——ノードを都度追加/削除せず、visibleと
+## テキストだけを差し替える既存の慣習を維持。
 var _battle_message_labels: Array[Label] = []
-## Oldest-of-this-turn first, newest last (§3: 同一キャラクターの行動
-## 結果は上から順に2〜3行). Each entry: {"text": String, "kind": "normal"|
-## "special"}. UI-only, session-scoped state — never written to a save,
-## never fed into boss_intel (§11「既存のboss_intelとは別システム」),
-## and never a cross-turn history (§2「前の行動者の文章を残さない」)
-## — REWINDと同じ理由で、プレイヤー自身の記憶が攻略要素であることを
-## 壊さない設計。
+## Oldest-first, newest-last。現在の_battle_message_categoryに属する
+## 内容だけを保持し、カテゴリが変わると(_append_battle_message内で)
+## 丸ごとクリアされてから新カテゴリの1件目が積まれる。cap（味方2/敵1）
+## を超えた古い方から捨てる。各entry: {"text": String, "kind":
+## "normal"|"special"}。UI-only, session-scoped state — never written to
+## a save, never fed into boss_intel (§11「既存のboss_intelとは別
+## システム」), and never a cross-turn history (§2「前の行動者の文章を
+## 残さない」) — REWINDと同じ理由で、プレイヤー自身の記憶が攻略要素で
+## あることを壊さない設計。
 var _battle_message_lines: Array[Dictionary] = []
+## "" | "ally" | "enemy"。現在表示中の_battle_message_linesがどちらの
+## 種別かを明示的に保持する唯一の場所(§16)——行数を数えて逆算しない。
+var _battle_message_category: String = ""
+## 部位破壊→特殊反応のような「同じ瞬間に(通常はカテゴリも切り替えて)
+## 2つの文章を続けて見せたい」ケース専用の遅延表示キュー(2026-09-01、
+## §15/§18)。即座に切り替えると1つ目が1フレームも表示されずに上書き
+## されてしまう——_battle_anim_phase_elapsedが指定秒数に達した瞬間に
+## だけ後から積む、というこの1つの仕組みだけで対応する(新しいアニメ
+## フェーズや既存VFXの尺そのものには一切触れない、§21)。空Dictionary=
+## 何も予約されていない。{"text":String,"kind":String,"category":String,
+## "at":float(そのフェーズのelapsedがこの値以上になった時点で発火)}。
+var _battle_message_deferred: Dictionary = {}
 
-## --- Battle motion sequencer (2026-07-19) --------------------------------
-## Plays back each acting character's attack/skill as move-to-center ->
-## act -> move-back, one unit at a time in _battle_order, AFTER
-## sim.resolve_boss_round() has already resolved the whole round. The sim
-## call stays a single synchronous, deterministic step (unchanged contract,
-## still one call = one round, still what the determinism/save-roundtrip
-## tests exercise) — this sequencer only re-times *when* the already-known
-## result becomes visible, using resolve_boss_round's "log" to know what
-## each step should show. See _on_boss_resolve_round/_advance_battle_anim_step.
+## --- Battle motion sequencer (2026-07-19、2026-08-24に新戦闘進行システム
+## v1へ合わせ更新) --------------------------------------------------------
+## Plays back the currently-resolving action's attack/skill as move-to-
+## center -> act -> move-back, AFTER sim.resolve_player_action()/resolve_
+## enemy_action() has already resolved that ONE unit's turn (旧: 全員分を
+## まとめて解決するsim.resolve_boss_round()、今は1体ずつ)。Each sim call
+## stays a single synchronous, deterministic step (unchanged contract,
+## still what the determinism/save-roundtrip tests exercise) — this
+## sequencer only re-times *when* the already-known result becomes
+## visible, using the result's "log"/"boss_counter" to know what to show.
+## See _resolve_ally_action/_resolve_current_enemy_turn/_advance_battle_
+## anim_step.
 var _battle_anim_queue: Array[Dictionary] = []
 var _battle_anim_step: int = -1
 var _battle_anim_phase: String = ""  # "move_in" / "act" / "move_out"
@@ -690,6 +768,20 @@ const BATTLE_IMPACT_SPRITE_PX: float = 150.0
 const BATTLE_ENEMY_HIT_SECONDS: float = 0.5
 const BATTLE_ALLY_HIT_SECONDS: float = 0.6
 const BATTLE_VICTORY_SECONDS: float = 1.6
+## Phase 6「防御」(2026-08-25、§24): メッセージを読める最低限の間だけ
+## 待ってから次の行動者へ進む——攻撃の1手ぶんの体感（move+act相当）より
+## 短く、ボスの反撃(0.8s)よりやや長い程度に調整。
+const BATTLE_GUARD_SECONDS: float = 0.9
+## HP/SPポーション追加 (2026-08-25、§14): 「使った！」宣言(_advance_
+## battle_anim_step側で即表示)→少し間を置いて回復結果(「HPがX回復した！」)
+## を積み増す、DQ的な2段階を1つの静止フェーズの中で再現する。合計は
+## guardと同程度、命中(回復)タイミングはその半分強に置いた。
+const BATTLE_ITEM_SECONDS: float = 0.9
+const BATTLE_ITEM_HIT_AT_SECONDS: float = 0.4
+## Boss Action Set (D2、2026-08-25、§35-36): 予兆・不発とも「ダメージが
+## 一切発生しない」ため、guardと全く同じ「メッセージ＋一定時間待つ」
+## 構成をそのまま再利用する（新しいVFX/モーションは作らない）。
+const BATTLE_BOSS_NOTICE_SECONDS: float = 0.9
 const VICTORY_POSE_STAGGER_SECONDS: float = 0.07
 const BATTLE_HITSTOP_SECONDS: float = 0.07
 const BATTLE_SHAKE_SECONDS: float = 0.08
@@ -928,6 +1020,16 @@ func _battle_motion_keys() -> Array[String]:
 	# (`EOS_BURST_DOWNSLASH12_CRISP_POSE_KEY`)とその定数群は無改修のまま
 	# 残置(削除しない)——このキーが新たに主導権を持つ。
 	keys.append(EOS_BURST_DOWNSLASH16_POSE_KEY)
+	keys.append(EOS_BURST_DOWNSLASH17_POSE_KEY)
+	# 「EOS_BURST_V27_FRONTSIDE_NO_CUTIN_FINISH」(2026-09-04) — 納品の17コマ
+	# シート(`sotiris_eos_downslash_17f_frontside_v27.png`)。frame0-5/11-16は
+	# v26と画素単位で継承、frame6-10だけ「剣が体の右前方を通る」新運動へ
+	# 再作画(headlessでbboxがSOTIRIS_ALPHA_CONTRACT_V27.tsvと完全一致する
+	# ことを確認済み)。UDArtLibraryの標準規約で17枚へ切り出し済み
+	# (`skill_minion_0_eosdownslash17frontside`)。旧`EOS_BURST_DOWNSLASH17_
+	# POSE_KEY`とその定数群は無改修のまま残置(削除しない)——このキーが
+	# 新たに主導権を持つ。
+	keys.append(EOS_BURST_DOWNSLASH17_FRONTSIDE_POSE_KEY)
 	for element in ["generic", "fire", "water", "wind", "light", "dark"]:
 		keys.append("impact_%s" % element)
 	keys.append("proj_soul_break")
@@ -1015,6 +1117,7 @@ func _ready() -> void:
 	enemy_db = UDEnemyDB.load_from_dir("res://data/enemies")
 	stage_db = UDStageDB.load_from_dir("res://data/stages")
 	skill_db = UDSkillDB.load_from_dir("res://data/skills")
+	battle_item_db = UDBattleItemDB.load_from_dir("res://data/battle_items")
 	doc_series = UDDataLoader.load_json_dir("res://data/series")
 	var series_ids: Array[String] = []
 	for def: Variant in doc_series:
@@ -1033,12 +1136,12 @@ func _ready() -> void:
 		sim = UDSim.new_game(
 			enemy_db, stage_db, int(Time.get_unix_time_from_system()),
 			item_db.all_ids(), companion_defs, doc_db.conditions_by_id(),
-			item_db.ranks_by_id(), skill_db, weapon_db
+			item_db.ranks_by_id(), skill_db, weapon_db, battle_item_db
 		)
 	else:
 		sim = UDSim.from_dict(
 			payload["sim"], enemy_db, stage_db, item_db.all_ids(), companion_defs,
-			doc_db.conditions_by_id(), item_db.ranks_by_id(), skill_db, weapon_db
+			doc_db.conditions_by_id(), item_db.ranks_by_id(), skill_db, weapon_db, battle_item_db
 		)
 	_connect_sim_signals()
 	if not payload.is_empty():
@@ -1085,11 +1188,14 @@ func _ready() -> void:
 	_build_eos_burst_sfx()
 	_build_hud()
 	_build_boss_banner()
-	_build_battle_bar()
-	_build_battle_list_panel()
+	_build_battle_bar()  # fixed: NEXT5 + 5-character status + 4 commands only
+	_build_target_confirm_panel()  # independent upper submenu region
+	_build_battle_list_panel()  # shares the exact same rect as the panel above
 	_build_quit_battle_button()
+	_build_rewind2_button()
 	_build_leave_battle_button()
 	_build_rewind_confirm_panel()
+	_build_rewind2_confirm_panel()
 	_build_archive_dialog()
 	_build_treasure_dialog()
 	_build_shop_dialog()
@@ -1338,6 +1444,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and (event as InputEventKey).keycode == KEY_F9:
 		_debug_boss_loop = not _debug_boss_loop
 		queue_redraw()
+	if event is InputEventKey and event.pressed and (event as InputEventKey).keycode == KEY_F10:
+		_debug_toggle_rewind2_unlocked()
 
 
 ## The strip has no HUD bar: the battle view uses the full height.
@@ -1974,7 +2082,7 @@ func _draw_boss_enemy(view: Rect2) -> void:
 
 
 ## True while the queue's current step is the party-wide victory pose
-## (appended only on won rounds — see _on_boss_resolve_round).
+## (appended only on a won action — see _resolve_ally_action).
 func _battle_victory_step_active() -> bool:
 	return _battle_anim_phase == "victory" \
 		and _battle_anim_step >= 0 and _battle_anim_step < _battle_anim_queue.size() \
@@ -2164,6 +2272,10 @@ func _draw_party_row(view: Rect2) -> void:
 		# EOS_BURST_THRUST_POSE_KEYへ差し替わった間だけtrue、下でsprite_
 		# scaleの選択に使う。
 		var uses_eos_thrust_sprite := false
+		## V34 keeps the single ordered-dither composite used by this custom
+		## Control, while retaining the logical MotionA/MotionB pair so their
+		## per-pose root transforms can be applied to the body and blade together.
+		var eos_v35_motion_pair: Array = []
 		# 「natural dragon motion」(2026-08-07、README §1のソティリス側
 		# ground-anchor補正) — 上のuses_eos_thrust_sprite=trueと同じガード
 		# 内でセットされる、EOS_BURST_THRUST_GROUND_ANCHOR_X_PXへ引くための
@@ -2217,12 +2329,43 @@ func _draw_party_row(view: Rect2) -> void:
 			if _eos_burst_vfx_active():
 				var thrust_age := _battle_anim_phase_elapsed - EOS_BURST_APPROACH_START_SECONDS
 				var window_end := EOS_BURST_EXIT_END_SECONDS - EOS_BURST_APPROACH_START_SECONDS
+				# 「EOS_BURST_V28_CHARACTER_VISIBILITY_LOCK」(2026-09-04) — 実機
+				# 報告「剣オーラは進むがソティリスが待機姿勢で固定」を`assets/
+				# art/art_library.gd`の読み込みループ(`UDArtLibrary.load_
+				# default()`)まで遡って追跡した結果を反映。旧`art.has_art(KEY)`
+				# は`_frames.has(key)`のみを見るため、17枚のうち1枚(base)しか
+				# 読み込めなかった場合でも真になる——`ResourceLoader.exists(
+				# frame_path, "Texture2D")`は`.import`キャッシュが無いPNGに
+				# 対してfalseを返しうる(このファイル自身のdoc comment「After
+				# adding files run the editor once or `godot --headless
+				# --import`」どおり)ため、直前のV27ラウンドのように新規PNGを
+				# 追加した直後・Godotが一度もインポートしていない状態では、
+				# `_f2`以降の読み込みが`while`ループの`break`で早期終了し
+				# `_frames[key]`が1要素だけの配列になりうる。この場合`art.
+				# frame(key, idx)`は`posmod(idx,1)`により**常に同じ1コマ**を
+				# 返す——`has_art()`は真のまま、`_eos_burst_downslash12_frame_
+				# pair`が計算するidx_a/idx_bは正しく進行するのに、実際に描かれる
+				# テクスチャだけが1枚に固定される、という報告の症状と完全に
+				# 一致する経路をコード読解のみで特定した(このラウンドはGodot
+				# 起動・テスト実行が禁止のため実機確認はできず、報告書で開示
+				# 済み)。`has_art()`(=1枚でも真)を`frame_count()`が期待枚数
+				# ちょうどであることの確認へ強化——18枚未満(読込未完了)
+				# の間は、既存の「素材が無ければ既存のフォールバックへ」という
+				# このファイル全体の確立済み方針どおり、この分岐そのものを
+				# スキップして上のattack_minion_N(通常戦闘Sprite相当)へ自然に
+				# フォールバックする(新しい分岐は増やさない)。全18枚の読込が
+				# 完了していれば(通常想定される状態)`frame_count()==
+				# EOS_BURST_DOWNSLASH12_BLEND_DURATIONS.size()`(=18、姿勢テーブル
+				# と同じ配列サイズを事実上の期待値として参照——マジックナンバー
+				# を避ける)は常に真のまま、既存の挙動から一切変化しない。
 				if thrust_age >= 0.0 and thrust_age < window_end \
-						and art.has_art(EOS_BURST_DOWNSLASH16_POSE_KEY):
+					and _eos_burst_v35_character_frame_count() \
+							>= EOS_BURST_DOWNSLASH12_BLEND_DURATIONS.size():
 					var pair := _eos_burst_downslash12_frame_pair(_battle_anim_phase_elapsed)
 					var idx_a: int = pair[0]
 					var idx_b: int = pair[1]
 					var mix_b: float = pair[3]
+					eos_v35_motion_pair = pair
 					eos_thrust_frame_idx = idx_a
 					icon = _eos_burst_downslash12_dither_texture(idx_a, idx_b, mix_b)
 					icon_a_alpha_mult = 1.0
@@ -2343,6 +2486,9 @@ func _draw_party_row(view: Rect2) -> void:
 		# ボックスの一辺だけをEOS_BURST_THRUST_SPRITE_SCALE倍する——足元の
 		# Y座標(feet_y)自体には一切触れないため「足元が跳ねる」ことがない。
 		var sprite_box_px := icon_px * EOS_BURST_DOWNSLASH12_SPRITE_SCALE if uses_eos_thrust_sprite else icon_px
+		if uses_eos_thrust_sprite and not eos_v35_motion_pair.is_empty():
+			x += _eos_burst_v35_body_root_offset_px(
+				sprite_box_px, eos_v35_motion_pair, flip_h, _battle_anim_phase_elapsed)
 		var top := maxf(view.position.y, feet_y - sprite_box_px)
 		var is_eos_burst_actor := _eos_burst_vfx_active() and _battle_anim_pos.has(slot_index)
 		if is_eos_burst_actor:
@@ -2425,13 +2571,26 @@ func _draw_party_row(view: Rect2) -> void:
 				font, Vector2(x, hp_y - 6), "Lv.%d" % unit.level,
 				HORIZONTAL_ALIGNMENT_CENTER, bar_w * 2, 13, COLOR_HUD_TEXT
 			)
+		# 現在行動者マーカー（2026-08-25、新戦闘進行システムv1 §3-§5）:
+		# 「プレイヤーが選択したキャラクター」ではなく、SPDで決まった
+		# current_actorそのものを指す——_battle_selected_unitではなく
+		# sim.current_actor_token()を直接参照する_current_actor_unit_id()
+		# を経由することで、頭上マーカーと下部パネル強調（同じくこの値へ
+		# 追従、後述_update_card_selection参照）が別々の値を指してズレる
+		# 余地を構造的に無くす。executing（演出再生中）は非表示——演出
+		# そのものが誰の番かを示すため。敵の番は _current_actor_unit_id()
+		# が-1を返すため、どの味方の頭上にも表示されない。
+		if _boss_screen_active() and _battle_phase != "executing" and slot_index == _current_actor_unit_id():
+			_draw_current_actor_marker(x, top)
 		# 味方対象選択マーク（2026-08-23、§8-§14）: 頭上HP/Lvを消した分の
 		# 空きスペースへ、現在選択中の味方の頭上だけ▼型の三角形マーカーを
 		# 表示する。プロトタイプ実装（指示どおり新規画像素材なし、
 		# draw_primitiveのみ）——正式デザインは実機確認後。下部パネル側
 		# の緑枠（COLOR_ALLY_TARGET_BORDER）と同じ色を使い、§14「UIを見
 		# ても盤面を見ても同じ対象だと分かる」を色の一致で満たす。点滅・
-		# フェード無し（§13）——描画するかしないかの二値のみ。
+		# フェード無し（§13）——描画するかしないかの二値のみ。actorマーカー
+		# と対象が同一キャラ（自己回復等）の場合はこちらが上から描かれる
+		# （既存の下部パネル「ally-target glowが優先」という前例を踏襲）。
 		if _boss_screen_active() and _battle_phase == "targetSelection" \
 				and _battle_target_kind == "ally" and slot_index == _battle_selected_ally_target:
 			_draw_ally_target_marker(x, top)
@@ -2457,6 +2616,67 @@ func _draw_ally_target_marker(x: float, top: float) -> void:
 			Vector2(x + ALLY_TARGET_MARKER_HALF_WIDTH_PX, base_y),
 			Vector2(x, apex_y)]),
 		PackedColorArray([COLOR_ALLY_TARGET_BORDER, COLOR_ALLY_TARGET_BORDER, COLOR_ALLY_TARGET_BORDER]),
+		PackedVector2Array(), null)
+
+
+## 現在行動者マーカー（2026-08-25、新戦闘進行システムv1 §3-§5）: sim.
+## current_actor_token()を唯一のsource of truthとする——_battle_selected_
+## unit経由ではなく、simの値を直接パースして返す。これにより頭上マーカー
+## は「UI側の選択状態」ではなく常に「simが実際に今誰の番だと言っている
+## か」を反映する。敵の番（"enemy:"）または戦闘外では-1（=どの味方にも
+## 表示しない）。
+func _current_actor_unit_id() -> int:
+	if not sim.boss_active:
+		return -1
+	var token := sim.current_actor_token()
+	if not token.begins_with("ally:"):
+		return -1
+	return int(token.substr(5))
+
+
+## §1 (2026-08-25、実機報告「円の頭上マーカーが確認できない」): 状態
+## 自体は正しい(current_actor_unit_id/current_actor_token/battle_phaseの
+## 直接ログで確認済み——コード側に「描画されない」経路は無い)ため、
+## 座標(_current_actor_unit_id一致時のtop-8px〜top-19px、円の実測feet_y
+## ≈469pxなら画面中央付近の余白で、上部ボスバナー・下部バーどちらの
+## クリップ範囲にも掛からない)自体も妥当と確認済み。この環境では
+## --write-movieが（このハーネスに限らずmain.tscnそのままでも）ダミー
+## レンダラーのクラッシュで使えないため、実際に「小さすぎて視認しづらい
+## だけ」なのか他の要因かをピクセル単位で断定できない——最も可能性の
+## 高い「小さく地味で見落とされやすい」という説明に対応し、専用のサイズ
+## 定数（味方対象マーカーとは独立、より大きく）と、明暗どちらの背景でも
+## 確実に視認できるよう黒の縁取り（先に少し大きい黒の三角形→その上に
+## 金色の三角形）を追加した。
+const CURRENT_ACTOR_MARKER_HALF_WIDTH_PX := 12.0
+const CURRENT_ACTOR_MARKER_HEIGHT_PX := 17.0
+const CURRENT_ACTOR_MARKER_GAP_PX := 10.0
+const CURRENT_ACTOR_MARKER_OUTLINE_PX := 2.5
+
+
+## draw_primitiveの3頂点三角形（_draw_ally_target_markerと同じ技法）。
+## 下部パネルの現在行動者強調と同じ色（COLOR_CARD_BORDER_SELECTED、金色）
+## を使うことで「頭上マーカー＝下部パネル強調＝同じcurrent_actor_id」を
+## 色でも保証する（§4）。対象マーカー（緑）とは明確に色を分け、actorと
+## targetを混同しない（§5）。
+func _draw_current_actor_marker(x: float, top: float) -> void:
+	var apex_y := top - CURRENT_ACTOR_MARKER_GAP_PX
+	var base_y := apex_y - CURRENT_ACTOR_MARKER_HEIGHT_PX
+	var o := CURRENT_ACTOR_MARKER_OUTLINE_PX
+	# 縁取り: 一回り大きい黒の三角形を先に描き、その上へ金色本体を重ねる
+	# ——明るい背景/暗い背景のどちらでも輪郭が潰れず視認できる。
+	draw_primitive(
+		PackedVector2Array([
+			Vector2(x - CURRENT_ACTOR_MARKER_HALF_WIDTH_PX - o, base_y - o),
+			Vector2(x + CURRENT_ACTOR_MARKER_HALF_WIDTH_PX + o, base_y - o),
+			Vector2(x, apex_y + o)]),
+		PackedColorArray([Color.BLACK, Color.BLACK, Color.BLACK]),
+		PackedVector2Array(), null)
+	draw_primitive(
+		PackedVector2Array([
+			Vector2(x - CURRENT_ACTOR_MARKER_HALF_WIDTH_PX, base_y),
+			Vector2(x + CURRENT_ACTOR_MARKER_HALF_WIDTH_PX, base_y),
+			Vector2(x, apex_y)]),
+		PackedColorArray([COLOR_CARD_BORDER_SELECTED, COLOR_CARD_BORDER_SELECTED, COLOR_CARD_BORDER_SELECTED]),
 		PackedVector2Array(), null)
 
 
@@ -2676,9 +2896,42 @@ func _sync_battle_chrome_visibility() -> void:
 	_battle_bar.visible = battle
 	_quit_battle_button.visible = battle
 	_leave_battle_button.visible = battle
+	_refresh_rewind2_button()
 	if not battle:
 		_battle_list_panel.visible = false
 		_rewind_confirm_panel.visible = false
+		_rewind2_confirm_panel.visible = false
+
+
+## REWINDⅡ関連ボタンの表示・有効状態・やめるの位置を1箇所で決める
+## （新企画v1仕様書v2「REWINDⅡ」§5/§6/§24/§38、2026-08-28）。REWINDⅡが
+## 未解放（sim.rewind2_unlocked==false）の間はREWIND/やめるの2ボタンの
+## ままに戻る——やめるの位置はREWINDⅡの可視状態から動的に決める（3つ目の
+## ボタンを常に予約せず、未解放時は本当に元の2ボタンレイアウト）。
+## _sync_battle_chrome_visibility()に加え、REWINDⅡの設定・使用の直後にも
+## 呼ぶ（使用済みdisabled状態を即座に反映するため）。
+func _refresh_rewind2_button() -> void:
+	var show_rewind2 := _quit_battle_button.visible and sim.rewind2_unlocked
+	_rewind2_button.visible = show_rewind2
+	_rewind2_button.disabled = sim.mid_checkpoint_used
+	_leave_battle_button.offset_top = (
+		LEAVE_BUTTON_TOP_WITH_REWIND2 if show_rewind2 else LEAVE_BUTTON_TOP_WITHOUT_REWIND2)
+	_leave_battle_button.offset_bottom = (
+		LEAVE_BUTTON_BOTTOM_WITH_REWIND2 if show_rewind2 else LEAVE_BUTTON_BOTTOM_WITHOUT_REWIND2)
+
+
+## デバッグ専用トグル（F10、実機確認用、新企画v1仕様書v2「REWINDⅡ」§37
+## 「デバッグ環境で簡単にREWINDⅡを解放状態へできるように...ただし本番
+## UIにデバッグボタンを追加する必要はありません」）——正式なストーリー
+## 上の解放イベントはまだ実装されていない（§4で明示的に禁止）ため、
+## _debug_boss_loop（F9）と全く同じ「本番UIには一切現れないキーボード
+## ショートカット」という扱いで、sim.rewind2_unlocked（唯一の恒久フラグ、
+## main.gd側に別の状態は持たない）を直接トグルする。ボス戦中でなくても
+## 押せる（次の戦闘開始時に解放済みとして反映される）。
+func _debug_toggle_rewind2_unlocked() -> void:
+	sim.set_rewind2_unlocked(not sim.rewind2_unlocked)
+	_refresh_rewind2_button()
+	queue_redraw()
 
 
 func _expand() -> void:
@@ -2869,14 +3122,22 @@ func _style_button(button: Button, enabled_color: Color, content_margin: int = 8
 
 const COLOR_CARD_BORDER := Color(0.32, 0.34, 0.44)
 const COLOR_CARD_BORDER_SELECTED := Color(1.0, 0.82, 0.25)
+## Phase 6「防御」(2026-08-25、§15): current_actorの黄色(上記)とは意図的に
+## 別の色。盾/防御を連想させる寒色系。
+const COLOR_GUARD_STATUS_TEXT := Color(0.45, 0.72, 1.0)
 const COLOR_START_BUTTON := Color(0.72, 0.53, 0.12)
 
 
 func _build_battle_bar() -> void:
 	var bar := PanelContainer.new()
 	bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	bar.offset_left = 12
-	bar.offset_right = -12
+	# 下部UI横幅再配分（2026-08-25、§12優先度1「不要な左右marginを減らす」）:
+	# 12→10。NEXT5追加で横幅の余裕がほぼ無くなった（実測: row側の必要幅が
+	# 利用可能幅を上回り「どうぐ」が右へ見切れていた）ため最初に着手した
+	# 軽微な削減——単独では焼け石に水だが、他の削減（後述）と合わせて
+	# 全体の安全マージンへ寄与する。
+	bar.offset_left = 10
+	bar.offset_right = -10
 	# 下部操作バー再調整（2026-08-22d、§1「少し縮めすぎた、以前と現在の
 	# 中間程度へ」）: 12（以前）→6（圧縮直後）→4。ここはキャラクター情報
 	# 側へ回した純粋な余白のため、視覚的な"存在感"には寄与しない部分から
@@ -2905,7 +3166,11 @@ func _build_battle_bar() -> void:
 	# コマンドの実コンテンツ側の高さ成長に充てる予算として使った——padding
 	# を"増やして"高さを消費しているわけではなく、既存paddingを削って
 	# 生まれた余地を可読性側へ回す方向（§2の趣旨どおり）。
-	bar.add_theme_stylebox_override("panel", _panel_style(Color(0.04, 0.05, 0.1, 0.92), 3))
+	# 下部UI微調整（2026-08-30、§13-§16「バトルメッセージをさらに大きく」）:
+	# 1→0。バトルメッセージ本文を16→18ptへ拡大する分の余地を最後まで
+	# 削り切った値——これ以上は境界線の視認性そのものに影響するため
+	# 据え置き。
+	bar.add_theme_stylebox_override("panel", _panel_style(Color(0.04, 0.05, 0.1, 0.92), 0))
 	add_child(bar)
 	_battle_bar = bar
 
@@ -2925,8 +3190,8 @@ func _build_battle_bar() -> void:
 	var outer_column := VBoxContainer.new()
 	# 下部操作バー再調整（2026-08-22d）: 6（以前）→2（圧縮直後）→1。
 	# 下部UI再整理（2026-08-23b）: 2→1（chrome reclaim、上記bar余白と
-	# 同じ理由）。
-	outer_column.add_theme_constant_override("separation", 1)
+	# 同じ理由）。下部UI微調整（2026-08-30）: 1→0（同上、文字拡大の余地）。
+	outer_column.add_theme_constant_override("separation", 0)
 	bar.add_child(outer_column)
 
 	_build_battle_message_panel(outer_column)
@@ -2956,8 +3221,51 @@ func _build_battle_bar() -> void:
 	# 「5人→すぐ隣にコマンド、というほど詰めない」（§5）: cards_rowと
 	# commands_column/target_confirm_panelの間の意図的な余白として、
 	# 単純な自動拡張ではなく固定量のseparationへ変更（10→28）。
-	row.add_theme_constant_override("separation", 28)
+	# 下部UI横幅再配分（2026-08-25、§12優先度2「パネル間spacingを減らす」）:
+	# 28→24。"意図的な余白"という役割自体は維持しつつ、NEXT5分の横幅を
+	# 確保するため一段階だけ詰めた（3列構成になった今、間隔は2箇所×4px=
+	# 8pxの節約）。
+	row.add_theme_constant_override("separation", 24)
 	outer_column.add_child(row)
+
+	# NEXT5（Phase 5、2026-08-25、§9-§13）: rowの最左列——5人分カード列
+	# より前に追加するだけで、既存のalignment=CENTER配置のまま自然に
+	# 一番左へ来る（§9「下部バーの一番左側へ」、画面左上には置かない）。
+	# 高さはcards_row側が既に支配要因のまま変えたくない（§11「上方向へ
+	# 拡張しない」）ため、フォントサイズ/行間を切り詰めて既存の高さ予算
+	# 内へ収める——実測はtest_bottom_bar_reflow.gd側のGUTテストで確認
+	# 済み（このプロジェクトの確立済み手法、ピクセル描画ではなくGodotの
+	# Container自身のレイアウト計算をheadlessで直接読む）。
+	# 下部UI横幅再配分（2026-08-25、§12優先度3「NEXT欄を少し縮める」）:
+	# 見切れの実測原因は、cards_row(660)+_commands_column(実測natural
+	# ~312、3ボタン1行の自然幅がfloor260を上回っていた)+next_column(118)+
+	# separation(28×2)の合計 ≈ 1146pxが、bar内側の利用可能幅(design space
+	# 1152基準でoffset±12なら1128px)を約18px上回っていたこと——「どうぐ」
+	# だけが微妙に見切れていた実際の原因はこれ。118→108（-10px、読める
+	# 範囲でのコンパクト化、§3）。文字サイズ(12/11pt)は無改修のまま
+	# フロア幅だけを詰めた。
+	_battle_next_column = VBoxContainer.new()
+	_battle_next_column.name = "next"
+	_battle_next_column.add_theme_constant_override("separation", 0)
+	_battle_next_column.custom_minimum_size = Vector2(108, 0)
+	row.add_child(_battle_next_column)
+
+	var next_title := Label.new()
+	next_title.text = locale.text("UI_BATTLE_NEXT_TITLE")
+	next_title.add_theme_font_size_override("font_size", 12)
+	next_title.modulate = COLOR_BOSS_PANEL_TEXT
+	_battle_next_column.add_child(next_title)
+
+	_battle_next_labels = []
+	for i in BATTLE_NEXT_MAX_ENTRIES:
+		var entry_label := Label.new()
+		entry_label.name = "next_row_%d" % i
+		entry_label.add_theme_font_size_override("font_size", 11)
+		entry_label.clip_text = true
+		entry_label.modulate = COLOR_BOSS_PANEL_TEXT
+		entry_label.visible = false
+		_battle_next_column.add_child(entry_label)
+		_battle_next_labels.append(entry_label)
 
 	var cards_row := HBoxContainer.new()
 	cards_row.name = "cards"
@@ -2966,97 +3274,230 @@ func _build_battle_bar() -> void:
 	# cards_row自体にfloorとなる合計幅を与え（512→660、+148px）、その内側の
 	# 5枚は下記_make_battle_card()で各々size_flags_horizontal=EXPAND_FILL
 	# （既定stretch_ratio=1ずつ、全員同じ）にしてある——cards_rowが確保した
-	# 660pxを5枚が均等に分け合う（1枚あたり約125.6px、旧96pxから+30px弱）。
-	# 名前の文字数で幅がバラつく余地が構造的に無い（Godotの均等EXPAND_FILL
-	# 分配そのものが保証する、個別に同じ定数を手で揃えていた旧実装より
-	# 頑健）。
-	cards_row.custom_minimum_size = Vector2(660, 0)
+	# 幅を5枚が均等に分け合う。名前の文字数で幅がバラつく余地が構造的に
+	# 無い（Godotの均等EXPAND_FILL分配そのものが保証する、個別に同じ定数
+	# を手で揃えていた旧実装より頑健）。
+	# 下部UI横幅再配分（2026-08-25、§4/§12優先度4「5人パネルを均等に少し
+	# 縮める」）: 660→620（-40px、1枚あたり約8px減、124→116px程度）。
+	# 極端に細くしないよう最小限に留めた——名前(16pt)/HP・SP(14pt)/バー
+	# 太さは無改修のまま、フロア幅だけを詰める（§4「文字が読みづらくなら
+	# ないことを優先」）。
+	cards_row.custom_minimum_size = Vector2(620, 0)
 	row.add_child(cards_row)
 
-	# こうげき/スキル/どうぐ in a row, 行動開始 spanning the same width
-	# below them (not beside), per the reference layout.
+	# こうげき/スキル/防御/どうぐ を2×2グリッドで配置（下部UI横幅
+	# 再配分、2026-08-25、§6/§12優先度5）: NEXT5追加後の横幅では、4つを
+	# 1行に並べる自然幅（アイコン4個+区切り3本、既存の1行3個ですら既に
+	# 予算超過の一因だった）を確保できない——§12の優先度1〜4（余白/
+	# spacing/NEXT幅/カード幅の削減）を全て適用してもなお、1行4個は幅の
+	# 面で無理があると判断し、§6が候補に挙げていた2×2（こうげき スキル
+	# / 防御 どうぐ）を採用。
+	# 下部UI微調整（2026-08-25b、§1-§4「右側の余白をボタンへ再配分、4つを
+	# 少し大きく・厳密に同じサイズへ、NEXT/ステータスは圧迫しない」）:
+	# next_column(108)+cards_row(620)+separation(24×2)=776pxがrowの実際の
+	# 受け皿(実測1126px)からほぼ動かないよう固定したまま、その残り350px
+	# のうち一部を_commands_columnの自然幅そのものへ回した（旧170→新
+	# 236px、+66px）。GRID_CELL_SIZE（全4ボタン共通の固定矩形、旧来の
+	# 「heightからaspectで幅を逆算」方式をやめたため厳密に同一サイズ）＋
+	# 余裕を持たせたh/v_separationで消費し、残りはrowのalignment=CENTER
+	# が左右へ均等に逃がす——1126-(108+24+620+24+236)=114px（片側57px、
+	# 「適切な左右margin」として残す、§4）。高さは2*48+6=102px（cards_row
+	# 側の実測103pxを1px下回る安全域、§7「バーを上へ広げない」を厳守）。
+	var GRID_CELL_SIZE := Vector2(108, 48)
 	_commands_column = VBoxContainer.new()
-	# 下部操作バー圧縮（2026-08-22c）: 6→2。
 	_commands_column.add_theme_constant_override("separation", 4)
-	# 下部UI再整理（2026-08-23b、§9「コマンドエリアも空いた横幅を少し
-	# 利用」）: cards_rowと同じ考え方でfloorを与える（自然幅の約180px→
-	# 260px）。アイコン自体は下記で少しだけ拡大するに留め（§9「巨大な
-	# ボタンにする必要はない」）、増えた分の幅は主に「行動開始」ボタン
-	# （既存のSIZE_EXPAND_FILLでこの列の全幅へ自動的に広がる）と、アイコン
-	# 列を中央寄せする余白（下記commands_row.alignment）へ回る。
-	_commands_column.custom_minimum_size = Vector2(260, 0)
 	row.add_child(_commands_column)
+	# 下部固定バーとサブメニューの分離 (2026-08-27b、実機報告「NEXT5・
+	# ステータス・コマンドが横へ圧縮された」): 以前(2026-08-27の統合
+	# ラウンド)は_target_confirm_panel/_battle_list_panelもこの`row`の
+	# スロットを共有しており、それらが表示されるたびにrow全体の必要幅が
+	# 変わり、alignment=CENTERの中央寄せ計算を通じてNEXT5・5人ステータス・
+	# コマンド列そのものの横位置がズレていた——ユーザー判断により、下部
+	# バーは常にNEXT5・5人ステータス・4コマンドだけを表示する完全固定
+	# 領域に戻し、_commands_columnは常にvisible=trueのまま二度と切り替え
+	# ない（このrowのレイアウト計算へ他の要素を一切参加させない）。
+	_commands_column.visible = true
 
-	var commands_row := HBoxContainer.new()
-	commands_row.add_theme_constant_override("separation", 6)
-	# 下部UI再整理（2026-08-23b）: commands_columnがアイコン3個の自然幅
-	# より広くなった分、アイコンが左詰めで浮かないよう中央寄せする
-	# （cards側の"均等配分"とは違い、こちらは"密集したグループを広い
-	# 列の中央へ"という役割——アイコン自体を引き伸ばして巨大化させない
-	# ため、EXPAND_FILLではなくalignment=CENTERを選択）。
-	commands_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	_commands_column.add_child(commands_row)
+	var commands_grid := GridContainer.new()
+	commands_grid.columns = 2
+	commands_grid.add_theme_constant_override("h_separation", 20)
+	commands_grid.add_theme_constant_override("v_separation", 6)
+	_commands_column.add_child(commands_grid)
 
-	_battle_attack_button = _make_texture_command_button("battle_button_attack", _on_battle_attack)
-	commands_row.add_child(_battle_attack_button)
-	_battle_skill_button = _make_texture_command_button("battle_button_skill", _on_battle_skill)
-	commands_row.add_child(_battle_skill_button)
-	_battle_item_button = _make_texture_command_button("battle_button_item", _on_battle_item)
-	commands_row.add_child(_battle_item_button)
+	# GridContainerは子を左→右・上→下の順に詰めるため、追加順=表示位置
+	# （§6の配置図「こうげき スキル / 防御 どうぐ」とそのまま対応）。
+	_battle_attack_button = _make_texture_command_button(
+		"battle_button_attack", _on_battle_attack, GRID_CELL_SIZE)
+	commands_grid.add_child(_battle_attack_button)
+	_battle_skill_button = _make_texture_command_button(
+		"battle_button_skill", _on_battle_skill, GRID_CELL_SIZE)
+	commands_grid.add_child(_battle_skill_button)
+	# 防御（Phase 6、2026-08-25、正式実装）: 実アート
+	# (battle_button_defense.png等)がまだ届いていないため、他3個と同じ
+	# TextureButtonではなく通常のButton——他3個と厳密に同じGRID_CELL_SIZE
+	# を明示することで§3「特定のボタンだけ大きい・小さい状態にはしない」
+	# を満たす。有効/無効は他3個と同じ_update_battle_buttons()（現在行動者
+	# 選択の有無）で切り替える——押せる条件は「こうげき/スキル/どうぐ」と
+	# 完全に同一（§9「防御できるのはcurrent_actorだけ」）。ボタン本体が
+	# 大きくなった分、文字も13→15pt（他3個は画像に焼き込み済みのラベル
+	# のため、アイコン自体の拡大＝文字の拡大を兼ねる——防御だけが独立した
+	# Labelを持つため、こちらだけ明示的にフォントサイズを上げる必要が
+	# ある）。
+	_battle_defend_button = Button.new()
+	_battle_defend_button.text = locale.text("UI_COMMAND_DEFEND")
+	_battle_defend_button.custom_minimum_size = GRID_CELL_SIZE
+	_battle_defend_button.add_theme_font_size_override("font_size", 15)
+	_style_button(_battle_defend_button, Color(0.28, 0.28, 0.34), 6)
+	_battle_defend_button.pressed.connect(_on_battle_defend)
+	commands_grid.add_child(_battle_defend_button)
+	_battle_item_button = _make_texture_command_button(
+		"battle_button_item", _on_battle_item, GRID_CELL_SIZE)
+	commands_grid.add_child(_battle_item_button)
 
-	_battle_start_button = TextureButton.new()
-	_battle_start_button.texture_normal = art.texture("battle_button_start")
-	_battle_start_button.ignore_texture_size = true
-	_battle_start_button.stretch_mode = TextureButton.STRETCH_SCALE
-	# 下部操作バー再調整（2026-08-22d、§9「行動開始が操作UIとして弱く
-	# 見えないように」）: 50→28（前ラウンド）→38。
-	# 下部UI再整理（2026-08-23b、§1/§9）: 38→42→40→44→45→44。**42まで拡大
-	# した時点の実測でアイコン(56)+42+separationの合計がcards_row(約99px)
-	# を上回り、`row`全体の高さ（＝commandsが常にcards_rowと同時に表示
-	# される状態Bの最悪ケース）を新たに押し上げ、円の足元マージンが一時的
-	# にマイナスへ振れる不具合を実測で検出——一度40へ落として解消したが、
-	# その後cards_row側の高さ自体をchrome再配分＋バー太さ増で伸びたため
-	# 再び釣り合う値まで引き上げ、最後にバー太さを1段戻した（9、上記）の
-	# に合わせてこちらも44へ1段戻した——最終的な余白は毎回probeで実測して
-	# 確認する。
-	_battle_start_button.custom_minimum_size = Vector2(0, 44)
-	_battle_start_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_battle_start_button.pressed.connect(_on_boss_resolve_round)
-	_commands_column.add_child(_battle_start_button)
+	# 新戦闘進行システム v1 (2026-08-24、§59): 「行動開始」ボタンは廃止
+	# ——こうげき/スキル/どうぐの対象を決定した瞬間(_on_target_confirm)に
+	# 即座にその1体の行動が解決されるため、複数人分をまとめて確定させる
+	# ボタン自体が概念ごと不要になった。かつてこのボタンが占めていた縦の
+	# 余白は_commands_columnの自然な高さから自動的に消える（cards_row側の
+	# 高さが下部バー全体の支配要因になる、既存のgrow_vertical自動拡張の
+	# おかげでレイアウトが崩れることはない——2026-08-22c/d/23bで確立した
+	# responsive UI基盤は無改修のまま）。
+	#
+	# _target_confirm_panel（敵/部位・味方対象選択）と_battle_list_panel
+	# （スキル/どうぐ一覧）は、この`row`には一切参加しない——下部固定バー
+	# より上の独立した共通サブメニュー領域(_build_target_confirm_panel/
+	# _build_battle_list_panel、いずれも_ready()から個別に呼ばれる)へ
+	# 完全に分離した(2026-08-27b)。
 
-	# Swaps into _commands_column's slot in `row` during target selection
-	# (2026-07-19) rather than floating as a separate box, so it never
-	# overlaps the card row and always sits where commands normally are.
-	_target_confirm_panel = PanelContainer.new()
-	_target_confirm_panel.visible = false
-	# 下部操作バー圧縮（2026-08-22c）: 余白10→2。
-	_target_confirm_panel.add_theme_stylebox_override(
-		"panel", _panel_style(Color(0.06, 0.07, 0.12, 0.95), 1))
-	row.add_child(_target_confirm_panel)
+
+## 右側サブメニュー領域の拡大（2026-08-28、実機報告「大きなパネルなのに
+## 上部の一部しか使っていない」）: スキル一覧・どうぐ一覧・敵/部位選択・
+## 味方対象選択のいずれもがこの共通サイズ・余白ルールを使う（§15
+## 「画面ごとに極端に小さくなったり大きくなったりしないように」）。位置
+## そのもの（_target_confirm_panel/_battle_list_panelのanchor・下部固定
+## バー）は今回一切変更しない——この定数群はパネル"内部"のみに作用する。
+## 実機報告(2026-08-29)「パネルが大きすぎる」への対応: 文字サイズ自体は
+## 前回どおり維持しつつ(§3「文字が十分大きい...小さい文字には戻さない」)、
+## 余白・行の高さ・行間隔だけを縮めた(§5「各スキルボタンの高さを少しだけ
+## 縮めても構わない」/§6「縦方向の余白を少し減らし」)。
+##
+## §1/§2/§4の核心（実測で判明した構造上の事実、2026-08-29ラウンド）:
+## _target_confirm_panel/_battle_list_panelはoffset_top=70・offset_bottom
+## =-180（正常ウィンドウ648px基準で398px）というanchor付きPanelContainer
+## ——GodotのPanelContainerは、子の計算済み最小サイズがこのanchor由来の
+## サイズを上回ると、anchorの指定を無視して実際の描画サイズをその最小
+## サイズまで膨張させる（anchorは「決め打ちの上限」にはならない）。この
+## 膨張バグ自体は当時のラウンドで解消済み（ScrollContainer＋定数圧縮）
+## だが、offset_top=70自体はボスバナー(_boss_banner、実測worst-case
+## bottom=131px、cave_trollの本体+右腕+脚の3段表示時)より上側にあり、
+## 実機ではサブメニュー上端がボスHP/部位HP UIへ最大61px食い込んでいた
+## ——これが2026-08-30の実機報告「上側の重なり」の実体（前回の膨張バグ
+## 修正では下部固定バー側しか検証しておらず、この上側の重なりは未検出
+## だった）。
+##
+## 2026-08-30ラウンドの対応: SUBMENU_PANEL_TOP_OFFSET（ボスバナー最悪
+## ケースの下端131pxに約20pxの安全余白を足した値）へoffset_topを引き
+## 上げ、offset_bottom（下端＝468px、バトルメッセージ最悪ケース上端475px
+## から既に約7pxの余白を確保済みだったため無変更——§1「下側の位置は現在
+## かなり良い」を文字通り反映）はそのまま維持——結果、パネル自体の縦幅が
+## 398pxから約320pxへ自動的に縮む（上端を下げただけで「移動」と「圧縮」
+## の両方を同時に満たす、というのがこのラウンドの設計判断）。その縮んだ
+## 予算の中でソティリスの4技（ラピッドスラッシュ/ヒーリング/ソウル
+## ブレイク/必殺：エオスバースト）がスクロールなしで収まるよう、この
+## 定数群をさらに一段圧縮した（§6「前回の小さすぎるUIには戻さない」との
+## バランスを取りつつ、実測しながら調整——行の最小高さ48→40、フォント
+## 19→18等）。rows_scrollのcustom_minimum_sizeも3行ぶん→4行ぶんへ変更
+## （SUBMENU_ROWS_VISIBLE_WITHOUT_SCROLL、5個以上になった時だけ内部
+## スクロールする設計は維持、§10）。
+const SUBMENU_PANEL_TOP_OFFSET := 152.0  # ボスバナー最悪ケース下端131 + 安全余白約21
+const SUBMENU_PANEL_BOTTOM_OFFSET := -180.0  # 無変更（§1「下側は現在かなり良い」）
+const SUBMENU_ROWS_VISIBLE_WITHOUT_SCROLL := 4.0  # ソティリス標準4技が同時に見える数（§5/§10）
+const SUBMENU_PANEL_MARGIN := 6
+const SUBMENU_TITLE_FONT_SIZE := 18
+const SUBMENU_INSTRUCTION_FONT_SIZE := 15
+const SUBMENU_ROW_FONT_SIZE := 18
+const SUBMENU_ROW_CONTENT_MARGIN := 5
+# 実測値そのもの(font 18pt + content_margin 5pxの組み合わせでボタンが
+# 自然に必要とする高さ)——custom_minimum_size.yに渡す"床"の値がこの自然
+# サイズより小さいと実際の行はそれでも自然サイズいっぱいまで描かれる
+# ため無意味な床になる一方、rows_scroll(下記)の高さ計算はこの定数を
+# そのまま使う——両者を一致させないと「4行分確保したつもりが実際は
+# それより高い行が4つ並び、結局スクロールが必要になる」という牙城崩し
+# バグになる（2026-08-30に実測で発見・修正）。
+const SUBMENU_ROW_MIN_HEIGHT := 36.0
+const SUBMENU_ROW_SEPARATION := 5
+const SUBMENU_INFO_LABEL_FONT_SIZE := 14
+const SUBMENU_INFO_VALUE_FONT_SIZE := 18
+const SUBMENU_FOOTER_FONT_SIZE := 18
+const SUBMENU_FOOTER_MIN_HEIGHT := 34.0
+const SUBMENU_FOOTER_CONTENT_MARGIN := 7
+## 味方対象選択リストの選択色——COLOR_TARGET_SELECTED_BG（敵/部位、暗い
+## 赤）と対になる、味方用の暗い緑。盤面のCOLOR_ALLY_TARGET_BORDER（カード
+## の縁取り）と同じ色相のまま、白文字が乗っても読める暗さにした背景専用
+## の色（COLOR_TARGET_CURSOR/COLOR_TARGET_SELECTED_BGの関係と同じ扱い）。
+const COLOR_ALLY_TARGET_SELECTED_BG := Color(0.09, 0.35, 0.15)
+## 味方対象リストは必ず5人ぶん（実装当初の実測でパネル自体が窓の外へ
+## あふれる高さになった、実測ベースで調整した専用寸法）——本体/部位は
+## 現状2〜3件までしかないためSUBMENU_ROW_*(font19/padding16/54px)を
+## そのまま使えるが、5件固定のこのリストだけは同じ思想（旧来より明確に
+## 大きい）を保ちつつ1行あたりを小さめにする必要がある。SUBMENU_ROW_*
+## より小さいが、拡大前の初期実装（フォント13・余白6前後）よりは
+## はっきり大きいまま——§15「画面ごとに極端に...ないように」は「行数の
+## 違いに応じた現実的な調整」までは禁じていないと判断した。
+const SUBMENU_PARTY_ROW_FONT_SIZE := 15
+const SUBMENU_PARTY_ROW_CONTENT_MARGIN := 4
+const SUBMENU_PARTY_ROW_MIN_HEIGHT := 28.0
+const SUBMENU_PARTY_ROW_SEPARATION := 3
+
+
+## 敵/部位・味方対象選択（2026-08-27b、下部固定バーとサブメニューの
+## 分離）: 独立した最上位Control——下部バーの`row`とは無関係のanchor
+## (PRESET_RIGHT_WIDE、_battle_list_panelと完全に同じ矩形)を持つため、
+## この表示/非表示は下部バーのレイアウト計算に一切影響しない。かつては
+## _commands_columnと同じ`row`スロットを共有していたが（対象選択中は
+## commandsを隠して差し替える設計）、それがNEXT5/5人ステータス/コマンド
+## 列の中央寄せ位置をズラす実機バグの原因だったため、_battle_list_panel
+## と同じ独立領域へ分離した——「以前スキル一覧が表示されていた場所」を
+## 対象選択でも共通利用する、というユーザー指定の構造そのもの。
+## 内部レイアウトの拡大（2026-08-28）: 「上：タイトル/説明、中央：選択肢
+## +使用スキル/対象、下：もどる/決定」という3段構成へ——target_spacer
+## （SIZE_EXPAND_FILLのControl、可視要素なし）が中央と下段の間の余った
+## 縦方向の空間を丸ごと吸収するため、もどる/決定は常にパネル下端に固定
+## される（§10/§11）。enemy_target_rows/ally_target_rowsはHFlowContainer
+## ではなくVBoxContainerへ変更——選択肢を横幅いっぱいのボタンとして
+## 縦一列に並べる（§5「横幅を使う」§12の見本どおり）ための最も確実な
+## 手段（HFlowContainerの行内伸縮に頼る幅ハックより堅牢）。既存5件の
+## テストが`enemy_target_rows`をHFlowContainerとして型付けしていたため、
+## それらもVBoxContainerへ追随修正した（振る舞い自体—子の数・可視状態・
+## クリック時の選択更新—は無改修）。
+func _build_target_confirm_panel() -> void:
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	panel.offset_left = -420
+	panel.offset_right = -12
+	panel.offset_top = SUBMENU_PANEL_TOP_OFFSET
+	panel.offset_bottom = SUBMENU_PANEL_BOTTOM_OFFSET
+	panel.visible = false
+	panel.add_theme_stylebox_override(
+		"panel", _panel_style(Color(0.06, 0.07, 0.12, 0.95), SUBMENU_PANEL_MARGIN))
+	add_child(panel)
+	_target_confirm_panel = panel
 
 	var target_column := VBoxContainer.new()
-	# 下部操作バー圧縮（2026-08-22c）: 4→0。加えて、enemy_target_rows
-	# （下記、横並びFlowContainerへ変更）が折り返す前に十分な横幅を
-	# 確保できるよう最小幅を明示（HBoxContainer内で自然幅のまま伸縮
-	# しないと、行が伸び続けて折り返しが発生しない＝縦方向の節約効果が
-	# 出ないため）。
-	target_column.add_theme_constant_override("separation", 0)
-	target_column.custom_minimum_size = Vector2(360, 0)
+	target_column.add_theme_constant_override("separation", 4)
 	_target_confirm_panel.add_child(target_column)
 
 	var target_title := Label.new()
 	target_title.name = "target_title"
 	target_title.text = locale.text("UI_BOSS_TARGET_TITLE")
-	# 下部操作バー圧縮（2026-08-22c）: 15→13（パネル内の他テキストと揃え、
-	# 対象選択パネル自体の高さ予算を詰める）。
-	target_title.add_theme_font_size_override("font_size", 13)
+	target_title.add_theme_font_size_override("font_size", SUBMENU_TITLE_FONT_SIZE)
 	target_title.modulate = COLOR_BOSS_PANEL_TEXT
 	target_column.add_child(target_title)
 
 	var target_instruction := Label.new()
 	target_instruction.name = "target_instruction"
 	target_instruction.text = locale.text("UI_BOSS_TARGET_INSTRUCTION")
-	target_instruction.add_theme_font_size_override("font_size", 11)
+	target_instruction.add_theme_font_size_override("font_size", SUBMENU_INSTRUCTION_FONT_SIZE)
 	target_instruction.modulate = COLOR_BOSS_PANEL_TEXT
 	target_column.add_child(target_instruction)
 
@@ -3069,108 +3510,187 @@ func _build_battle_bar() -> void:
 	# skill or a boss with nothing else to pick (_enter_target_selection
 	# already skips straight past this whole panel when enemy_targets.
 	# size()==1, so this stays empty and invisible for every non-parted
-	# boss — untouched behavior).
-	# レスポンシブUI基盤（2026-08-21）: barがgrow_vertical=BEGINで内容に
-	# 合わせて自動的に高さを決め直すようになった（_build_battle_bar）
-	# ため、この行リストは何行あっても見切れることが構造的に無くなっ
-	# た——固定pxの高さ上限やScrollContainerでの人為的な打ち切りは、
-	# 「将来また特定の行数を想定して壊れる」余地を残すだけなので採用
-	# しない（通常のボスの部位数は多くない想定、§8の「詰め込みより
-	# 操作性を優先」に対応）。
-	# 下部操作バー圧縮（2026-08-22c）: VBoxContainer（本体/右腕/脚を縦に
-	# 積む）からHFlowContainer（横に並べ、幅に収まらない分だけ自動的に
-	# 折り返す）へ変更——選択肢の内容・個数・クリック挙動は無改修のまま、
-	# 縦方向の占有だけを大きく削減する（3行→1〜2行）。折り返しは
-	# target_columnのcustom_minimum_size.x（上記）が与える幅予算の中で
-	# Godotが自動的に行うため、将来ボスの部位数が増えても固定行数の
-	# 前提を壊さない（レスポンシブUI基盤の「決め打ちの高さ上限を作ら
-	# ない」方針をそのまま継承）。
-	var enemy_target_rows := HFlowContainer.new()
+	# boss — untouched behavior). VBoxContainer (2026-08-28, replaces the
+	# 2026-08-22c HFlowContainer): full-width rows in a single column,
+	# default fill-horizontal behavior of a VBoxContainer's children.
+	var enemy_target_rows := VBoxContainer.new()
 	enemy_target_rows.name = "enemy_target_rows"
-	enemy_target_rows.add_theme_constant_override("h_separation", 4)
-	enemy_target_rows.add_theme_constant_override("v_separation", 2)
+	enemy_target_rows.add_theme_constant_override("separation", SUBMENU_ROW_SEPARATION)
 	target_column.add_child(enemy_target_rows)
 
-	# 下部操作バー圧縮（2026-08-22c）: 「スキル」「対象」を縦2行から
-	# 横1行へ統合——文字情報は変えず、レイアウトだけで1行ぶん節約する。
-	var target_info_row := HBoxContainer.new()
-	target_info_row.add_theme_constant_override("separation", 14)
-	target_column.add_child(target_info_row)
+	# NEW (2026-08-28、§6/§12): 味方対象（回復/バフ）選択専用の行リスト。
+	# 既存の「下部カードをクリックして選ぶ」導線(_on_battle_card_input)は
+	# 無改修のまま残し、この行リストは同じ_battle_selected_ally_target
+	# へ書き込むだけの、もう一つの入口(_on_ally_target_row_selected)——
+	# actor/target分離やSPD/NEXT5等のロジックには一切触れていない。
+	var ally_target_rows := VBoxContainer.new()
+	ally_target_rows.name = "ally_target_rows"
+	ally_target_rows.add_theme_constant_override("separation", SUBMENU_PARTY_ROW_SEPARATION)
+	target_column.add_child(ally_target_rows)
+
+	# §9「ラベルと内容を分離...1行へ小さく詰め込みすぎない」: 従来の横
+	# 並びHBoxContainerから、使用スキル/対象を縦2行へ積む構成へ変更。
+	var target_info_block := VBoxContainer.new()
+	target_info_block.name = "target_info_block"
+	target_info_block.add_theme_constant_override("separation", 4)
+	target_column.add_child(target_info_block)
 
 	var target_skill_line := Label.new()
 	target_skill_line.name = "skill_line"
-	target_skill_line.add_theme_font_size_override("font_size", 13)
+	target_skill_line.add_theme_font_size_override("font_size", SUBMENU_INFO_VALUE_FONT_SIZE)
 	target_skill_line.modulate = COLOR_BOSS_PANEL_TEXT
-	target_info_row.add_child(target_skill_line)
+	target_info_block.add_child(target_skill_line)
 
 	var target_target_line := Label.new()
 	target_target_line.name = "target_line"
-	target_target_line.add_theme_font_size_override("font_size", 13)
+	target_target_line.add_theme_font_size_override("font_size", SUBMENU_INFO_VALUE_FONT_SIZE)
 	target_target_line.modulate = COLOR_BOSS_PANEL_TEXT
-	target_info_row.add_child(target_target_line)
+	target_info_block.add_child(target_target_line)
+
+	# §11「パネル下部にもどる/決定を固定」: 可視要素を持たないSIZE_EXPAND_
+	# FILLのControlが、中央ブロックと footer の間の余りスペースを丸ごと
+	# 吸収する——footer自身は常に自然な高さのまま、結果としてパネル最下段
+	# へ固定される。
+	var target_spacer := Control.new()
+	target_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	target_column.add_child(target_spacer)
 
 	var target_footer := HBoxContainer.new()
-	target_footer.add_theme_constant_override("separation", 8)
+	target_footer.add_theme_constant_override("separation", 12)
 	target_column.add_child(target_footer)
 	var target_back_button := Button.new()
 	target_back_button.text = locale.text("UI_BOSS_BACK")
+	target_back_button.custom_minimum_size.y = SUBMENU_FOOTER_MIN_HEIGHT
 	target_back_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# 下部操作バー圧縮（2026-08-22c）: 従来は無スタイルでGodotの既定
-	# テーマ（既定フォント16pt・縦方向に大きめの余白を持つ）に頼って
-	# いた——他の下部バーボタンと同じ薄型スタイル（もどるボタンと同系色）
-	# ＋パネル内の他テキストと揃えた13ptを明示適用。
-	_style_button(target_back_button, Color(0.28, 0.24, 0.32), 5)
-	target_back_button.add_theme_font_size_override("font_size", 13)
+	_style_button(target_back_button, Color(0.28, 0.24, 0.32), SUBMENU_FOOTER_CONTENT_MARGIN)
+	target_back_button.add_theme_font_size_override("font_size", SUBMENU_FOOTER_FONT_SIZE)
 	target_back_button.pressed.connect(_on_target_back)
 	target_footer.add_child(target_back_button)
 	var target_confirm_button := Button.new()
 	target_confirm_button.text = locale.text("UI_BOSS_CONFIRM")
+	target_confirm_button.custom_minimum_size.y = SUBMENU_FOOTER_MIN_HEIGHT
 	target_confirm_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_style_button(target_confirm_button, COLOR_START_BUTTON, 5)
-	target_confirm_button.add_theme_font_size_override("font_size", 13)
+	_style_button(target_confirm_button, COLOR_START_BUTTON, SUBMENU_FOOTER_CONTENT_MARGIN)
+	target_confirm_button.add_theme_font_size_override("font_size", SUBMENU_FOOTER_FONT_SIZE)
 	target_confirm_button.pressed.connect(_on_target_confirm)
 	target_footer.add_child(target_confirm_button)
 
 
-## バトルメッセージ本体（新企画v1仕様書, 2026-08-22〜22c）: 「ソティリス
-## のラピッドスラッシュ！」→「洞窟トロルの右腕に84ダメージ！」のような、ダメージ
+## バトルメッセージ本体（新企画v1仕様書, 2026-08-22〜31）: 「ソティリス
+## のラピッドスラッシュ！」→「洞窟トロルに84ダメージ！」のような、ダメージ
 ## 数字（既存の頭上ポップアップ、無改修のまま維持）とは別に「今まさに
 ## 行動している1キャラクター/敵について、誰が・何をして・どこへ・何が
-## 起きたか」を文章で確認できる領域。固定BATTLE_MESSAGE_MAX_LINES行の
-## Labelを最初に一度だけ作り、以降は_refresh_battle_message_labels()が
-## テキスト/色を書き換えるだけ（行の追加削除を毎回せず、既存の"固定
-## 要素は固定サイズで良い"方針のまま——bar自体の自動拡張(grow_vertical)
-## には行数一定でも変わらず参加する）。3行（旧4行から2026-08-22bで削減
-## ——§5「履歴を表示しなくなるため大きな領域は不要」、1ターン最大の
-## 例（宣言+ダメージ+部位破壊）がちょうど3行に収まる）。
-const BATTLE_MESSAGE_MAX_LINES := 3
+## 起きたか」を文章で確認できる領域。
+## アーキテクチャ（2026-09-02、実機報告「すべて1行表示は採用しない」）:
+## §1-§19「味方の行動(宣言＋結果)は2行、敵側(通常行動/予兆/Action Set/
+## 特殊反応/不発/状態変化)は1行」という非対称仕様に確定。カテゴリ
+## ("ally"/"enemy")は_battle_message_categoryという1つの変数で明示的に
+## 管理し(§16)、_append_battle_message()がカテゴリの切り替わりを検知した
+## 瞬間だけ前の内容を丸ごと消す——呼び出し側が"敵か味方か"を判断して
+## 個別にclear()を打ち分ける必要はない(§6/§19はこの1箇所だけで保証)。
+## Labelノードは常にBATTLE_MESSAGE_LABEL_COUNT個(=味方2行の最大値)を
+## 常設し、敵1行表示時は2個目を非表示にした上でcolumn.alignment=CENTER
+## により1個目が縦方向中央へ来る(§13)——3個以上のLabelを積み上げる旧
+## ログ設計(2026-08-22b以前)や、逆に常に1個しか作らない旧「常時1行」
+## 設計(2026-09-01)、どちらの再発でもない第3の構成。
+const BATTLE_MESSAGE_ALLY_MAX_LINES := 2
+const BATTLE_MESSAGE_ENEMY_MAX_LINES := 1
+const BATTLE_MESSAGE_LABEL_COUNT := 2  # max(ALLY_MAX_LINES, ENEMY_MAX_LINES)
 const COLOR_BATTLE_MESSAGE_SPECIAL := Color(1.0, 0.85, 0.2)  # COLOR_PART_BREAK_POPUPと同じ「特別な出来事」語彙を再利用
+## §9「バー高さを大幅に高くしない」/§11「左右に適切な余白」の両方を
+## 満たす唯一のノブ——PanelContainerのcontent_margin(全辺同一)がそのまま
+## 「敵1行時の上下センタリング余地」と「文字が端に密着しないための左右
+## 余白」を兼ねる。味方2行が新たに必要とする縦幅ぶん、2026-09-01の単一
+## 行時代の値(10)よりheadless実測で切り詰めた(2026-09-02、5へ)——§9の
+## 「バーを大幅に高くしない」と、円(Madoka)の頭上が隠れない安全マージン
+## (下のFLOOR_HEIGHTのdoc参照)を両立させるための調整。
+const BATTLE_MESSAGE_PANEL_MARGIN := 5
+## §12「バー高さは基本的に現在のまま維持、味方2行も収まり、敵1行なら
+## 大きな文字を中央に表示できるように」——2行/1行どちらのカテゴリでも
+## パネル(を伸縮させる列)の最小高さをこの値で揃える"床"。§13の「敵1行を
+## 縦方向中央に」を、Labelの個別vertical_alignmentではなくcolumn自体の
+## alignment=CENTERで実現するために必要（床が無いと2個目のLabelが
+## visible=falseの間、列の自然な高さが1行ぶんまで縮んでしまい、
+## センタリングする余地そのものが無くなる）。値はheadless実測で
+## 「味方2行(19pt)」の自然な高さ(2行×27px=54)にちょうど一致するよう
+## 調整(2026-09-02)——floorが自然な高さより大きすぎると§9のバー高さ
+## 予算を無駄に消費し、円(Madoka)の頭上クリアランス(headless実測で
+## 対象選択3行＋この床の最悪ケースにおいて+6.5px、tests/core/test_
+## bottom_bar_reflow.gdで直接検証)を圧迫するため、"ちょうど一致"を
+## 狙って調整した。
+const BATTLE_MESSAGE_PANEL_FLOOR_HEIGHT := 54.0
+## §14「一瞬で切り替わりすぎて読めなくならないように...ただし不自然に
+## 長く停止して戦闘テンポを落とさない」——実機報告「部位破壊→特殊反応の
+## 切り替えの速さをもう少し遅くでいい」(2026-09-03)を受け延長した。
+## 0.9秒は実際に長すぎた——通常攻撃のactフェーズ(BATTLE_ANIM_ACT_MIN_
+## SECONDS=0.9秒が下限、命中はその50%地点=0.45秒)では、命中後に残る
+## 時間がこの延長値自体より短くなり、フェーズが尽きる前に発火しない
+## （_queue_deferred_battle_messageの既存仕様どおり静かにスキップされる
+## だけだが、"予兆メッセージが永遠に現れない"ため待ち受けるテストが
+## 詰まった——headless実行で実際に確認・報告済み）。0.4秒→0.65秒へ
+## 延長（判断値、具体的な秒数の指定は無かった）——最短の通常攻撃act尺
+## でも命中後に残る猶予(約0.72秒、8コマ×0.18秒のact尺×命中後50%)に
+## 収まる範囲で、旧値より確実に長くなるよう選んだ。万一これより短い
+## フェーズでは、この特殊反応メッセージ自体が発火せずスキップされる
+## だけで、既存VFXの挙動には一切影響しない(_queue_deferred_battle_
+## messageのdoc参照)。
+const BATTLE_MESSAGE_CHAINED_REACTION_DELAY_SECONDS := 0.65
+## §11「例として味方2行=19〜21pt、敵1行=24〜28pt程度から実機確認」——
+## 敵側は2026-09-01の単一行時代の値(26)をそのまま踏襲（1行しか使わない
+## という条件自体が変わっていないため）。味方側は新設・headless実測で
+## 調整——範囲の中央(20)から始めたが、対象選択3行との最悪ケースで円
+## (Madoka)の頭上マージンがわずかにマイナス(-5.5px、隠れてしまう)に
+## なったため、範囲の下限である19へ1段階だけ下げて安全マージンを確保
+## した(2026-09-02、上のBATTLE_MESSAGE_PANEL_MARGIN/_FLOOR_HEIGHTの
+## 調整と合わせた結果)。
+const BATTLE_MESSAGE_ALLY_FONT_SIZE := 19
+const BATTLE_MESSAGE_ENEMY_FONT_SIZE := 26
 
 
 func _build_battle_message_panel(parent: VBoxContainer) -> void:
 	var panel := PanelContainer.new()
-	# 下部操作バー圧縮（2026-08-22c）: 余白10→4。文字サイズ(13pt)・
-	# アウトラインは無改修——§11「必要以上に大きくしない」は余白側で
-	# 対応し、メッセージ本文の可読性はそのまま維持する。
-	# 下部UI再整理（2026-08-23b）: 3→2（chrome reclaim、border撤去と合わせ
-	# メッセージパネル自身の縦方向フットプリントをさらに切り詰める）。
-	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.04, 0.05, 0.09, 0.72), 2, false))
+	# 下部操作バー圧縮（2026-08-22c〜31）: 複数行を支える必要があった頃は
+	# 余白を0まで切り詰めていたが、2026-09-02の味方2行/敵1行の非対称
+	# 仕様では§13「敵1行を上端に張り付けず縦中央に」のためあえて余白を
+	# 復活させる——PanelContainerのcontent_marginは全辺同一(_panel_style)
+	# なので、これは同時に§11「左右に適切な余白」も満たす(バー自身の
+	# 既存offset_left=10からの追加インセットとして働く)。
+	# 下部UI微調整（2026-08-25、§8-§11）: draw_border=falseのまま作り、
+	# 下端だけ_panel_style()と全く同じ太さ(2px)・色(既存の金・黄土系
+	# border_color)の境界線を後付けする——「戦闘盤面│バトルメッセージ│
+	# ステータス」の3領域を上下1本ずつの線で分ける、というユーザーの
+	# 図をそのまま実装。上端borderは意図的に付けない（メッセージパネルは
+	# barの一番上の子なので、上端に付けるとbar自身の上端border(既存、
+	# 2026-08-23bで確立済みの唯一の境界線)と密接して"3本線"バグの再発に
+	# なる——今回もその教訓どおり片側だけに限定する）。
+	var message_style := _panel_style(Color(0.04, 0.05, 0.09, 0.72), BATTLE_MESSAGE_PANEL_MARGIN, true)
+	message_style.border_width_top = 0
+	message_style.border_width_left = 0
+	message_style.border_width_right = 0
+	panel.add_theme_stylebox_override("panel", message_style)
 	parent.add_child(panel)
 	_battle_message_panel = panel
 
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 0)
+	# §13「敵1行を縦方向中央に」——2個目のLabelがvisible=falseで列が
+	# 自然に縮んでも、下のcustom_minimum_size(床)ぶんの余白がこの
+	# alignmentによって1個目のLabelの上下へ均等に配分される。味方2行の
+	# 場合はほぼ床の高さぴったりになるため実質的な影響は無い（§14
+	# 「現在の配置を基本的に維持」）。
+	column.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.custom_minimum_size.y = BATTLE_MESSAGE_PANEL_FLOOR_HEIGHT
 	panel.add_child(column)
 
 	_battle_message_labels.clear()
-	for i in BATTLE_MESSAGE_MAX_LINES:
+	for i in BATTLE_MESSAGE_LABEL_COUNT:
 		var label := Label.new()
-		label.add_theme_font_size_override("font_size", 13)
 		label.add_theme_color_override("font_color", COLOR_BOSS_PANEL_TEXT)
 		# §8「文字のアウトライン...を必要に応じて」— 背景パネル自体が
 		# 半透明の暗色（上のstylebox）なので黒アウトラインは薄めで足りる。
 		label.add_theme_color_override("font_outline_color", COLOR_POPUP_OUTLINE)
 		label.add_theme_constant_override("outline_size", 2)
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		label.text = ""
 		label.visible = false
 		column.add_child(label)
@@ -3179,31 +3699,79 @@ func _build_battle_message_panel(parent: VBoxContainer) -> void:
 
 ## 唯一の追加口（§4/§12「任意の戦闘メッセージを追加できる構造」）——
 ## ダメージ発生時の自動生成専用ではなく、いつでもどこからでも呼べる。
-## 将来の特殊ボスAI/特殊条件はこの関数を直接呼ぶだけでよい。kind=
-## "special"は§9の"少し目立たせる"扱い（現状は色を変えるだけ、専用の
-## 演出は特殊ボス制作時に決める）。**新しい行動者のターンが始まる際は
-## 必ず先に_clear_battle_message()を呼ぶこと**——この関数自体は積み
-## 増すだけで、ターン境界の判定は呼び出し側（_advance_battle_anim_
-## step等）の責任（2026-08-22b、§2「前の行動者の文章を残さない」）。
-func _append_battle_message(text: String, kind: String = "normal") -> void:
+## kind="special"は"少し目立たせる"扱い（現状は色を変えるだけ、専用の
+## 演出は特殊ボス制作時に決める）。category="ally"|"enemy"(§16)——
+## 現在表示中のカテゴリと異なる場合は、新カテゴリの1件目として自動的に
+## 前の内容を丸ごと消してから積む(§6/§19、下のdoc参照)。同じカテゴリの
+## 連続appendはFIFOで古い方から溢れさせる（味方は2行まで、敵は1行のみ
+## ＝実質「置き換え」）。既存の「新しい行動者のターンが始まる際は必ず
+## 先にclearする」という個々の呼び出しパターンは、同じカテゴリが連続する
+## ケース（例: 味方→次の味方）でこの自動クリアだけでは前の内容が消えない
+## ため、今も必須のまま残っている（冗長ではない）。
+func _append_battle_message(text: String, kind: String = "normal", category: String = "ally") -> void:
+	if category != _battle_message_category:
+		_battle_message_lines.clear()
+		_battle_message_category = category
 	_battle_message_lines.append({"text": text, "kind": kind})
-	while _battle_message_lines.size() > BATTLE_MESSAGE_MAX_LINES:
+	var max_lines := (
+		BATTLE_MESSAGE_ENEMY_MAX_LINES if category == "enemy" else BATTLE_MESSAGE_ALLY_MAX_LINES)
+	while _battle_message_lines.size() > max_lines:
 		_battle_message_lines.pop_front()
 	_refresh_battle_message_labels()
 
 
 ## 行動者が切り替わった瞬間・REWIND・新しい遭遇の開始で呼ぶ——前の
 ## 内容を完全に消してから、必要なら呼び出し側が新しい1行目を積む。
+## カテゴリも""へ戻す(次のappendが必ず「新カテゴリ扱い」になり、たとえ
+## 直前と同じカテゴリでも一度確実に一掃されることを保証する)。予約済みの
+## 遅延メッセージ(_battle_message_deferred)も同時に破棄する(2026-09-01)
+## ——REWIND等でゲーム状態が丸ごと切り替わった後、無関係な別の瞬間に
+## 古い予約が誤って発火するのを防ぐ。
 func _clear_battle_message() -> void:
 	_battle_message_lines.clear()
+	_battle_message_category = ""
+	_battle_message_deferred = {}
 	_refresh_battle_message_labels()
+
+
+## 「部位破壊→特殊反応」のように、同じ瞬間に(通常はカテゴリを跨いで)
+## 2つの文章を続けて見せたい場合の予約口(2026-09-01、§15/§18)。即座に
+## 切り替えると1つ目が1フレームも見えないまま上書きされてしまう
+## ——`delay_seconds`後に自動的に表示が差し替わるよう予約するだけで、
+## 呼び出し元(_fire_battle_anim_hit)は複雑なタイマーを自前で持たなくて
+## 済む。汎用（特定の文言やボスidを知らない）——将来別の"◯◯→△△"連鎖に
+## もそのまま使える。既存のVFX/アニメフェーズの尺自体は一切変更しない
+## (§21)ため、フェーズがdelay_seconds経過前に終わってしまう場合は
+## そのまま静かに発火しない（_advance_battle_anim_step/REWINDが必ず
+## クリアするため、次のターンへ誤って持ち越されることもない）。
+func _queue_deferred_battle_message(text: String, kind: String, category: String, delay_seconds: float) -> void:
+	_battle_message_deferred = {
+		"text": text, "kind": kind, "category": category, "at": _battle_anim_phase_elapsed + delay_seconds,
+	}
+
+
+## _on_battle_anim_tick()の冒頭、フェーズ別分岐より前から毎tick呼ぶ——
+## どのフェーズでも同じ_battle_anim_phase_elapsedを見るだけなので分岐
+## ロジック側には一切触れずに済む。
+func _flush_deferred_battle_message_if_due() -> void:
+	if _battle_message_deferred.is_empty():
+		return
+	if _battle_anim_phase_elapsed >= float(_battle_message_deferred["at"]):
+		_append_battle_message(
+			str(_battle_message_deferred["text"]), str(_battle_message_deferred.get("kind", "normal")),
+			str(_battle_message_deferred.get("category", "ally")))
+		_battle_message_deferred = {}
 
 
 func _refresh_battle_message_labels() -> void:
 	if _battle_message_labels.is_empty():
 		return
-	for i in BATTLE_MESSAGE_MAX_LINES:
+	var font_size := (
+		BATTLE_MESSAGE_ENEMY_FONT_SIZE if _battle_message_category == "enemy"
+		else BATTLE_MESSAGE_ALLY_FONT_SIZE)
+	for i in _battle_message_labels.size():
 		var label := _battle_message_labels[i]
+		label.add_theme_font_size_override("font_size", font_size)
 		if i < _battle_message_lines.size():
 			var entry: Dictionary = _battle_message_lines[i]
 			label.text = str(entry["text"])
@@ -3223,21 +3791,28 @@ func _refresh_battle_message_labels() -> void:
 ## direction, 2026-07-19: replace the StyleBoxFlat approximation with the
 ## real button art). No texture_disabled art exists, so unusable buttons
 ## are dimmed via modulate instead (_update_battle_buttons).
-func _make_texture_command_button(art_key: String, callback: Callable) -> TextureButton:
+## 下部UI横幅再配分（2026-08-25、§6/§9）: heightを引数化——NEXT5追加で
+## 横幅が逼迫し、こうげき/スキル/防御/どうぐの4コマンドを1行に並べる幅が
+## 無いため、2×2グリッド（こうげき スキル / 防御 どうぐ）へ変更した。
+## 2行になった分、アイコン単体の高さは55→44へ縮小（2行分の合計高が
+## cards_row側の高さ予算に収まるよう）。
+## 下部UI微調整（2026-08-25b、§2/§3「4ボタンを少し大きく・完全に同じ
+## サイズへ」）: heightからwidthを逆算する旧方式（アイコンの実アスペクト
+## 比によって幅が微妙にバラつく——攻撃1.89/スキル1.76/どうぐ1.80）を
+## 撤回し、明示的な`cell_size`を受け取る方式へ変更。ignore_texture_size=
+## true＋STRETCH_KEEP_ASPECT_CENTEREDは元々「テクスチャがボタンの矩形
+## いっぱいへ収まるよう中央寄せで拡縮する」ため、ボタン自身の矩形を
+## アスペクト比と無関係な固定サイズにしても崩れない——防御(実アート
+## 無し)を含めた4つ全てを厳密に同じcell_sizeにすることで、§3「特定の
+## ボタンだけ大きい・小さい状態にはしない」を近似（floorを合わせるの
+## ではなく）ではなく構造的に保証する。
+func _make_texture_command_button(art_key: String, callback: Callable, cell_size: Vector2) -> TextureButton:
 	var button := TextureButton.new()
 	var tex := art.texture(art_key)
 	button.texture_normal = tex
 	button.ignore_texture_size = true
 	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	# 下部操作バー再調整（2026-08-22d）: 64→38（前ラウンド）→50。
-	# 下部UI再整理（2026-08-23b、§9）: 50→56→54→55→56→55。cards_row側の
-	# 高さ（カード内間隔・バー太さ調整で伸びた）とおおよそ釣り合う値まで
-	# 再調整——完全一致は不要（どちらが高くても`row`はその高い方に揃う
-	# だけ）だが、極端に差が開くと"どちらかだけ浮いて見える"ため近い値を
-	# 選ぶ。アイコンなのでフォントサイズには影響しない。
-	var height := 55.0
-	var aspect := float(tex.get_width()) / float(tex.get_height())
-	button.custom_minimum_size = Vector2(height * aspect, height)
+	button.custom_minimum_size = cell_size
 	button.pressed.connect(callback)
 	return button
 
@@ -3299,6 +3874,26 @@ func _make_battle_card(unit_id: int) -> PanelContainer:
 	name_label.add_theme_font_size_override("font_size", 16)
 	column.add_child(name_label)
 
+	# Phase 6「防御」(2026-08-25、§13/§14/§15): 名前のすぐ下へ「防御中」を
+	# 表示——sim.guarding_units（唯一の情報源）を毎回このカード再構築時に
+	# 読むだけなので、防御の付与/解除タイミングは常にsim側のロジック
+	# （_resolve_one_action/_apply_enemy_counter、guarding_units自身の
+	# 更新箇所）にのみ依存し、UI側はそれを反映するだけ。current_actorの
+	# 黄色枠（COLOR_CARD_BORDER_SELECTED、_update_card_selectionが別途
+	# 管理）とは意図的に別の色（青系）を使い、§15「現在行動者強調と防御中
+	# 表示は別概念」を色でも混同しないようにする。ガードしていない
+	# キャラクターにはこのLabel自体を追加しない（visible=falseで隠す
+	# のではなくノード自体を作らない——このカードは_refresh_boss_panel()
+	# のたびに丸ごと作り直されるため、常設Labelを都度トグルする設計は
+	# 不要）。新しい画像素材は使わない（§13、テキストのみ）。
+	if sim.guarding_units.has(unit_id):
+		var guard_label := Label.new()
+		guard_label.text = locale.text("UI_BATTLE_GUARDING_STATUS")
+		guard_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		guard_label.add_theme_font_size_override("font_size", 11)
+		guard_label.modulate = COLOR_GUARD_STATUS_TEXT
+		column.add_child(guard_label)
+
 	# 盤面の情報整理（2026-08-23、§3）: 立ち絵/アイコンを削除——実際の
 	# キャラクターは既に戦闘盤面に表示されているため、下部でもう一度
 	# 表示する必要性が低いと判断（ユーザー指示）。旧`portrait`
@@ -3348,6 +3943,14 @@ func _make_battle_card(unit_id: int) -> PanelContainer:
 ## During ally-target selection, clicking a card picks the heal/buff
 ## target instead of changing who's acting; otherwise it's the normal
 ## "command this character" click.
+## 新戦闘進行システム v1 バグ修正 (2026-08-25、実機報告「円がラピッド
+## スラッシュを使える」への対応): 味方対象選択（回復/バフの対象を選ぶ）
+## 以外のカードクリックは、行動主体を一切変更しない——旧方式の「5人
+## から自由に行動主体を選ぶ」elseブランチ（_battle_selected_unit =
+## unit_id）を完全に撤去した。行動主体（_battle_selected_unit）を書き
+## 換えられるのは_begin_current_turn()（sim.current_actor_token()に
+## 追従する唯一の書き込み元）だけ——actor（誰が行動するか）とtarget
+## （誰を狙うか）を構造的に分離する。
 func _on_battle_card_input(event: InputEvent, unit_id: int) -> void:
 	if event is InputEventMouseButton and event.pressed \
 			and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
@@ -3356,10 +3959,6 @@ func _on_battle_card_input(event: InputEvent, unit_id: int) -> void:
 			_refresh_target_panel()
 			_update_card_selection()
 			queue_redraw()
-		else:
-			_battle_selected_unit = unit_id
-			_update_card_selection()
-			_update_battle_buttons()
 
 
 const COLOR_ALLY_TARGET_BORDER := Color(0.35, 0.85, 0.45)
@@ -3399,33 +3998,54 @@ func _set_texture_button_enabled(button: TextureButton, enabled: bool) -> void:
 	button.modulate = Color.WHITE if enabled else COLOR_TEXTURE_BUTTON_DISABLED
 
 
+## 新戦闘進行システム v1 (2026-08-24): 旧「全員分の行動が揃ったか」判定
+## (行動開始ボタンの有効化)は概念ごと消えた——残るのは「今コマンドを
+## 選べる相手が実際にいるか」だけ（_begin_current_turn()が味方の番の
+## たびに_battle_selected_unitを正しい値へ更新するので、通常はほぼ常に
+## trueのまま）。
 func _update_battle_buttons() -> void:
-	var all_set := not _battle_order.is_empty()
-	for unit_id in _battle_order:
-		if not _battle_pending_actions.has(unit_id):
-			all_set = false
-			break
-	_set_texture_button_enabled(_battle_start_button, all_set)
 	var has_selection := _battle_selected_unit != -1
 	_set_texture_button_enabled(_battle_attack_button, has_selection)
 	_set_texture_button_enabled(_battle_skill_button, has_selection)
 	_set_texture_button_enabled(_battle_item_button, has_selection)
+	# Phase 6「防御」(2026-08-25、§9): こうげき/スキル/どうぐと全く同じ
+	# 条件（現在行動者が選択されているか）で有効/無効を切り替える——
+	# 押せる条件そのものが「current_actorだけ」を保証する。TextureButtonの
+	# 3個と違い実アートを持たない通常のButtonなので、_style_button()が
+	# 用意したdisabledスタイル（グレーアウト、Buttonの標準disabledプロパ
+	# ティで自動的に切り替わる）をそのまま使う。
+	_battle_defend_button.disabled = not has_selection
+
+
+## 新戦闘進行システム v1 バグ修正 (2026-08-25、§14): 「現在行動者=操作
+## 可能キャラクター」を、こうげき/スキル/どうぐの全入口＋実際の解決
+## 直前（_set_battle_action）の両方で同じ1つの判定式から確認する——
+## _battle_selected_unitは_begin_current_turn()以外から書き換えられなく
+## なった（_on_battle_card_inputの修正）ため通常はこの判定が偽になる
+## 経路は無いはずだが、入口自体にもガードを置くことで「行動主体以外は
+## コマンドを入力できない」を構造として保証する（多層防御）。
+func _battle_selected_unit_is_current_actor() -> bool:
+	return _battle_selected_unit != -1 \
+		and sim.current_actor_token() == "ally:%d" % _battle_selected_unit
 
 
 ## こうげき always targets an enemy, so it always goes through target
 ## selection now (2026-07-19) instead of resolving immediately.
 func _on_battle_attack() -> void:
-	if _battle_selected_unit == -1:
+	if not _battle_selected_unit_is_current_actor():
 		return
 	_enter_target_selection("attack", "", "enemy")
 
 
+## §6/§14: この一覧は必ず現在行動者（_battle_selected_unit、
+## _begin_current_turn()経由でsim.current_actor_token()と一致することが
+## 保証済み）のsim.unit_skills()から構築する——他キャラのスキルが混ざる
+## 経路は無い。
 func _on_battle_skill() -> void:
-	if _battle_selected_unit == -1:
+	if not _battle_selected_unit_is_current_actor():
 		return
 	_battle_phase = "skillSelection"
-	_commands_column.visible = true
-	_target_confirm_panel.visible = false
+	_sync_battle_submenu_visibility()
 	_reset_boss_hp_bar_glow()
 	var unit: UDMinion = sim.minions[_battle_selected_unit]
 	var entries: Array = []
@@ -3459,10 +4079,59 @@ func _on_battle_skill() -> void:
 ## only, not battle consumables) — opens the same generic panel with
 ## nothing to pick, so wiring real entries in later is a data change,
 ## not a new screen.
+## HP/SPポーション追加 (2026-08-25、§1/§6): 空リストのプレースホルダー
+## から、battle_item_db+sim.battle_item_countsを実際に読む一覧へ——
+## §6「HPポーション×3、SPポーション×3のように一覧表示」。
+## 仕様変更 (2026-08-26、ユーザー指示「アイテムを必要としていなくても
+## 使えるようにして。特殊条件でポーションを使うをしなければいけない
+## ボスを作る予定」): enabledは「残数がある」の1条件のみへ簡略化——
+## 旧§12/§13の「回復できる生存中の対象が1人以上いる」ゲートは撤回。
+## 将来「HPの過多に関わらずポーション使用そのものが特殊ボスの発動条件」
+## という仕組みを作る前提で、満タンの相手にも常に使えるようにする。
+## バグ修正 (2026-08-27、実機報告「どうぐ→ポーション選択→もどるで元の
+## 状態へ戻れない」の根本原因): この関数は_battle_phaseを一度も更新して
+## おらず、_commands_column/_target_confirm_panelのvisibleも一切触れて
+## いなかった——兄弟関数の_on_battle_skill()は両方を明示的に更新して
+## いたのに、この関数だけが漏れていた。通常コマンドからどうぐを開く
+## 最初の1回はtarget_confirm_panelが既にvisible=falseのため症状が出ず
+## 気づかれなかったが、「対象選択(_enter_target_selection、target_
+## confirm_panel.visible=true)→もどる→_on_battle_item()」という経路では
+## target_confirm_panelがvisible=trueのまま放置され、同じ_row_スロットで
+## どうぐ一覧(_battle_list_panel)と対象選択パネルの両方が同時にvisible=
+## trueになって共通サブメニュー領域が壊れていた。_battle_phase=
+## "itemSelection"を明示し_sync_battle_submenu_visibility()（他の全遷移
+## 関数と共通の単一の入口）を呼ぶことで、個別のvisibleの手動同期漏れが
+## 構造的に起こらないようにする。
 func _on_battle_item() -> void:
-	if _battle_selected_unit == -1:
+	if not _battle_selected_unit_is_current_actor():
 		return
-	_show_battle_list_panel(locale.text("UI_BOSS_ITEM"), [])
+	_battle_phase = "itemSelection"
+	_sync_battle_submenu_visibility()
+	_reset_boss_hp_bar_glow()
+	var entries: Array = []
+	for item_id in battle_item_db.all_ids():
+		var item := battle_item_db.get_item(item_id)
+		var count := int(sim.battle_item_counts.get(item_id, 0))
+		var enabled := count > 0
+		entries.append({
+			"label": locale.text(str(item["name_key"])),
+			"cost_text": "×%d" % count,
+			"description": locale.text(str(item.get("desc_key", ""))),
+			"enabled": enabled,
+			"callback": _enter_target_selection.bind("item", str(item_id), "ally"),
+		})
+	_show_battle_list_panel(locale.text("UI_BOSS_ITEM"), entries)
+
+
+## Phase 6「防御」(2026-08-25、§1/§10): 対象選択を経由せず、押した瞬間に
+## その場で行動確定する——こうげき/スキルのように_enter_target_selection
+## へは進まない。既存の_set_battle_action()（current_actorとの整合を
+## 内部で再確認する既存ガード込み）を直接呼ぶだけなので、「決定」ボタンや
+## 専用の確定フローを新設する必要はない。
+func _on_battle_defend() -> void:
+	if not _battle_selected_unit_is_current_actor():
+		return
+	_set_battle_action(_battle_selected_unit, "guard", "")
 
 
 ## --- Target selection (2026-07-19) ---------------------------------------
@@ -3503,19 +4172,48 @@ func _battle_ally_targets() -> Array[int]:
 	return _battle_display_order()
 
 
+## 下部固定バーとサブメニューの分離 (2026-08-27b): _battle_list_panel
+## （スキル一覧・どうぐ一覧の共通表示）と_target_confirm_panel（敵/部位・
+## 味方対象選択の共通表示）は、下部バーとは無関係の独立した「同じ場所の
+## 中身を切り替える」1つの共通サブメニュー領域——この関数が_battle_phase
+## だけを見て、そのどちらか一方だけを表示し他方を必ず隠す。個々の遷移
+## 関数（_on_battle_skill/_on_battle_item/_enter_command_selection/
+## _enter_target_selection/_resolve_ally_action/_resolve_current_enemy_
+## turn）は_battle_phaseを更新した直後にこの関数を呼ぶだけでよく、2つの
+## .visibleを手動で個別に揃える必要が構造的に無くなる——「どうぐ一覧を
+## 開く関数だけがこの更新を一つ忘れていた」という元々のバグの根本原因の
+## クラス自体を塞ぐ。_commands_column（下部固定バー側の4コマンド）は
+## この関数の対象外——常にvisible=trueのまま(_build_battle_bar()で一度
+## 設定するだけ)、ボス戦中は一切切り替えない(実機報告「NEXT5・ステータス
+## ・コマンドが横へ圧縮された」——以前はここも切り替え対象で、それが
+## 下部バー`row`のレイアウトを揺らす原因だった)。
+func _sync_battle_submenu_visibility() -> void:
+	_battle_list_panel.visible = (
+		_battle_phase == "skillSelection" or _battle_phase == "itemSelection")
+	_target_confirm_panel.visible = _battle_phase == "targetSelection"
+
+
 func _enter_command_selection() -> void:
 	_battle_phase = "commandSelection"
-	_commands_column.visible = true
-	_target_confirm_panel.visible = false
+	_sync_battle_submenu_visibility()
 	_reset_boss_hp_bar_glow()
 	_update_card_selection()
 	queue_redraw()
 
 
+## HP/SPポーション追加 (2026-08-25)。仕様変更 (2026-08-26、§アイテムを
+## 必要としていなくても使えるように): どうぐ専用のフィルタ済みプールは
+## 撤回——ally-target skill(ヒーリング等)と全く同じ_battle_ally_targets()
+## を、sourceに関わらず常に使う。item_id引数は呼び出し元の互換のため
+## 残置（今は未使用）。
+func _battle_ally_target_pool(_source: String, _item_id: String) -> Array[int]:
+	return _battle_ally_targets()
+
+
 func _enter_target_selection(source: String, skill_id: String, target_kind: String) -> void:
 	_battle_target_kind = target_kind
 	if target_kind == "ally":
-		var ally_targets := _battle_ally_targets()
+		var ally_targets := _battle_ally_target_pool(source, skill_id)
 		if ally_targets.is_empty():
 			return
 		# Defaults to the acting character (self) if they're a valid
@@ -3542,17 +4240,15 @@ func _enter_target_selection(source: String, skill_id: String, target_kind: Stri
 	_battle_target_source = source
 	_battle_pending_skill_id = skill_id
 	_battle_phase = "targetSelection"
-	_commands_column.visible = false
-	_battle_list_panel.visible = false
+	_sync_battle_submenu_visibility()
 	_refresh_target_panel()
 	_update_card_selection()
-	_target_confirm_panel.visible = true
 	queue_redraw()
 
 
 func _cycle_target_selection(direction: int) -> void:
 	if _battle_target_kind == "ally":
-		var ally_targets := _battle_ally_targets()
+		var ally_targets := _battle_ally_target_pool(_battle_target_source, _battle_pending_skill_id)
 		if ally_targets.size() <= 1:
 			return
 		var index := ally_targets.find(_battle_selected_ally_target)
@@ -3572,6 +4268,8 @@ func _refresh_target_panel() -> void:
 	var skill_name := locale.text("UI_BOSS_ATTACK")
 	if _battle_target_source == "skill" and skill_db.has_skill(_battle_pending_skill_id):
 		skill_name = locale.text(str(skill_db.get_skill(_battle_pending_skill_id)["name_key"]))
+	elif _battle_target_source == "item" and battle_item_db.has_item(_battle_pending_skill_id):
+		skill_name = locale.text(str(battle_item_db.get_item(_battle_pending_skill_id)["name_key"]))
 	var target_name := ""
 	if _battle_target_kind == "ally":
 		if _battle_selected_ally_target != -1 and _battle_selected_ally_target < sim.minions.size():
@@ -3602,7 +4300,15 @@ func _refresh_target_panel() -> void:
 	else:
 		title_label.text = locale.text("UI_BOSS_TARGET_TITLE")
 		instruction_label.text = locale.text("UI_BOSS_TARGET_INSTRUCTION")
-	_refresh_enemy_target_rows()
+	var has_enemy_rows := _refresh_enemy_target_rows()
+	var has_ally_rows := _refresh_ally_target_rows()
+	# 右側サブメニュー拡大（2026-08-28）: 案内文はどちらの行リストも
+	# クリック可能な選択肢を1件も示していない時だけ表示する（旧: 敵/部位
+	# 選択の判定だけで決めていたため、常に非空のally_target_rowsが追加
+	# された今回、案内文が常時残ったままパネル自身が窓の外へあふれる
+	# 実機バグを作り込むところだった——両方の行リストの有無を1箇所で
+	# まとめて判定する形に直した）。
+	instruction_label.visible = not (has_enemy_rows or has_ally_rows)
 
 
 ## Rebuilds the clickable 本体/右腕/脚-style row list whenever there is more
@@ -3612,27 +4318,26 @@ func _refresh_target_panel() -> void:
 ## this whole panel before this function is ever reached in that case).
 ## Cheap full rebuild, same reasoning as _refresh_boss_parts_column(): at
 ## most a handful of rows, only rebuilt on a real selection-state change,
-## never per frame.
-func _refresh_enemy_target_rows() -> void:
-	# 下部操作バー圧縮（2026-08-22c）でVBoxContainer→HFlowContainerへ
-	# 変更（本体/部位を横並びで折り返し表示、縦方向を大きく節約）。
-	var rows_container: HFlowContainer = _target_confirm_panel.find_child(
+## never per frame. Returns whether it populated any row (queue_free() is
+## deferred — checking rows_container.get_child_count() right after
+## clearing would still read the stale pre-clear count until next frame,
+## the same "queue_free doesn't take effect until next frame" gotcha this
+## file has hit before — so the caller/visibility decision is driven by
+## this local boolean, not by querying the node afterward).
+func _refresh_enemy_target_rows() -> bool:
+	# 右側サブメニュー拡大（2026-08-28）でHFlowContainer→VBoxContainerへ
+	# 変更——横幅いっぱいの大きな行を縦一列に並べる（§5/§12）。
+	var rows_container: VBoxContainer = _target_confirm_panel.find_child(
 		"enemy_target_rows", true, false)
 	for child in rows_container.get_children():
 		child.queue_free()
-	# レスポンシブUI基盤（2026-08-21）: 行リスト自体がクリック可能な
-	# 選択肢を示している間は、同じ内容を繰り返すだけの案内文
-	# （instruction_label）を隠して縦方向のスペースを取り戻す——固定
-	# pxの高さ調整ではなく、単に不要な行を消すことで済ませる。
-	var instruction_label: Label = _target_confirm_panel.find_child(
-		"target_instruction", true, false)
 	if _battle_target_kind == "ally":
-		instruction_label.visible = true
-		return
+		rows_container.visible = false
+		return false
 	var enemy_targets := _battle_enemy_targets()
-	instruction_label.visible = enemy_targets.size() <= 1
 	if enemy_targets.size() <= 1:
-		return
+		rows_container.visible = false
+		return false
 	var boss_def := enemy_db.get_enemy(sim.boss_enemy_id)
 	var boss_name := locale.text(str(boss_def["name_key"]))
 	for target_id in enemy_targets:
@@ -3644,12 +4349,13 @@ func _refresh_enemy_target_rows() -> void:
 		row.text = label
 		row.toggle_mode = true
 		row.button_pressed = (target_id == _battle_selected_target_id)
-		# 下部操作バー圧縮（2026-08-22c）: 横並び用に内側余白を6→4へ
-		# 縮小——文字サイズは他のボタン類と同じ13ptのまま変更しない。
-		_style_list_row(row, COLOR_TARGET_SELECTED_BG, 4)
-		row.add_theme_font_size_override("font_size", 13)
+		row.custom_minimum_size.y = SUBMENU_ROW_MIN_HEIGHT
+		_style_list_row(row, COLOR_TARGET_SELECTED_BG, SUBMENU_ROW_CONTENT_MARGIN)
+		row.add_theme_font_size_override("font_size", SUBMENU_ROW_FONT_SIZE)
 		row.pressed.connect(_on_enemy_target_row_selected.bind(target_id))
 		rows_container.add_child(row)
+	rows_container.visible = true
+	return true
 
 
 func _on_enemy_target_row_selected(target_id: String) -> void:
@@ -3658,18 +4364,76 @@ func _on_enemy_target_row_selected(target_id: String) -> void:
 	queue_redraw()
 
 
-## もどる: skill-originated target selection reopens the skill list (same
-## character); attack-originated returns straight to the command view.
+## 味方対象（回復/バフ）選択リスト（2026-08-28、§6/§12）: 常に党全員
+## （生存者のみ、既存の_battle_ally_target_pool()＝_battle_ally_targets()
+## ＝_battle_display_order()をそのまま使用）ぶんの行を持つため、本体/部位
+## （最大でも2〜3件）よりひとまわり小さいSUBMENU_PARTY_ROW_*寸法を使う
+## （右側パネル自身の高さを超えないための実測ベースの調整——それでも旧来
+## の初期実装よりは明確に大きい）。既存のカードクリック導線
+## （_on_battle_card_input）は無改修のまま残る——このリストは同じ
+## _battle_selected_ally_targetへの、もう一つの入口に過ぎない。
+func _refresh_ally_target_rows() -> bool:
+	var rows_container: VBoxContainer = _target_confirm_panel.find_child(
+		"ally_target_rows", true, false)
+	for child in rows_container.get_children():
+		child.queue_free()
+	if _battle_target_kind != "ally":
+		rows_container.visible = false
+		return false
+	var populated := false
+	for unit_id in _battle_ally_target_pool(_battle_target_source, _battle_pending_skill_id):
+		if unit_id < 0 or unit_id >= sim.minions.size():
+			continue
+		var unit := sim.minions[unit_id]
+		var row := Button.new()
+		row.text = _unit_display_name(unit)
+		row.toggle_mode = true
+		row.button_pressed = (unit_id == _battle_selected_ally_target)
+		row.custom_minimum_size.y = SUBMENU_PARTY_ROW_MIN_HEIGHT
+		_style_list_row(row, COLOR_ALLY_TARGET_SELECTED_BG, SUBMENU_PARTY_ROW_CONTENT_MARGIN)
+		row.add_theme_font_size_override("font_size", SUBMENU_PARTY_ROW_FONT_SIZE)
+		row.pressed.connect(_on_ally_target_row_selected.bind(unit_id))
+		rows_container.add_child(row)
+		populated = true
+	rows_container.visible = populated
+	return populated
+
+
+## 既存のカードクリック（_on_battle_card_input内、ally-target選択中の
+## 分岐）と全く同じ4行——同じ状態変数への、もう一つの書き込み口。
+func _on_ally_target_row_selected(unit_id: int) -> void:
+	_battle_selected_ally_target = unit_id
+	_refresh_target_panel()
+	_update_card_selection()
+	queue_redraw()
+
+
+## もどる: skill/item-originated target selection reopens the respective
+## list (same character); attack-originated returns straight to the
+## command view.
+## 下部サブメニュー統合 (2026-08-27、§11/§20): まだ確定していない対象
+## 選択(target_id/ally_target)は、戻り先に関わらず必ず破棄する——次に
+## 同じメニューを開いたとき古い選択が勝手に残らないようにするため。
+## 使用予定のスキル/アイテム自体(_battle_pending_skill_id)は破棄しない
+## ——スキル/どうぐ一覧を再度開く_on_battle_skill()/_on_battle_item()が
+## 一覧を丸ごと再構築するので不要な情報だが、値を消しても実害は無い一方、
+## 消さずに残しておく方が「どのスキル/アイテムから来たか」のデバッグ・
+## 将来の拡張時に安全（次にtargetSelectionへ入り直す際は必ず新しい値で
+## 上書きされる、_enter_target_selection参照）。
 func _on_target_back() -> void:
+	_battle_selected_target_id = ""
+	_battle_selected_ally_target = -1
 	if _battle_target_source == "skill":
 		_on_battle_skill()
+	elif _battle_target_source == "item":
+		_on_battle_item()
 	else:
 		_enter_command_selection()
 
 
-## 決定: only stores targetId into pendingAction and completes this
-## character's turn — no damage/attack resolution happens here (that's
-## still sim.resolve_boss_round(), triggered later by 行動開始).
+## 決定: 新戦闘進行システム v1 (2026-08-24) — pendingActionへ溜めるだけ
+## だった旧仕様から一転、この瞬間に_set_battle_action()経由でその1体の
+## 行動が即座に解決され、再生が始まる（もう「行動開始」を待たない）。
 func _on_target_confirm() -> void:
 	if _battle_selected_unit == -1:
 		return
@@ -3677,8 +4441,13 @@ func _on_target_confirm() -> void:
 		if _battle_selected_ally_target == -1:
 			return
 		_battle_phase = "actionConfirmed"
+		# HP/SPポーション追加 (2026-08-25): 旧実装はここで無条件に"skill"を
+		# 送っていた——ally-targetの行動源が常にスキル(ヒーリング等)だけ
+		# だった間は問題なかったが、どうぐ(HPポーション/SPポーション)も
+		# ally-target経路を通るため、実際の行動源(_battle_target_source、
+		# "skill"か"item")をそのまま渡すよう修正。
 		_set_battle_action(
-			_battle_selected_unit, "skill", _battle_pending_skill_id,
+			_battle_selected_unit, _battle_target_source, _battle_pending_skill_id,
 			"ally", str(_battle_selected_ally_target))
 	else:
 		if _battle_selected_target_id == "":
@@ -3693,44 +4462,150 @@ func _on_target_confirm() -> void:
 		else:
 			_set_battle_action(
 				_battle_selected_unit, "attack", "", "enemy", enemy_id, part_id)
-	_enter_command_selection()
 
 
-## pendingAction per the user's spec (characterId/actionType/skillId/
-## targetType/targetId) — characterId is the dictionary key (unit_id,
-## already the established convention here) rather than a redundant
-## field, and actionType reuses the existing "action" key. target_id ""
-## means no enemy was chosen (the ally-target skill path, e.g. Healing,
-## which skips target selection entirely — see _on_battle_skill).
-## target_part (新企画v1 §8, 2026-08-18) is "" for a body-targeted attack/
-## skill, exactly the pre-part-destruction behavior.
+## characterId/actionType/skillId/targetType/targetId は元のユーザー仕様の
+## まま——unit_idが確定済みの行動者そのもの（sim.current_actor_token()と
+## 一致するはず、一致しなければ何もしない防御的ガード）、target_id ""
+## は対象未選択（ally-target skillの初期値、_on_battle_skillでは通らない
+## 経路）。target_part（新企画v1 §8）は""なら本体狙い。新戦闘進行システム
+## v1 (2026-08-24): pendingActionへ溜める旧仕様を撤去し、
+## _resolve_ally_action()を直接呼んで即座に解決する。
 func _set_battle_action(
 		unit_id: int, action: String, skill_id: String,
 		target_type: String = "", target_id: String = "", target_part: String = "") -> void:
-	if action == "attack":
-		_battle_pending_actions[unit_id] = {
-			"action": "attack", "target_type": target_type,
-			"target_id": target_id, "target_part": target_part,
-		}
+	if sim.current_actor_token() != "ally:%d" % unit_id:
+		return
+	var target_id_int := int(target_id) if target_type == "ally" and target_id != "" else -1
+	_resolve_ally_action(unit_id, action, skill_id, target_id_int, target_part)
+
+
+## 新戦闘進行システム v1 (2026-08-24): 1キャラクター分の行動をsim.resolve_
+## player_action()へ即座に渡し、その結果（ログ最大1件＋勝敗）を1件だけの
+## _battle_anim_queueへ乗せて再生を開始する——旧_on_boss_resolve_round()の
+## 「全員分の行動を溜めてから一気に解決する」という発想を置き換える。
+## スナップショット/queue構築/勝利時のparty_victory追加ロジックは旧実装
+## から意味を変えずそのまま踏襲（対象がこのユニット1体だけになった点を
+## 除き挙動は同一）。
+func _resolve_ally_action(
+		unit_id: int, action: String, skill_id: String,
+		target_id: int, target_part: String) -> void:
+	_battle_phase = "executing"
+	_sync_battle_submenu_visibility()
+	_battle_boss_hp_display = sim.boss_hp
+	_battle_boss_part_hp_display = sim.boss_part_hp.duplicate()
+	_battle_playback_active = true
+	_battle_playback_boss_id = sim.boss_enemy_id
+	var result := sim.resolve_player_action(unit_id, action, skill_id, target_id, target_part)
+	# Motion-test mode: undo this action's HP/SP wear immediately (the log
+	# still carries the real amounts, so popups/animations show real
+	# numbers — only the lasting drain is cancelled).
+	if _debug_boss_loop:
+		_debug_restore_party()
+	_battle_pending_round_result = result
+	_battle_anim_queue = []
+	for entry: Variant in result.get("log", []) as Array:
+		_battle_anim_queue.append(entry as Dictionary)
+	# Battle won: the whole party strikes its victory pose once after the
+	# killing blow lands (pack README: play at battle end only, never mix
+	# into the idle loop).
+	if result.get("won", false) and not _battle_anim_queue.is_empty():
+		_battle_anim_queue.append({"action": "party_victory", "unit_id": -1})
+	if _battle_anim_queue.is_empty():
+		_finish_battle_round()
 	else:
-		_battle_pending_actions[unit_id] = {
-			"action": "skill", "skill_id": skill_id, "target_type": target_type,
-			"target_id": target_id, "target_part": target_part,
-		}
-	_advance_battle_selection()
-	_update_card_selection()
-	_update_battle_buttons()
+		_battle_anim_step = -1
+		_advance_battle_anim_step()
 
 
-## Jumps the gold highlight to the next unit without a pending action yet;
-## leaves it where it is once everyone has one, so re-picking an
-## already-set unit's command (by clicking its card) doesn't get yanked
-## away from under the player.
-func _advance_battle_selection() -> void:
-	for unit_id in _battle_order:
-		if not _battle_pending_actions.has(unit_id):
-			_battle_selected_unit = unit_id
-			return
+## 新戦闘進行システム v1 (2026-08-24): 敵の番が来たら、プレイヤー入力を
+## 待たずに自動でsim.resolve_enemy_action()を呼び、その反撃を1件だけの
+## _battle_anim_queueへ乗せて再生する。旧_on_boss_resolve_round()末尾の
+## 「counterをqueueへ追加する」ブロックと同じ組み立てだが、呼び出し元は
+## _begin_current_turn()のみ——プレイヤーが操作する経路が無い（コマンド
+## 選択画面はそもそも開かない）。
+func _resolve_current_enemy_turn() -> void:
+	_battle_phase = "executing"
+	_sync_battle_submenu_visibility()
+	_battle_playback_active = true
+	_battle_playback_boss_id = sim.boss_enemy_id
+	var result := sim.resolve_enemy_action(sim.boss_enemy_id)
+	if _debug_boss_loop:
+		_debug_restore_party()
+	_battle_pending_round_result = result
+	_battle_anim_queue = []
+	var counter: Dictionary = result.get("boss_counter", {})
+	if not counter.is_empty():
+		_battle_anim_queue.append({
+			"action": "boss_counter", "unit_id": -1,
+			"target_id": int(counter.get("target_unit_id", -1)),
+			"amount": int(counter.get("amount", 0)),
+			"action_id": str(counter.get("action_id", "attack")),
+		})
+	# Boss Action Set (D2、2026-08-25、§15/§23-24): 予兆/不発は"boss_
+	# counter"とは別の、0ダメージ専用のキュー要素——resolve_enemy_action()
+	# はこの2つと"boss_counter"のうちどれか1つだけを返す。
+	var telegraph: Dictionary = result.get("boss_telegraph", {})
+	if not telegraph.is_empty():
+		_battle_anim_queue.append({
+			"action": "boss_telegraph", "unit_id": -1,
+			"action_id": str(telegraph.get("action_id", "")),
+		})
+	var fizzle: Dictionary = result.get("boss_fizzle", {})
+	if not fizzle.is_empty():
+		_battle_anim_queue.append({
+			"action": "boss_fizzle", "unit_id": -1,
+			"action_id": str(fizzle.get("action_id", "")),
+		})
+	if _battle_anim_queue.is_empty():
+		_finish_battle_round()
+	else:
+		_battle_anim_step = -1
+		_advance_battle_anim_step()
+
+
+## 新戦闘進行システム v1 (2026-08-24): SPD順ターン制の中枢——「次は誰の
+## 番か」をsim.current_actor_token()から読み、味方なら入力待ちのコマンド
+## 選択画面を開き、敵ならプレイヤー入力なしで即座に行動させる。
+## _show_boss_panel()（戦闘開始/再開）と_finish_battle_round()（1行動分の
+## 再生が終わった直後）の両方から呼ばれる——旧「毎ラウンド無条件で
+## _enter_command_selection()するだけ」だった箇所の後継。sim.boss_active
+## がfalseの間（戦闘そのものが終わっている）は何もしない。
+## バグ修正 (2026-08-25、§15/§16): _battle_selected_unitへの唯一の書き
+## 込み元はここだけ——行動者が切り替わるたびに、前の行動者に紐づく
+## 一時的な入力状態（選択中スキル・対象選択の途中経過・開いていたスキル
+## /どうぐ一覧パネル）を必ず初期化してから次の行動者へ引き継ぐ。これに
+## より「前キャラのスキル選択が次キャラへ残る」経路が構造的に無くなる。
+func _begin_current_turn() -> void:
+	if not sim.boss_active:
+		return
+	# バグ修正 (2026-08-25、§2「行動者切り替え時の一時状態を完全に
+	# リセット」): 前の行動者専用の入力状態を漏れなく初期化する——
+	# 選択中スキル/対象/敵部位選択の途中経過に加え、開いていたスキル/
+	# どうぐ一覧パネルの内容とハイライト行、味方/敵のどちらを選択中
+	# だったかの区分(_battle_target_kind)まで含む。ホバー状態はGodot
+	# 組み込みのマウス直下判定によるその場限りの表示（実際のマウス位置
+	# に毎フレーム追従するだけで、明示的に持ち越される状態ではないため
+	# リセット対象に含めない）。
+	_battle_pending_skill_id = ""
+	_battle_target_source = ""
+	_battle_target_kind = "enemy"
+	_battle_selected_target_id = ""
+	_battle_selected_ally_target = -1
+	_battle_list_entries = []
+	_battle_list_selected_index = -1
+	_battle_list_panel.visible = false
+	# Phase 5 (NEXT5、2026-08-25、§16-§18/§23): 新しいcurrent_actorが確定
+	# したこの瞬間にだけNEXTも更新する——味方/敵どちらの番でも共通
+	# （敵ターン専用に隠したりしない、§23）。
+	_refresh_next_panel()
+	var token := sim.current_actor_token()
+	if token.begins_with("enemy:"):
+		_resolve_current_enemy_turn()
+		return
+	if token.begins_with("ally:"):
+		_battle_selected_unit = int(token.substr(5))
+	_enter_command_selection()
 
 
 ## --- Shared skill/item picker overlay -----------------------------------
@@ -3742,61 +4617,119 @@ func _advance_battle_selection() -> void:
 ## previews its description below; 決定 commits the highlighted entry,
 ## もどる cancels without picking anything.
 
+## スキル一覧・どうぐ一覧の共通表示。独立した最上位Control——
+## _target_confirm_panelと完全に同じ矩形(PRESET_RIGHT_WIDE)を共有する
+## ことで、両者が「同じ場所の中身を切り替える」1つの共通サブメニュー
+## 領域として機能する（表示の排他制御はどちらも_sync_battle_submenu_
+## visibility()に一本化）。下部バーの`row`には一切参加しないため、
+## この表示/非表示がNEXT5/5人ステータス/コマンド列の位置・幅へ影響する
+## ことは構造的に無い(2026-08-27b、実機報告「NEXT5・ステータス・コマンド
+## が横へ圧縮された」への対応——一時期`row`のスロットを共有する設計に
+## していたが、それがまさにこの実機バグの原因だったため独立領域へ戻した)。
+## 右側サブメニュー領域の拡大（2026-08-28）: _build_target_confirm_
+## panel()と同じ共有定数（SUBMENU_*）・同じ「上：タイトル、中央：一覧＋
+## 説明、下：もどる/決定」という構造を使う（§15「サイズ感を統一」）。
+## rows/effect_labelの間で余白の吸収役を分担するため、_target_confirm_
+## panelのような専用spacerは不要——effect_labelが元々持っていたSIZE_
+## EXPAND_FILLがそのまま「中央〜下段の残りスペースをこの一覧＋説明文
+## ブロックが引き受ける」役割を果たし、footerは常にcolumnの最後の子＝
+## パネル最下段のまま（無改修）。
 func _build_battle_list_panel() -> void:
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
 	panel.offset_left = -420
 	panel.offset_right = -12
-	panel.offset_top = 70
-	panel.offset_bottom = -180
+	panel.offset_top = SUBMENU_PANEL_TOP_OFFSET
+	panel.offset_bottom = SUBMENU_PANEL_BOTTOM_OFFSET
 	panel.visible = false
-	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.06, 0.07, 0.12, 0.97)))
+	panel.add_theme_stylebox_override(
+		"panel", _panel_style(Color(0.06, 0.07, 0.12, 0.97), SUBMENU_PANEL_MARGIN))
 	add_child(panel)
 	_battle_list_panel = panel
 
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 8)
+	column.add_theme_constant_override("separation", 4)
 	panel.add_child(column)
 
 	var title := Label.new()
 	title.name = "title"
-	title.add_theme_font_size_override("font_size", 17)
+	title.add_theme_font_size_override("font_size", SUBMENU_TITLE_FONT_SIZE)
+	title.modulate = COLOR_BOSS_PANEL_TEXT
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(title)
 	column.add_child(HSeparator.new())
 
+	# パネル過大化バグ修正(2026-08-29): rowsを直接columnの子にすると、
+	# VBoxContainerはその全子の最小サイズ合計をそのまま親へ伝播するため、
+	# 円の5技（瞬影斬/月華乱舞/月詠/黄泉軍/必殺黄泉比良坂・断）のような
+	# 行数が多いケースでパネル全体がoffset_top/offset_bottomの固定枠を
+	# 大きく超えて下部固定UIへ食い込んでいた。rowsをScrollContainerで
+	# 包むと、ScrollContainerの最小サイズは中身(rows)の全高ではなく
+	# ScrollContainer自身のcustom_minimum_sizeで決まる——中身が多いときは
+	# 内部スクロール、少ないときはそのまま収まる(find_child("rows", true,
+	# false)は再帰探索なのでラップしても無改修)。
+	# 標準技数の同時表示(2026-08-30、§5/§10): ソティリスの標準4技
+	# （ラピッドスラッシュ/ヒーリング/ソウルブレイク/必殺：エオスバースト）
+	# がスクロールなしで全部見えることが基本仕様——3行分から
+	# SUBMENU_ROWS_VISIBLE_WITHOUT_SCROLL(4)行分の高さへ拡張。5個以上
+	# （例: 円の5技）になった場合だけ内部スクロールへ自然に切り替わる、
+	# という設計自体は無改修。
+	var rows_scroll := ScrollContainer.new()
+	rows_scroll.name = "rows_scroll"
+	rows_scroll.custom_minimum_size.y = (
+		SUBMENU_ROWS_VISIBLE_WITHOUT_SCROLL * SUBMENU_ROW_MIN_HEIGHT
+		+ (SUBMENU_ROWS_VISIBLE_WITHOUT_SCROLL - 1.0) * float(SUBMENU_ROW_SEPARATION))
+	rows_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	column.add_child(rows_scroll)
+
 	var rows := VBoxContainer.new()
 	rows.name = "rows"
-	rows.add_theme_constant_override("separation", 4)
-	column.add_child(rows)
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rows.add_theme_constant_override("separation", SUBMENU_ROW_SEPARATION)
+	rows_scroll.add_child(rows)
 
 	column.add_child(HSeparator.new())
 
 	var effect_title := Label.new()
 	effect_title.text = locale.text("UI_BOSS_EFFECT")
-	effect_title.add_theme_font_size_override("font_size", 13)
+	effect_title.add_theme_font_size_override("font_size", SUBMENU_INFO_LABEL_FONT_SIZE)
+	effect_title.modulate = COLOR_BOSS_PANEL_TEXT
 	column.add_child(effect_title)
 
 	var effect_label := Label.new()
 	effect_label.name = "effect"
+	effect_label.add_theme_font_size_override("font_size", SUBMENU_INFO_VALUE_FONT_SIZE)
+	effect_label.modulate = COLOR_BOSS_PANEL_TEXT
 	effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	effect_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	effect_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	column.add_child(effect_label)
 
 	var footer := HBoxContainer.new()
-	footer.add_theme_constant_override("separation", 8)
+	footer.add_theme_constant_override("separation", 12)
 	column.add_child(footer)
 	var back_button := Button.new()
 	back_button.text = locale.text("UI_BOSS_BACK")
+	back_button.custom_minimum_size.y = SUBMENU_FOOTER_MIN_HEIGHT
 	back_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	back_button.pressed.connect(func() -> void: _battle_list_panel.visible = false)
+	_style_button(back_button, Color(0.28, 0.24, 0.32), SUBMENU_FOOTER_CONTENT_MARGIN)
+	back_button.add_theme_font_size_override("font_size", SUBMENU_FOOTER_FONT_SIZE)
+	# バグ修正 (2026-08-27): 以前はここで_battle_list_panel.visible=false
+	# だけを行い、共通サブメニュー領域を通常コマンドへ戻す責任を一切
+	# 持たなかった——スキル一覧の場合は_on_battle_skill()が_battle_phase
+	# を正しく更新していたため偶然動いて見えていただけで、_on_battle_
+	# item()経由（どうぐ一覧の「もどる」）では機能していなかった。もどる
+	# は常に通常4コマンドへ戻る（§9/§12）ため、単一の入口_enter_command_
+	# selection()を必ず経由させる。
+	back_button.pressed.connect(_on_battle_list_back)
 	footer.add_child(back_button)
 	var confirm_button := Button.new()
 	confirm_button.name = "confirm"
 	confirm_button.text = locale.text("UI_BOSS_CONFIRM")
+	confirm_button.custom_minimum_size.y = SUBMENU_FOOTER_MIN_HEIGHT
 	confirm_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_style_button(confirm_button, COLOR_START_BUTTON)
+	_style_button(confirm_button, COLOR_START_BUTTON, SUBMENU_FOOTER_CONTENT_MARGIN)
+	confirm_button.add_theme_font_size_override("font_size", SUBMENU_FOOTER_FONT_SIZE)
 	confirm_button.pressed.connect(_on_battle_list_confirm)
 	footer.add_child(confirm_button)
 
@@ -3856,26 +4789,62 @@ func _show_battle_list_panel(title: String, entries: Array) -> void:
 	if entries.is_empty():
 		var empty_label := Label.new()
 		empty_label.text = locale.text("UI_BOSS_ITEM_EMPTY")
+		empty_label.add_theme_font_size_override("font_size", SUBMENU_ROW_FONT_SIZE)
+		empty_label.modulate = COLOR_BOSS_PANEL_TEXT
 		rows.add_child(empty_label)
 		_battle_list_selected_index = -1
 	else:
 		for i in entries.size():
 			var entry: Dictionary = entries[i]
 			var row := Button.new()
-			row.text = "%s   %s" % [str(entry["label"]), str(entry.get("cost_text", ""))]
+			# §8「名前と残数を一目で確認できる配置」: ポーションのように
+			# cost_textが残数(×3等)を持つ行は、大きな文字でも名前/残数が
+			# 詰まって見えないよう、間隔を広めに取った1行のまま表示する
+			# （2ノード構成の左右分離までは今回は行わない、判断として
+			# 報告済み）。左寄せ(alignment)にして名前を読む位置を左端へ
+			# 揃え、通常のメニュー一覧らしい見た目にする。
+			row.text = "%s        %s" % [str(entry["label"]), str(entry.get("cost_text", ""))]
 			row.toggle_mode = true
-			row.disabled = not bool(entry.get("enabled", true))
-			_style_list_row(row)
+			row.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			row.custom_minimum_size.y = SUBMENU_ROW_MIN_HEIGHT
+			# バグ修正 (2026-08-26、実機報告「ポーションを選択して使うことが
+			# できない」): 全員フルHP/SPの戦闘開始直後など、そのアイテムに
+			# 今まさに使える対象が誰もいない場合(entry.enabled==false)でも、
+			# 行自体は必ず選択・プレビューできるようにする——Godotの実際の
+			# disabledボタンはpressedシグナルを一切発火しない(クリックその
+			# ものが無視される)ため、以前はrow自体をdisabledにしていた結果
+			# 「持っているのに選ぶことすらできない」状態になっていた。実際に
+			# 決定して使うこと自体は、既存どおり_update_battle_list_
+			# selection()側のconfirm_button.disabledでこれまでと同じく
+			# 引き続き阻止する(誤って無駄撃ちする経路は増えない)——ここでは
+			# 「選んで説明文を読める」ことだけを直す。使えない行だと分かる
+			# よう、disabledスタイルの代わりに半透明化で見た目上も区別する。
+			row.disabled = false
+			_style_list_row(row, Color(0.16, 0.36, 0.6), SUBMENU_ROW_CONTENT_MARGIN)
+			row.add_theme_font_size_override("font_size", SUBMENU_ROW_FONT_SIZE)
+			if not bool(entry.get("enabled", true)):
+				row.modulate.a = 0.55
 			row.pressed.connect(_on_battle_list_row_selected.bind(i))
 			rows.add_child(row)
 		_battle_list_selected_index = 0
 	_update_battle_list_selection()
-	_battle_list_panel.visible = true
+	# visibleは呼び出し元(_on_battle_skill/_on_battle_item)が_battle_phase
+	# 更新直後に_sync_battle_submenu_visibility()経由で既に設定済み——
+	# ここで再度触れると「誰がこのパネルの表示を決めるか」の入口が2つに
+	# 増えるため、あえて設定しない(2026-08-27、下部サブメニュー統合)。
 
 
 func _on_battle_list_row_selected(index: int) -> void:
 	_battle_list_selected_index = index
 	_update_battle_list_selection()
+
+
+## 下部サブメニュー統合 (2026-08-27、§9/§12): スキル一覧・どうぐ一覧
+## いずれの「もどる」も、選択そのものを破棄して必ず通常4コマンドへ戻る
+## ——唯一の入口_enter_command_selection()を経由するため、_battle_phase・
+## 共通サブメニュー領域の表示とも常に正しく同期する。
+func _on_battle_list_back() -> void:
+	_enter_command_selection()
 
 
 func _update_battle_list_selection() -> void:
@@ -3901,7 +4870,11 @@ func _on_battle_list_confirm() -> void:
 	var entry: Dictionary = _battle_list_entries[_battle_list_selected_index]
 	if not bool(entry.get("enabled", true)):
 		return
-	_battle_list_panel.visible = false
+	# 下部サブメニュー統合 (2026-08-27): callback(常に_enter_target_
+	# selection.bind(...))自身が_battle_phaseを更新し
+	# _sync_battle_submenu_visibility()を呼ぶため、ここで先んじて
+	# _battle_list_panel.visible=falseを書く必要はない——単一の入口原則を
+	# 徹底する。
 	(entry["callback"] as Callable).call()
 
 
@@ -3911,6 +4884,18 @@ func _on_battle_list_confirm() -> void:
 ## its checkpoint (HP/SP/boss HP/part durability) — this does NOT leave
 ## the encounter (unlike the old やめる/flee_boss_fight() behavior it
 ## replaced, 2026-08-18); the fight stays open, just reset.
+##
+## REWINDⅡ（新企画v1仕様書v2「REWINDⅡ」§6/§38、2026-08-28）: 解放済みの
+## 間だけREWINDとやめるの間に割り込む3つ目のボタン。やめる自身のY位置は
+## REWINDⅡの可視状態に応じて_refresh_rewind2_button()が動的に決める——
+## 未解放時は元のREWIND/やめる2ボタンの位置関係そのままに戻る（§5「現在
+## の基本UIを維持」）ため、位置を2組の名前付き定数として持つ。
+const REWIND2_BUTTON_TOP := 54.0
+const REWIND2_BUTTON_BOTTOM := 90.0
+const LEAVE_BUTTON_TOP_WITH_REWIND2 := 96.0
+const LEAVE_BUTTON_BOTTOM_WITH_REWIND2 := 132.0
+const LEAVE_BUTTON_TOP_WITHOUT_REWIND2 := 54.0
+const LEAVE_BUTTON_BOTTOM_WITHOUT_REWIND2 := 90.0
 
 func _build_quit_battle_button() -> void:
 	var button := Button.new()
@@ -3947,15 +4932,14 @@ func _do_battle_rewind() -> void:
 	# §10: 手動REWINDでも表示中のメッセージはクリアして仕切りを1件だけ
 	# 表示する——前ループの内容をそのまま持ち越すと"前回何が起きたか"
 	# と"今回何が起きたか"が混ざり、プレイヤー自身の記憶という攻略要素
-	# と衝突する。
+	# と衝突する。宣言＋結果の対になる「結果」が無い単発の系統メッセージ
+	# のため、味方2行ではなく敵1行のカテゴリへ寄せた(2026-09-02、判断値)。
 	_clear_battle_message()
-	_append_battle_message(locale.text("UI_BATTLE_MSG_REWIND_DIVIDER"), "special")
-	_battle_pending_actions = {}
-	_battle_selected_unit = -1
+	_append_battle_message(locale.text("UI_BATTLE_MSG_REWIND_DIVIDER"), "special", "enemy")
 	_battle_selected_target_id = ""
 	_battle_selected_ally_target = -1
-	_enter_command_selection()
 	_refresh_boss_panel()
+	_begin_current_turn()
 	queue_redraw()
 
 
@@ -4000,6 +4984,130 @@ func _build_rewind_confirm_panel() -> void:
 	footer.add_child(confirm_button)
 
 
+## REWINDⅡ（新企画v1仕様書v2「REWINDⅡ」§6/§7/§38、2026-08-28）: REWINDの
+## 直下（未解放時にやめるが使うのと同じ位置、REWINDⅡが現れるとやめるは
+## _refresh_rewind2_button()が下へ押し出す）。ラベルは常に"REWINDⅡ"の
+## まま（§7、途中REWIND/REWIND2/MID REWIND等の別表記は使わない）。
+## disabled状態（使用済み、§24）・visible状態（未解放時は非表示、§5）は
+## いずれもここでは決めず、_refresh_rewind2_button()が一元管理する。
+func _build_rewind2_button() -> void:
+	var button := Button.new()
+	button.text = locale.text("UI_BOSS_REWIND2")
+	button.custom_minimum_size = Vector2(90, 36)
+	button.add_theme_font_size_override("font_size", 14)
+	button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	button.offset_left = -102
+	button.offset_right = -12
+	button.offset_top = REWIND2_BUTTON_TOP
+	button.offset_bottom = REWIND2_BUTTON_BOTTOM
+	button.visible = false
+	_style_button(button, Color(0.24, 0.22, 0.32))
+	button.pressed.connect(_on_rewind2_button_pressed)
+	add_child(button)
+	_rewind2_button = button
+
+
+## 味方コマンド入力待ち中（_battle_phase=="commandSelection"）以外のクリック
+## は無視する（§19/§20/§34「敵行動中・VFX中・スキル演出中・ダメージ演出中
+## ・対象選択途中・スキル一覧途中・どうぐ一覧途中・ポーション対象選択途中
+## のいずれでも使用できない」——既存の他コマンドボタンが現在のフェーズに
+## 合わないクリックを無視するのと同じ慣習）。使用済みなら何もしない
+## （§24）。未設定なら「設定しますか？」、設定済みなら「戻りますか？」
+## ——ボタン自体のラベルは常に"REWINDⅡ"のまま（§7）、開く確認文だけを
+## 状態で切り替える。
+func _on_rewind2_button_pressed() -> void:
+	if _battle_phase != "commandSelection":
+		return
+	if sim.mid_checkpoint_used:
+		return
+	var text_label: Label = _rewind2_confirm_panel.find_child("text", true, false)
+	text_label.text = locale.text(
+		"UI_REWIND2_USE_CONFIRM_TEXT" if sim.mid_checkpoint_set else "UI_REWIND2_SET_CONFIRM_TEXT")
+	_rewind2_confirm_panel.visible = true
+
+
+## 決定を押した時点の状態（mid_checkpoint_set）で、地点の「設定」と
+## 「使用」のどちらを実行するかを決める——_on_rewind2_button_pressed()が
+## 開いた時点の文言と必ず一致する（パネルを開いてから閉じずに戦況が変わる
+## 経路は無い：確認パネル表示中は他の全ボタンより手前にあり、かつ味方
+## 入力待ち中はsim状態が変化しない）。
+func _on_rewind2_confirm() -> void:
+	_rewind2_confirm_panel.visible = false
+	if sim.mid_checkpoint_set:
+		_do_use_rewind2()
+	else:
+		_do_set_mid_checkpoint()
+
+
+func _do_set_mid_checkpoint() -> void:
+	if not sim.set_mid_checkpoint():
+		return
+	_append_battle_message(locale.text("UI_BATTLE_MSG_REWIND2_SET"), "special", "enemy")
+	_refresh_rewind2_button()
+
+
+## §11/§40「通常REWINDとは別物、通常REWINDでもREWINDⅡ権は復活しない」
+## ——sim.use_rewind2()自身がmid_checkpointだけを対象にする独立コマンド
+## なので、ここではboss_checkpoint/rewind_boss_fight()には一切触れない。
+func _do_use_rewind2() -> void:
+	_stop_battle_anim()
+	if not sim.use_rewind2():
+		return
+	_tally_text = locale.text("UI_REWIND2")
+	_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 2
+	# §10と同じ理由——手動REWINDⅡでも表示中のメッセージはクリアして
+	# 仕切りを1件だけ表示する。
+	_clear_battle_message()
+	_append_battle_message(locale.text("UI_BATTLE_MSG_REWIND2_DIVIDER"), "special", "enemy")
+	_battle_selected_target_id = ""
+	_battle_selected_ally_target = -1
+	_refresh_boss_panel()
+	_begin_current_turn()
+	_refresh_rewind2_button()
+	queue_redraw()
+
+
+## Small centered もどる/決定 prompt for REWINDⅡ — 構造は_rewind_confirm_
+## panelと同一だが、文言と決定時の挙動が状態依存で切り替わるため専用に
+## 1枚持つ（_on_rewind2_button_pressed/_on_rewind2_confirm参照）。
+func _build_rewind2_confirm_panel() -> void:
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.offset_left = -160
+	panel.offset_right = 160
+	panel.offset_top = -60
+	panel.offset_bottom = 60
+	panel.visible = false
+	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.06, 0.07, 0.12, 0.97)))
+	add_child(panel)
+	_rewind2_confirm_panel = panel
+
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 10)
+	panel.add_child(column)
+
+	var text := Label.new()
+	text.name = "text"
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(text)
+
+	var footer := HBoxContainer.new()
+	footer.add_theme_constant_override("separation", 8)
+	column.add_child(footer)
+	var back_button := Button.new()
+	back_button.text = locale.text("UI_BOSS_BACK")
+	back_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	back_button.pressed.connect(func() -> void: _rewind2_confirm_panel.visible = false)
+	footer.add_child(back_button)
+	var confirm_button := Button.new()
+	confirm_button.text = locale.text("UI_BOSS_CONFIRM")
+	confirm_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_button(confirm_button, COLOR_START_BUTTON)
+	confirm_button.pressed.connect(_on_rewind2_confirm)
+	footer.add_child(confirm_button)
+
+
 ## 2026-08-18 (user report): the only way out of the battle screen once
 ## REWIND took over やめる's slot was winning — _button_bar (宿屋/ギルド/
 ## 依頼掲示板/etc., once those exist) only shows when _boss_screen_active()
@@ -4014,8 +5122,10 @@ func _build_leave_battle_button() -> void:
 	button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	button.offset_left = -102
 	button.offset_right = -12
-	button.offset_top = 54
-	button.offset_bottom = 90
+	# REWINDⅡ未解放時の既定位置（§5「現在の基本UIを維持」）——解放時は
+	# _refresh_rewind2_button()がREWINDⅡの下へ動的に押し出す。
+	button.offset_top = LEAVE_BUTTON_TOP_WITHOUT_REWIND2
+	button.offset_bottom = LEAVE_BUTTON_BOTTOM_WITHOUT_REWIND2
 	button.visible = false
 	_style_button(button, Color(0.24, 0.2, 0.2))
 	button.pressed.connect(_on_battle_leave_pressed)
@@ -4079,13 +5189,18 @@ func _show_boss_panel() -> void:
 		_expand()
 	if _debug_boss_loop:
 		_debug_restore_party()
-	_battle_pending_actions = {}
-	_battle_selected_unit = -1
+	# バグ修正 (2026-08-26、実機報告「ポーションを1個も持っていない」):
+	# _on_fight_button()は既にアクティブな戦闘へ戻るだけの場合、sim.
+	# start_boss_fight()自体を呼ばずここへ直接来る——その経路でも、この
+	# 機能より前のセーブ等でbattle_item_countsに登録漏れがあれば必ず
+	# 補充されるよう、_show_boss_panel()自身（戦闘開始/再開/セーブから
+	# の復帰、すべての経路が最終的に通る唯一の入口）からも呼ぶ。
+	sim.ensure_battle_item_defaults()
 	_battle_selected_target_id = ""
 	_battle_selected_ally_target = -1
 	_stop_battle_anim()
-	_enter_command_selection()
 	_refresh_boss_panel()
+	_begin_current_turn()
 	_sync_battle_chrome_visibility()
 	queue_redraw()
 
@@ -4213,11 +5328,21 @@ func _refresh_boss_panel() -> void:
 	_refresh_boss_parts_column()
 
 	_battle_order = _battle_display_order()
-	for unit_id: Variant in _battle_pending_actions.keys().duplicate():
-		if not _battle_order.has(int(unit_id)):
-			_battle_pending_actions.erase(unit_id)
+	# バグ修正 (2026-08-25、§1「current_actorだけを唯一の基準にする」):
+	# 以前はここで_battle_order[0]（表示順の先頭＝常にソティリス）へ
+	# フォールバックしており、_begin_current_turn()と並ぶ"もう1つの
+	# _battle_selected_unit書き込み経路"になっていた——実際に発火する
+	# ことは稀だが、sim.current_actor_token()を一切参照しないため、将来
+	# NEXT5やBoss Action Set等の新しいコード経路がこの関数を呼んだ場合に
+	# current_actorとズレる余地を残す設計上のリスクだった。sim.current_
+	# actor_token()由来の値へ最優先でフォールバックし、それが得られない
+	# （敵の番/戦闘外）場合のみ表示順の先頭を使う——いずれにせよ書き込む
+	# 「値の出どころ」を単一の関数(_current_actor_unit_id)へ統一した。
 	if not _battle_order.has(_battle_selected_unit):
-		_battle_selected_unit = _battle_order[0] if not _battle_order.is_empty() else -1
+		var current_actor_id := _current_actor_unit_id()
+		_battle_selected_unit = (
+			current_actor_id if current_actor_id != -1
+			else (_battle_order[0] if not _battle_order.is_empty() else -1))
 
 	var cards_row: HBoxContainer = _battle_bar.find_child("cards", true, false)
 	for child in cards_row.get_children():
@@ -4240,101 +5365,58 @@ func _unit_display_name(unit: UDMinion) -> String:
 	return "?"
 
 
-## Resolves the whole round immediately (sim.resolve_boss_round is one
-## atomic, deterministic call, same as before) but does not reveal the
-## result yet — it hands the round's log to the motion sequencer, which
-## plays each acting character's attack/skill in seating order and only
-## then runs the old won/lost/continue tail (_finish_battle_round).
-func _on_boss_resolve_round() -> void:
-	_battle_phase = "executing"
-	_commands_column.visible = false
-	_target_confirm_panel.visible = false
-	var actions: Array = []
-	for unit_id: Variant in _battle_pending_actions.keys():
-		var entry: Dictionary = _battle_pending_actions[unit_id]
-		# 新企画v1 §8 (2026-08-18): "" (no part chosen) hits the boss's main
-		# HP exactly as before this system existed — see sim's
-		# _apply_boss_damage().
-		var target_part := str(entry.get("target_part", ""))
-		if str(entry["action"]) == "attack":
-			var attack_entry := {"unit_id": unit_id, "action": "attack"}
-			if target_part != "":
-				attack_entry["target_part"] = target_part
-			actions.append(attack_entry)
+## Phase 5 (NEXT5、2026-08-25) §7/§8: sim.peek_next_actors()が返す生の
+## トークン("ally:N"/"enemy:X")をそのまま表示名へ変換するだけ——敵味方を
+## 区別する専用ロジックはここだけに閉じる。§8「将来同名の敵が複数いる
+## 場合はゴブリンA/ゴブリンBのように識別できる名前で表示できる構造に」
+## への対応: enemy_idそのもの（現状は常にsim.boss_enemy_id、1体のみ）を
+## キーに名前を引くため、将来「enemy:cave_troll_1」のようなインスタンス
+## ごとの識別子付きトークンにsim側が拡張されても、この関数はトークンから
+## 実体を引き直すだけでそのまま対応できる（現時点ではこの拡張自体は実装
+## しない、§21/§22の明示指示どおり）。
+func _next_actor_display_name(token: String) -> String:
+	if token.begins_with("ally:"):
+		var unit_id := int(token.substr(5))
+		if unit_id >= 0 and unit_id < sim.minions.size():
+			return _unit_display_name(sim.minions[unit_id])
+		return "?"
+	if token.begins_with("enemy:"):
+		var enemy_id := token.substr(6)
+		if enemy_db.has_enemy(enemy_id):
+			return locale.text(str(enemy_db.get_enemy(enemy_id)["name_key"]))
+		return "?"
+	return "?"
+
+
+## Phase 5 (NEXT5、2026-08-25) §16-§18/§24-§26: _begin_current_turn()から
+## のみ呼ばれる——1行動の演出が完全に終わり次の行動者が確定した「まさに
+## その瞬間」にだけ更新される（§17）。sim.peek_next_actors()の戻り値を
+## そのまま1〜5番として並べるだけで、UI側の予測ロジックは一切無い。
+## 表示できる実際の予定が5件未満の場合は残りの行を単純に隠す（§26、
+## 架空の行動を生成して埋めない）。
+func _refresh_next_panel() -> void:
+	if not sim.boss_active:
+		for label in _battle_next_labels:
+			label.visible = false
+		return
+	var upcoming := sim.peek_next_actors(BATTLE_NEXT_MAX_ENTRIES)
+	for i in _battle_next_labels.size():
+		var label: Label = _battle_next_labels[i]
+		if i < upcoming.size():
+			label.text = "%d %s" % [i + 1, _next_actor_display_name(str(upcoming[i]))]
+			label.visible = true
 		else:
-			var action_entry := {"unit_id": unit_id, "action": "skill", "skill_id": entry["skill_id"]}
-			# Only ally-target skills need this — sim only ever has one
-			# boss to hit, so enemy-target skills don't read target_id.
-			if str(entry.get("target_type", "")) == "ally" and str(entry.get("target_id", "")) != "":
-				action_entry["target_id"] = int(entry["target_id"])
-			elif target_part != "":
-				action_entry["target_part"] = target_part
-			actions.append(action_entry)
-	_battle_boss_hp_display = sim.boss_hp
-	# Same snapshot-before-resolving reasoning, extended to parts (新企画
-	# v1仕様書 v2 §8/§12): resolve_boss_round() is one atomic, synchronous
-	# call — by the time it returns, sim.boss_part_hp already reflects the
-	# WHOLE round's outcome, so the part-hit animation needs its own "as
-	# it stood before this round" starting point to drain from, same as
-	# the main body's _battle_boss_hp_display above.
-	_battle_boss_part_hp_display = sim.boss_part_hp.duplicate()
-	# Both set BEFORE resolving: a decided round clears boss_active and
-	# boss_enemy_id inside resolve_boss_round, and playback still needs
-	# the boss screen up and the boss drawn (see the vars' comments).
-	_battle_playback_active = true
-	_battle_playback_boss_id = sim.boss_enemy_id
-	var result := sim.resolve_boss_round(actions)
-	# Motion-test mode: undo the round's HP/SP wear immediately (the log
-	# still carries the real amounts, so popups/animations show real
-	# numbers — only the lasting drain is cancelled).
-	if _debug_boss_loop:
-		_debug_restore_party()
-	_battle_pending_round_result = result
-	_battle_pending_actions = {}
-	_battle_anim_queue = _build_battle_anim_queue(result.get("log", []))
-	# The boss's counter-attack plays as one more queued step after every
-	# party action, so its target's flash/knockback/damage-popup land in
-	# sequence instead of silently pre-applied. Absent on won rounds
-	# (resolve returns before the boss gets to counter).
-	var counter: Dictionary = result.get("boss_counter", {})
-	if not counter.is_empty():
-		_battle_anim_queue.append({
-			"action": "boss_counter", "unit_id": -1,
-			"target_id": int(counter.get("target_unit_id", -1)),
-			"amount": int(counter.get("amount", 0)),
-			# 新企画v1仕様書 戦闘ログ (2026-08-22): sim.gd's boss_counter
-			# already carries action_id (see resolve_boss_round's doc
-			# comment) — just wasn't being forwarded into the queue entry
-			# before there was a reason to (the animation itself doesn't
-			# care which named action fired, only the log text does).
-			"action_id": str(counter.get("action_id", "attack")),
-		})
-	# Battle won: the whole party strikes its victory pose once after the
-	# killing blow lands (pack README: play at battle end only, never mix
-	# into the idle loop).
-	if result.get("won", false) and not _battle_anim_queue.is_empty():
-		_battle_anim_queue.append({"action": "party_victory", "unit_id": -1})
-	if _battle_anim_queue.is_empty():
-		_finish_battle_round()
-	else:
-		_battle_anim_step = -1
-		_advance_battle_anim_step()
+			label.visible = false
 
 
-## One queue entry per unit that actually acted, drawn from the round's
-## log (result["log"]) but reordered into _battle_order's fixed left-to-
-## right seating so playback always reads left-to-right regardless of
-## which order sim.resolve_boss_round happened to process the actions in.
-func _build_battle_anim_queue(log: Array) -> Array[Dictionary]:
-	var log_by_unit: Dictionary = {}
-	for entry: Variant in log:
-		var d := entry as Dictionary
-		log_by_unit[int(d["unit_id"])] = d
-	var queue: Array[Dictionary] = []
-	for unit_id in _battle_order:
-		if log_by_unit.has(unit_id):
-			queue.append(log_by_unit[unit_id] as Dictionary)
-	return queue
+## 新戦闘進行システム v1 (2026-08-24): 旧_on_boss_resolve_round()（全員分の
+## pendingActionをまとめてsim.resolve_boss_round()へ渡す一括解決）と旧
+## _build_battle_anim_queue()（そのログを_battle_order順に並べ替える）は
+## ここにあったが、両方とも完全に撤去した——1キャラクター分の行動を即座
+## に解決する_resolve_ally_action()/_resolve_current_enemy_turn()（この
+## ファイル内の_on_target_confirm付近）へ役割を移した。sim.resolve_boss_
+## round()自体は後方互換ラッパーとしてsim.gd側にまだ存在するが、この
+## UIはもう呼ばない。
 
 
 ## --- Motion playback state machine ---------------------------------------
@@ -4348,6 +5430,12 @@ func _build_battle_anim_queue(log: Array) -> Array[Dictionary]:
 
 func _advance_battle_anim_step() -> void:
 	_battle_anim_step += 1
+	# バトルメッセージの遅延表示(2026-09-01、§15)予約は、次に何のフェーズ
+	# が来ても必ずここで破棄する——各分岐が個別に_clear_battle_message()
+	# を呼ぶ場合は既にそこで消えるが(そちらもdeferredを破棄するよう更新
+	# 済み)、"party_victory"のようにメッセージへ一切触れない分岐もあり、
+	# 個々の分岐の実装漏れに依存しない一箇所での保証にする。
+	_battle_message_deferred = {}
 	if _battle_anim_step >= _battle_anim_queue.size():
 		_finish_battle_round()
 		return
@@ -4357,13 +5445,70 @@ func _advance_battle_anim_step() -> void:
 		# toward the party and the target ally reacts at the hit moment —
 		# see the "counter" case in _on_battle_anim_tick.
 		# 新しい行動者（ここでは敵）のターンが始まる瞬間——前の行動者の
-		# 文章を必ず消してから、敵自身の宣言を積み直す（§2/§8）。
+		# 文章を必ず消してから、敵自身の宣言を積み直す（§2/§8）。敵の
+		# 通常攻撃も敵カテゴリ・1行表示（§4/§9、"counter"フェーズ側の
+		# ダメージ文がこのすぐ後に同じカテゴリで置き換える）。
 		_clear_battle_message()
-		_append_battle_message(_battle_message_boss_attack_announce_text(str(entry.get("action_id", "attack"))))
+		_append_battle_message(
+			_battle_message_boss_attack_announce_text(str(entry.get("action_id", "attack"))), "normal", "enemy")
 		_battle_anim_phase = "counter"
 		_battle_anim_phase_elapsed = 0.0
 		_battle_anim_hit_fired = false
 		_battle_boss_lunge_t = 1.0
+		_battle_anim_timer.start()
+		queue_redraw()
+		return
+	if str(entry.get("action", "")) == "guard":
+		# Phase 6「防御」(2026-08-25、§24): 新しいドット絵モーション素材は
+		# 作らない——移動も攻撃相手も無いため、宣言メッセージ＋短い間
+		# だけの最小構成（"victory"フェーズと同じ「誰も動かさず時間経過
+		# だけで次へ進める」パターンをそのまま踏襲、下の_on_battle_anim_
+		# tick側の"guard"ケース参照）。新しい行動者のターンが始まる瞬間
+		# でもあるため、前の行動者の文章を必ず消してから積み直す（§2）。
+		# 味方自身の行動なので味方カテゴリ（§1-§3、防御は結果行を伴わない
+		# ため実質1行だけの「味方2行」表示になる）。
+		_clear_battle_message()
+		_append_battle_message(
+			locale.text("UI_BATTLE_MSG_GUARD") % _unit_display_name(sim.minions[int(entry["unit_id"])]))
+		_battle_anim_phase = "guard"
+		_battle_anim_phase_elapsed = 0.0
+		_battle_anim_timer.start()
+		queue_redraw()
+		return
+	if str(entry.get("action", "")) in ["boss_telegraph", "boss_fizzle"]:
+		# Boss Action Set (D2、2026-08-25、§35-36): guardと同じ「動かず、
+		# メッセージだけを見せて一定時間待つ」最小実装——新しいVFX/敵の
+		# モーションは作らない(§36、既存のcave_troll演出をそのまま使う
+		# という指示に対し、今回は"何も動かさない"のが最も安全な既存
+		# 演出の再利用)。予兆と不発はメッセージ文だけが異なる。§8/§17:
+		# Boss Action Setの予兆・不発は敵カテゴリ・1行表示——直前の味方
+		# メッセージ(2行)は上のclear()で確実に消してから積む。
+		_clear_battle_message()
+		var action_id := str(entry.get("action_id", ""))
+		if str(entry["action"]) == "boss_telegraph":
+			_append_battle_message(_battle_message_boss_telegraph_text(action_id), "normal", "enemy")
+		else:
+			_append_battle_message(_battle_message_boss_fizzle_text(), "normal", "enemy")
+		_battle_anim_phase = "boss_notice"
+		_battle_anim_phase_elapsed = 0.0
+		_battle_anim_timer.start()
+		queue_redraw()
+		return
+	if str(entry.get("action", "")) == "item":
+		# HP/SPポーション追加 (2026-08-25、§35/§36): "guard"と同じ「動かず
+		# 一定時間だけ待って次へ進める」最小実装——新規VFXは作らない
+		# （既存の演出を再利用、まずシステムの接続確認を優先）。宣言
+		# メッセージ（「〇〇は〇〇を使った！」）はここで、回復結果の
+		# メッセージ（「〇〇のHPがX回復した！」）は"item"フェーズの途中で
+		# _fire_battle_anim_hit()経由（下のUD_BATTLE_ANIM_TICK側）——
+		# ally-target skill(ヒーリング)が既に持つ「宣言→結果」の2行
+		# 積み増しパターンをそのまま再利用する（新しい仕組みを増やさない）。
+		_clear_battle_message()
+		_append_battle_message(
+			_battle_message_action_announce_text(entry, int(entry["unit_id"])))
+		_battle_anim_phase = "item"
+		_battle_anim_phase_elapsed = 0.0
+		_battle_anim_hit_fired = false
 		_battle_anim_timer.start()
 		queue_redraw()
 		return
@@ -4414,6 +5559,12 @@ func _battle_message_action_announce_text(entry: Dictionary, unit_id: int) -> St
 		if skill_db.has_skill(skill_id):
 			skill_name = locale.text(str(skill_db.get_skill(skill_id)["name_key"]))
 		return locale.text("UI_BATTLE_MSG_SKILL") % [unit_name, skill_name]
+	if str(entry.get("action", "")) == "item":
+		var item_id := str(entry.get("item_id", ""))
+		var item_name := item_id
+		if battle_item_db.has_item(item_id):
+			item_name = locale.text(str(battle_item_db.get_item(item_id)["name_key"]))
+		return locale.text("UI_BATTLE_MSG_ITEM_USE") % [unit_name, item_name]
 	return locale.text("UI_BATTLE_MSG_ATTACK") % unit_name
 
 
@@ -4428,6 +5579,27 @@ func _boss_action_display_name(boss_def: Dictionary, action_id: String) -> Strin
 		if str(action.get("id", "")) == action_id:
 			var key := str(action.get("name_key", ""))
 			return locale.text(key) if key != "" else ""
+	# Boss Action Set (D2、2026-08-25、§35-36): 強攻撃のような、data/
+	# enemiesの"actions"配列ではなく"action_set.steps[].action"の方に
+	# しか定義が無いactionもここで見つかるようにする——existing "boss_
+	# counter"の"%sの%s！"レンダリングをそのまま流用できる(名詞として
+	# 嵌め込む)。
+	var key := _action_set_step_name_key(boss_def, action_id)
+	return locale.text(key) if key != "" else ""
+
+
+## Boss Action Set (D2、2026-08-25): action_set.steps[].action.name_key
+## の生キー（まだローカライズしていない）だけを検索する共有ヘルパー。
+## 呼び出し側によって、その値を「名詞として%sの%s！へ嵌め込む」
+## (_boss_action_display_name、強攻撃)か「%sだけ差し込む完成した1文の
+## テンプレートとしてそのまま使う」(_battle_message_boss_telegraph_text、
+## 予兆)かが変わるため、検索自体をここへ一本化する。
+func _action_set_step_name_key(boss_def: Dictionary, action_id: String) -> String:
+	var action_set := boss_def.get("action_set", {}) as Dictionary
+	for step: Variant in action_set.get("steps", []) as Array:
+		var action := (step as Dictionary).get("action", {}) as Dictionary
+		if str(action.get("id", "")) == action_id:
+			return str(action.get("name_key", ""))
 	return ""
 
 
@@ -4440,6 +5612,29 @@ func _battle_message_boss_attack_announce_text(action_id: String) -> String:
 	if action_name != "":
 		return locale.text("UI_BATTLE_MSG_BOSS_ATTACK_NAMED") % [boss_name, action_name]
 	return locale.text("UI_BATTLE_MSG_BOSS_ATTACK_GENERIC") % boss_name
+
+
+## 「洞窟トロルが棍棒を大きく振り上げた！！」——予兆(0ダメージ)専用の
+## 宣言文。既存の"%sの%s！"という固定テンプレートには収まらない文体
+## （動詞で終わる・感嘆符が2つ、等）を各actionが自由に持てるよう、
+## name_keyの値自体を"%sだけを差し込む完成した1文"として扱う(§35-36)。
+func _battle_message_boss_telegraph_text(action_id: String) -> String:
+	var boss_def := enemy_db.get_enemy(sim.boss_enemy_id)
+	var boss_name := locale.text(str(boss_def["name_key"]))
+	var key := _action_set_step_name_key(boss_def, action_id)
+	if key == "":
+		return locale.text("UI_BATTLE_MSG_BOSS_ATTACK_GENERIC") % boss_name
+	return locale.text(key) % boss_name
+
+
+## 「洞窟トロルは攻撃の体勢を崩した！」——不発(0ダメージ、右腕等の
+## 必要な部位が既に破壊されている)専用の宣言文。どの強攻撃が不発した
+## かに関わらず共通の1文で足りるため(§35-36)、action_id別のname_key
+## は持たない。
+func _battle_message_boss_fizzle_text() -> String:
+	var boss_def := enemy_db.get_enemy(sim.boss_enemy_id)
+	var boss_name := locale.text(str(boss_def["name_key"]))
+	return locale.text("UI_BATTLE_MSG_BOSS_FIZZLE") % boss_name
 
 
 ## Melee ATTACKS physically close the distance (unchanged). Skills never
@@ -6153,105 +7348,23 @@ const EOS_BURST_WINDUP_SECONDS := \
 	EOS_BURST_SUMMON_PULLBACK_SECONDS + EOS_BURST_SUMMON_CHARGE_SECONDS \
 		+ EOS_BURST_SUMMON_HOLD_SECONDS  ## 1.15
 const EOS_BURST_REVEAL_START_SECONDS := EOS_BURST_SUMMON_PULLBACK_SECONDS + EOS_BURST_SUMMON_CHARGE_SECONDS  ## 0.25、竜の出現が始まる
-## --- EOS_CUTIN: 漫画風カットイン——「戦闘画面へ斬撃が切り込むように
-## 表示する」の①斬撃線→②開く→③保持→④閉じる→⑤抜ける、という既存実装
-## 済みの斜めクリッピング機構(`draw_polygon`によるパララログラム)は
-## そのまま維持し、今回は①中身を納品の`eos_cutin_sword_closeup.png`
-## 1枚だけに固定②タイミングをREADME「0.55〜0.95秒」(0.40秒)へ再スケール
-## しただけ——旧5段階の秒数比率を保ったまま合計0.84秒→0.40秒へ比例縮小。
-## 「Slower + New Impact v4」(2026-08-12) — README「0.78〜1.48秒:
-## 0.10秒で入り、0.48秒静止、0.12秒で抜く」——「入り」(slash_in+open)/
-## 「抜け」(close+slash_out)は前ラウンドの比率(約40:60/約50:50)を保った
-## まま0.10秒・0.12秒へ再配分。合計0.70秒。
-## 「Slower + Smooth + Massive Finish v5」(2026-08-12) — README「1.15〜
-## 2.10秒: 0.16秒で入り、0.61秒静止、0.18秒で抜く」——同じ比率(入り
-## 約40:60/抜け50:50)のまま0.16秒・0.18秒へ再配分。合計0.95秒。
-## 「CONTINUOUS_MOTION_CUTIN_AURA_LOCK v19」(2026-08-16) — 「③カットイン中に
-## 一度モーションが止まり、カットインだけを見せる直列処理になっている」
-## ——旧「①斬撃線→②開く→③保持→④閉じる→⑤抜ける」という5段階の"帯の
-## 開閉"ワイプ演出(`_eos_cutin_stage`、下記)を完全に撤去し、「帯は常に
-## 全開のまま、alphaのenter/exitと横方向の連続移動だけで見せる」という
-## 単純な新モデルへ全面差し替えた——参照実装`play_moving_cutin`が
-## Enter0.140秒/Exit0.160秒のalphaフェードと"stationary Hold=0秒"しか
-## 定義しておらず、帯の開閉に相当する形状パラメータが存在しないため。
-## 「既存の斜めクリップ形状...は変更しません」は、斜め角度の計算基盤
-## (`_eos_cutin_band_axes`/`_eos_cutin_quad`/screen-fixed UVマッピング)
-## 自体はそのまま維持し、"その形状を時間とともにどう開閉させるか"という
-## アニメーションのレイヤーだけを差し替える、という意味で解釈した。
-## 「FIXED_CUTIN_VISIBLE_BRIDGE_UNIFIED_FINISH v20」(2026-08-16) — README
-## 「①カットイン画像が横へ移動している。本来はカットイン自体を完全固定
-## し、その表示中にも背面のソティリスとオーラだけを進める」「時間は
-## character local0.200秒開始、0.720秒継続。Enter alpha:0.100秒
-## Smootherstep。Full alpha:0.480秒。Exit alpha:0.140秒Smootherstep。
-## character local0.920秒で完全終了」——ENTER/EXIT/DURATIONを更新
-## (0.140/0.160/0.800→0.100/0.140/0.720、hold=0.720-0.100-0.140=0.480秒は
-## 既存の`_eos_cutin_alpha`が「enter/exit以外は1.0を返す」構造でそのまま
-## 表現できるため専用定数は不要)。「禁止: v19の`play_moving_cutin`、
-## viewport -11%→+9%、offset_x、cutin position lerp」——旧`EOS_CUTIN_
-## START_VIEWPORT_RATIO`/`_END_VIEWPORT_RATIO`と`_eos_cutin_offset_x()`
-## (下記)を完全に削除し、`_draw_eos_burst_cutin`は常に無改修の`view`
-## そのものへ描く(帯の幾何・UVサンプリングとも移動しない)——「MotionAnchor、
-## キャラクターRoot、world camera、screen shake対象の子にしない」は、
-## そもそもこのファイルにCanvasLayer/実ノード階層が無く(単一の同期
-## `_draw()`ディスパッチ、呼び出し順=描画順)、カットインの描画関数
-## (`_draw_eos_burst_cutin`)は既存の`_battle_shake_offset()`が加算された
-## 後の`view`(戦闘ワールド全体の共有揺れ)を一切経由しない別の描画経路
-## (UI相当の最前面レイヤー、既存の呼び出し位置のまま無改修)であることを
-## 確認済み——構造的に画面揺れ・MotionAnchorの影響を受けない。
-## 「READABLE_SWORD_AURA_CRISP_SCALE_LOCK v21」(2026-08-17) — README「カット
-## インはcharacter local0.300秒開始、1.050秒継続です。Enter alpha:0.140秒
-## Smootherstep。Full:0.730秒。Exit alpha:0.180秒Smootherstep」。
-const EOS_CUTIN_ENTER_SECONDS := 0.140
-const EOS_CUTIN_EXIT_SECONDS := 0.180
-const EOS_CUTIN_DURATION_SECONDS := 1.050
-## 「その0.200秒後にplay_fixed_cutin(cutin_root)をawaitなしで開始」——
-## v19の0.180秒から0.200秒へ更新。
-## 「READABLE_SWORD_AURA_CRISP_SCALE_LOCK v21」(2026-08-17) — README
-## 「character local 0.300秒開始」——0.200→0.300。
-## 「EXTENDED_CHARGE_LOCKED_FINISH v22」(2026-08-17) — README「character
-## local0.800秒、skill global0.920秒で開始します」——character frame times
-## 延長(下記RAISE/SWING参照)に合わせ0.300→0.800。カットイン自体の
-## duration/enter/exit(直上3定数)は「v21のまま」なので無改修。
-const EOS_CUTIN_START_AFTER_APPROACH_SECONDS := 0.800
-const EOS_CUTIN_START_SECONDS := \
-	EOS_BURST_APPROACH_START_SECONDS + EOS_CUTIN_START_AFTER_APPROACH_SECONDS
-const EOS_CUTIN_END_SECONDS := EOS_CUTIN_START_SECONDS + EOS_CUTIN_DURATION_SECONDS
-## README「カットイン終了からreleaseまで可視ブリッジ0.200秒」——
-## `EOS_BURST_SLASH_START_SECONDS`(release=frame7満alpha+grand00初表示の
-## 瞬間)との差分として直接検証できる形で明示的に保持する(headless検証・
-## 報告の両方で参照する named constant、値自体は上記2つの定数から自動的に
-## 導出されるため、この定数自身はロジックに使わず確認専用)。
-## 「READABLE_SWORD_AURA_CRISP_SCALE_LOCK v21」(2026-08-17) — README「release
-## local 1.800秒まで通常戦闘画面の可視bridge：0.450秒」——0.200→0.450。
-## 「EXTENDED_CHARGE_LOCKED_FINISH v22」(2026-08-17) — README「releaseまでの
-## 可視charge bridge：1.110秒」——release local2.960秒(下記THRUST_LUNGE
-## 参照)からCUTIN_END(=0.800+1.050=1.850)を引いた値と厳密一致。
-## 「CURRENT_SOTIRIS_SCALE_PIXEL_LOCKED_FINISH v25」(2026-08-18) — README
-## 「visible charge bridge：1.230s(unchanged from v24)」——cutinのstart-
-## after-approach/durationとも今回無改修(0.800/1.050、CUTIN_END=1.850は
-## 不変)のため、新しいrelease local(3.080秒)からCUTIN_ENDを引いた値
-## (1.230)だけが変化する。
-const EOS_CUTIN_TO_RELEASE_VISIBLE_BRIDGE_SECONDS := 1.230
-## パネルの見た目(画面比率ベース、固定pxだけに頼らない——画面サイズが
-## 変わってもレイアウトが崩れないように)。
-const EOS_CUTIN_ANGLE_RAD := -0.19  ## 左下から右上、約-11°
-const EOS_CUTIN_BAND_HEIGHT_FRAC := 0.50  ## 全開時のパネル高さ(画面高さに対する比率)
-const EOS_CUTIN_BORDER_GOLD_PX := 8.0  ## 白金色の太い縁(プレースホルダー限定、下記参照)
-const EOS_CUTIN_BORDER_CYAN_PX := 3.0  ## 内側の細い水色の縁(プレースホルダー限定)
-const EOS_CUTIN_TITLE_TEXT := "エオスバースト"
-const EOS_CUTIN_TITLE_FONT_SIZE := 46
-## 「現行ソティリス維持版 v3」(2026-08-12) — 納品された最終画像
-## `eos_cutin_sword_closeup.png`(1152×648、画面と完全に同じ解像度)へ
-## 差し替え。「前回の01・03・04・05・06・07の全画面イラストは使用しない
-## ...カットイン画像はこの1枚だけ」——画面サイズと同一寸法のため、UV
-## マッピングは(下記`_eos_cutin_quad`で)帯自身の座標系ではなく画面座標
-## そのものへ変更した(画像が常に画面へ固定表示され、斜め窓だけが動く
-## 正しい「ワイプ」になる、前回の帯基準UVは絵が伸縮して見える簡易実装
-## だったため置き換えた)。旧`assets/vfx/sotiris/eos_cutin_final.png`
-## (1920×640想定)は未参照のまま——今後another final imageに差し替える
-## 場合はこのパスと`EOS_CUTIN_IMAGE_SIZE`を更新するだけでよい。
-const EOS_CUTIN_FINAL_IMAGE_PATH := "res://assets/art/eos_cutin_sword_closeup.png"
-const EOS_CUTIN_IMAGE_SIZE := Vector2(1152.0, 648.0)
+## 「EOS_BURST_V27_FRONTSIDE_NO_CUTIN_FINISH」(2026-09-04) — README「カット
+## インを完全削除する。CUTIN_TEXTURE、CUTIN関連定数、cutin_finished、
+## play_fixed_cutin、cutin_root引数、カットイン待機タイマーと呼び出しを
+## 残さない」。旧`EOS_CUTIN_*`定数一式(ENTER/EXIT/DURATION/START_AFTER_
+## APPROACH/START/END/TO_RELEASE_VISIBLE_BRIDGE/ANGLE_RAD/BAND_HEIGHT_
+## FRAC/BORDER_GOLD_PX/BORDER_CYAN_PX/TITLE_TEXT/TITLE_FONT_SIZE/FINAL_
+## IMAGE_PATH/IMAGE_SIZE、計16個)は完全削除——参照実装`eos_burst_v27_
+## reference.gd`にCUTIN関連のconst/signal/func が一切存在しないことに
+## 対応。カットインは`EOS_BURST_APPROACH_START_SECONDS`(掲剣開始)や
+## `EOS_BURST_SLASH_START_SECONDS`(release)などタイムライン本体の式には
+## 一切影響していなかった(v19以降、純粋な重畳描画オーバーレイに過ぎな
+## かった)ため、この削除だけで他のタイミング定数は無改修のまま成立する。
+## 関数群(`_eos_cutin_final_texture`/`_eos_cutin_placeholder_texture`/
+## `_eos_cutin_texture`/`_eos_cutin_band_axes`/`_eos_cutin_quad`/
+## `_eos_cutin_view_uv`/`_eos_cutin_alpha`/`_draw_eos_burst_cutin`)と
+## dispatcher呼び出し(`_draw_eos_burst_cutin(...)`)も併せて削除——詳細は
+## 削除箇所(旧行14419〜14609付近)参照。
 
 ## 「竜召喚モーションの最終構造修正」(2026-08-05、同日3ラウンド目) — 実写
 ## 確認で①依然「小さい完成画像をscaleで拡大して登場させる処理」に見える
@@ -6494,7 +7607,7 @@ const EOS_BURST_HOLD_SECONDS := 0.0
 ## からは明確に良くなっている。問題はタメモーションが短く、releaseまでが
 ## まだ早いこと」——release前(のみ)をさらに延長。character合計を3.900秒
 ## (2.540+1.360、下記RAISE/SWING参照)へ再延長。
-const EOS_BURST_APPROACH_SECONDS := 2.54  ## ①剣を頭上へ掲げる(12コマ前半、フレーム0〜5)
+const EOS_BURST_APPROACH_SECONDS := 0.400  ## V37: 構え0.12秒+短い掲剣/溜め0.28秒
 ## 「CONTINUOUS_MOTION_CUTIN_AURA_LOCK v19」(2026-08-16) — 「③カットイン中に
 ## 一度モーションが止まり、カットインだけを見せる直列処理になっている」
 ## ——旧`CUTIN_END_SECONDS`依存(カットインが閉じるまで剣を掲げ始めない)を
@@ -6570,7 +7683,12 @@ const EOS_BURST_APPROACH_END_SECONDS := \
 ## 呼び出し元ゼロの死蔵関数(v3ラウンドで無効化済み)、`EOS_BURST_MOUTH_
 ## CONVERGE_SECONDS`(=STRIKE_PREP_SECONDS+THRUST_LUNGE_SECONDS)は値が
 ## 0になった分だけ自動的にTHRUST_LUNGE_SECONDS単独へ縮む(式自体は無改修)。
-const EOS_BURST_STRIKE_PREP_SECONDS := 0.0  ## 旧②フレーム5静止ホールド、v19で撤廃
+## V38: V37の高速な振り下ろし区間は一切伸ばさず、最大振りかぶり
+## (logical frame5/source cell5)だけを独立して200ms保持する。ここを
+## SWING_DURATIONSへ足すと剣速そのものが低下するため、専用phaseとする。
+const EOS_BURST_V39_CHARGE_HOLD_SECONDS := 0.550
+const EOS_BURST_V39_CHARGE_FINAL_STILL_SECONDS := 0.080
+const EOS_BURST_STRIKE_PREP_SECONDS := EOS_BURST_V39_CHARGE_HOLD_SECONDS
 const EOS_BURST_STRIKE_PREP_START_SECONDS := EOS_BURST_APPROACH_END_SECONDS  ## 2.05
 ## README「1.32〜1.55秒: フレーム3→4→5で振り下ろす。同時にeos_downslash_
 ## wave_6f.pngとeos_dragon_assault_6f.pngを同じ方向へ再生する」。
@@ -6604,11 +7722,13 @@ const EOS_BURST_STRIKE_PREP_START_SECONDS := EOS_BURST_APPROACH_END_SECONDS  ## 
 ## 新しい合計(1.360秒、下記参照)へ更新。
 ## 「CURRENT_SOTIRIS_SCALE_PIXEL_LOCKED_FINISH v25」(2026-08-18) — SWING_
 ## DURATIONSが6→10要素へ拡張された新しい合計(1.480秒、下記参照)へ更新。
-const EOS_BURST_THRUST_LUNGE_SECONDS := 1.48  ## ③振り下ろし(16コマ後半、フレーム6〜15)
+## 「EOS_BURST_V26_REFERENCE_MOTION_HYBRID_FINISH」(2026-09-03) — SWING_
+## DURATIONSが10→11要素へ拡張された新しい合計(1.680秒、下記参照)へ更新。
+const EOS_BURST_THRUST_LUNGE_SECONDS := 1.390  ## V41: V40総尺を固定し、身体先行→後半加速だけを再配分
 const EOS_BURST_THRUST_LUNGE_START_SECONDS := \
-	EOS_BURST_STRIKE_PREP_START_SECONDS + EOS_BURST_STRIKE_PREP_SECONDS  ## 2.05(STRIKE_PREP=0のためAPPROACH_ENDと同値)
+	EOS_BURST_STRIKE_PREP_START_SECONDS + EOS_BURST_STRIKE_PREP_SECONDS  ## 1.070、550msの溜め直後
 const EOS_BURST_BEAM_START_SECONDS := \
-	EOS_BURST_THRUST_LUNGE_START_SECONDS + EOS_BURST_THRUST_LUNGE_SECONDS  ## 2.55(v19)、振り下ろし完了
+	EOS_BURST_THRUST_LUNGE_START_SECONDS + EOS_BURST_THRUST_LUNGE_SECONDS  ## 2.460、振り下ろし完了
 ## 「斬撃は必ず下げた刀身から始め、竜の口から別のビームを出さない」——
 ## 前ラウンドの独立した光撃(EOS_BEAM、剣先から0.80秒かけて伸びる光の
 ## 奔流)は撤去した。斬撃効果は新規`eos_sword_crescent_6f.png`(下記
@@ -6786,6 +7906,41 @@ const EOS_BURST_DOWNSLASH12_CRISP_POSE_KEY := "skill_minion_0_eosdownslash12cris
 ## ことが無く、今回のパックが同梱するv24 baseline資料から直接v25の最終
 ## 状態を構築した——詳細は本ラウンドのCLAUDE.md記載を参照)。
 const EOS_BURST_DOWNSLASH16_POSE_KEY := "skill_minion_0_eosdownslash16currentscale"
+## 「EOS_BURST_V26_REFERENCE_MOTION_HYBRID_FINISH」(2026-09-03) — README
+## 「送付動画を動きの基準にして、これまで良かった演出を残した統合版」。
+## PROCESSING_NOTES_V26.md「既存12セルの対応は、V26の0〜5が旧0〜5、V26の
+## 11〜16が旧6〜11です。新規なのは6〜10だけです」——16コマ(v25)のうち
+## 継承12セル(旧0-5・6-11)は画素単位で不変のまま、新frame6-9(v25の4コマ)
+## を、送付動画の運動(剣を真上に構える・最大まで後ろへ振りかぶる・全身で
+## 縦に切り下ろす・前へ踏み込む・地面へ接触する)を基準にした新5コマへ
+## 全面差し替え(headless実測でframe0/frame16/frame12の3点のbboxが
+## SOTIRIS_ALPHA_CONTRACT_V26.tsvの該当行と完全一致することを確認済み)。
+## `tools/`で17枚へ切り出し済み(`skill_minion_0_eosdownslash17reference
+## motion`)。旧16コマキー(`EOS_BURST_DOWNSLASH16_POSE_KEY`)とその定数群は
+## 無改修のまま残置(削除しない)——このキーが新たに主導権を持つ。
+const EOS_BURST_DOWNSLASH17_POSE_KEY := "skill_minion_0_eosdownslash17referencemotion"
+## 「EOS_BURST_V27_FRONTSIDE_NO_CUTIN_FINISH」(2026-09-04) — README「最新
+## 実機動画の指摘: 剣が体の後ろ側を通る」——CHANGE_MAP_V26_TO_V27.tsv
+## 「motion cells: 17 cells→17 cells; frame6〜10だけ更新・継承12セルは
+## 不変」どおり、v26の17コマシートのうちframe6-10(振りかぶり〜振り下ろし)
+## だけを「剣先が常に柄より右前方にある」新運動へ差し替えた新シートへ
+## 全面差替え(frame0-5/11-16はv26と画素単位で継承、headless実測で確認
+## 済み)。`tools/`で17枚へ切り出し済み(`skill_minion_0_eosdownslash17
+## frontside`)。旧17コマキー(`EOS_BURST_DOWNSLASH17_POSE_KEY`、直上)とその
+## 定数群は無改修のまま残置(削除しない)——このキーが新たに主導権を持つ。
+const EOS_BURST_DOWNSLASH17_FRONTSIDE_POSE_KEY := "skill_minion_0_eosdownslash17frontside"
+## V33: V32の承認済みframe7/8を固定し、後退するframe9だけを前方荷重poseへ
+## 差し替えた18コマsheet。残り17セル・timing・scale・足元Y=214は固定。
+## custom Control描画では
+## Sprite2D.hframesの代わりに、このframe countで同じ222x222セルへ分割する。
+## V35: the wind-up keeps the torso open and the strike uses six authored
+## in-betweens so rotation travels shoulder -> elbow -> hand -> blade tip.
+## V44 preserves all 21 V43 cells and inserts five authored overlap poses
+## between old cells6..11. The flat sprite now carries the distinct torso,
+## shoulder, elbow, hand and blade timing instead of morphing distant poses.
+const EOS_BURST_V35_CHARACTER_SHEET_PATH := "res://assets/vfx/eos_burst/v44/assets/sotiris_eos_downslash_26f_v44.png"
+const EOS_BURST_V35_CHARACTER_FRAME_COUNT := 26
+const EOS_BURST_V35_CHARACTER_CELL_SIZE := Vector2i(222, 222)
 ## 「HDDragonCharge v7」(2026-08-13) — README「人物前半フレーム0〜5：
 ## [0.15, 0.14, 0.14, 0.14, 0.14, 0.14](合計0.85秒)。フレーム5頂点保持：
 ## 0.40秒」——合計0.85秒はEOS_BURST_APPROACH_SECONDSと厳密一致。「最速でも
@@ -6809,7 +7964,7 @@ const EOS_BURST_DOWNSLASH16_POSE_KEY := "skill_minion_0_eosdownslash16currentsca
 ## `CHARACTER_FRAME_TIMES`前半6要素——[0.380,0.360,0.360,0.380,0.460,0.600]
 ## (合計2.540秒、旧1.550秒から+0.990秒)。pose0-2はカットイン前の見える
 ## 構え、pose3-4はカットイン背面で剣を上げる区間(PROCESSING_NOTES_V22.md)。
-const EOS_BURST_DOWNSLASH12_RAISE_DURATIONS: Array[float] = [0.380, 0.360, 0.360, 0.380, 0.460, 0.600]
+const EOS_BURST_DOWNSLASH12_RAISE_DURATIONS: Array[float] = [0.120, 0.070, 0.060, 0.055, 0.045, 0.050]
 ## README「人物後半フレーム6〜11：[0.13, 0.12, 0.11, 0.10, 0.11, 0.13]
 ## (合計0.70秒)」——合計0.70秒はEOS_BURST_THRUST_LUNGE_SECONDSと厳密
 ## 一致。「8→9だけ急に0.07秒へ縮めません」——最小値0.10秒で満たす。
@@ -6845,8 +8000,23 @@ const EOS_BURST_DOWNSLASH12_RAISE_DURATIONS: Array[float] = [0.380, 0.360, 0.360
 ## 画素・秒数とも無改修のまま新frame11-15へスライドしただけ——6要素→10
 ## 要素への拡張だが、末尾5要素[0.180,0.160,0.160,0.200,0.240]は旧SWING[1..5]
 ## と完全に同じ値。
+## 「EOS_BURST_V26_REFERENCE_MOTION_HYBRID_FINISH」(2026-09-03) — 参照実装
+## `CHARACTER_FRAME_TIMES`のindex6-16(11要素)——PROCESSING_NOTES_V26.md
+## 「V26の11〜16が旧6〜11」どおり、新設5コマ[0.180,0.180,0.100,0.080,0.080]
+## (送付動画の新運動、旧v25の4コマ[0.110,0.110,0.100,0.100]を置き換え)+
+## 旧v25 SWING[4..9](=v21由来の元々のswing[1..5]、無改修のまま新設5コマの
+## 後ろへスライド)[0.120,0.180,0.160,0.160,0.200,0.240]。合計1.680秒
+## (旧1.480秒から+0.200秒)。
+## 「EOS_BURST_V30_FORWARD_CUTTHROUGH_RELEASE_SYNC」(2026-09-05) — 絵は
+## V28の17コマsheetを固定したまま、index6-16を下記11値へ更新。frame7は
+## 0.030秒の通過コマ、frame13-14を経てframe15の完全伸展でreleaseする。
+## 「EOS_BURST_V31_REFERENCE_MOTION_INBETWEENS」— V30 old frame7..9を
+## active列から外し、NEW A..Dをframe7..10へ挿入。frame6..15の0.740秒、
+## swing全体1.680秒、release後の0.940秒は維持する。
 const EOS_BURST_DOWNSLASH12_SWING_DURATIONS: Array[float] = [
-	0.110, 0.110, 0.100, 0.100, 0.120, 0.180, 0.160, 0.160, 0.200, 0.240,
+	0.027, 0.020, 0.015, 0.012, 0.058, 0.035, 0.052,
+	0.018, 0.014, 0.030, 0.010, 0.008, 0.034, 0.051,
+	0.120, 0.100, 0.120, 0.140, 0.180, 0.346,
 ]
 ## 「CONTINUOUS_MOTION_CUTIN_AURA_LOCK v19」(2026-08-16) — 「①一つ一つの
 ## 姿勢とVFXのつながりが滑らかでなく、長く止まった後に一枚で切り替わる
@@ -6880,16 +8050,58 @@ const EOS_BURST_DOWNSLASH12_SWING_DURATIONS: Array[float] = [
 ## 窓が重複しうる(0.110*0.65=0.0715秒、これ自体は0.080未満で収まるが、
 ## 参照実装が明示的に0.65→0.45へ変更したためそのまま踏襲)——下記
 ## `_eos_burst_downslash12_hold_blend`の乗数を新設の比率定数へ差し替える。
+## 「EOS_BURST_V26_REFERENCE_MOTION_HYBRID_FINISH」(2026-09-03) — RAISE
+## (6要素、無改修)+SWING(11要素、上記参照)をそのまま連結(合計4.220秒、
+## CHANGE_MAP_V25_TO_V26.tsv「character total: 4.020s→4.220s」と一致)。
+## `BLEND_MAX_SECONDS`/`_BLEND_RATIO`はともに無改修(参照実装`CHARACTER_
+## DITHER_MAX := 0.080`/`_INTERVAL_RATIO := 0.45`と一致)。
+## V31でもRAISE 6要素は固定し、上記SWING 12要素だけを連結する。
 const EOS_BURST_DOWNSLASH12_BLEND_DURATIONS: Array[float] = [
-	0.380, 0.360, 0.360, 0.380, 0.460, 0.600,
-	0.110, 0.110, 0.100, 0.100, 0.120,
-	0.180, 0.160, 0.160, 0.200, 0.240,
+	0.120, 0.070, 0.060, 0.055, 0.045, 0.050,
+	0.027, 0.020, 0.015, 0.012, 0.058, 0.035, 0.052,
+	0.018, 0.014, 0.030, 0.010, 0.008, 0.034, 0.051,
+	0.120, 0.100, 0.120, 0.140, 0.180, 0.346,
 ]
 const EOS_BURST_DOWNSLASH12_BLEND_MAX_SECONDS := 0.080
 ## 「CURRENT_SOTIRIS_SCALE_PIXEL_LOCKED_FINISH v25」(2026-08-18) — 参照実装
 ## `CHARACTER_DITHER_INTERVAL_RATIO := 0.45`(v22以前は0.65固定でハード
 ## コードされていた——今回初めてnamed constant化)。
 const EOS_BURST_DOWNSLASH12_BLEND_RATIO := 0.45
+## V44: the complete 0.400-second strike is one normalized timeline. Five new
+## authored overlap poses make the flattened sprite express torso -> shoulder
+## -> elbow -> hand -> sword lag. Every pose before FOLLOW_THROUGH_END remains
+## a pass-through; no per-keyframe hold/ease-out is allowed.
+const EOS_BURST_V36_DIRECT_SWORD_FRAME_START := 6
+const EOS_BURST_V36_DIRECT_SWORD_FRAME_END := 19
+const EOS_BURST_V44_STRIKE_SECONDS := 0.384
+## V44 sheet order already is logical order. Cell20 is the first legal hold;
+## recovery occupies cells21..25.
+const EOS_BURST_V37_MOTION_FRAME_SEQUENCE: Array[int] = [
+	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+	13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+]
+## V35 rear-foot lock. Each source-space offset compensates the authored
+## stance so the planted rear foot advances only three source pixels over
+## the whole strike and never retreats behind its starting point.
+const EOS_BURST_V35_MOTION_FRAME_X_OFFSETS: Array[float] = [
+	8.0, 0.0, -6.8, -5.6, -0.4, -3.2,
+	-1.0, -1.0, 3.0, 2.0, 3.0, 8.0, 12.0,
+	34.0, 41.0, 45.0, 41.0, 45.0, 59.0, 69.0, 69.0,
+	30.0, 28.0, 31.0, 31.8, 10.5,
+]
+## Final V44 alpha pixels, source cells6..20. Combined with the source-space
+## X offsets above, the planted rear foot remains at x=74 (cell coordinates)
+## throughout the complete downswing while the hand pivot advances.
+const EOS_BURST_V44_REAR_FOOT_X_6_TO_20: Array[float] = [
+	75.0, 75.0, 71.0, 72.0, 71.0, 66.0, 62.0, 40.0,
+	33.0, 29.0, 33.0, 29.0, 15.0, 5.0, 5.0,
+]
+const EOS_BURST_V44_RECOVERY_FINAL_FRAME_INDEX := 25
+const EOS_BURST_V35_RECOVERY_END_X_OFFSET := 8.0
+const EOS_BURST_V35_RECOVERY_RETURN_START_RATIO := 0.45
+## 1.0 means the aura consumes the exact same pose mix as the blade; it can
+## neither lead nor lag the sword during a transition.
+const EOS_BURST_V35_SWORD_AURA_POSE_GAMMA := 1.0
 ## 「RELEASE_SYNC_NO_ECHO v16」(2026-08-15) — 「ソティリスが剣を振り下ろ
 ## した瞬間と斬撃が出る瞬間がずれている(約0.25秒、60fps換算で約15フレ
 ## ーム遅れ)」という報告。真因はEOS_BURST_SLASH_START_SECONDS(斬撃開始)
@@ -6928,11 +8140,204 @@ const EOS_BURST_DOWNSLASH12_BLEND_RATIO := 0.45
 ## 一般化——release対象のframeがSWING配列内で何番目かが変わっても(旧: 1
 ## 番目、新: 6番目)、この式は「releaseフレームが表示され始める瞬間の
 ## THRUST_LUNGE_START相対オフセット」という同じ意味をそのまま保つ。
-const EOS_BURST_DOWNSLASH12_RELEASE_FRAME_INDEX := 11  ## 0始まり
+## 「EOS_BURST_V26_REFERENCE_MOTION_HYBRID_FINISH」(2026-09-03) — 参照実装
+## `RELEASE_FRAME_INDEX := 12`(旧11から+1、新設5コマ挿入により相対位置が
+## SWING配列内で「6番目」→「7番目」へ1つ後退)。CONTINUITY_CONTRACT_V26.tsv
+## 「release: pose12とgrand_00 first visibleが同じdraw」。RELEASE_OFFSET_
+## SECONDSの式も同じ一般化パターンのまま「release直前までのSWING配列先頭
+## 6要素の累積和」へ拡張(5項→6項)——headless実測でこの式の値(0.740)が
+## 参照実装のCHARACTER_RELEASE_TIME(3.280、=EOS_BURST_APPROACH_SECONDS
+## 2.540+この0.740)と厳密一致することを確認済み。
+## 「EOS_BURST_V30_FORWARD_CUTTHROUGH_RELEASE_SYNC」— releaseをframe12から
+## frame15へ移動。release直前のframe6-14は先頭9要素の累積0.740秒で、
+## lead-in込みのglobal releaseは0.120+3.280=3.400秒のまま変えない。
+## V31では4中割りの挿入に合わせ、同じ完全伸展cellを新frame16へ移す。
+## release直前のframe6..15はSWING先頭10要素、合計0.740秒。
+const EOS_BURST_V37_IMPACT_FRAME_INDEX := 18
+const EOS_BURST_V37_FOLLOWTHROUGH_FRAME_INDEX := 19
+const EOS_BURST_V37_STOP_FRAME_INDEX := 20
+## V46: the late strike is 0.016s shorter, so the completed-cut hold gains the
+## same 0.016s. The giant slash therefore keeps its approved absolute start
+## time while the faster blade still leaves more readable follow-through.
+const EOS_BURST_V37_FOLLOWTHROUGH_HOLD_SECONDS := 0.183
+const EOS_BURST_DOWNSLASH12_RELEASE_FRAME_INDEX := 20
 const EOS_BURST_DOWNSLASH12_RELEASE_OFFSET_SECONDS := \
-	EOS_BURST_DOWNSLASH12_SWING_DURATIONS[0] + EOS_BURST_DOWNSLASH12_SWING_DURATIONS[1] \
-	+ EOS_BURST_DOWNSLASH12_SWING_DURATIONS[2] + EOS_BURST_DOWNSLASH12_SWING_DURATIONS[3] \
-	+ EOS_BURST_DOWNSLASH12_SWING_DURATIONS[4]  ## frame6-10の累積表示時間=0.540
+	EOS_BURST_V44_STRIKE_SECONDS + EOS_BURST_V37_FOLLOWTHROUGH_HOLD_SECONDS
+## V45: frames6..18 are driven by one arc-length-normalized progress rather
+## than fourteen independent interval clocks. The quadratic distance curve
+## has a non-zero initial derivative and rises continuously to impact.
+const EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS := 0.299
+const EOS_BURST_V46_ORIGINAL_STRIKE_SECONDS := 0.315
+const EOS_BURST_V46_BLADE_PASS_START_SECONDS := 0.233
+const EOS_BURST_V46_LATE_INITIAL_SPEED_RATIO := 0.70
+const EOS_BURST_V46_LATE_FINAL_SPEED_RATIO := 1.55
+## 0.37 places the authored blade-lag apex on a 60-fps sample boundary. That
+## prevents one rendered delta from straddling both sides of the direction
+## reversal and falsely reading as a mid-swing slowdown.
+const EOS_BURST_V45_INITIAL_SPEED_RATIO := 0.37
+
+
+func _assert_eos_burst_v44_contract() -> void:
+	assert(EOS_BURST_DOWNSLASH12_BLEND_DURATIONS.size() == 26)
+	assert(EOS_BURST_V35_MOTION_FRAME_X_OFFSETS.size() == 26)
+	assert(EOS_BURST_V37_MOTION_FRAME_SEQUENCE.size() == 26)
+	assert(EOS_BURST_V35_CHARACTER_FRAME_COUNT == 26)
+	assert(EOS_BURST_DOWNSLASH12_RELEASE_FRAME_INDEX == EOS_BURST_V37_STOP_FRAME_INDEX)
+	assert(EOS_BURST_V37_FOLLOWTHROUGH_FRAME_INDEX == EOS_BURST_V37_IMPACT_FRAME_INDEX + 1)
+	assert(EOS_BURST_V37_STOP_FRAME_INDEX == EOS_BURST_V37_FOLLOWTHROUGH_FRAME_INDEX + 1)
+	for frame_index in EOS_BURST_V37_MOTION_FRAME_SEQUENCE.size():
+		assert(EOS_BURST_V37_MOTION_FRAME_SEQUENCE[frame_index] == frame_index)
+	assert(EOS_BURST_V37_FOLLOWTHROUGH_HOLD_SECONDS >= 0.150)
+	assert(EOS_BURST_V37_FOLLOWTHROUGH_HOLD_SECONDS <= 0.200)
+	assert(EOS_BURST_V39_CHARGE_HOLD_SECONDS >= 0.450)
+	assert(EOS_BURST_V39_CHARGE_HOLD_SECONDS <= 0.650)
+	assert(EOS_BURST_V39_CHARGE_FINAL_STILL_SECONDS >= 0.060)
+	assert(EOS_BURST_V39_CHARGE_FINAL_STILL_SECONDS <= 0.100)
+	var locked_v44_swing: Array[float] = [
+		0.027, 0.020, 0.015, 0.012, 0.058, 0.035, 0.052,
+		0.018, 0.014, 0.030, 0.010, 0.008, 0.034, 0.051,
+		0.120, 0.100, 0.120, 0.140, 0.180, 0.346,
+	]
+	for swing_index in locked_v44_swing.size():
+		assert(is_equal_approx(
+			EOS_BURST_DOWNSLASH12_SWING_DURATIONS[swing_index],
+			locked_v44_swing[swing_index]))
+	assert(is_equal_approx(
+		EOS_BURST_THRUST_LUNGE_START_SECONDS - EOS_BURST_STRIKE_PREP_START_SECONDS,
+		EOS_BURST_V39_CHARGE_HOLD_SECONDS))
+	var charge_hold_pair := _eos_burst_downslash12_frame_pair(
+		EOS_BURST_STRIKE_PREP_START_SECONDS + EOS_BURST_V39_CHARGE_HOLD_SECONDS * 0.5)
+	assert(charge_hold_pair[0] == 5 and charge_hold_pair[1] == -1)
+	assert(_eos_burst_v38_charge_hold_pulse(
+		EOS_BURST_STRIKE_PREP_START_SECONDS + EOS_BURST_V39_CHARGE_HOLD_SECONDS * 0.5) > 0.85)
+	assert(is_zero_approx(_eos_burst_v38_charge_hold_pulse(
+		EOS_BURST_THRUST_LUNGE_START_SECONDS
+			- EOS_BURST_V39_CHARGE_FINAL_STILL_SECONDS * 0.5)))
+	assert(_eos_burst_v39_charge_energy(
+		EOS_BURST_THRUST_LUNGE_START_SECONDS
+			- EOS_BURST_V39_CHARGE_FINAL_STILL_SECONDS * 0.5) > 0.95)
+
+	var raise_total := 0.0
+	for duration in EOS_BURST_DOWNSLASH12_RAISE_DURATIONS:
+		raise_total += duration
+	var swing_total := 0.0
+	for duration in EOS_BURST_DOWNSLASH12_SWING_DURATIONS:
+		swing_total += duration
+	var total := raise_total + swing_total
+	assert(is_equal_approx(raise_total, EOS_BURST_APPROACH_SECONDS))
+	assert(is_equal_approx(swing_total, EOS_BURST_THRUST_LUNGE_SECONDS))
+	assert(is_equal_approx(total, 1.790))
+	var strike_total := 0.0
+	for frame_index in range(
+		EOS_BURST_V36_DIRECT_SWORD_FRAME_START,
+		EOS_BURST_V36_DIRECT_SWORD_FRAME_END + 1
+	):
+		strike_total += EOS_BURST_DOWNSLASH12_BLEND_DURATIONS[frame_index]
+	assert(is_equal_approx(strike_total, EOS_BURST_V44_STRIKE_SECONDS))
+	assert(is_equal_approx(
+		_eos_burst_v46_distance_progress_at_elapsed(EOS_BURST_V46_BLADE_PASS_START_SECONDS),
+		_eos_burst_v45_distance_progress(
+			EOS_BURST_V46_BLADE_PASS_START_SECONDS / EOS_BURST_V46_ORIGINAL_STRIKE_SECONDS)))
+	var late_time_ratio := \
+		(EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS - EOS_BURST_V46_BLADE_PASS_START_SECONDS) \
+		/ (EOS_BURST_V46_ORIGINAL_STRIKE_SECONDS - EOS_BURST_V46_BLADE_PASS_START_SECONDS)
+	assert(late_time_ratio >= 0.75 and late_time_ratio <= 0.85)
+	assert(is_equal_approx(EOS_BURST_DOWNSLASH12_RELEASE_OFFSET_SECONDS, 0.567))
+	assert(is_equal_approx(EOS_BURST_SLASH_START_SECONDS, 1.637))
+
+	# Every body-lead -> impact key is visited by one normalized arc-length
+	# clock; no key owns an independent hold or ease-out interval.
+	var visited_strike_segments: Dictionary = {}
+	for sample_index in range(1, 200):
+		var sample_u := float(sample_index) / 200.0
+		var direct_pair := _eos_burst_v45_accelerating_strike_pair(
+			EOS_BURST_APPROACH_SECONDS
+				+ sample_u * EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS)
+		assert(direct_pair[0] >= EOS_BURST_V36_DIRECT_SWORD_FRAME_START)
+		assert(direct_pair[0] < EOS_BURST_V37_IMPACT_FRAME_INDEX)
+		assert(direct_pair[1] == direct_pair[0] + 1)
+		assert(direct_pair[3] >= 0.0 and direct_pair[3] <= 1.0)
+		visited_strike_segments[direct_pair[0]] = true
+	for frame_index in range(
+		EOS_BURST_V36_DIRECT_SWORD_FRAME_START,
+		EOS_BURST_V37_IMPACT_FRAME_INDEX
+	):
+		assert(visited_strike_segments.has(frame_index))
+	var stop_start := 0.0
+	for frame_index in EOS_BURST_V37_STOP_FRAME_INDEX:
+		stop_start += EOS_BURST_DOWNSLASH12_BLEND_DURATIONS[frame_index]
+	var stop_pair := _eos_burst_downslash12_hold_blend(
+		stop_start + EOS_BURST_DOWNSLASH12_BLEND_DURATIONS[EOS_BURST_V37_STOP_FRAME_INDEX] * 0.5)
+	assert(stop_pair[0] == EOS_BURST_V37_STOP_FRAME_INDEX and stop_pair[1] == -1)
+	var sample_age := raise_total
+	var previous_sample_tip := _eos_burst_v44_sword_tip_at_motion_age(sample_age)
+	while sample_age < stop_start - 0.00001:
+		sample_age = minf(sample_age + 1.0 / 60.0, stop_start - 0.00001)
+		var sampled_tip := _eos_burst_v44_sword_tip_at_motion_age(sample_age)
+		assert(sampled_tip.distance_to(previous_sample_tip) > 0.01)
+		previous_sample_tip = sampled_tip
+
+	assert(EOS_BURST_SWORD_BASE.size() == 18)
+	assert(EOS_BURST_SWORD_TIP.size() == 18)
+	assert(EOS_BURST_V44_CUSTOM_SWORD_BASE.size() == 14)
+	assert(EOS_BURST_V44_CUSTOM_SWORD_TIP.size() == 14)
+	assert(EOS_BURST_V44_REAR_FOOT_X_6_TO_20.size() == 15)
+	for source_frame in range(6, 21):
+		var planted_foot_x := EOS_BURST_V44_REAR_FOOT_X_6_TO_20[source_frame - 6] \
+			+ EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[source_frame]
+		assert(is_equal_approx(planted_foot_x, 74.0))
+	# The hand initially trails the advancing body, then moves decisively ahead.
+	var hand_6 := _eos_burst_v39_sword_base(6).x + EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[6]
+	var hand_9 := _eos_burst_v39_sword_base(9).x + EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[9]
+	var hand_13 := _eos_burst_v39_sword_base(13).x + EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[13]
+	var hand_18 := _eos_burst_v39_sword_base(18).x + EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[18]
+	assert(hand_9 < hand_6)
+	assert(hand_13 > hand_9 + 60.0)
+	assert(hand_18 > hand_13 + 20.0)
+	# Equal-time runtime samples must gain distance monotonically on the way to
+	# impact. The final sample is the impact point, not a held PRE_IMPACT pose.
+	var previous_delta := 0.0
+	var runtime_tip_deltas: Array[float] = []
+	var previous_tip := _eos_burst_v44_sword_tip_at_motion_age(EOS_BURST_APPROACH_SECONDS)
+	for sample_index in range(1, 19):
+		var impact_sample_age := EOS_BURST_APPROACH_SECONDS \
+			+ EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS * float(sample_index) / 18.0
+		var sampled_tip := _eos_burst_v44_sword_tip_at_motion_age(impact_sample_age - 0.000001)
+		var sword_tip_delta := sampled_tip.distance_to(previous_tip)
+		assert(sword_tip_delta > 0.01)
+		# A corner sample may lose under 1% when the polyline changes direction;
+		# larger fast->slow drops are forbidden.
+		assert(sword_tip_delta >= previous_delta * 0.99)
+		runtime_tip_deltas.append(sword_tip_delta)
+		previous_delta = sword_tip_delta
+		previous_tip = sampled_tip
+	for late_index in range(runtime_tip_deltas.size() - 4, runtime_tip_deltas.size()):
+		assert(runtime_tip_deltas[late_index] > runtime_tip_deltas[late_index - 1])
+	assert(runtime_tip_deltas[-1] == runtime_tip_deltas.max())
+	assert(is_equal_approx(
+		EOS_BURST_SWORD_AURA_STAGE_TIMES[0] + EOS_BURST_SWORD_AURA_STAGE_TIMES[1]
+			+ EOS_BURST_SWORD_AURA_STAGE_TIMES[2] + EOS_BURST_SWORD_AURA_STAGE_TIMES[3]
+			+ EOS_BURST_SWORD_AURA_FADE_SECONDS,
+		EOS_BURST_APPROACH_SECONDS + EOS_BURST_DOWNSLASH12_RELEASE_OFFSET_SECONDS))
+	var impact_source := _eos_burst_v37_source_frame(EOS_BURST_V37_IMPACT_FRAME_INDEX)
+	var followthrough_source := _eos_burst_v37_source_frame(EOS_BURST_V37_FOLLOWTHROUGH_FRAME_INDEX)
+	var impact_tip := _eos_burst_v39_sword_tip(impact_source) + Vector2(
+		EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[impact_source], 0.0)
+	var followthrough_tip := _eos_burst_v39_sword_tip(followthrough_source) + Vector2(
+		EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[followthrough_source], 0.0)
+	assert(followthrough_tip.x - impact_tip.x >= 12.0)
+	assert(followthrough_tip.y <= impact_tip.y + 2.0)
+	var stop_source := _eos_burst_v37_source_frame(EOS_BURST_V37_STOP_FRAME_INDEX)
+	var stop_tip := _eos_burst_v39_sword_tip(stop_source) + Vector2(
+		EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[stop_source], 0.0)
+	assert(stop_tip.distance_to(followthrough_tip) >= 4.0)
+	assert(is_equal_approx(
+		_eos_burst_v35_frame_source_offset(EOS_BURST_V44_RECOVERY_FINAL_FRAME_INDEX, 0.0), 10.5))
+	assert(is_equal_approx(
+		_eos_burst_v35_frame_source_offset(EOS_BURST_V44_RECOVERY_FINAL_FRAME_INDEX, 1.0), 8.0))
+	assert(EOS_BURST_V35_RECOVERY_RETURN_START_RATIO > 0.0)
+	assert(EOS_BURST_V35_RECOVERY_RETURN_START_RATIO < 1.0)
+	assert(is_equal_approx(EOS_BURST_V35_SWORD_AURA_POSE_GAMMA, 1.0))
 ## 「エオスバースト最終仕上げ: 攻撃後半の完成」— 「着弾地点の光を約
 ## 0.4〜0.5秒残す」(旧0.25秒から延長)で確定した合計0.577秒。当時の
 ## CONTACT/BURST/AFTERMATHという3段階の手続き描画による内訳は、「オーラ
@@ -7923,6 +9328,7 @@ func _enter_battle_anim_act_phase(entry: Dictionary, unit_id: int) -> void:
 		_soul_break_debug_log("SOUL_BREAK cast started")
 		return
 	if is_skill and str(entry.get("skill_id", "")) == EOS_BURST_SKILL_ID:
+		_assert_eos_burst_v44_contract()
 		# Uses the SHARED attack_minion_N clip at the SHARED PARTY_ICON_PX
 		# box, exactly like rapid_slash/soul_break — this is what makes the
 		# package's "必殺技中にscaleを拡大・縮小する[禁止]" / "スキル開始前
@@ -7977,6 +9383,10 @@ func _on_battle_anim_tick() -> void:
 	var entry: Dictionary = _battle_anim_queue[_battle_anim_step]
 	var unit_id := int(entry["unit_id"])
 	_battle_anim_phase_elapsed += dt
+	# バトルメッセージの遅延表示(2026-09-01、§15) — どのフェーズでも同じ
+	# _battle_anim_phase_elapsedを見るだけなので、フェーズ別分岐(下の
+	# match)より前のこの1箇所だけで全ケースに効く。
+	_flush_deferred_battle_message_if_due()
 	# A shot in flight travels regardless of the caster's own phase; its
 	# arrival — not the cast animation — is the hit moment. The act phase
 	# below refuses to end while this is still true, so `entry` is always
@@ -8371,12 +9781,13 @@ func _on_battle_anim_tick() -> void:
 					"color": COLOR_DAMAGE_POPUP, "t": 0.0,
 				})
 				# ターン開始（_advance_battle_anim_stepのboss_counter分岐）で
-				# 既に_clear_battle_message()済み——ここは同じ敵ターン内の
-				# 続きとして積み増すだけ。
+				# 既に_clear_battle_message()済み・敵カテゴリで宣言を積んで
+				# いる——同じ敵カテゴリのまま続けてappendすると敵の1行cap
+				# により自動的に宣言が置き換わる(§9「敵は基本1行表示」)。
 				_append_battle_message(locale.text("UI_BATTLE_MSG_DAMAGE_ALLY") % [
 					_unit_display_name(sim.minions[_battle_ally_hit_unit]),
 					int(entry.get("amount", 0)),
-				])
+				], "normal", "enemy")
 				_battle_hitstop_t = BATTLE_HITSTOP_SECONDS
 				_battle_shake_t = BATTLE_SHAKE_SECONDS
 				# Reset in case the previous hit was rapid_slash's (which
@@ -8392,6 +9803,32 @@ func _on_battle_anim_tick() -> void:
 			# Party-wide pose drawn by _draw_party_row (clip frames come
 			# from this phase's elapsed time); nothing moves.
 			if _battle_anim_phase_elapsed >= BATTLE_VICTORY_SECONDS:
+				_advance_battle_anim_step()
+				return
+		"guard":
+			# Phase 6「防御」(2026-08-25、§24): 動かない・攻撃相手も無い
+			# ——victoryフェーズと同じ「メッセージを見せるためだけに一定
+			# 秒数待って次へ進む」実装。
+			if _battle_anim_phase_elapsed >= BATTLE_GUARD_SECONDS:
+				_advance_battle_anim_step()
+				return
+		"boss_notice":
+			# Boss Action Set (D2、2026-08-25、§35-36): 予兆/不発とも
+			# guardと全く同じ「動かない・メッセージだけ見せて一定時間
+			# 待つ」実装——ダメージが一切発生しないため。
+			if _battle_anim_phase_elapsed >= BATTLE_BOSS_NOTICE_SECONDS:
+				_advance_battle_anim_step()
+				return
+		"item":
+			# HP/SPポーション追加 (2026-08-25、§14): 動かない・攻撃相手も
+			# 無い——"guard"と同じ静止フェーズだが、途中で1回だけ
+			# _fire_battle_anim_hit()を呼び、回復結果のメッセージ/ポップ
+			# アップを発火させる（effect="heal"/"heal_sp"の分岐は
+			# _fire_battle_anim_hit自身が処理、ここでは呼ぶだけ）。
+			if not _battle_anim_hit_fired and _battle_anim_phase_elapsed >= BATTLE_ITEM_HIT_AT_SECONDS:
+				_battle_anim_hit_fired = true
+				_fire_battle_anim_hit(entry, unit_id)
+			if _battle_anim_phase_elapsed >= BATTLE_ITEM_SECONDS:
 				_advance_battle_anim_step()
 				return
 	_update_battle_anim_popups(dt)
@@ -8420,6 +9857,7 @@ func _fire_battle_anim_hit(
 	var amount := int(entry.get("amount", 0))
 	var effect := str(entry.get("effect", "damage"))
 	var target_type := str(entry.get("target_type", "enemy"))
+	var is_item_use := str(entry.get("action", "")) == "item"
 	if effect == "heal" and target_type == "ally":
 		# amount is now sim.gd's ACTUAL post-clamp hp delta (2026-07-26 fix,
 		# see _apply_skill's heal branch) — 0 for an already-full-hp target.
@@ -8427,8 +9865,8 @@ func _fire_battle_anim_hit(
 		# タンの場合は+1などの数値を表示しない" — a no-op heal still plays
 		# its full motion/VFX (the caster doesn't know in advance), it just
 		# shows no popup.
+		var target_id := int(entry.get("target_id", unit_id))
 		if amount > 0:
-			var target_id := int(entry.get("target_id", unit_id))
 			_append_battle_message(
 				locale.text("UI_BATTLE_MSG_HEAL") % [_unit_display_name(sim.minions[target_id]), amount])
 			var popup := {
@@ -8445,6 +9883,29 @@ func _fire_battle_anim_hit(
 			if str(entry.get("skill_id", "")) == HEALING_SKILL_ID:
 				popup["duration"] = HEALING_HEAL_POPUP_SECONDS
 			_battle_anim_popups.append(popup)
+		elif is_item_use:
+			# 仕様変更 (2026-08-26、追加修正「満タン時でも使用可能」§3):
+			# ポーション限定——満タンで実回復量0の使用は、無言のno-opでは
+			# なく「しかし%sのHPはすでに最大だった！」という専用の自然文で
+			# 明示する。ヒーリング等のスキル側(is_item_use=false)は既存
+			# どおり無言のまま(§9「通常時は実回復量を表示する」対象は今回
+			# ポーションのみ、スキルの既存挙動には触れない)。
+			_append_battle_message(
+				locale.text("UI_BATTLE_MSG_ITEM_ALREADY_FULL_HP") % _unit_display_name(sim.minions[target_id]))
+	elif effect == "heal_sp" and target_type == "ally":
+		# HP/SPポーション追加 (2026-08-25): 上のHP heal分岐と全く同じ形——
+		# SP版だけメッセージキー・色が異なる。
+		var target_id := int(entry.get("target_id", unit_id))
+		if amount > 0:
+			_append_battle_message(
+				locale.text("UI_BATTLE_MSG_HEAL_SP") % [_unit_display_name(sim.minions[target_id]), amount])
+			_battle_anim_popups.append({
+				"kind": "ally", "unit_id": target_id,
+				"text": "+%d" % amount, "color": COLOR_HEAL_POPUP, "t": 0.0,
+			})
+		elif is_item_use:
+			_append_battle_message(
+				locale.text("UI_BATTLE_MSG_ITEM_ALREADY_FULL_SP") % _unit_display_name(sim.minions[target_id]))
 	elif effect == "damage":
 		# 新企画v1仕様書 v2 §8/§9/§12, 2026-08-21: a part-targeted hit drains
 		# that part's OWN shadow HP, not the main body's — mirroring sim's
@@ -8466,15 +9927,26 @@ func _fire_battle_anim_hit(
 			_set_boss_part_row_display(target_part, remaining)
 			var part_name := _boss_part_display_name(enemy_db.get_enemy(sim.boss_enemy_id), target_part)
 			if remaining <= 0:
+				# §3/§18: 部位破壊は"味方の攻撃結果"として味方カテゴリ・2行
+				# 構成のまま(「サユの攻撃！」に続く2行目、宣言はもう出て
+				# いるためこの1回のappendだけで足りる)。
 				_append_battle_message(
 					locale.text("UI_BATTLE_MSG_PART_DESTROYED") % [boss_name_for_log, part_name])
 				# 特殊メッセージ機構の動作確認用デモ（§13, 2026-08-22）——正式
 				# な特殊ボスの文章・発火条件はそのボス制作時に別途設計する。
-				# _append_battle_message(text, "special") がいつでもどこから
-				# でも呼べることを示す最小限の例として、洞窟トロルの部位破壊
-				# にだけ紐付けた（ボスidで明示的にガード、他ボスへは波及しない）。
+				# _append_battle_message(text, "special", "enemy") がいつでも
+				# どこからでも呼べることを示す最小限の例として、洞窟トロルの
+				# 部位破壊にだけ紐付けた（ボスidで明示的にガード、他ボスへは
+				# 波及しない）。§18: 部位破壊(味方2行)→特殊反応(敵1行)は
+				# カテゴリそのものが切り替わるため、即座に2連続appendすると
+				# 上の「破壊した！」が1フレームも表示されないまま消えてしまう
+				# ——BATTLE_MESSAGE_CHAINED_REACTION_DELAY_SECONDSぶん後に
+				# 自動的に切り替わる（この時、_append_battle_message内部の
+				# カテゴリ切り替え検知により味方2行は自動的に一掃される）。
 				if sim.boss_enemy_id == "cave_troll":
-					_append_battle_message(locale.text("UI_BATTLE_MSG_DEMO_TROLL_ENRAGED"), "special")
+					_queue_deferred_battle_message(
+						locale.text("UI_BATTLE_MSG_DEMO_TROLL_ENRAGED"), "special", "enemy",
+						BATTLE_MESSAGE_CHAINED_REACTION_DELAY_SECONDS)
 				_battle_anim_popups.append({
 					"kind": "boss",
 					"text": "%s %s" % [part_name, locale.text("UI_PART_BROKEN_POPUP")],
@@ -10594,19 +12066,113 @@ func _eos_burst_downslash_continuous_frame(elapsed: float) -> float:
 ## ループで処理する——フレーム5→6の境界(旧・静止ホールドの直前直後)も
 ## 他の10境界と全く同じ扱いになり、「静止してから一枚で切り替わる」
 ## 段差が構造的に発生しなくなる。
+## V38 motion clock. The authored V37 swing keeps exactly the same durations;
+## only the new charge-hold phase is removed from the animation age. During
+## that phase frame5 is returned explicitly below, so no tail dither can leak
+## frame6 in early and make the hold read as an already-started swing.
+func _eos_burst_v38_motion_age(elapsed: float) -> float:
+	var smooth := _eos_burst_smooth_elapsed(elapsed)
+	if elapsed < EOS_BURST_APPROACH_START_SECONDS:
+		return 0.0
+	if elapsed < EOS_BURST_STRIKE_PREP_START_SECONDS:
+		return clampf(
+			smooth - EOS_BURST_APPROACH_START_SECONDS, 0.0, EOS_BURST_APPROACH_SECONDS)
+	if elapsed < EOS_BURST_THRUST_LUNGE_START_SECONDS:
+		return EOS_BURST_APPROACH_SECONDS
+	return EOS_BURST_APPROACH_SECONDS + maxf(
+		0.0, smooth - EOS_BURST_THRUST_LUNGE_START_SECONDS)
+
+
 func _eos_burst_downslash12_frame_pair(elapsed: float) -> Array:
 	if elapsed < EOS_BURST_APPROACH_START_SECONDS:
 		return [0, -1, 1.0, 0.0]
-	return _eos_burst_downslash12_hold_blend(elapsed - EOS_BURST_APPROACH_START_SECONDS)
+	if elapsed >= EOS_BURST_STRIKE_PREP_START_SECONDS \
+			and elapsed < EOS_BURST_THRUST_LUNGE_START_SECONDS:
+		return [5, -1, 1.0, 0.0]
+	return _eos_burst_downslash12_hold_blend(_eos_burst_v38_motion_age(elapsed))
 
 
-## 各フレームiは自分の持ち時間`durations[i]`の末尾`min(BLEND_MAX,
-## durations[i]*0.65)`秒だけ、次のフレームへSmootherstepでブレンドする
-## (それより前は完全不透明のまま保持)——参照実装`play_smooth_character_
-## motion`の「hold, then blend the tail」構造そのもの。斬撃/着弾/爆発が
-## 使う`_eos_burst_frame_crossfade_pair`(区間全体が遷移になる別の形)とは
-## 意図的に別のヘルパーとして持つ。
+func _eos_burst_v45_distance_progress(progress: float) -> float:
+	var u := clampf(progress, 0.0, 1.0)
+	return u * (EOS_BURST_V45_INITIAL_SPEED_RATIO
+		+ (1.0 - EOS_BURST_V45_INITIAL_SPEED_RATIO) * u)
+
+
+## V46 keeps the exact V45 clock until BLADE_PASS. Only the remaining tail is
+## compressed to 80% of its former duration, with a monotone cubic velocity
+## ramp that peaks immediately before IMPACT.
+func _eos_burst_v46_distance_progress_at_elapsed(strike_elapsed: float) -> float:
+	var blade_pass_progress := _eos_burst_v45_distance_progress(
+		EOS_BURST_V46_BLADE_PASS_START_SECONDS / EOS_BURST_V46_ORIGINAL_STRIKE_SECONDS)
+	if strike_elapsed <= EOS_BURST_V46_BLADE_PASS_START_SECONDS:
+		return _eos_burst_v45_distance_progress(
+			strike_elapsed / EOS_BURST_V46_ORIGINAL_STRIKE_SECONDS)
+	var late_seconds := EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS \
+		- EOS_BURST_V46_BLADE_PASS_START_SECONDS
+	var late_u := clampf(
+		(strike_elapsed - EOS_BURST_V46_BLADE_PASS_START_SECONDS) / late_seconds,
+		0.0, 1.0)
+	var cubic_coefficient := EOS_BURST_V46_LATE_FINAL_SPEED_RATIO \
+		+ EOS_BURST_V46_LATE_INITIAL_SPEED_RATIO - 2.0
+	var quadratic_coefficient := 3.0 \
+		- 2.0 * EOS_BURST_V46_LATE_INITIAL_SPEED_RATIO \
+		- EOS_BURST_V46_LATE_FINAL_SPEED_RATIO
+	var late_distance_progress := EOS_BURST_V46_LATE_INITIAL_SPEED_RATIO * late_u \
+		+ quadratic_coefficient * late_u * late_u \
+		+ cubic_coefficient * late_u * late_u * late_u
+	return lerpf(blade_pass_progress, 1.0, late_distance_progress)
+
+
+func _eos_burst_v45_effective_sword_tip(frame_index: int) -> Vector2:
+	var source_frame := _eos_burst_v37_source_frame(frame_index)
+	return _eos_burst_v39_sword_tip(source_frame) + Vector2(
+		EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[source_frame], 0.0)
+
+
+## One normalized swing clock controls the complete body-lead -> impact arc.
+## The clock is remapped to accumulated blade-tip distance, so differently
+## spaced authored poses cannot accidentally produce fast -> slow -> fast.
+## Body, shoulder, elbow and hand overlap is carried by the authored anchors;
+## none of those anchors is held or eased to zero velocity.
+func _eos_burst_v45_accelerating_strike_pair(age: float) -> Array:
+	var strike_start := EOS_BURST_APPROACH_SECONDS
+	var strike_elapsed := clampf(
+		age - strike_start, 0.0, EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS)
+	var total_distance := 0.0
+	var segment_distances: Array[float] = []
+	for frame_index in range(
+		EOS_BURST_V36_DIRECT_SWORD_FRAME_START,
+		EOS_BURST_V37_IMPACT_FRAME_INDEX
+	):
+		var distance := _eos_burst_v45_effective_sword_tip(frame_index).distance_to(
+			_eos_burst_v45_effective_sword_tip(frame_index + 1))
+		segment_distances.append(distance)
+		total_distance += distance
+	var target_distance := _eos_burst_v46_distance_progress_at_elapsed(strike_elapsed) \
+		* total_distance
+	var distance_cursor := 0.0
+	for segment_index in segment_distances.size():
+		var segment_distance: float = segment_distances[segment_index]
+		var frame_index := EOS_BURST_V36_DIRECT_SWORD_FRAME_START + segment_index
+		if target_distance < distance_cursor + segment_distance \
+				or frame_index == EOS_BURST_V37_IMPACT_FRAME_INDEX - 1:
+			var mix := clampf(
+				(target_distance - distance_cursor) / maxf(segment_distance, 0.0001),
+				0.0, 1.0)
+			return [frame_index, frame_index + 1, 1.0 - mix, mix]
+		distance_cursor += segment_distance
+	return [EOS_BURST_V37_IMPACT_FRAME_INDEX, -1, 1.0, 0.0]
+
+
+## V45の振り下ろし(frame6..18)は上の単一progressで移動距離を連続化する。
+## IMPACT→FOLLOW_THROUGH→STOP(frame18..20)も各姿勢を保持せず通過し、
+## 完成したSTOP(frame20)だけを静止させる。構えと復帰は従来どおり
+## 区間末尾のordered-dither遷移を使う。
 func _eos_burst_downslash12_hold_blend(age: float) -> Array:
+	var accelerating_end := EOS_BURST_APPROACH_SECONDS \
+		+ EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS
+	if age >= EOS_BURST_APPROACH_SECONDS and age < accelerating_end:
+		return _eos_burst_v45_accelerating_strike_pair(age)
 	var durations := EOS_BURST_DOWNSLASH12_BLEND_DURATIONS
 	var n := durations.size()
 	var cursor := 0.0
@@ -10615,6 +12181,16 @@ func _eos_burst_downslash12_hold_blend(age: float) -> Array:
 		var seg_end := cursor + d
 		if age < seg_end or i == n - 1:
 			if i >= n - 1:
+				return [i, -1, 1.0, 0.0]
+			if i >= EOS_BURST_V36_DIRECT_SWORD_FRAME_START \
+					and i <= EOS_BURST_V36_DIRECT_SWORD_FRAME_END:
+				# One uninterrupted normalized segment. Linear progress is deliberate:
+				# per-keyframe smootherstep would ease back toward zero at every
+				# boundary and recreate the visible sword pause.
+				var pass_t := clampf((age - cursor) / d, 0.0, 1.0)
+				return [i, i + 1, 1.0 - pass_t, pass_t]
+			if i == EOS_BURST_V37_STOP_FRAME_INDEX:
+				# First legal zero-velocity point: completed follow-through.
 				return [i, -1, 1.0, 0.0]
 			var blend: float = minf(
 				EOS_BURST_DOWNSLASH12_BLEND_MAX_SECONDS, d * EOS_BURST_DOWNSLASH12_BLEND_RATIO)
@@ -10671,6 +12247,109 @@ const EOS_BURST_DITHER_BAYER: Array[int] = [
 	0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5,
 ]
 var _eos_burst_dither_cache: Dictionary = {}
+var _eos_burst_v35_character_frames: Array[Texture2D] = []
+var _eos_burst_v35_character_frames_loaded := false
+
+
+## V29/V33: read the delivered production sheet itself instead of relying on the
+## generic art library's imported `_fN.png` discovery. The runtime trace
+## proved that discovery returned zero frames and routed every pose back to
+## the ordinary Sotiris texture. Reading the PNG bytes keeps this Eos-only
+## path valid even before Godot has generated `.import` sidecars.
+func _ensure_eos_burst_v35_character_frames() -> void:
+	if _eos_burst_v35_character_frames_loaded:
+		return
+	_eos_burst_v35_character_frames_loaded = true
+	var png_bytes := FileAccess.get_file_as_bytes(EOS_BURST_V35_CHARACTER_SHEET_PATH)
+	if png_bytes.is_empty():
+		push_error("Eos Burst V35 character sheet is missing: %s" % EOS_BURST_V35_CHARACTER_SHEET_PATH)
+		return
+	var sheet := Image.new()
+	var load_error := sheet.load_png_from_buffer(png_bytes)
+	if load_error != OK:
+		push_error("Eos Burst V35 character sheet failed to decode: %s" % error_string(load_error))
+		return
+	var expected_size := Vector2i(
+		EOS_BURST_V35_CHARACTER_CELL_SIZE.x * EOS_BURST_V35_CHARACTER_FRAME_COUNT,
+		EOS_BURST_V35_CHARACTER_CELL_SIZE.y)
+	if sheet.get_size() != expected_size:
+		push_error("Eos Burst V35 character sheet size %s, expected %s" % [sheet.get_size(), expected_size])
+		return
+	for frame_index in EOS_BURST_V35_CHARACTER_FRAME_COUNT:
+		var region := Rect2i(
+			Vector2i(frame_index * EOS_BURST_V35_CHARACTER_CELL_SIZE.x, 0),
+			EOS_BURST_V35_CHARACTER_CELL_SIZE)
+		_eos_burst_v35_character_frames.append(
+			ImageTexture.create_from_image(sheet.get_region(region)))
+
+
+func _eos_burst_v35_character_frame_count() -> int:
+	_ensure_eos_burst_v35_character_frames()
+	return _eos_burst_v35_character_frames.size()
+
+
+func _eos_burst_v35_character_frame(frame_index: int) -> Texture2D:
+	_ensure_eos_burst_v35_character_frames()
+	if _eos_burst_v35_character_frames.is_empty():
+		return null
+	return _eos_burst_v35_character_frames[posmod(
+		frame_index, _eos_burst_v35_character_frames.size())]
+
+
+func _eos_burst_v37_source_frame(logical_frame_index: int) -> int:
+	assert(logical_frame_index >= 0)
+	assert(logical_frame_index < EOS_BURST_V37_MOTION_FRAME_SEQUENCE.size())
+	return EOS_BURST_V37_MOTION_FRAME_SEQUENCE[logical_frame_index]
+
+
+## V44 cells7..20. Odd cells7..15 are the five authored overlap poses;
+## even cells retain the V43 keys. Endpoints were measured after palette snap
+## and foot alignment so the aura consumes the exact blade transform.
+const EOS_BURST_V44_CUSTOM_SWORD_BASE: Array[Vector2] = [
+	Vector2(107, 125), Vector2(104, 123), Vector2(101, 117),
+	Vector2(98, 111), Vector2(119, 108), Vector2(138, 112),
+	Vector2(134, 127), Vector2(132, 142), Vector2(134, 150),
+	Vector2(136, 157), Vector2(136, 161), Vector2(140, 161),
+	Vector2(144, 160), Vector2(147, 153),
+]
+const EOS_BURST_V44_CUSTOM_SWORD_TIP: Array[Vector2] = [
+	Vector2(91, 70), Vector2(72, 70), Vector2(65, 71),
+	Vector2(60, 73), Vector2(106, 62), Vector2(134, 51),
+	Vector2(178, 80), Vector2(182, 105), Vector2(189, 124),
+	Vector2(193, 169), Vector2(200, 176), Vector2(203, 176),
+	Vector2(221, 166), Vector2(221, 161),
+]
+
+
+func _eos_burst_v39_sword_base(source_frame_index: int) -> Vector2:
+	if source_frame_index <= 6:
+		return EOS_BURST_SWORD_BASE[source_frame_index]
+	if source_frame_index <= 20:
+		return EOS_BURST_V44_CUSTOM_SWORD_BASE[source_frame_index - 7]
+	return EOS_BURST_SWORD_BASE[source_frame_index - 8]
+
+
+func _eos_burst_v39_sword_tip(source_frame_index: int) -> Vector2:
+	if source_frame_index <= 6:
+		return EOS_BURST_SWORD_TIP[source_frame_index]
+	if source_frame_index <= 20:
+		return EOS_BURST_V44_CUSTOM_SWORD_TIP[source_frame_index - 7]
+	return EOS_BURST_SWORD_TIP[source_frame_index - 8]
+
+
+func _eos_burst_v44_sword_tip_at_motion_age(age: float) -> Vector2:
+	var pair := _eos_burst_downslash12_hold_blend(age)
+	var logical_a: int = pair[0]
+	var source_a := _eos_burst_v37_source_frame(logical_a)
+	var tip_a := _eos_burst_v39_sword_tip(source_a) + Vector2(
+		EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[source_a], 0.0)
+	var logical_b: int = pair[1]
+	if logical_b < 0:
+		return tip_a
+	var source_b := _eos_burst_v37_source_frame(logical_b)
+	var tip_b := _eos_burst_v39_sword_tip(source_b) + Vector2(
+		EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[source_b], 0.0)
+	return tip_a.lerp(tip_b, float(pair[3]))
 
 
 func _eos_burst_dither_reveal_count(mix: float) -> int:
@@ -10684,19 +12363,27 @@ func _eos_burst_dither_reveal_count(mix: float) -> int:
 ## だけをEOS_BURST_DOWNSLASH16_POSE_KEY(16コマ)へ差し替え。この関数自体は
 ## 元からposeのフレーム数に依存しない汎用実装(revealed_countの量子化・
 ## キャッシュ機構とも12/16どちらでも同一に機能する)ため、他は無改修。
+## 「EOS_BURST_V26_REFERENCE_MOTION_HYBRID_FINISH」(2026-09-03) — pose key
+## だけをEOS_BURST_DOWNSLASH17_POSE_KEY(17コマ)へ差し替え。同じ理由で
+## この関数自体は無改修(フレーム数16→17の変化にも自動的に追従する)。
+## 「EOS_BURST_V27_FRONTSIDE_NO_CUTIN_FINISH」(2026-09-04) — pose keyだけを
+## EOS_BURST_DOWNSLASH17_FRONTSIDE_POSE_KEY(17コマ、frame6-10のみ新運動)へ
+## 差し替え。同じ理由でこの関数自体は無改修。
 func _eos_burst_downslash12_dither_texture(idx_a: int, idx_b: int, mix: float) -> Texture2D:
+	var source_a := _eos_burst_v37_source_frame(idx_a)
 	if idx_b < 0:
-		return art.frame(EOS_BURST_DOWNSLASH16_POSE_KEY, idx_a)
+		return _eos_burst_v35_character_frame(source_a)
+	var source_b := _eos_burst_v37_source_frame(idx_b)
 	var revealed := _eos_burst_dither_reveal_count(mix)
 	if revealed <= 0:
-		return art.frame(EOS_BURST_DOWNSLASH16_POSE_KEY, idx_a)
+		return _eos_burst_v35_character_frame(source_a)
 	if revealed >= 16:
-		return art.frame(EOS_BURST_DOWNSLASH16_POSE_KEY, idx_b)
+		return _eos_burst_v35_character_frame(source_b)
 	var cache_key := "%d_%d_%d" % [idx_a, idx_b, revealed]
 	if _eos_burst_dither_cache.has(cache_key):
 		return _eos_burst_dither_cache[cache_key]
-	var tex_a := art.frame(EOS_BURST_DOWNSLASH16_POSE_KEY, idx_a)
-	var tex_b := art.frame(EOS_BURST_DOWNSLASH16_POSE_KEY, idx_b)
+	var tex_a := _eos_burst_v35_character_frame(source_a)
+	var tex_b := _eos_burst_v35_character_frame(source_b)
 	if tex_a == null or tex_b == null:
 		return tex_a
 	var img_a := tex_a.get_image()
@@ -11022,6 +12709,46 @@ func _draw_eos_burst_speed_lines(view: Rect2, elapsed: float) -> void:
 ## 残る。
 const EOS_BURST_WINDUP_SINK_PX := 2.0
 const EOS_BURST_WINDUP_SINK_RAMP_SECONDS := 0.06
+const EOS_BURST_V38_CHARGE_COMPRESSION_PX := 1.0
+const EOS_BURST_V38_CHARGE_AURA_BOOST := 0.12
+
+
+func _eos_burst_v38_charge_hold_progress(elapsed: float) -> float:
+	if elapsed < EOS_BURST_STRIKE_PREP_START_SECONDS \
+			or elapsed >= EOS_BURST_THRUST_LUNGE_START_SECONDS:
+		return 0.0
+	return clampf(
+		(_eos_burst_smooth_elapsed(elapsed) - EOS_BURST_STRIKE_PREP_START_SECONDS)
+			/ EOS_BURST_V39_CHARGE_HOLD_SECONDS,
+		0.0, 1.0)
+
+
+## One restrained compression breath: 0px -> 1px -> 0px. Because both the
+## character body and sword-aura endpoint calculation consume this same root
+## offset, the pulse adds no independent aura-follow state and cannot lag.
+func _eos_burst_v38_charge_hold_pulse(elapsed: float) -> float:
+	var moving_end := EOS_BURST_THRUST_LUNGE_START_SECONDS \
+		- EOS_BURST_V39_CHARGE_FINAL_STILL_SECONDS
+	if elapsed < EOS_BURST_STRIKE_PREP_START_SECONDS or elapsed >= moving_end:
+		return 0.0
+	var moving_span := EOS_BURST_V39_CHARGE_HOLD_SECONDS \
+		- EOS_BURST_V39_CHARGE_FINAL_STILL_SECONDS
+	var p := clampf(
+		(_eos_burst_smooth_elapsed(elapsed) - EOS_BURST_STRIKE_PREP_START_SECONDS)
+			/ moving_span,
+		0.0, 1.0)
+	if p < 0.65:
+		return smoothstep(0.0, 1.0, p / 0.65)
+	return 1.0 - smoothstep(0.65, 1.0, p)
+
+
+func _eos_burst_v39_charge_energy(elapsed: float) -> float:
+	if elapsed < EOS_BURST_STRIKE_PREP_START_SECONDS \
+			or elapsed >= EOS_BURST_THRUST_LUNGE_START_SECONDS:
+		return 0.0
+	return smoothstep(
+		0.0, 1.0,
+		_eos_burst_v38_charge_hold_progress(elapsed))
 
 
 ## 「FIXED_CUTIN_VISIBLE_BRIDGE_UNIFIED_FINISH v20」(2026-08-16) — 旧ゲート
@@ -11034,6 +12761,10 @@ const EOS_BURST_WINDUP_SINK_RAMP_SECONDS := 0.06
 ## が実際に動き出す瞬間)へ変更——「タメ中(まだ動いていない間)だけ沈む」
 ## という元の意図をそのまま保ちつつ、新しい短いタメ窓に自動的に追従する。
 func _eos_burst_windup_sink_px(elapsed: float) -> float:
+	if elapsed >= EOS_BURST_STRIKE_PREP_START_SECONDS \
+			and elapsed < EOS_BURST_THRUST_LUNGE_START_SECONDS:
+		return EOS_BURST_V38_CHARGE_COMPRESSION_PX \
+			* _eos_burst_v38_charge_hold_pulse(elapsed)
 	if elapsed >= EOS_BURST_APPROACH_START_SECONDS:
 		return 0.0
 	var t := clampf(_eos_burst_smooth_elapsed(elapsed) / EOS_BURST_WINDUP_SINK_RAMP_SECONDS, 0.0, 1.0)
@@ -11090,6 +12821,12 @@ const EOS_BURST_SWORD_AURA_CELL_SIZE := Vector2(48.0, 144.0)
 const EOS_BURST_SWORD_AURA_PIVOT := Vector2(24.0, 140.0)
 const EOS_BURST_SWORD_AURA_SOURCE_LENGTH := 126.0
 const EOS_BURST_SWORD_AURA_MAX_ALPHA := 0.86
+## V37: keep the existing aura art but compress only its local width so it
+## reads as the blade itself glowing instead of a broad delayed flame strip.
+const EOS_BURST_V37_SWORD_AURA_WIDTH_SCALE := 0.38
+## Preserve the blade silhouette during the fastest face/chest pass. This only
+## trims opacity; transform still comes from the exact current-frame blade.
+const EOS_BURST_V41_HIGH_SPEED_AURA_ALPHA_SCALE := 0.74
 ## 「EXTENDED_CHARGE_LOCKED_FINISH v22」(2026-08-17) — README「剣オーラ：
 ## 画像とbase→tip追従はv21のまま。stage timesだけを[0.450,0.550,0.700,
 ## 1.190]へ変更。stage間blend：0.140秒。最後のfade：0.070秒(無改修)。
@@ -11103,8 +12840,22 @@ const EOS_BURST_SWORD_AURA_MAX_ALPHA := 0.86
 ## よう、最終stageの尺だけが+0.120された——この+0.120は新設4コマ挿入に
 ## 伴うreleaseの遅延量そのものと一致(character側・aura側それぞれ独立に
 ## 同じ値へ収束させた設計、二重管理ではなく意図した対称性)。
-const EOS_BURST_SWORD_AURA_STAGE_TIMES: Array[float] = [0.450, 0.550, 0.700, 1.310]
-const EOS_BURST_SWORD_AURA_BLEND_SECONDS := 0.140
+## 「EOS_BURST_V26_REFERENCE_MOTION_HYBRID_FINISH」(2026-09-03) — 参照実装
+## `SWORD_AURA_STAGE_TIMES := [0.450,0.550,0.700,1.510]`——最後の要素だけ
+## 1.310→1.510(+0.200)、他3要素・BLEND/FADE_SECONDSは無改修。新しい合計
+## (0.450+0.550+0.700+1.510+0.070=3.280)がcharacter release localの新しい
+## 値(3.280、上記EOS_BURST_DOWNSLASH12_RELEASE_OFFSET_SECONDS参照)と
+## ちょうど一致するよう、最終stageの尺だけが+0.200された——この+0.200は
+## SWING配列拡張に伴うreleaseの遅延量そのものと一致(character側・aura側
+## それぞれ独立に同じ値へ収束させた設計、二重管理ではなく意図した対称性、
+## v25から継続する既存パターン)。
+## V37: aura remains attached through the authored follow-through and the
+## 85ms hold, then finishes exactly when the delayed grand slash begins.
+## V45 extends only the final fully-following aura stage by the same 0.067s as
+## the effect release delay, so the aura remains attached to the current blade
+## transform until the giant slash actually starts.
+const EOS_BURST_SWORD_AURA_STAGE_TIMES: Array[float] = [0.140, 0.170, 0.210, 0.377]
+const EOS_BURST_SWORD_AURA_BLEND_SECONDS := 0.045
 const EOS_BURST_SWORD_AURA_FADE_SECONDS := 0.070
 ## `SWORD_SEGMENTS_V21.tsv`(base_x,base_y,tip_x,tip_y、222×222セルの
 ## ローカル座標、12姿勢分)——参照実装`SWORD_SEGMENTS: Array[Vector4]`と
@@ -11116,20 +12867,97 @@ const EOS_BURST_SWORD_AURA_FADE_SECONDS := 0.070
 ## frame6-9の4本(README「新規frame 6〜9の剣segment角度は、画面右を0度と
 ## して-71.7°→-35.9°→+24.4°→+45.6°。角度は一方向へ進み、水平停止は
 ## ありません」)だけが今回の実データ。
+## 「EOS_BURST_V26_REFERENCE_MOTION_HYBRID_FINISH」(2026-09-03) — 参照実装
+## `SWORD_SEGMENTS`(17姿勢分)。旧(v25)index0-5は無改修のまま新index0-5
+## へ、旧(v25)index10-15(=v21由来のswing[1..5]、v25でも既に無改修だった
+## もの)は無改修のまま新index11-16へスライド。新設frame6-10の5本
+## (PROCESSING_NOTES_V26.md「攻撃区間のスクリーン角度は約189度、81度、
+## 48度、40度へ連続して下がり、振りかぶりから接地まで時計回りで進む」)
+## だけが今回の実データ——headless実測(参照実装`play_crisp_character_
+## with_sword_aura`の起動時assertと同じ内容: 角度が単調に下がること・
+## frame8/10の刀身が十分下向きであること)で検証済み。
+## 「EOS_BURST_V27_FRONTSIDE_NO_CUTIN_FINISH」(2026-09-04) — 参照実装
+## `SWORD_SEGMENTS`(17姿勢分)。index0-5・index11-16はv26と画素/座標とも
+## 完全に同じ値のまま継承——変わるのはindex6-10(振りかぶり〜振り下ろし)
+## だけ(index6の値自体はv26と一致するが、README「frame6〜10だけ更新」と
+## SOTIRIS_ALPHA_CONTRACT_V27.tsvの区分どおり"更新対象の範囲"として扱う)。
+## 「剣が体の後ろ側を通る」報告への対応で、frame7は後方(idx7: tip.x<base.x、
+## 振りかぶり準備)のまま許容しつつ、frame8-10は剣先が常に柄より右前方
+## (tip.x>base.x)——手計算で確認済み: idx8 tip.x157>base.x119、idx9
+## tip.x124>base.x114、idx10 tip.x154>base.x112。垂直方向もidx8はtip.y78<
+## base.y124(柄より上=upper-right)、idx9はtip.y213-base.y166=47px下降
+## (≥40px要求)、idx10はtip.y211-base.y177=34px下降(≥30px要求)——参照実装
+## 自身のassert群と同じ4条件を手計算で満たすことを確認してから採用した。
+## 「EOS_BURST_V32_EXTENDED_ARM_DOWNSWING」— V31のframe7/8だけを
+## 両腕伸展poseへ差し替え、対応segmentを(149,131)→(184,98)、
+## (161,137)→(202,113)へ更新。残り16本はV31から変更しない。
+## 「EOS_BURST_V33_FORWARD_TRANSFER_DOWNSWING」— frame7/8/10を固定し、
+## 後退していたframe9だけを(164,159)→(207,159)へ更新。guard/tip xは
+## 149/184→161/202→164/207→165/208と単調に前進する。
 const EOS_BURST_SWORD_BASE: Array[Vector2] = [
-	Vector2(106, 165), Vector2(106, 157), Vector2(108, 154), Vector2(110, 154),
+	Vector2(119, 162), Vector2(106, 157), Vector2(108, 154), Vector2(110, 154),
 	Vector2(110, 154), Vector2(111, 154),
-	Vector2(105, 167), Vector2(97, 135), Vector2(105, 161), Vector2(116, 162),
-	Vector2(118, 164), Vector2(119, 165),
+	Vector2(110, 128), Vector2(123, 146), Vector2(132, 153), Vector2(140, 161),
+	Vector2(140, 169), Vector2(141, 177), Vector2(143, 185), Vector2(119, 165),
 	Vector2(119, 165), Vector2(120, 169), Vector2(120, 173), Vector2(119, 162),
 ]
 const EOS_BURST_SWORD_TIP: Array[Vector2] = [
-	Vector2(54, 191), Vector2(72, 120), Vector2(69, 103), Vector2(67, 78),
+	Vector2(159, 191), Vector2(72, 120), Vector2(69, 103), Vector2(67, 78),
 	Vector2(74, 64), Vector2(101, 58),
-	Vector2(137, 70), Vector2(166, 85), Vector2(182, 196), Vector2(165, 212),
-	Vector2(165, 208), Vector2(177, 205),
+	Vector2(110, 69), Vector2(168, 107), Vector2(180, 143), Vector2(190, 157),
+	Vector2(194, 176), Vector2(194, 195), Vector2(197, 209), Vector2(177, 205),
 	Vector2(175, 204), Vector2(177, 206), Vector2(177, 210), Vector2(159, 191),
 ]
+
+
+## V35: runtime rear-foot compensation remains in source space. The custom Control
+## renderer uses one complementary ordered-dither texture rather than two
+## Sprite2D nodes, so the visible body's transform is the dither-weighted A/B
+## root. This is algebraically equivalent for the root centroid and preserves
+## the existing single full-opacity draw.
+func _eos_burst_v35_frame_source_offset(frame_index: int, recovery_mix: float = 0.0) -> float:
+	var source_frame := _eos_burst_v37_source_frame(frame_index)
+	assert(source_frame >= 0 and source_frame < EOS_BURST_V35_MOTION_FRAME_X_OFFSETS.size())
+	var offset_x: float = EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[source_frame]
+	if frame_index == EOS_BURST_V44_RECOVERY_FINAL_FRAME_INDEX:
+		offset_x = lerpf(
+			offset_x,
+			EOS_BURST_V35_RECOVERY_END_X_OFFSET,
+			_eos_burst_ease_smootherstep(recovery_mix))
+	return offset_x
+
+
+func _eos_burst_v35_recovery_mix(elapsed: float) -> float:
+	var recovery_final_start := 0.0
+	for frame_index in range(EOS_BURST_V44_RECOVERY_FINAL_FRAME_INDEX):
+		recovery_final_start += EOS_BURST_DOWNSLASH12_BLEND_DURATIONS[frame_index]
+	var age := _eos_burst_v38_motion_age(elapsed)
+	var frame_progress := clampf(
+		(age - recovery_final_start)
+			/ EOS_BURST_DOWNSLASH12_BLEND_DURATIONS[EOS_BURST_V44_RECOVERY_FINAL_FRAME_INDEX],
+		0.0, 1.0)
+	return clampf(
+		(frame_progress - EOS_BURST_V35_RECOVERY_RETURN_START_RATIO)
+			/ (1.0 - EOS_BURST_V35_RECOVERY_RETURN_START_RATIO),
+		0.0, 1.0)
+
+
+func _eos_burst_v35_body_root_offset_px(
+		sprite_box_px: float, pair: Array, flip_h: bool, elapsed: float
+) -> float:
+	var idx_a: int = pair[0]
+	var idx_b: int = pair[1]
+	var effective_b := idx_b if idx_b >= 0 else idx_a
+	var recovery_mix := _eos_burst_v35_recovery_mix(elapsed)
+	var offset_a := _eos_burst_v35_frame_source_offset(
+		idx_a, recovery_mix if idx_a == EOS_BURST_V44_RECOVERY_FINAL_FRAME_INDEX else 0.0)
+	var offset_b := _eos_burst_v35_frame_source_offset(
+		effective_b,
+		recovery_mix if effective_b == EOS_BURST_V44_RECOVERY_FINAL_FRAME_INDEX else 0.0)
+	var source_offset := lerpf(offset_a, offset_b, clampf(float(pair[3]), 0.0, 1.0))
+	if flip_h:
+		source_offset = -source_offset
+	return source_offset * (sprite_box_px / float(EOS_BURST_V35_CHARACTER_CELL_SIZE.x))
 
 
 ## 4段階(00→01→02→03)を各stage末尾0.100秒だけA/Bでsmootherstep補間し、
@@ -11165,24 +12993,59 @@ func _eos_burst_sword_aura_state(age: float) -> Dictionary:
 ## burst_sotiris_live_feet`、突き/沈み込み/反動オフセットを含む本体描画と
 ## 完全に同じ値)を使うことで、本体と剣の追従がズレる経路自体をなくす)で
 ## スクリーン座標へ写す。
-func _eos_burst_sword_aura_screen_points(
-		view: Rect2, unit_id: int, elapsed: float, base_local: Vector2, tip_local: Vector2
-) -> Dictionary:
+func _eos_burst_v35_motion_point_parent(
+		view: Rect2, unit_id: int, elapsed: float, local_point: Vector2,
+		frame_index: int, recovery_mix: float
+) -> Vector2:
 	var icon_px := _ally_battle_icon_px()
 	var sprite_box_px := icon_px * EOS_BURST_DOWNSLASH12_SPRITE_SCALE
 	var feet := _eos_burst_sotiris_live_feet(view, unit_id, elapsed)
 	var x := feet.x
 	var top := maxf(view.position.y, feet.y - sprite_box_px)
-	var scale_factor := sprite_box_px / 222.0
+	var scale_factor := sprite_box_px / float(EOS_BURST_V35_CHARACTER_CELL_SIZE.x)
 	var flip_h := _battle_anim_flip
-	var base_screen := Vector2(
-		x - sprite_box_px / 2.0 + base_local.x * scale_factor, top + base_local.y * scale_factor)
-	var tip_screen := Vector2(
-		x - sprite_box_px / 2.0 + tip_local.x * scale_factor, top + tip_local.y * scale_factor)
+	var point_parent := Vector2(
+		x - sprite_box_px / 2.0 + local_point.x * scale_factor,
+		top + local_point.y * scale_factor)
 	if flip_h:
-		base_screen.x = 2.0 * x - base_screen.x
-		tip_screen.x = 2.0 * x - tip_screen.x
-	return {"base": base_screen, "tip": tip_screen, "scale_factor": scale_factor}
+		point_parent.x = 2.0 * x - point_parent.x
+	var source_offset := _eos_burst_v35_frame_source_offset(
+		frame_index,
+		recovery_mix if frame_index == EOS_BURST_V44_RECOVERY_FINAL_FRAME_INDEX else 0.0)
+	point_parent.x += source_offset * scale_factor * (-1.0 if flip_h else 1.0)
+	return point_parent
+
+
+## MotionA and MotionB are transformed independently into the custom
+## Control's parent/screen space first. Both blade endpoints then consume the
+## exact same pose mix as the character, so the aura cannot lead the blade.
+func _eos_burst_sword_aura_screen_points(
+		view: Rect2, unit_id: int, elapsed: float,
+		idx_a: int, idx_b: int, frame_mix: float
+) -> Dictionary:
+	var effective_b := idx_b if idx_b >= 0 else idx_a
+	var source_a := _eos_burst_v37_source_frame(idx_a)
+	var source_b := _eos_burst_v37_source_frame(effective_b)
+	var recovery_mix := _eos_burst_v35_recovery_mix(elapsed)
+	var current_base_parent := _eos_burst_v35_motion_point_parent(
+		view, unit_id, elapsed, _eos_burst_v39_sword_base(source_a), idx_a, recovery_mix)
+	var current_tip_parent := _eos_burst_v35_motion_point_parent(
+		view, unit_id, elapsed, _eos_burst_v39_sword_tip(source_a), idx_a, recovery_mix)
+	var following_base_parent := _eos_burst_v35_motion_point_parent(
+		view, unit_id, elapsed, _eos_burst_v39_sword_base(source_b), effective_b, recovery_mix)
+	var following_tip_parent := _eos_burst_v35_motion_point_parent(
+		view, unit_id, elapsed, _eos_burst_v39_sword_tip(source_b), effective_b, recovery_mix)
+	var aura_pose_mix := pow(
+		clampf(frame_mix, 0.0, 1.0), EOS_BURST_V35_SWORD_AURA_POSE_GAMMA)
+	return {
+		"base": current_base_parent.lerp(following_base_parent, aura_pose_mix),
+		"tip": current_tip_parent.lerp(following_tip_parent, aura_pose_mix),
+		"motion_a_base": current_base_parent,
+		"motion_a_tip": current_tip_parent,
+		"motion_b_base": following_base_parent,
+		"motion_b_tip": following_tip_parent,
+		"pose_mix": aura_pose_mix,
+	}
 
 
 func _eos_burst_sword_aura_texture(frame_index: int) -> Texture2D:
@@ -11197,7 +13060,7 @@ func _eos_burst_sword_aura_texture(frame_index: int) -> Texture2D:
 func _draw_eos_burst_sword_aura(view: Rect2, unit_id: int, elapsed: float) -> void:
 	if elapsed < EOS_BURST_APPROACH_START_SECONDS:
 		return
-	var age := _eos_burst_smooth_elapsed(elapsed) - EOS_BURST_APPROACH_START_SECONDS
+	var age := _eos_burst_v38_motion_age(elapsed)
 	var state := _eos_burst_sword_aura_state(age)
 	if state.is_empty():
 		return
@@ -11205,15 +13068,12 @@ func _draw_eos_burst_sword_aura(view: Rect2, unit_id: int, elapsed: float) -> vo
 	var idx_a: int = pair[0]
 	var idx_b: int = pair[1]
 	var frame_mix: float = pair[3]
-	var effective_b := idx_b if idx_b >= 0 else idx_a
-	var base_local: Vector2 = EOS_BURST_SWORD_BASE[idx_a].lerp(
-		EOS_BURST_SWORD_BASE[effective_b], frame_mix)
-	var tip_local: Vector2 = EOS_BURST_SWORD_TIP[idx_a].lerp(
-		EOS_BURST_SWORD_TIP[effective_b], frame_mix)
-	var points := _eos_burst_sword_aura_screen_points(view, unit_id, elapsed, base_local, tip_local)
+	var points := _eos_burst_sword_aura_screen_points(
+		view, unit_id, elapsed, idx_a, idx_b, frame_mix)
 	var base_screen: Vector2 = points["base"]
 	var tip_screen: Vector2 = points["tip"]
 	var blade_vector := tip_screen - base_screen
+	base_screen = base_screen.round()
 	var blade_length := blade_vector.length()
 	if blade_length < 0.001:
 		return
@@ -11222,9 +13082,18 @@ func _draw_eos_burst_sword_aura(view: Rect2, unit_id: int, elapsed: float) -> vo
 	var from_index: int = state["from"]
 	var to_index: int = state["to"]
 	var mix: float = state["mix"]
-	var alpha: float = state["alpha"]
+	var alpha: float = minf(
+		1.0,
+		float(state["alpha"])
+			* (1.0 + EOS_BURST_V38_CHARGE_AURA_BOOST
+				* _eos_burst_v39_charge_energy(elapsed)))
+	if idx_a >= 10 and idx_a <= 12:
+		alpha *= EOS_BURST_V41_HIGH_SPEED_AURA_ALPHA_SCALE
 	var draw_rect := Rect2(-EOS_BURST_SWORD_AURA_PIVOT, EOS_BURST_SWORD_AURA_CELL_SIZE)
-	draw_set_transform(base_screen, root_rotation, Vector2(root_scale, root_scale))
+	draw_set_transform(
+		base_screen,
+		root_rotation,
+		Vector2(root_scale * EOS_BURST_V37_SWORD_AURA_WIDTH_SCALE, root_scale))
 	if from_index == to_index:
 		var tex := _eos_burst_sword_aura_texture(from_index)
 		if tex != null:
@@ -11556,7 +13425,7 @@ func _eos_burst_hash01(i: int, salt: int) -> float:
 ## ため、PREP_STARTからBEAM_STARTまでの全区間(②+③)をカバーするよう
 ## 合算した——口元の光が"タメと突きの間ずっと"集まり続ける見た目を維持する。
 const EOS_BURST_MOUTH_CONVERGE_SECONDS := \
-	EOS_BURST_STRIKE_PREP_SECONDS + EOS_BURST_THRUST_LUNGE_SECONDS  ## 0.21
+	EOS_BURST_STRIKE_PREP_SECONDS + EOS_BURST_THRUST_LUNGE_SECONDS  ## 1.940
 const EOS_BURST_MOUTH_ORB_MID_PX := 8.0  ## "8pxから" の起点
 const EOS_BURST_MOUTH_ORB_PEAK_PX := 26.0  ## "26pxへ" の到達点
 const EOS_BURST_MOUTH_CONVERGE_PARTICLE_COUNT := 7  ## "周囲から水色と金色の粒子が集まる"
@@ -12295,7 +14164,7 @@ const EOS_BURST_SLASH_FIXED_SCALE := 0.82
 ## される(この定数自体は式もコメントも無改修——上流の1箇所を直すだけで
 ## 正しく追従する、既存の単一derived-const-chain設計そのもの)。
 const EOS_BURST_SLASH_START_SECONDS := \
-	EOS_BURST_THRUST_LUNGE_START_SECONDS + EOS_BURST_DOWNSLASH12_RELEASE_OFFSET_SECONDS  ## 3.58
+	EOS_BURST_THRUST_LUNGE_START_SECONDS + EOS_BURST_DOWNSLASH12_RELEASE_OFFSET_SECONDS  ## 1.637
 ## 「CONTACT_SYNC_STOP_ON_ENEMY v18」(2026-08-15) — README「開始前に1回
 ## だけ`travel_duration = clamp(distance/733.333333, 0.50, 0.62)`を計算」
 ## ——v17までの固定0.78秒を廃止し、実際の開始点/到達点の距離から動的に
@@ -13135,199 +15004,19 @@ func _draw_eos_burst_front_vfx(view: Rect2) -> void:
 	_draw_eos_burst_slash(view, unit_id, elapsed)
 	_draw_eos_burst_enemy_crossflash(view, elapsed)
 	_draw_eos_burst_massive_burst(view, elapsed)
-	_draw_eos_burst_cutin(view, unit_id, elapsed)
+	# 「EOS_BURST_V27_FRONTSIDE_NO_CUTIN_FINISH」(2026-09-04) — カットイン
+	# 呼び出しを完全削除(旧`_draw_eos_burst_cutin(view, unit_id, elapsed)`)。
+	# 関数本体・定数一式も削除済み——下の`_draw_eos_burst_mouth_tip_charge`
+	# 系の直前にあった`## === EOS_CUTIN:`ブロック(旧行14331〜14524付近)を
+	# 参照。
 
 
-## === EOS_CUTIN: 漫画風カットイン (2026-08-11新設) ===
-## 「最初から長方形の画像を表示するのではなく、戦闘画面へ斬撃が切り込む
-## ように表示する」。タイムライン秒数(EOS_CUTIN_*)はマスタータイムライン
-## 付近で宣言済み。ここでは幾何(斜めの帯=パララログラム、画面比率ベース)
-## とテクスチャ供給(最終画像への差し替え口+プレースホルダー合成)を実装
-## する。
-
-## 最終カットイン画像(1920×640、透明背景)への差し替え口。存在すれば
-## それを最優先で使う——ResourceLoader.existsで判定するだけで、preload
-## は一切使わないため、ファイルが未納品でもエラーにならない。
-var _eos_cutin_final_tex_cache: Texture2D = null
-var _eos_cutin_final_checked := false
-func _eos_cutin_final_texture() -> Texture2D:
-	if not _eos_cutin_final_checked:
-		_eos_cutin_final_checked = true
-		if ResourceLoader.exists(EOS_CUTIN_FINAL_IMAGE_PATH):
-			_eos_cutin_final_tex_cache = load(EOS_CUTIN_FINAL_IMAGE_PATH)
-	return _eos_cutin_final_tex_cache
-
-
-## 最終画像が届くまでの仮カットイン——既存のソティリス/竜アセット+
-## 手続き背景・集中線を1枚のImageへ一度だけ合成してキャッシュする(重い
-## 処理を毎フレーム行わない、このファイル全体の確立済みイディオム)。
-## NEARESTでリサイズしドット絵の質感を保つ。
-var _eos_cutin_placeholder_cache: ImageTexture = null
-func _eos_cutin_placeholder_texture() -> Texture2D:
-	if _eos_cutin_placeholder_cache != null:
-		return _eos_cutin_placeholder_cache
-	var w := int(EOS_CUTIN_IMAGE_SIZE.x)
-	var h := int(EOS_CUTIN_IMAGE_SIZE.y)
-	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0.05, 0.03, 0.10, 1.0))
-	# 集中線/速度線——中心よりやや左寄りの焦点から放射する漫画調の線。
-	var focus := Vector2(w * 0.40, h * 0.55)
-	for i in 46:
-		var a := TAU * float(i) / 46.0
-		var dir := Vector2(cos(a), sin(a))
-		var len_px := 220.0 + fmod(float(i) * 57.0, 260.0)
-		var col := Color(1.0, 0.9, 0.6, 0.11) if i % 3 != 0 else Color(0.55, 0.9, 1.0, 0.09)
-		var steps := int(len_px)
-		for s in steps:
-			var p := focus + dir * float(s)
-			var px := int(p.x)
-			var py := int(p.y)
-			if px < 0 or px >= w or py < 0 or py >= h:
-				break
-			var falloff := 1.0 - float(s) / len_px
-			var c := col
-			c.a *= falloff
-			img.set_pixel(px, py, img.get_pixel(px, py).lerp(c, c.a))
-	# 「NO_DRAGON_NATURAL_SLASH_BURST v12」(2026-08-14) — 竜の完全削除に伴い、
-	# このプレースホルダー(実カットイン画像`eos_cutin_sword_closeup.png`が
-	# 常に存在するため実際には呼ばれないフォールバック専用)からも竜の
-	# 頭〜首の合成を撤去した。「竜のtexture参照が一切残らない」を、この
-	# 到達不能なフォールバック経路も含めて満たす。
-	# ソティリス(顔〜上半身)——右側、大きめ。
-	var sotiris_tex := _soul_break_load_texture("res://assets/art/attack_minion_0.png")
-	if sotiris_tex != null:
-		var simg := sotiris_tex.get_image()
-		if simg != null:
-			simg = simg.duplicate()
-			simg.resize(600, 600, Image.INTERPOLATE_NEAREST)
-			img.blend_rect(simg, Rect2i(Vector2i.ZERO, simg.get_size()), Vector2i(w - 660, 20))
-	var tex := ImageTexture.create_from_image(img)
-	_eos_cutin_placeholder_cache = tex
-	return tex
-
-
-func _eos_cutin_texture() -> Texture2D:
-	var final_tex := _eos_cutin_final_texture()
-	if final_tex != null:
-		return final_tex
-	return _eos_cutin_placeholder_texture()
-
-
-## 帯(パララログラム)の基準軸——画面「比率」ベース(view.size由来)なので
-## 1152×648以外の画面サイズでもレイアウトが崩れない。
-func _eos_cutin_band_axes(view: Rect2) -> Dictionary:
-	var dir := Vector2(cos(EOS_CUTIN_ANGLE_RAD), sin(EOS_CUTIN_ANGLE_RAD))
-	var perp := Vector2(-dir.y, dir.x)
-	var length := view.size.x + view.size.y * absf(tan(EOS_CUTIN_ANGLE_RAD)) + 40.0
-	var center := view.position + view.size * 0.5
-	var origin := center - dir * length * 0.5
-	return {"dir": dir, "perp": perp, "length": length, "origin": origin}
-
-
-func _eos_cutin_quad(axes: Dictionary, u_left: float, u_right: float, half_h_px: float) -> Dictionary:
-	var origin: Vector2 = axes["origin"]
-	var dir: Vector2 = axes["dir"]
-	var perp: Vector2 = axes["perp"]
-	var length: float = axes["length"]
-	var p_bl := origin + dir * (u_left * length) - perp * half_h_px
-	var p_br := origin + dir * (u_right * length) - perp * half_h_px
-	var p_tr := origin + dir * (u_right * length) + perp * half_h_px
-	var p_tl := origin + dir * (u_left * length) + perp * half_h_px
-	var points := PackedVector2Array([p_bl, p_br, p_tr, p_tl])
-	return {"points": points}
-
-
-## 「現行ソティリス維持版 v3」(2026-08-12) — 納品の`eos_cutin_sword_
-## closeup.png`は画面と完全に同じ寸法(1152×648)。旧実装は帯自身の(u,v)
-## パラメータ空間をテクスチャUVとして直接使っていたため、開閉に伴い絵が
-## 伸縮して見える簡易実装だった——今回は各頂点の"実際の画面上の位置"から
-## UVを計算する(`(point-view.position)/view.size`)方式へ差し替え、絵が
-## 画面に固定されたまま、斜めの窓だけが動く正しい「ワイプ」になるように
-## した(斜めクリッピング機構自体は無改修、UV計算だけを変更)。
-func _eos_cutin_view_uv(view: Rect2, point: Vector2) -> Vector2:
-	return (point - view.position) / view.size
-
-
-## 「CONTINUOUS_MOTION_CUTIN_AURA_LOCK v19」(2026-08-16) — 旧5段階ワイプ
-## (`_eos_cutin_stage`)を完全に削除し、alpha envelope(enter/hold/exit)
-## だけを返す単純な関数へ置き換えた——帯自体の開閉形状(u_left/u_right/
-## half_h)はもう時間で変化させない(常に全開)。
-func _eos_cutin_alpha(age: float) -> float:
-	if age < EOS_CUTIN_ENTER_SECONDS:
-		return _eos_burst_ease_smootherstep(age / EOS_CUTIN_ENTER_SECONDS)
-	var exit_start := EOS_CUTIN_DURATION_SECONDS - EOS_CUTIN_EXIT_SECONDS
-	if age >= exit_start:
-		var t := (age - exit_start) / EOS_CUTIN_EXIT_SECONDS
-		return 1.0 - _eos_burst_ease_smootherstep(clampf(t, 0.0, 1.0))
-	return 1.0
-
-
-## 「FIXED_CUTIN_VISIBLE_BRIDGE_UNIFIED_FINISH v20」(2026-08-16) — README
-## 「CutinRootの開始時global transformを保存し、表示中の全process_frameで
-## 同じ値を再設定します。position差:0px、scale差:0、rotation差:0、
-## skew差:0」——v19の`_eos_cutin_offset_x()`(viewport幅の-11%→+9%へ毎
-## フレーム再計算していた水平位置)を完全に削除した。`_draw_eos_burst_
-## cutin`は今回`view`そのもの(帯の幾何・UVサンプリングとも一切変更しない)
-## を使うだけの構造にしたため、「開始時のtransformを保存して毎フレーム
-## 再設定する」という参照実装のパターンを、そもそも動かす計算式自体が
-## 存在しないことで構造的に(近似ではなく厳密に)満たす——`view`は
-## `_draw_boss_battle`の冒頭で1回だけ計算される共有の戦闘ビュー矩形で、
-## カットインの描画中に別の値へ書き換わることは無い。
-
-
-func _draw_eos_burst_cutin(view: Rect2, unit_id: int, elapsed: float) -> void:
-	if elapsed < EOS_CUTIN_START_SECONDS or elapsed >= EOS_CUTIN_END_SECONDS:
-		return
-	var age := elapsed - EOS_CUTIN_START_SECONDS
-	var alpha := _eos_cutin_alpha(age)
-	if alpha <= 0.001:
-		return
-	# 「カットインは完全固定」——帯の幾何(band_axes)・UVサンプリング
-	# (view_uv)とも、時間/進捗/viewport比率から計算する水平offsetを一切
-	# 適用しない、無改修の`view`だけを使う(v19までのshifted_viewは撤去)。
-	var axes := _eos_cutin_band_axes(view)
-	var full_half_h := view.size.y * EOS_CUTIN_BAND_HEIGHT_FRAC * 0.5
-	var q := _eos_cutin_quad(axes, 0.0, 1.0, full_half_h)
-	var points: PackedVector2Array = q["points"]
-	var tex := _eos_cutin_texture()
-	var uvs := PackedVector2Array([
-		_eos_cutin_view_uv(view, points[0]), _eos_cutin_view_uv(view, points[1]),
-		_eos_cutin_view_uv(view, points[2]), _eos_cutin_view_uv(view, points[3])])
-	var tint := Color(1.0, 1.0, 1.0, alpha)
-	var colors := PackedColorArray([tint, tint, tint, tint])
-	if tex != null:
-		draw_polygon(points, colors, uvs, tex)
-	else:
-		draw_polygon(points, colors)
-	# 「最優先条件: 前回の全画面イラストは使用しない。カットイン画像は
-	# この1枚だけ」——納品の実画像を使っている間は、手続き生成の縁取り/
-	# タイトル文字を重ねない(絵自体が完成した1枚の構図のため)。これらの
-	# 装飾は最終画像が万一見つからずプレースホルダーへ落ちた場合のみ
-	# 表示する安全策として残す。
-	if _eos_cutin_final_texture() == null:
-		# 白金色の太い縁、内側に細い水色の縁。
-		var gold := Color(1.0, 0.92, 0.55, 0.95 * alpha)
-		var cyan := Color(0.55, 0.94, 1.0, 0.9 * alpha)
-		for i in 4:
-			_draw_eos_burst_quad(points[i], points[(i + 1) % 4], EOS_CUTIN_BORDER_GOLD_PX, gold)
-		var inset := EOS_CUTIN_BORDER_GOLD_PX * 0.5 + EOS_CUTIN_BORDER_CYAN_PX * 0.5
-		var qi := _eos_cutin_quad(axes, 0.0, 1.0, maxf(0.0, full_half_h - inset))
-		var pi: PackedVector2Array = qi["points"]
-		for i in 4:
-			_draw_eos_burst_quad(pi[i], pi[(i + 1) % 4], EOS_CUTIN_BORDER_CYAN_PX, cyan)
-		# スキル名「エオスバースト」——enter/exitの短いフェード窓を除いた
-		# ほぼ全表示区間で左側へ斜めに表示(旧「保持」区間相当)。
-		if age >= EOS_CUTIN_ENTER_SECONDS - 0.05 \
-				and age < EOS_CUTIN_DURATION_SECONDS - EOS_CUTIN_EXIT_SECONDS + 0.05:
-			var title_pos: Vector2 = \
-				Vector2(axes["origin"]) + Vector2(axes["dir"]) * (float(axes["length"]) * 0.14)
-			draw_set_transform(title_pos, EOS_CUTIN_ANGLE_RAD, Vector2.ONE)
-			var font := ThemeDB.fallback_font
-			draw_string(
-				font, Vector2(-4.0, 12.0), EOS_CUTIN_TITLE_TEXT,
-				HORIZONTAL_ALIGNMENT_LEFT, -1, EOS_CUTIN_TITLE_FONT_SIZE,
-				Color(1.0, 0.95, 0.75, alpha))
-			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+## 「EOS_BURST_V27_FRONTSIDE_NO_CUTIN_FINISH」(2026-09-04) — 旧`## ===
+## EOS_CUTIN:`ブロック全体(`_eos_cutin_final_texture`/`_placeholder_
+## texture`/`_texture`/`_band_axes`/`_quad`/`_view_uv`/`_alpha`/
+## `_draw_eos_burst_cutin`の8関数+2キャッシュ変数)を完全削除。README
+## 「CUTIN_TEXTURE、CUTIN関連定数、cutin_finished、play_fixed_cutin、
+## cutin_root引数、カットイン待機タイマーと呼び出しを残さない」に対応。
 
 
 ## 剣先の光 — spans SLASH_START..SLASH_END, a steady white-gold-cyan point
@@ -14047,9 +15736,15 @@ func _draw_debug_boss_loop_badge(view: Rect2) -> void:
 
 ## Plays the old won/lost/continue tail once the motion queue is empty —
 ## unchanged from before the sequencer existed except it now reads the
-## result stashed by _on_boss_resolve_round instead of a fresh local, and
-## _debug_boss_loop reopens the same encounter instead of returning to the
-## map.
+## result stashed by _resolve_ally_action/_resolve_current_enemy_turn
+## instead of a fresh local, and _debug_boss_loop reopens the same
+## encounter instead of returning to the map.
+## 新戦闘進行システム v1 (2026-08-24): 1行動分の再生(_advance_battle_anim_
+## step)が終わるたびに毎回呼ばれる（旧: 1ラウンド＝全員分の行動が終わる
+## たびに1回だけ）。won/lost以外の「継続」パスは、もう無条件に
+## _enter_command_selection()するのではなく_begin_current_turn()へ委ね、
+## 次が誰の番か（味方なら入力待ち、敵ならプレイヤー入力なしで自動）を
+## sim.current_actor_token()から都度読み直す。
 func _finish_battle_round() -> void:
 	var result := _battle_pending_round_result
 	_stop_battle_anim()
@@ -14066,34 +15761,36 @@ func _finish_battle_round() -> void:
 	if result.get("lost", false):
 		# 新企画v1 §10: a party wipe no longer ends the encounter — sim
 		# already rewound itself back to the fight's checkpoint inside
-		# resolve_boss_round() (result["rewound"] == true), so boss_active
-		# is still true here and the fight simply restarts in place.
+		# resolve_player_action()/resolve_enemy_action() (result["rewound"]
+		# == true), so boss_active is still true here and the fight simply
+		# restarts in place. turn_order/turn_cursor were reset to fight
+		# start along with everything else (sim's rewind_boss_fight()), so
+		# _begin_current_turn() below correctly re-derives whoever acts
+		# first, exactly like a fresh _show_boss_panel().
 		if result.get("rewound", false):
 			# 全滅による自動REWINDも、任意REWIND（_do_battle_rewind）と同じ
 			# 「表示中のメッセージをクリアして仕切りを表示」扱いにする——
 			# トリガーが自動か手動かでプレイヤーへ見せる情報が変わっては
 			# いけない。
 			_clear_battle_message()
-			_append_battle_message(locale.text("UI_BATTLE_MSG_REWIND_DIVIDER"), "special")
+			_append_battle_message(locale.text("UI_BATTLE_MSG_REWIND_DIVIDER"), "special", "enemy")
 		_tally_text = locale.text("UI_REWIND_LOST" if result.get("rewound", false) else "UI_BOSS_LOST")
 		_tally_until_tick = sim.tick_count + TALLY_SHOW_TICKS * 2
 		if _debug_boss_loop:
 			_restart_debug_boss_loop()
 			return
 		if sim.boss_active:
-			_battle_pending_actions = {}
-			_battle_selected_unit = -1
 			_battle_selected_target_id = ""
 			_battle_selected_ally_target = -1
-			_enter_command_selection()
 			_refresh_boss_panel()
+			_begin_current_turn()
 			queue_redraw()
 			return
 		_hide_boss_panel()
 		queue_redraw()
 		return
-	_enter_command_selection()
 	_refresh_boss_panel()
+	_begin_current_turn()
 
 
 ## _debug_boss_loop's whole trick: start_boss_fight() reopens a fresh
@@ -14103,18 +15800,16 @@ func _finish_battle_round() -> void:
 ## encounter back to its checkpoint by itself (boss_active stays true), so
 ## start_boss_fight() here is a harmless no-op (it refuses to start while
 ## already active) and this function's real job on that path is just
-## resetting the UI's own pending-action state. Either way this calls it
+## resetting the UI's own selection state. Either way this calls it
 ## again immediately instead of waiting for the player to press 挑む/再戦/
 ## REWIND, so the boss is effectively unkillable for as long as F9 stays on.
 func _restart_debug_boss_loop() -> void:
 	_debug_restore_party()
 	sim.start_boss_fight()
-	_battle_pending_actions = {}
-	_battle_selected_unit = -1
 	_battle_selected_target_id = ""
 	_battle_selected_ally_target = -1
-	_enter_command_selection()
 	_refresh_boss_panel()
+	_begin_current_turn()
 	queue_redraw()
 
 

@@ -497,6 +497,10 @@ UI_BOSS_REWIND,REWIND
 UI_REWIND,Rewound
 UI_REWIND_LOST,Wiped out... REWINDing to try again
 UI_REWIND_CONFIRM_TEXT,Restart this fight from the beginning?
+UI_BOSS_REWIND2,REWINDⅡ
+UI_REWIND2,Rewound Ⅱ
+UI_REWIND2_SET_CONFIRM_TEXT,Set this point as your REWINDⅡ return point?
+UI_REWIND2_USE_CONFIRM_TEXT,Return to your saved REWINDⅡ point?
 UI_BOSS_BACK,Back
 UI_BOSS_CONFIRM,Confirm
 UI_BOSS_TARGET_TITLE,Select a Target
@@ -521,8 +525,26 @@ UI_BATTLE_MSG_BOSS_ATTACK_GENERIC,%s attacks!
 UI_BATTLE_MSG_BOSS_ATTACK_NAMED,%s uses %s!
 UI_BATTLE_MSG_DAMAGE_ALLY,%s took %d damage!
 UI_BATTLE_MSG_REWIND_DIVIDER,――  REWIND  ――
+UI_BATTLE_MSG_REWIND2_DIVIDER,――  REWINDⅡ  ――
+UI_BATTLE_MSG_REWIND2_SET,REWINDⅡ return point set!
 UI_BATTLE_MSG_DEMO_TROLL_ENRAGED,The cave troll trembles with rage!!
+UI_BATTLE_MSG_GUARD,%s braces to guard!
+UI_BATTLE_GUARDING_STATUS,Guarding
 TROLL_ACTION_CLUB_SMASH,Club Smash
+UI_BATTLE_NEXT_TITLE,NEXT
+UI_COMMAND_DEFEND,Defend
+BATTLE_ITEM_HP_POTION_NAME,HP Potion
+BATTLE_ITEM_HP_POTION_DESC,Restores a portion of one ally's max HP.
+BATTLE_ITEM_SP_POTION_NAME,SP Potion
+BATTLE_ITEM_SP_POTION_DESC,Restores a portion of one ally's max SP.
+UI_BATTLE_ITEM_COUNT,%s  x%d
+UI_BATTLE_MSG_ITEM_USE,%s uses %s!
+UI_BATTLE_MSG_HEAL_SP,%s's SP recovered by %d!
+UI_BATTLE_MSG_ITEM_ALREADY_FULL_HP,But %s's HP was already full!
+UI_BATTLE_MSG_ITEM_ALREADY_FULL_SP,But %s's SP was already full!
+TROLL_ACTION_CLUB_WINDUP,%s raises its club high overhead!!
+TROLL_ACTION_CLUB_SMASH_STRONG,Powerful Club Smash
+UI_BATTLE_MSG_BOSS_FIZZLE,%s stumbles and the attack falls apart!
 UI_BOSS_WON,Victory!
 UI_BOSS_LOST,The party was overwhelmed and retreated
 UI_LEVEL_UP,Level Up

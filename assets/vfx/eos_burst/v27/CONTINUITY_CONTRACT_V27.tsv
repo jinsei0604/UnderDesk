@@ -1,0 +1,13 @@
+area	contract	acceptance
+character_scale	one calibrated Vector2 for all 17 poses	per-frame scale count = 0
+character_ground	source (111,214) maps to one saved parent anchor	foot delta = 0px
+character_alpha	binary dither; no whole-character translucency	partial-alpha transition layers = 0
+character_identity	12 inherited cells stay pixel-identical; new frames use current palette	12/12 inherited hashes equal; 5/5 palette locked
+authoring_scale	one exact 0.38461538 scale for all five new poses	per-source authoring scale variants = 0
+swing_kinematics	frame7 is preparation; frames8..10 are front-side	frame7 tip left; every frame8..10 tip right of hilt
+sword_aura	follow SWORD_SEGMENTS every process frame	ground ring = 0; body pillar = 0
+cutin	texture, preload, node argument, timer and call are absent	active cut-in references = 0
+release	pose12 and grand_00 first visible on same draw	draw delta = 0
+slash	float X / one frozen integer Y / stop at enemy centre	Y delta 0; overshoot 0
+finish	v22 slash/contact/impact/outer constants and PNGs locked	31/31 locked hashes present
+forbidden	dragon, Echo, outer_08, diagonal extra line	active refs = 0

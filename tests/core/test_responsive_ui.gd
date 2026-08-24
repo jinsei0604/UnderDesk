@@ -27,6 +27,14 @@ func _start_expanded_main() -> Control:
 	# explicitly rather than depending on that default.
 	main.settings.resident_mode = false
 	main._apply_window_mode()
+	# rewind2_unlockedは恒久データ(実際のuser://セーブに保存される、sim.gd
+	# 参照)——このヘルパーは「フレッシュな未解放状態」を前提にした複数の
+	# テストで共有されるため、実際にF10で解放済みの状態のままディスクへ
+	# 保存された実セーブを読み込んでいた場合でも各テストが自分の意図した
+	# 前提から始められるよう、ここで明示的にfalseへ揃える（テスト自身の
+	# 前提はテスト自身が制御する、というこのファイル既存の慣習
+	# ——_start_cave_troll_fight()のstage_index上書きと同じ理由）。
+	main.sim.rewind2_unlocked = false
 	return main
 
 
@@ -101,7 +109,7 @@ func test_battle_bar_grows_to_fit_all_target_rows_without_clipping_the_confirm_b
 	main._enter_target_selection("attack", "", "enemy")
 	await get_tree().process_frame
 
-	var rows_container: HFlowContainer = main._target_confirm_panel.find_child(
+	var rows_container: VBoxContainer = main._target_confirm_panel.find_child(
 		"enemy_target_rows", true, false)
 	assert_eq(rows_container.get_child_count(), 3, "main body + arm + leg")
 
@@ -120,9 +128,9 @@ func test_battle_bar_grows_to_fit_all_target_rows_without_clipping_the_confirm_b
 	# すら変化しない（実測で確認済み、`_battle_bar`のケースと同じ理由の
 	# 見かけ上の頭打ち——バグではなく意図したトレードオフの結果）。
 	# 「行数に応じて自動的に高さを決め直す」という主張自体は、この
-	# 引き伸ばしの影響を受けない`enemy_target_rows`（HFlowContainer、
-	# VBoxContainerの主軸=縦方向の子なので伸縮しない）自身の高さで
-	# 直接確認する。
+	# 引き伸ばしの影響を受けない`enemy_target_rows`（右側サブメニュー
+	# 拡大・2026-08-28でVBoxContainerへ変更、主軸=縦方向の子なので伸縮
+	# しない点は変わらない）自身の高さで直接確認する。
 	var rows_height_with_3: float = rows_container.size.y
 	for child in rows_container.get_children():
 		child.queue_free()
@@ -175,21 +183,30 @@ func test_battle_bar_grows_to_fit_all_target_rows_without_clipping_the_confirm_b
 
 
 ## 味方対象（回復など）の場合の後方互換確認: 敵側の行リストは一切
-## 作られず、案内文は表示されたまま、パネルは今まで通りコンパクトな
-## ままであること——今回の変更が enemy_target_rows を持たない全ての
-## 既存フローに影響していないことの直接的な確認。
+## 作られず、パネルは決定ボタンが画面内に収まる高さのままであること
+## ——今回の変更が enemy_target_rows を持たない全ての既存フローに
+## 影響していないことの直接的な確認。
+## 右側サブメニュー拡大（2026-08-28）で案内文の可視条件を変更: 新設の
+## ally_target_rows（党5人、常に非空）が選択肢そのものを示す以上、
+## 同じ内容を繰り返すだけの案内文は敵/部位選択と同じ理由で隠す——これを
+## 隠さないと縦方向の余白が足りず決定ボタンが画面外へ押し出される実機
+## バグを作り込むところだった（実測して発見・修正済み）。
 func test_battle_bar_stays_compact_and_confirm_reachable_for_an_ally_target() -> void:
 	var main := await _start_expanded_main()
 	_start_cave_troll_fight(main)
 	main._enter_target_selection("attack", "", "ally")
 	await get_tree().process_frame
 
-	var rows_container: HFlowContainer = main._target_confirm_panel.find_child(
+	var rows_container: VBoxContainer = main._target_confirm_panel.find_child(
 		"enemy_target_rows", true, false)
 	assert_eq(rows_container.get_child_count(), 0, "no enemy row list for an ally-target selection")
+	var ally_rows: VBoxContainer = main._target_confirm_panel.find_child(
+		"ally_target_rows", true, false)
+	assert_eq(ally_rows.get_child_count(), 5, "the new ally target row list is populated instead")
 	var instruction_label: Label = main._target_confirm_panel.find_child(
 		"target_instruction", true, false)
-	assert_true(instruction_label.visible)
+	assert_false(instruction_label.visible,
+		"redundant now that ally_target_rows shows the choices directly")
 
 	var confirm_button: Button = null
 	var target_column: VBoxContainer = main._target_confirm_panel.get_child(0)
@@ -197,3 +214,109 @@ func test_battle_bar_stays_compact_and_confirm_reachable_for_an_ally_target() ->
 	confirm_button = footer.get_child(footer.get_child_count() - 1)
 	var confirm_bottom: float = confirm_button.global_position.y + confirm_button.size.y
 	assert_true(confirm_bottom <= float(UD.NORMAL_WINDOW_SIZE.y))
+
+
+## --- REWINDⅡ (新企画v1仕様書v2「REWINDⅡ」§5/§6/§38/§39、2026-08-28) -----
+## §17と同じ理由でピクセル単位の見た目は検証できない——ここではGodotの
+## Control幾何情報（位置・サイズ・visible）を直接読んで、①未解放時は
+## 従来のREWIND/やめる2ボタンのままであること、②解放後はREWINDⅡが
+## REWINDの直下に現れやめるがさらに下へ動的に押し出されること、③3ボタン
+## いずれも常に設計空間（1152×648、content_scaleにより実ウィンドウの
+## 物理サイズに関わらず一定）の内側に収まること、を確認する。
+
+
+func test_rewind2_button_hidden_and_layout_unchanged_when_locked() -> void:
+	var main := await _start_expanded_main()
+	_start_cave_troll_fight(main)
+	assert_false(main.sim.rewind2_unlocked, "real data starts locked")
+
+	assert_false(main._rewind2_button.visible, "§5: hidden while locked")
+	assert_almost_eq(main._leave_battle_button.offset_top,
+		main.LEAVE_BUTTON_TOP_WITHOUT_REWIND2, 0.01, "§5: やめる stays at its original slot")
+	assert_true(main._quit_battle_button.visible)
+	assert_true(main._leave_battle_button.visible)
+
+
+func test_rewind2_button_appears_between_rewind_and_leave_once_unlocked() -> void:
+	var main := await _start_expanded_main()
+	_start_cave_troll_fight(main)
+	main.sim.set_rewind2_unlocked(true)
+	main._refresh_rewind2_button()
+
+	assert_true(main._rewind2_button.visible, "§6: shown once unlocked")
+	assert_eq(main._rewind2_button.text, "REWINDⅡ", "§7: exact label, no alternate spelling")
+	assert_almost_eq(main._rewind2_button.offset_top, main.REWIND2_BUTTON_TOP, 0.01)
+	assert_almost_eq(main._leave_battle_button.offset_top,
+		main.LEAVE_BUTTON_TOP_WITH_REWIND2, 0.01, "§38: やめる is pushed below REWINDⅡ")
+	# §39: all three stay within the fixed design window regardless of the
+	# physical window size (content_scale keeps this space constant, see
+	# the earlier tests in this file) -- REWIND is anchored above REWINDⅡ,
+	# which must sit strictly below it with やめる strictly below that.
+	assert_lt(main._quit_battle_button.offset_bottom, main._rewind2_button.offset_top + 0.01)
+	assert_lt(main._rewind2_button.offset_bottom, main._leave_battle_button.offset_top + 0.01)
+	assert_true(main._leave_battle_button.offset_bottom <= float(UD.NORMAL_WINDOW_SIZE.y),
+		"§39: does not spill past the bottom of the design window")
+
+
+func test_rewind2_button_disabled_after_use_but_not_before() -> void:
+	var main := await _start_expanded_main()
+	_start_cave_troll_fight(main)
+	main.sim.set_rewind2_unlocked(true)
+	main._refresh_rewind2_button()
+	assert_false(main._rewind2_button.disabled, "§22: clickable while there is still something to do")
+
+	main.sim.set_mid_checkpoint()
+	main.sim.use_rewind2()
+	main._refresh_rewind2_button()
+
+	assert_true(main._rewind2_button.disabled, "§24: disabled once spent for this fight")
+
+
+## §19/§20/§21/§22/§34: ボタンを押した瞬間の状態で確認文が切り替わり、
+## 味方コマンド入力待ち中(commandSelection)以外では何も開かない。
+func test_rewind2_button_opens_set_then_use_confirm_text_and_ignores_other_phases() -> void:
+	var main := await _start_expanded_main()
+	_start_cave_troll_fight(main)
+	main.sim.set_rewind2_unlocked(true)
+	main._refresh_rewind2_button()
+	assert_eq(main._battle_phase, "commandSelection")
+
+	main._on_rewind2_button_pressed()
+	assert_true(main._rewind2_confirm_panel.visible, "§21: opens while safely in commandSelection")
+	var text_label: Label = main._rewind2_confirm_panel.find_child("text", true, false)
+	assert_eq(text_label.text, main.locale.text("UI_REWIND2_SET_CONFIRM_TEXT"), "§21: not yet set")
+
+	main._on_rewind2_confirm()
+	assert_true(main.sim.mid_checkpoint_set)
+	assert_false(main._rewind2_confirm_panel.visible, "confirming closes the panel")
+
+	main._on_rewind2_button_pressed()
+	assert_eq(text_label.text, main.locale.text("UI_REWIND2_USE_CONFIRM_TEXT"),
+		"§22/§23: already set -- the button now means 'return', same label though (§7)")
+	main._rewind2_confirm_panel.visible = false  # cancel without using it yet
+
+	# §19/§20/§34: not a safe moment (a submenu is open) -- must be ignored.
+	main._battle_phase = "targetSelection"
+	main._on_rewind2_button_pressed()
+	assert_false(main._rewind2_confirm_panel.visible,
+		"§19/§20/§34: mid target-selection is not commandSelection, click is ignored")
+
+
+## §37 実機報告「REWINDⅡのボタンがない」への対応: 正式なストーリー上の
+## 解放イベントはまだ無い(§4)ため、F9(_debug_boss_loop)と同じ「本番UIには
+## 一切現れないキーボードショートカット」としてF10でsim.rewind2_unlocked
+## を直接トグルする——実機で今すぐ確認できるようにするための唯一の
+## 現行の解放手段。
+func test_f10_debug_toggle_unlocks_and_relocks_rewind2() -> void:
+	var main := await _start_expanded_main()
+	_start_cave_troll_fight(main)
+	assert_false(main.sim.rewind2_unlocked)
+	assert_false(main._rewind2_button.visible)
+
+	main._debug_toggle_rewind2_unlocked()
+	assert_true(main.sim.rewind2_unlocked, "F10 unlocks REWINDⅡ")
+	assert_true(main._rewind2_button.visible, "the button appears immediately, no fight restart needed")
+
+	main._debug_toggle_rewind2_unlocked()
+	assert_false(main.sim.rewind2_unlocked, "pressing it again re-locks it")
+	assert_false(main._rewind2_button.visible)

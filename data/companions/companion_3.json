@@ -6,5 +6,6 @@
 	"base_sp": 60, "sp_per_level": 1,
 	"base_atk": 5, "atk_per_level": 1,
 	"base_def": 3, "def_per_level": 1,
+	"base_spd": 14, "spd_per_level": 1,
 	"skills": ["skill_genkafu", "skill_jubaku", "skill_jumon", "skill_shigyaku"]
 }

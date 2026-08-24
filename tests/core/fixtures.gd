@@ -7,7 +7,7 @@ static func enemies() -> UDEnemyDB:
 	return UDEnemyDB.from_dicts([
 		{"id": "test_trash", "name_key": "X", "hp": 4, "atk": 1, "def": 0,
 			"exp": 3, "coins": 2, "is_boss": false},
-		{"id": "test_boss", "name_key": "X", "hp": 20, "atk": 3, "def": 1,
+		{"id": "test_boss", "name_key": "X", "hp": 20, "atk": 3, "def": 1, "spd": 10,
 			"exp": 15, "coins": 10, "is_boss": true},
 	])
 
