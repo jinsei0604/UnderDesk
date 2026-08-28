@@ -463,16 +463,34 @@ func test_kabau_protects_only_against_single_target_attacks() -> void:
 	assert_eq(int(boss_entry["target"]), 0, "the tank (0) intercepted the single-target hit meant for the hero (1)")
 
 func test_kabau_does_not_activate_on_an_all_target_attack() -> void:
-	# required fix #1
-	var battle := RBMBattle.new(_two(tank_def, hero_def), _aoe_boss(50), 1)
+	# required fix #1. Guards against the specific old bug where an "ally_all"
+	# hit still redirected the protected ally's share onto the tank ON TOP OF
+	# the tank's own share -- i.e. the tank silently absorbed two hits' worth
+	# of damage while the protected ally took none.
+	var battle := RBMBattle.new(_two(tank_def, hero_def), _aoe_boss(100), 1)
+	var tank_hp_before := battle.party[0].hp
+	var hero_hp_before := battle.party[1].hp
+
 	var result := battle.resolve_turn({
 		"0": {"type": "skill", "skill_id": "tank_guard_swap", "target_id": 1},
 		"1": {"type": "attack"},
 	})
 	var boss_entry := _find_log_entry(result["log"], "boss")
 	var hits: Dictionary = boss_entry["hits"]
-	assert_true(hits.has(0), "tank takes its own share of the AoE hit")
-	assert_true(hits.has(1), "hero takes its own share too -- not redirected onto the tank")
+	var tank_hit: Dictionary = hits[0]
+	var hero_hit: Dictionary = hits[1]
+
+	# hero was actually hit himself, not redirected away.
+	assert_eq(int(hero_hit["target"]), 1, "hero's own hit entry records hero, not the tank, as the target")
+	assert_eq(int(hero_hit["amount"]), 100)
+	assert_eq(battle.party[1].hp, hero_hp_before - 100, "hero's HP actually dropped by his own AoE share")
+
+	# the tank was charged for exactly one hit -- its own -- never a second,
+	# redirected one on top of it (the old bug would leave the tank at
+	# tank_hp_before - 200 here).
+	assert_eq(int(tank_hit["target"]), 0)
+	assert_eq(int(tank_hit["amount"]), 100)
+	assert_eq(battle.party[0].hp, tank_hp_before - 100, "tank absorbed only its own AoE share, not hero's too")
 
 func test_kabau_does_not_exist_before_the_tank_acts_when_the_boss_is_faster() -> void:
 	# additional confirmation #1 / required fix #2
@@ -490,17 +508,32 @@ func test_kabau_does_not_exist_before_the_tank_acts_when_the_boss_is_faster() ->
 	assert_eq(int(boss_entry["target"]), 1, "かばう did not exist yet when the faster boss acted")
 
 func test_kabau_is_active_once_the_tank_has_acted() -> void:
-	# required fix #2 (the mirror case of the test above: tank faster than boss)
-	assert_true(_find_seed_targeting(_two(tank_def, hero_def), _attacking_boss(50, 1), 1) >= 0)
-	# already proven end-to-end by test_kabau_protects_only_against_single_target_attacks
-	# (tank SPD 140 > boss SPD 1): redirection only ever succeeds once the tank's own
-	# turn has resolved earlier in the same battle-turn.
-	var battle := RBMBattle.new(_two(tank_def, hero_def), _attacking_boss(50, 1), 1)
-	battle.resolve_turn({
+	# required fix #2. Distinct from test_kabau_clears_at_turn_end (which only
+	# checks the AFTER-the-turn rest state) and from
+	# test_kabau_protects_only_against_single_target_attacks (which only checks
+	# who the boss's log entry names as the target). This test instead follows
+	# the full timing chain in one place: unarmed before the tank acts -> the
+	# tank uses かばう -> the SAME turn's single-target hit on the protected
+	# ally is actually redirected -> the protected ally takes zero damage and
+	# the tank absorbs the real damage.
+	var seed := _find_seed_targeting(_two(tank_def, hero_def), _attacking_boss(80, 1), 1)
+	assert_true(seed >= 0, "must find a seed where the boss's single-target pick lands on hero (1)")
+
+	var battle := RBMBattle.new(_two(tank_def, hero_def), _attacking_boss(80, 1), seed)
+	var tank_hp_before := battle.party[0].hp
+	var hero_hp_before := battle.party[1].hp
+	assert_eq(battle.party[0].protecting_ally_id, -1, "かばう is not active before the tank has acted")
+
+	var result := battle.resolve_turn({
 		"0": {"type": "skill", "skill_id": "tank_guard_swap", "target_id": 1},
 		"1": {"type": "attack"},
 	})
-	assert_eq(battle.party[0].protecting_ally_id, -1, "and clears again once that same turn ends")
+
+	var boss_entry := _find_log_entry(result["log"], "boss")
+	assert_eq(int(boss_entry["target"]), 0, "the boss's single-target hit was redirected onto the tank")
+	assert_true(int(boss_entry["amount"]) > 0, "sanity check: a real, non-zero hit was actually redirected")
+	assert_eq(battle.party[1].hp, hero_hp_before, "hero (the protected ally) took zero damage")
+	assert_eq(battle.party[0].hp, tank_hp_before - int(boss_entry["amount"]), "the tank actually absorbed that same amount")
 
 func test_kabau_clears_at_turn_end() -> void:
 	# required fix #4
@@ -547,12 +580,34 @@ func test_sp_is_not_spent_when_the_action_fails_due_to_a_downed_target() -> void
 	assert_eq(battle.party[1].sp, sp_before, "SP must not be spent on a failed (target-downed) skill use")
 
 func test_counter_triggers_at_most_once_per_turn() -> void:
-	# required test list item
-	var battle := RBMBattle.new(_one(samurai_def), _attacking_boss(50, 10), 1)
-	battle.resolve_turn({"0": {"type": "skill", "skill_id": "samurai_counter"}})
-	assert_false(battle.party[0].counter_pending_this_turn, "counter already consumed by its first trigger this turn")
-	var second_hit: Dictionary = battle._apply_boss_hit_to_ally(battle.party[0], 1.0, RBMConstants.Attribute.NEUTRAL, false)
-	assert_false(bool(second_hit.get("blocked", false)), "a second hit within the same turn must not be intercepted again")
+	# required test list item. The engine only resolves one boss action per
+	# resolve_turn() call today, so there is no way to make TWO real boss hits
+	# land within a single call through the public API alone -- and adding
+	# that capability would be a new feature, which this pass is not allowed
+	# to introduce. Instead this drives the same private resolution steps
+	# resolve_turn() itself calls, directly, in sequence, WITHOUT ever going
+	# through resolve_turn()'s own TURN END -- so a second hit can be applied
+	# strictly "before TURN END" and the result cannot be confused with
+	# counter_pending_this_turn being reset by TURN END rather than by firing.
+	var battle := RBMBattle.new(_one(samurai_def), _attacking_boss(500, 10), 1)
+	var samurai := battle.party[0]
+
+	battle._resolve_ally_skill(samurai, "samurai_counter", -1)
+	assert_true(samurai.counter_pending_this_turn, "step 1: the samurai is now in counter stance")
+
+	var hp_before_first := samurai.hp
+	var first_hit: Dictionary = battle._apply_boss_hit_to_ally(samurai, 1.0, RBMConstants.Attribute.NEUTRAL, false)
+	assert_true(bool(first_hit.get("blocked", false)), "step 2/3: the first hit this turn is intercepted")
+	assert_eq(int(first_hit["amount"]), 0)
+	assert_true(int(first_hit["reflected"]) > 0)
+	assert_eq(samurai.hp, hp_before_first, "the samurai took no damage from the blocked first hit")
+	assert_false(samurai.counter_pending_this_turn, "counter is consumed the instant it fires -- not by TURN END")
+
+	var hp_before_second := samurai.hp
+	var second_hit: Dictionary = battle._apply_boss_hit_to_ally(samurai, 1.0, RBMConstants.Attribute.NEUTRAL, false)
+	assert_false(bool(second_hit.get("blocked", false)), "step 4/5: a second same-turn hit is NOT intercepted")
+	assert_true(int(second_hit["amount"]) > 0, "step 6: the samurai takes real, non-zero damage from this second hit")
+	assert_eq(samurai.hp, hp_before_second - int(second_hit["amount"]), "and that damage was actually applied")
 
 func test_counter_success_log_shows_explicit_zero_amount() -> void:
 	# required fix #6
@@ -643,27 +698,40 @@ func test_healer_sp_all_excludes_self_and_downed_units() -> void:
 func test_all_twenty_ally_skills_match_the_confirmed_spec() -> void:
 	# Values are floats throughout (not ints) to match how JSON.parse_string
 	# represents every numeric field, avoiding a spurious float/int warning.
+	#
+	# Every entry includes "effect" (and "target" wherever the schema uses one)
+	# so this test catches not just wrong numbers but wrong MEANING -- e.g. a
+	# heal accidentally wired as "damage", butler's SP gift losing its
+	# "_no_self" semantics, or the tank's guard/iron-wall/kabau skills pointing
+	# at the wrong effect handler entirely.
 	var expected := {
-		"hero_slash": {"attribute": "FIRE", "atk_multiplier": 1.5, "sp_cost": 15.0},
-		"hero_blaze_all": {"attribute": "FIRE", "atk_multiplier": 1.7, "sp_cost": 20.0},
-		"hero_flame_wrap": {"buff_multiplier": 1.5, "duration_turns": 3.0, "sp_cost": 30.0},
-		"hero_burst_slash": {"attribute": "FIRE", "atk_multiplier": 2.2, "sp_cost": 50.0},
-		"butler_ice_bolt": {"attribute": "ICE", "atk_multiplier": 2.5, "sp_cost": 15.0},
-		"butler_ice_storm": {"attribute": "ICE", "atk_multiplier": 2.0, "sp_cost": 20.0},
-		"butler_sp_gift": {"sp_amount": 40.0, "sp_cost": 30.0},
-		"butler_grand_ice": {"attribute": "ICE", "atk_multiplier": 4.0, "sp_cost": 60.0},
-		"healer_shock": {"attribute": "LIGHTNING", "atk_multiplier": 2.0, "sp_cost": 15.0},
-		"healer_heal_single": {"heal_amount": 400.0, "sp_cost": 20.0},
-		"healer_heal_all": {"heal_amount": 200.0, "sp_cost": 40.0},
-		"healer_sp_all": {"sp_amount": 40.0, "sp_cost": 60.0},
-		"samurai_slash": {"attribute": "WIND", "atk_multiplier": 2.0, "sp_cost": 15.0},
-		"samurai_slash_all": {"attribute": "WIND", "atk_multiplier": 2.5, "sp_cost": 30.0},
-		"samurai_iai": {"buff_multiplier": 2.0, "sp_cost": 40.0},
-		"samurai_counter": {"attribute": "WIND", "atk_multiplier": 3.0, "sp_cost": 50.0},
-		"tank_smash": {"attribute": "NEUTRAL", "atk_multiplier": 1.5, "sp_cost": 0.0},
-		"tank_guard_swap": {"sp_cost": 0.0},
-		"tank_guard_boost": {"duration_turns": 1.0, "new_rate": 0.6, "sp_cost": 0.0},
-		"tank_iron_wall": {"duration_turns": 1.0, "reduction_rate": 0.1, "sp_cost": 0.0},
+		"hero_slash": {"effect": "damage", "target": "boss", "attribute": "FIRE", "atk_multiplier": 1.5, "sp_cost": 15.0},
+		"hero_blaze_all": {"effect": "damage", "target": "boss", "attribute": "FIRE", "atk_multiplier": 1.7, "sp_cost": 20.0},
+		"hero_flame_wrap": {"effect": "buff_atk_self", "buff_multiplier": 1.5, "duration_turns": 3.0, "sp_cost": 30.0},
+		"hero_burst_slash": {"effect": "damage", "target": "boss", "attribute": "FIRE", "atk_multiplier": 2.2, "sp_cost": 50.0},
+		"butler_ice_bolt": {"effect": "damage", "target": "boss", "attribute": "ICE", "atk_multiplier": 2.5, "sp_cost": 15.0},
+		"butler_ice_storm": {"effect": "damage", "target": "boss", "attribute": "ICE", "atk_multiplier": 2.0, "sp_cost": 20.0},
+		# 老執事SP回復: 単体・自分自身対象不可 -- encoded by this exact effect id.
+		"butler_sp_gift": {"effect": "sp_recover_single_no_self", "sp_amount": 40.0, "sp_cost": 30.0},
+		"butler_grand_ice": {"effect": "damage", "target": "boss", "attribute": "ICE", "atk_multiplier": 4.0, "sp_cost": 60.0},
+		"healer_shock": {"effect": "damage", "target": "boss", "attribute": "LIGHTNING", "atk_multiplier": 2.0, "sp_cost": 15.0},
+		"healer_heal_single": {"effect": "heal", "target": "ally_chosen", "heal_amount": 400.0, "sp_cost": 20.0},
+		"healer_heal_all": {"effect": "heal", "target": "ally_all", "heal_amount": 200.0, "sp_cost": 40.0},
+		# 少女ヒーラー全体SP回復: 全体・自身除外 -- encoded by this exact effect id.
+		"healer_sp_all": {"effect": "sp_recover_all_no_self", "sp_amount": 40.0, "sp_cost": 60.0},
+		"samurai_slash": {"effect": "damage", "target": "boss", "attribute": "WIND", "atk_multiplier": 2.0, "sp_cost": 15.0},
+		"samurai_slash_all": {"effect": "damage", "target": "boss", "attribute": "WIND", "atk_multiplier": 2.5, "sp_cost": 30.0},
+		# 居合
+		"samurai_iai": {"effect": "buff_next_attack", "buff_multiplier": 2.0, "sp_cost": 40.0},
+		# カウンター
+		"samurai_counter": {"effect": "counter_stance", "attribute": "WIND", "atk_multiplier": 3.0, "sp_cost": 50.0},
+		"tank_smash": {"effect": "damage", "target": "boss", "attribute": "NEUTRAL", "atk_multiplier": 1.5, "sp_cost": 0.0},
+		# かばう
+		"tank_guard_swap": {"effect": "guard_redirect", "sp_cost": 0.0},
+		# 防御強化
+		"tank_guard_boost": {"effect": "guard_boost", "duration_turns": 1.0, "new_rate": 0.6, "sp_cost": 0.0},
+		# 鉄壁
+		"tank_iron_wall": {"effect": "party_damage_reduction", "duration_turns": 1.0, "reduction_rate": 0.1, "sp_cost": 0.0},
 	}
 	var all_defs := [hero_def, butler_def, healer_def, samurai_def, tank_def]
 	var seen := {}
