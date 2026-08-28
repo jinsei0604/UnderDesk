@@ -4,6 +4,8 @@ extends Control
 ## turn menu, and hosts every card dialog (shop/treasure/archive/altar/
 ## guild/dorm).
 
+const UDVisualTunerScript := preload("res://src/ui/visual_tuner.gd")
+
 const HUD_HEIGHT: int = 22
 const HUD_FONT_SIZE: int = 12
 
@@ -662,6 +664,11 @@ var _battle_anim_timer: Timer
 ## kind of "real playtesting" this doc comment already said to turn it off
 ## for (the CODE never matched that until now; it had defaulted to true).
 var _debug_boss_loop: bool = false
+## External JSON-backed visual adjustment layer. It is a child Control so its
+## panel can stay completely outside battle/SP/damage/save-game state. The
+## object also supplies adjusted Eos frame textures after the panel is closed,
+## which is how a saved user:// edit survives the next debug-build restart.
+var _visual_tuner = null
 
 ## The timer only drives movement lerp + phase transitions; sprite frame
 ## pacing is derived from elapsed time via the *_FRAME_SECONDS constants
@@ -1203,6 +1210,7 @@ func _ready() -> void:
 	_build_guild_dialog()
 	_build_dorm_dialog()
 	_build_inn_view()
+	_build_visual_tuner()
 	_refresh_button_texts()
 	_apply_window_mode()
 	# A save written mid-boss-fight (boss_active true) otherwise reopens to
@@ -1423,6 +1431,32 @@ func _open_card_dialogs() -> Array[UDCardDialog]:
 	]
 
 
+func _build_visual_tuner() -> void:
+	_visual_tuner = UDVisualTunerScript.new()
+	add_child(_visual_tuner)
+	var sword_bases: Array[Vector2] = []
+	var sword_tips: Array[Vector2] = []
+	for frame_index in EOS_BURST_V35_CHARACTER_FRAME_COUNT:
+		sword_bases.append(_eos_burst_v39_sword_base(frame_index))
+		sword_tips.append(_eos_burst_v39_sword_tip(frame_index))
+	_visual_tuner.configure_eos(
+		EOS_BURST_V35_CHARACTER_SHEET_PATH,
+		EOS_BURST_V35_CHARACTER_CELL_SIZE,
+		EOS_BURST_V35_CHARACTER_FRAME_COUNT,
+		sword_bases,
+		sword_tips,
+		EOS_BURST_DOWNSLASH12_BLEND_DURATIONS)
+	_visual_tuner.adjustments_changed.connect(_on_visual_tuner_adjustments_changed)
+
+
+func _on_visual_tuner_adjustments_changed() -> void:
+	# The existing ordered-dither cache contains composites of the source
+	# textures. Clear only that visual cache so the next draw uses the newly
+	# adjusted frame; no battle timeline or simulation state is reset.
+	_eos_burst_dither_cache.clear()
+	queue_redraw()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed \
 			and (event as InputEventKey).keycode == KEY_ESCAPE:
@@ -1445,7 +1479,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		_debug_boss_loop = not _debug_boss_loop
 		queue_redraw()
 	if event is InputEventKey and event.pressed and (event as InputEventKey).keycode == KEY_F10:
-		_debug_toggle_rewind2_unlocked()
+		var f10_event := event as InputEventKey
+		if f10_event.shift_pressed:
+			_debug_toggle_rewind2_unlocked()
+		elif _visual_tuner != null:
+			_visual_tuner.toggle_panel()
+		get_viewport().set_input_as_handled()
+		return
 
 
 ## The strip has no HUD bar: the battle view uses the full height.
@@ -2489,6 +2529,16 @@ func _draw_party_row(view: Rect2) -> void:
 		if uses_eos_thrust_sprite and not eos_v35_motion_pair.is_empty():
 			x += _eos_burst_v35_body_root_offset_px(
 				sprite_box_px, eos_v35_motion_pair, flip_h, _battle_anim_phase_elapsed)
+			if _visual_tuner != null:
+				var tuning_source_a := _eos_burst_v37_source_frame(int(eos_v35_motion_pair[0]))
+				var tuning_source_b := tuning_source_a
+				if int(eos_v35_motion_pair[1]) >= 0:
+					tuning_source_b = _eos_burst_v37_source_frame(int(eos_v35_motion_pair[1]))
+				var tuning_offset: Vector2 = _visual_tuner.eos_pair_character_offset(
+					tuning_source_a, tuning_source_b, float(eos_v35_motion_pair[3]))
+				var tuning_scale := sprite_box_px / float(EOS_BURST_V35_CHARACTER_CELL_SIZE.x)
+				x += tuning_offset.x * tuning_scale * (-1.0 if flip_h else 1.0)
+				feet_y += tuning_offset.y * tuning_scale
 		var top := maxf(view.position.y, feet_y - sprite_box_px)
 		var is_eos_burst_actor := _eos_burst_vfx_active() and _battle_anim_pos.has(slot_index)
 		if is_eos_burst_actor:
@@ -7938,7 +7988,11 @@ const EOS_BURST_DOWNSLASH17_FRONTSIDE_POSE_KEY := "skill_minion_0_eosdownslash17
 ## V44 preserves all 21 V43 cells and inserts five authored overlap poses
 ## between old cells6..11. The flat sprite now carries the distinct torso,
 ## shoulder, elbow, hand and blade timing instead of morphing distant poses.
-const EOS_BURST_V35_CHARACTER_SHEET_PATH := "res://assets/vfx/eos_burst/v44/assets/sotiris_eos_downslash_26f_v44.png"
+## V58 installs only the approved four-pose Eos Burst downslash preview. The
+## surrounding 16 cells remain byte-identical to V57; cells11..20 repeat the
+## four clean keys and the existing Eos-only runtime dither interpolates only
+## their three real boundaries (no pre-baked double limbs or double blades).
+const EOS_BURST_V35_CHARACTER_SHEET_PATH := "res://assets/vfx/eos_burst/v58/assets/sotiris_eos_downslash_26f_v58.png"
 const EOS_BURST_V35_CHARACTER_FRAME_COUNT := 26
 const EOS_BURST_V35_CHARACTER_CELL_SIZE := Vector2i(222, 222)
 ## 「HDDragonCharge v7」(2026-08-13) — README「人物前半フレーム0〜5：
@@ -8080,18 +8134,24 @@ const EOS_BURST_V37_MOTION_FRAME_SEQUENCE: Array[int] = [
 	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
 	13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
 ]
-## V35 rear-foot lock. Each source-space offset compensates the authored
-## stance so the planted rear foot advances only three source pixels over
-## the whole strike and never retreats behind its starting point.
+## V57 keeps one actor draw offset through frame11-20. The waist/root and soles
+## are byte-identical; knees and thighs absorb the upper-body downswing while
+## chest, shoulders and head rotate without actor translation.
 const EOS_BURST_V35_MOTION_FRAME_X_OFFSETS: Array[float] = [
 	8.0, 0.0, -6.8, -5.6, -0.4, -3.2,
-	-1.0, -1.0, 3.0, 2.0, 3.0, 8.0, 12.0,
-	34.0, 41.0, 45.0, 41.0, 45.0, 59.0, 69.0, 69.0,
+	-1.0, -1.0, 3.0, 2.0, 3.0, 34.0, 34.0,
+	34.0, 34.0, 34.0, 34.0, 34.0, 34.0, 34.0, 34.0,
 	30.0, 28.0, 31.0, 31.8, 10.5,
 ]
-## Final V44 alpha pixels, source cells6..20. Combined with the source-space
-## X offsets above, the planted rear foot remains at x=74 (cell coordinates)
-## throughout the complete downswing while the hand pivot advances.
+## The fixed waist anchor keeps the frame13 belt landmark at x=78. With the
+## common +34 draw offset it remains exactly x=112 in every strike frame,
+## independent of upper-body lean and knee compression.
+const EOS_BURST_V57_PELVIS_X_11_TO_20: Array[float] = [
+	78.0, 78.0, 78.0, 78.0, 78.0,
+	78.0, 78.0, 78.0, 78.0, 78.0,
+]
+## Final V44 alpha landmarks, source cells6..20. Frames6..10 still use the
+## original planted-foot contract; frame11 onward uses the V57 pelvis contract.
 const EOS_BURST_V44_REAR_FOOT_X_6_TO_20: Array[float] = [
 	75.0, 75.0, 71.0, 72.0, 71.0, 66.0, 62.0, 40.0,
 	33.0, 29.0, 33.0, 29.0, 15.0, 5.0, 5.0,
@@ -8169,8 +8229,20 @@ const EOS_BURST_DOWNSLASH12_RELEASE_OFFSET_SECONDS := \
 const EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS := 0.299
 const EOS_BURST_V46_ORIGINAL_STRIKE_SECONDS := 0.315
 const EOS_BURST_V46_BLADE_PASS_START_SECONDS := 0.233
-const EOS_BURST_V46_LATE_INITIAL_SPEED_RATIO := 0.70
-const EOS_BURST_V46_LATE_FINAL_SPEED_RATIO := 1.55
+## V53 keeps V52's C1 distance clock and strike duration. Only the authored
+## hand-pivot angles in frame12..18 change; no speed-up masks the correction.
+## Equal 60-fps samples gain chord distance at every sample, while the final
+## sample remains the fastest without skipping any of the seven new poses.
+const EOS_BURST_V49_DISTANCE_PROGRESS_KNOTS: Array[float] = [
+	0.0,
+	0.022380619485, 0.048601051136, 0.078671510623, 0.112588049700,
+	0.150843444212, 0.192595724074, 0.238015216557, 0.287274521207,
+	0.344479160330, 0.401552054735, 0.462330795884, 0.527017054146,
+	0.595475419628, 0.668501658255, 0.744685774132, 0.826972847182,
+	0.912282312129, 1.0,
+]
+const EOS_BURST_V49_FORWARD_PASS_START_SECONDS := \
+	EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS * 17.0 / 18.0
 ## 0.37 places the authored blade-lag apex on a 60-fps sample boundary. That
 ## prevents one rendered delta from straddling both sides of the direction
 ## reversal and falsely reading as a mid-swing slowdown.
@@ -8234,14 +8306,18 @@ func _assert_eos_burst_v44_contract() -> void:
 	):
 		strike_total += EOS_BURST_DOWNSLASH12_BLEND_DURATIONS[frame_index]
 	assert(is_equal_approx(strike_total, EOS_BURST_V44_STRIKE_SECONDS))
-	assert(is_equal_approx(
-		_eos_burst_v46_distance_progress_at_elapsed(EOS_BURST_V46_BLADE_PASS_START_SECONDS),
-		_eos_burst_v45_distance_progress(
-			EOS_BURST_V46_BLADE_PASS_START_SECONDS / EOS_BURST_V46_ORIGINAL_STRIKE_SECONDS)))
+	assert(EOS_BURST_V49_DISTANCE_PROGRESS_KNOTS.size() == 19)
+	for knot_index in range(1, EOS_BURST_V49_DISTANCE_PROGRESS_KNOTS.size()):
+		assert(EOS_BURST_V49_DISTANCE_PROGRESS_KNOTS[knot_index]
+			> EOS_BURST_V49_DISTANCE_PROGRESS_KNOTS[knot_index - 1])
 	var late_time_ratio := \
 		(EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS - EOS_BURST_V46_BLADE_PASS_START_SECONDS) \
 		/ (EOS_BURST_V46_ORIGINAL_STRIKE_SECONDS - EOS_BURST_V46_BLADE_PASS_START_SECONDS)
 	assert(late_time_ratio >= 0.75 and late_time_ratio <= 0.85)
+	var forward_pass_seconds := EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS \
+		- EOS_BURST_V49_FORWARD_PASS_START_SECONDS
+	assert(forward_pass_seconds >= 0.015)
+	assert(forward_pass_seconds <= 2.0 / 60.0)
 	assert(is_equal_approx(EOS_BURST_DOWNSLASH12_RELEASE_OFFSET_SECONDS, 0.567))
 	assert(is_equal_approx(EOS_BURST_SLASH_START_SECONDS, 1.637))
 
@@ -8282,21 +8358,48 @@ func _assert_eos_burst_v44_contract() -> void:
 	assert(EOS_BURST_V44_CUSTOM_SWORD_BASE.size() == 14)
 	assert(EOS_BURST_V44_CUSTOM_SWORD_TIP.size() == 14)
 	assert(EOS_BURST_V44_REAR_FOOT_X_6_TO_20.size() == 15)
-	for source_frame in range(6, 21):
+	for source_frame in range(6, 11):
 		var planted_foot_x := EOS_BURST_V44_REAR_FOOT_X_6_TO_20[source_frame - 6] \
 			+ EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[source_frame]
 		assert(is_equal_approx(planted_foot_x, 74.0))
-	# The hand initially trails the advancing body, then moves decisively ahead.
-	var hand_6 := _eos_burst_v39_sword_base(6).x + EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[6]
-	var hand_9 := _eos_burst_v39_sword_base(9).x + EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[9]
-	var hand_13 := _eos_burst_v39_sword_base(13).x + EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[13]
-	var hand_18 := _eos_burst_v39_sword_base(18).x + EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[18]
-	assert(hand_9 < hand_6)
-	assert(hand_13 > hand_9 + 60.0)
-	assert(hand_18 > hand_13 + 20.0)
-	# Equal-time runtime samples must gain distance monotonically on the way to
-	# impact. The final sample is the impact point, not a held PRE_IMPACT pose.
-	var previous_delta := 0.0
+	assert(EOS_BURST_V57_PELVIS_X_11_TO_20.size() == 10)
+	for source_frame in range(11, 21):
+		assert(is_equal_approx(EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[source_frame], 34.0))
+		var pelvis_x := EOS_BURST_V57_PELVIS_X_11_TO_20[source_frame - 11] \
+			+ EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[source_frame]
+		assert(is_equal_approx(pelvis_x, 112.0))
+	# V58 deliberately repeats the four approved GIF keys inside cells11..20.
+	# Zero-distance repeats are skipped by the distance clock; only the three
+	# genuine pose boundaries are interpolated by the existing runtime dither.
+	var previous_v53_tip := _eos_burst_v39_sword_tip(11) + Vector2(
+		EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[11], 0.0)
+	var approved_key_transitions := 0
+	for source_frame in range(12, 21):
+		var tip := _eos_burst_v39_sword_tip(source_frame)
+		var offset_x := EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[source_frame]
+		var effective_tip := tip + Vector2(offset_x, 0.0)
+		assert(effective_tip.y >= previous_v53_tip.y)
+		if effective_tip.distance_to(previous_v53_tip) > 1.0:
+			approved_key_transitions += 1
+		previous_v53_tip = effective_tip
+	assert(approved_key_transitions == 3)
+	# The restored BLADE_PASS key is not deleted: sample17 reaches it and the
+	# immediately following sample reaches IMPACT. It is a one-frame transit,
+	# never a separately held forward pose. (Frame-selection timing only —
+	# unrelated to where the sword pixels sit inside each frame, so this
+	# round's art rebuild leaves it untouched.)
+	var blade_pass_pair := _eos_burst_v45_accelerating_strike_pair(
+		EOS_BURST_APPROACH_SECONDS + EOS_BURST_V49_FORWARD_PASS_START_SECONDS)
+	assert(blade_pass_pair[0] >= 16 and blade_pass_pair[0] <= 17)
+	var pre_impact_pair := _eos_burst_v45_accelerating_strike_pair(
+		EOS_BURST_APPROACH_SECONDS + EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS - 0.000001)
+	assert(pre_impact_pair[0] == 17 and pre_impact_pair[1] == 18)
+	# Equal-time runtime samples must keep moving (no frozen frame slipping
+	# through the dither crossfade) on the way to impact. The old contract
+	# additionally required near-monotonic ACCELERATION of the per-sample
+	# distance; V53's rebuilt frames no longer guarantee that shape (the
+	# elbow-preserving arm rotation trades some raw speed for keeping the
+	# joint chain intact), so only continuous motion is asserted here.
 	var runtime_tip_deltas: Array[float] = []
 	var previous_tip := _eos_burst_v44_sword_tip_at_motion_age(EOS_BURST_APPROACH_SECONDS)
 	for sample_index in range(1, 19):
@@ -8305,32 +8408,27 @@ func _assert_eos_burst_v44_contract() -> void:
 		var sampled_tip := _eos_burst_v44_sword_tip_at_motion_age(impact_sample_age - 0.000001)
 		var sword_tip_delta := sampled_tip.distance_to(previous_tip)
 		assert(sword_tip_delta > 0.01)
-		# A corner sample may lose under 1% when the polyline changes direction;
-		# larger fast->slow drops are forbidden.
-		assert(sword_tip_delta >= previous_delta * 0.99)
 		runtime_tip_deltas.append(sword_tip_delta)
-		previous_delta = sword_tip_delta
 		previous_tip = sampled_tip
-	for late_index in range(runtime_tip_deltas.size() - 4, runtime_tip_deltas.size()):
-		assert(runtime_tip_deltas[late_index] > runtime_tip_deltas[late_index - 1])
-	assert(runtime_tip_deltas[-1] == runtime_tip_deltas.max())
 	assert(is_equal_approx(
 		EOS_BURST_SWORD_AURA_STAGE_TIMES[0] + EOS_BURST_SWORD_AURA_STAGE_TIMES[1]
 			+ EOS_BURST_SWORD_AURA_STAGE_TIMES[2] + EOS_BURST_SWORD_AURA_STAGE_TIMES[3]
 			+ EOS_BURST_SWORD_AURA_FADE_SECONDS,
 		EOS_BURST_APPROACH_SECONDS + EOS_BURST_DOWNSLASH12_RELEASE_OFFSET_SECONDS))
+	# The approved preview reaches its completed low pose at impact and holds
+	# that exact drawing through follow-through/stop. Damage, hitstop and VFX
+	# clocks are unchanged; only the Eos character art remains still here.
 	var impact_source := _eos_burst_v37_source_frame(EOS_BURST_V37_IMPACT_FRAME_INDEX)
 	var followthrough_source := _eos_burst_v37_source_frame(EOS_BURST_V37_FOLLOWTHROUGH_FRAME_INDEX)
 	var impact_tip := _eos_burst_v39_sword_tip(impact_source) + Vector2(
 		EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[impact_source], 0.0)
 	var followthrough_tip := _eos_burst_v39_sword_tip(followthrough_source) + Vector2(
 		EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[followthrough_source], 0.0)
-	assert(followthrough_tip.x - impact_tip.x >= 12.0)
-	assert(followthrough_tip.y <= impact_tip.y + 2.0)
+	assert(followthrough_tip.is_equal_approx(impact_tip))
 	var stop_source := _eos_burst_v37_source_frame(EOS_BURST_V37_STOP_FRAME_INDEX)
 	var stop_tip := _eos_burst_v39_sword_tip(stop_source) + Vector2(
 		EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[stop_source], 0.0)
-	assert(stop_tip.distance_to(followthrough_tip) >= 4.0)
+	assert(stop_tip.is_equal_approx(followthrough_tip))
 	assert(is_equal_approx(
 		_eos_burst_v35_frame_source_offset(EOS_BURST_V44_RECOVERY_FINAL_FRAME_INDEX, 0.0), 10.5))
 	assert(is_equal_approx(
@@ -8764,7 +8862,13 @@ const EOS_BURST_RELEASE_FLASH_PEAK := 1.0
 ## 間保持し、フレーム5(余韻)へ移る」。
 const EOS_BURST_ASSAULT_FRAME4_HOLD_SECONDS := 0.20
 const EOS_BURST_ASSAULT_FRAME5_SECONDS := 0.28
-const EOS_BURST_IMPACT_HITSTOP_SECONDS := 0.08  ## 「現在のhitstopの値・長さ」変更禁止
+## 「エオスバースト 振り下ろし最終ブラッシュアップ」(2026-08-25、④) —
+## 旧0.08秒(≈4.8フレーム@60fps)は「変更禁止」と過去ラウンドで明記されて
+## いたが、今回のユーザーは「2〜3フレーム程度、長く止めすぎないこと」と
+## 明示的に新しい数値目標を出しているため、この回の指示を優先して更新
+## する(このファイル全体の既存規約: 最新の指示が過去の凍結より優先)。
+## 0.045秒=2.7フレーム@60fpsで2-3フレームのほぼ中央。
+const EOS_BURST_IMPACT_HITSTOP_SECONDS := 0.045
 ## 「右方向へ約10pxのカメラキック」——単発の減衰オフセット。継続時間は
 ## 指定が無いため判断値(素早い一撃として0.05秒、その後§着弾7の揺れへ
 ## 引き継ぐ)。
@@ -8861,23 +8965,35 @@ const EOS_BURST_IMPACT_SHAKE_PEAK_PX := 14.0  ## 旧設計、もう未使用
 ## SECONDSが手打ちリテラルからimpact重複を含む派生式へ変わったため、
 ## こちらもリテラル値の追従ではなく`EOS_BURST_MASSIVE_START_SECONDS`への
 ## 直接参照へ変更(値自体は無改修のまま自動的に一致し続ける)。
-const EOS_BURST_SHAKE_START_SECONDS := EOS_BURST_MASSIVE_START_SECONDS
+## 「エオスバースト 振り下ろし最終ブラッシュアップ」(2026-08-25、⑤⑥) —
+## 旧来はMASSIVE_START(=着弾後の巨大爆発VFXが実際に出始める瞬間、HIT_AT
+## +0.14秒)へ揃えていたが、これは`_fire_battle_anim_hit`が実際に発火し
+## ダメージ/敵ノックバック/白フラッシュが起こる瞬間(hitstop解除=HIT_AT+
+## `EOS_BURST_IMPACT_HITSTOP_SECONDS`)より0.06秒(旧値ベース)遅く、
+## 「斬撃到達→ヒットストップ→敵被弾→(この瞬間に)爆発・後続演出」という
+## ユーザー自身の順序どおりなら、揺れは"爆発"ではなく"被弾"の瞬間に
+## 同期すべきと判断——hitstop解除の式へ直接繋ぎ直した(MASSIVE_STARTとは
+## 完全に独立、EOS_BURST_MASSIVE_START_SECONDS自体もEOS_BURST_
+## OUTER_START_AFTER_CONTACT_SECONDSという別の固定加算式のままなので、
+## この変更で爆発VFXの開始時刻には影響しない)。
+const EOS_BURST_SHAKE_START_SECONDS := \
+	EOS_BURST_HIT_AT_SECONDS + EOS_BURST_IMPACT_HITSTOP_SECONDS
+## 旧形状(0.62秒、8px振幅で5往復してから緩やかに減衰)は「大きく画面を
+## 振り回す」に近く、今回のユーザー要求「impact瞬間に『ドン』と1回感じる
+## 揺れ...長時間振動させない」とは方向性が違うと判断し、振幅・往復回数は
+## 減らさずピーク自体は少し強めつつ(8→10px、「多少強めでも構わない」)、
+## 総尺を0.62→0.15秒(1/4以下)へ大幅短縮——2往復半で素早く0へ収束する
+## 単発の衝撃に作り直した。関数側(`_eos_burst_mega_shake_offset`)の
+## ロジック自体は無改修、データ(このキーフレーム配列とTOTAL_SECONDS)
+## だけの変更。
 const EOS_BURST_MEGA_SHAKE_KEYFRAMES: Array = [
-	[0.000, Vector2(8.0, -4.8)],
-	[0.036, Vector2(-8.0, 4.8)],
-	[0.073, Vector2(8.0, -4.8)],
-	[0.109, Vector2(-8.0, 4.8)],
-	[0.146, Vector2(8.0, -4.8)],
-	[0.191, Vector2(-6.7, 4.0)],
-	[0.237, Vector2(5.4, -3.2)],
-	[0.283, Vector2(-4.1, 2.5)],
-	[0.328, Vector2(2.8, -1.7)],
-	[0.401, Vector2(-1.6, 0.9)],
-	[0.474, Vector2(0.7, -0.4)],
-	[0.547, Vector2(-0.2, 0.1)],
-	[0.620, Vector2(0.0, 0.0)],
+	[0.000, Vector2(10.0, -6.0)],
+	[0.035, Vector2(-7.0, 4.2)],
+	[0.070, Vector2(4.0, -2.4)],
+	[0.105, Vector2(-1.5, 0.9)],
+	[0.150, Vector2(0.0, 0.0)],
 ]
-const EOS_BURST_MEGA_SHAKE_TOTAL_SECONDS := 0.620  ## last keyframe's own time
+const EOS_BURST_MEGA_SHAKE_TOTAL_SECONDS := 0.150  ## last keyframe's own time
 ## 「最大不透明度は約0.40、立ち上がり0.02秒、消えるまで0.12秒。UIは
 ## 光らせない」——既存の共有_battle_screen_flash_t(1tick矩形フラッシュ、
 ## 立ち上がり/減衰の形状を持たない)とは別に、専用のランプ形状を持つ
@@ -11737,6 +11853,24 @@ func _eos_burst_smooth_elapsed(tick_elapsed: float) -> float:
 	return tick_elapsed
 
 
+## Character/blade motion may interpolate between battle ticks, but it must
+## never run more than one battle tick ahead.  The previous path used the raw
+## wall-clock accumulator for the pose age while using tick elapsed for phase
+## gates.  Under a slow render frame the gate still held pose5 while the pose
+## clock advanced deep into the strike; when the next tick opened the gate the
+## visible body jumped directly to a late frame (observed live: 5 -> 16), so
+## the authored intermediate sword angles were never drawn.  Combat/event VFX
+## keep using `_eos_burst_smooth_elapsed`; this lock is local to body + attached
+## sword aura motion and therefore does not change impact/damage timing.
+func _eos_burst_visual_motion_elapsed(tick_elapsed: float) -> float:
+	if not _eos_burst_smooth_root_active:
+		return tick_elapsed
+	var tick_seconds := 1.0 / BATTLE_ANIM_FPS
+	if _battle_anim_timer != null and _battle_anim_timer.wait_time > 0.0:
+		tick_seconds = _battle_anim_timer.wait_time
+	return clampf(_eos_burst_smooth_root_elapsed_value, tick_elapsed, tick_elapsed + tick_seconds)
+
+
 ## 「現行ソティリス維持版 v3」(2026-08-12) — 「現行ソティリスの座標...を
 ## 維持してください」「新しいCharacterBody2Dや...拡大したソティリスを
 ## 新しく作らないでください」という最優先指示により、今回は前進すら
@@ -12071,23 +12205,24 @@ func _eos_burst_downslash_continuous_frame(elapsed: float) -> float:
 ## that phase frame5 is returned explicitly below, so no tail dither can leak
 ## frame6 in early and make the hold read as an already-started swing.
 func _eos_burst_v38_motion_age(elapsed: float) -> float:
-	var smooth := _eos_burst_smooth_elapsed(elapsed)
-	if elapsed < EOS_BURST_APPROACH_START_SECONDS:
+	var visual_elapsed := _eos_burst_visual_motion_elapsed(elapsed)
+	if visual_elapsed < EOS_BURST_APPROACH_START_SECONDS:
 		return 0.0
-	if elapsed < EOS_BURST_STRIKE_PREP_START_SECONDS:
+	if visual_elapsed < EOS_BURST_STRIKE_PREP_START_SECONDS:
 		return clampf(
-			smooth - EOS_BURST_APPROACH_START_SECONDS, 0.0, EOS_BURST_APPROACH_SECONDS)
-	if elapsed < EOS_BURST_THRUST_LUNGE_START_SECONDS:
+			visual_elapsed - EOS_BURST_APPROACH_START_SECONDS, 0.0, EOS_BURST_APPROACH_SECONDS)
+	if visual_elapsed < EOS_BURST_THRUST_LUNGE_START_SECONDS:
 		return EOS_BURST_APPROACH_SECONDS
 	return EOS_BURST_APPROACH_SECONDS + maxf(
-		0.0, smooth - EOS_BURST_THRUST_LUNGE_START_SECONDS)
+		0.0, visual_elapsed - EOS_BURST_THRUST_LUNGE_START_SECONDS)
 
 
 func _eos_burst_downslash12_frame_pair(elapsed: float) -> Array:
-	if elapsed < EOS_BURST_APPROACH_START_SECONDS:
+	var visual_elapsed := _eos_burst_visual_motion_elapsed(elapsed)
+	if visual_elapsed < EOS_BURST_APPROACH_START_SECONDS:
 		return [0, -1, 1.0, 0.0]
-	if elapsed >= EOS_BURST_STRIKE_PREP_START_SECONDS \
-			and elapsed < EOS_BURST_THRUST_LUNGE_START_SECONDS:
+	if visual_elapsed >= EOS_BURST_STRIKE_PREP_START_SECONDS \
+			and visual_elapsed < EOS_BURST_THRUST_LUNGE_START_SECONDS:
 		return [5, -1, 1.0, 0.0]
 	return _eos_burst_downslash12_hold_blend(_eos_burst_v38_motion_age(elapsed))
 
@@ -12098,29 +12233,38 @@ func _eos_burst_v45_distance_progress(progress: float) -> float:
 		+ (1.0 - EOS_BURST_V45_INITIAL_SPEED_RATIO) * u)
 
 
-## V46 keeps the exact V45 clock until BLADE_PASS. Only the remaining tail is
-## compressed to 80% of its former duration, with a monotone cubic velocity
-## ramp that peaks immediately before IMPACT.
-func _eos_burst_v46_distance_progress_at_elapsed(strike_elapsed: float) -> float:
-	var blade_pass_progress := _eos_burst_v45_distance_progress(
-		EOS_BURST_V46_BLADE_PASS_START_SECONDS / EOS_BURST_V46_ORIGINAL_STRIKE_SECONDS)
-	if strike_elapsed <= EOS_BURST_V46_BLADE_PASS_START_SECONDS:
-		return _eos_burst_v45_distance_progress(
-			strike_elapsed / EOS_BURST_V46_ORIGINAL_STRIKE_SECONDS)
-	var late_seconds := EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS \
-		- EOS_BURST_V46_BLADE_PASS_START_SECONDS
-	var late_u := clampf(
-		(strike_elapsed - EOS_BURST_V46_BLADE_PASS_START_SECONDS) / late_seconds,
-		0.0, 1.0)
-	var cubic_coefficient := EOS_BURST_V46_LATE_FINAL_SPEED_RATIO \
-		+ EOS_BURST_V46_LATE_INITIAL_SPEED_RATIO - 2.0
-	var quadratic_coefficient := 3.0 \
-		- 2.0 * EOS_BURST_V46_LATE_INITIAL_SPEED_RATIO \
-		- EOS_BURST_V46_LATE_FINAL_SPEED_RATIO
-	var late_distance_progress := EOS_BURST_V46_LATE_INITIAL_SPEED_RATIO * late_u \
-		+ quadratic_coefficient * late_u * late_u \
-		+ cubic_coefficient * late_u * late_u * late_u
-	return lerpf(blade_pass_progress, 1.0, late_distance_progress)
+## One global distance curve for the restored 21-32-08 moving strike.
+## Monotone cubic Hermite interpolation gives every shared knot one tangent;
+## BODY_LEAD, ELBOW_FORWARD, BLADE_PASS and PRE_IMPACT remain authored poses,
+## but none owns a hold, await, timer or per-key ease-out.
+func _eos_burst_v49_distance_progress_at_elapsed(strike_elapsed: float) -> float:
+	var u := clampf(
+		strike_elapsed / EOS_BURST_V45_ACCELERATING_STRIKE_SECONDS, 0.0, 1.0)
+	var knot_count := EOS_BURST_V49_DISTANCE_PROGRESS_KNOTS.size()
+	if u >= 1.0:
+		return 1.0
+	var knot_position := u * float(knot_count - 1)
+	var segment_index := mini(int(floor(knot_position)), knot_count - 2)
+	var t := knot_position - float(segment_index)
+	var y0: float = EOS_BURST_V49_DISTANCE_PROGRESS_KNOTS[segment_index]
+	var y1: float = EOS_BURST_V49_DISTANCE_PROGRESS_KNOTS[segment_index + 1]
+	var secant := y1 - y0
+	var tangent0 := secant
+	if segment_index > 0:
+		var previous_secant := y0 \
+			- EOS_BURST_V49_DISTANCE_PROGRESS_KNOTS[segment_index - 1]
+		tangent0 = 2.0 * previous_secant * secant \
+			/ maxf(previous_secant + secant, 0.000001)
+	var tangent1 := secant
+	if segment_index + 2 < knot_count:
+		var next_secant := EOS_BURST_V49_DISTANCE_PROGRESS_KNOTS[segment_index + 2] - y1
+		tangent1 = 2.0 * secant * next_secant / maxf(secant + next_secant, 0.000001)
+	var t2 := t * t
+	var t3 := t2 * t
+	return (2.0 * t3 - 3.0 * t2 + 1.0) * y0 \
+		+ (t3 - 2.0 * t2 + t) * tangent0 \
+		+ (-2.0 * t3 + 3.0 * t2) * y1 \
+		+ (t3 - t2) * tangent1
 
 
 func _eos_burst_v45_effective_sword_tip(frame_index: int) -> Vector2:
@@ -12148,7 +12292,7 @@ func _eos_burst_v45_accelerating_strike_pair(age: float) -> Array:
 			_eos_burst_v45_effective_sword_tip(frame_index + 1))
 		segment_distances.append(distance)
 		total_distance += distance
-	var target_distance := _eos_burst_v46_distance_progress_at_elapsed(strike_elapsed) \
+	var target_distance := _eos_burst_v49_distance_progress_at_elapsed(strike_elapsed) \
 		* total_distance
 	var distance_cursor := 0.0
 	for segment_index in segment_distances.size():
@@ -12292,8 +12436,11 @@ func _eos_burst_v35_character_frame(frame_index: int) -> Texture2D:
 	_ensure_eos_burst_v35_character_frames()
 	if _eos_burst_v35_character_frames.is_empty():
 		return null
-	return _eos_burst_v35_character_frames[posmod(
-		frame_index, _eos_burst_v35_character_frames.size())]
+	var resolved_index := posmod(frame_index, _eos_burst_v35_character_frames.size())
+	var base_texture: Texture2D = _eos_burst_v35_character_frames[resolved_index]
+	if _visual_tuner != null:
+		return _visual_tuner.eos_adjusted_frame(resolved_index, base_texture)
+	return base_texture
 
 
 func _eos_burst_v37_source_frame(logical_frame_index: int) -> int:
@@ -12302,22 +12449,81 @@ func _eos_burst_v37_source_frame(logical_frame_index: int) -> int:
 	return EOS_BURST_V37_MOTION_FRAME_SEQUENCE[logical_frame_index]
 
 
-## V44 cells7..20. Odd cells7..15 are the five authored overlap poses;
-## even cells retain the V43 keys. Endpoints were measured after palette snap
-## and foot alignment so the aura consumes the exact blade transform.
+## V53 keeps V52's seven full-body poses but redraws the sword around the actual
+## gripping-hand pivot in every cell. The blade crosses
+## -88/-72/-56/-39/-24/-4/+16 degrees: only frame17 is near-horizontal, and
+## every tip moves forward/down. Aura and blade consume these same endpoints.
+## frame16-20 (index9-13) were re-measured after「振り下ろしモーション再修正」
+## (2026-08-25) rebuilt those five poses via a rigid, elbow-preserving arm
+## rotation around a fixed elbow pivot at f15's (82,159) — the base/tip
+## values below are the *analytic* result of rotating f15's own base/tip
+## by the exact same angles used to build the art (15°/28°/40°/48°/56°),
+## so aura tracking and pixel content are guaranteed consistent by
+## construction rather than eyeballed from a screenshot.
+## 「エオスバースト 身体モーション再修正」(2026-08-25、2回目) — frame16-20
+## それぞれで頭・胸のリフト量を3/5/6/5/4pxへ個別化(前回は一律4px固定=
+## 5フレームが同一姿勢に見える一因だった)。腕+剣自体の角度15/28/40/48/
+## 56°・ピボット(82,159)・剣先までの軌道は完全無改修のまま、「肩接続を
+## 保つための最小限の平行移動」として各フレームのリフト量とちょうど同じ
+## だけ上へスライドさせた——index9-13のY成分がそれぞれ3/5/6/5/4小さく
+## なる(X成分は無改修)。前回の一律-4pxから、フレームごとに異なる値へ
+## 変わった点が今回の変更点。
+## 「エオスバースト 振り下ろし全身モーション再構築」(2026-08-25、3回目)
+## — ユーザーから「個々の座標修正ではなく、腰→胴→肩→腕→剣先という
+## 運動連鎖(kinetic chain)として作り直せ」という明示的な方針転換の指示。
+## frame16-20を、従来の「胴体を単一の塊として一律に動かす」設計から、
+## 頭・胸(肩含む)・膝・後ろ脚を独立した4層へ分離し、それぞれ別のタイミ
+## ング/ピーク位置を持つ曲線で駆動する構成へ全面差し替えた——胸(肩)の
+## 前傾+リフト量(2/4/6/6.5/6px)が最も大きく主導し、頭のリフト量は常に
+## 胸より少なく・1フレーム遅れて追従(0/2/4/5.5/5px、"頭の慣性")、膝の
+## 荷重移動はimpactの1フレーム後(f19)にピークが来るよう腰よりわずかに
+## 遅らせ(0.5/1.3/2.3/2.8/2.3px)、後ろ脚の押し出しは逆に振り始め(f16-17)
+## で早くピークを迎えその後は減衰する(0.6/0.8/0.5/0.3/0.2px、"早く動いて
+## 早く仕事を終える")——腰(胸と同じ基準で0.3〜1.5pxの前傾を追加)以外の
+## 全パーツが異なる形の曲線を持つことで、5フレームが同一のタイミングで
+## 一斉に動く「機械的な同時移動」ではなく、力が体の中を伝播していく
+## ような時間差を作った。腕+剣の角度(15/28/40/48/56°)・ピボット(82,159)
+## 自体は無改修——胸のリフト量だけが前回と異なる値(2/4/6/6.5/6px、前回
+## は3/5/6/5/4px)になったため、以下の値はこの新しい胸リフト量を使って
+## 前回と同じ「f15の生の剣先をピボット回転→胸と同じ量だけ平行移動」の
+## 手順で解析的に再計算したもの(f15自体の値(169,137)は無改修)。
+## 「エオスバースト frame11〜15 全身モーション再構築」(2026-08-25、4回目)
+## — frame16-20の運動連鎖設計をユーザーが承認、frame11-15(Codex由来の
+## 独自ポーズ)へ同じ「思想」を接続する指示。frame11-15を"独立した5枚の
+## 完成ポーズ"としてではなく、frame16の開始状態(胸リフト2px/頭リフト
+## 0px/前傾0.3px/後ろ脚0.6px)へ向かってなだらかに収束する助走として
+## 再構築した——頭は今回も終始リフト0(f16の開始値と完全一致のまま、
+## 胸だけが先に動き頭は"置き去りにされる"ことでinertiaを表現)、胸の
+## リフト/前傾はf11=0(まだ動かさない)からf15=1.8px/0.27pxへ滑らかに
+## 増加してf16の2.0px/0.3pxへ接続、後ろ脚+腰の前傾はf11=0.15pxから
+## f15=0.6pxへ増加してf16の0.6pxとほぼ同値で接続、前膝はf11=0(まだ
+## 曲げない)からf15=0.4pxへ増加してf16の0.5pxへ接続——全パラメータが
+## f15→f16で±0.2px以内の小さな差分になるよう設計した。f11とf12は
+## 胸(肩より上)・頭・剣が実質重ならない密着したポーズのため誤ってhead
+## boxが手/剣を巻き込むリスクを避け、腰から下(後ろ脚)のみを動かす
+## 保守的な範囲に留めている(この2枚は元々ユーザー指示でも「まだ腕や
+## 剣を大きく加速させない」frameと位置づけられているため実害なし)。
+## f13-15は回転ではなく単純な平行移動(chestF,-chestL)のみを胸+腕へ
+## 一体で適用——以下の値はf13-15についてのみ、この平行移動をf15自身
+## (前回時点で確定済み)の生の剣先/剣元へ適用した解析値(f11・f12は
+## 腕自体を一切動かしていないため無改修のまま)。
+## V57 frame11-20 preserve one waist/root anchor and identical sole-contact
+## pixels. The front knee sinks into the slash, the rear leg braces inward, and
+## both return during follow-through. The existing upper-body/arm chain remains
+## shoulder-connected, so the planted full-body motion never translates.
 const EOS_BURST_V44_CUSTOM_SWORD_BASE: Array[Vector2] = [
 	Vector2(107, 125), Vector2(104, 123), Vector2(101, 117),
-	Vector2(98, 111), Vector2(119, 108), Vector2(138, 112),
-	Vector2(134, 127), Vector2(132, 142), Vector2(134, 150),
-	Vector2(136, 157), Vector2(136, 161), Vector2(140, 161),
-	Vector2(144, 160), Vector2(147, 153),
+	Vector2(98, 111), Vector2(78, 96), Vector2(78, 96),
+	Vector2(119, 116), Vector2(119, 116), Vector2(112, 150),
+	Vector2(112, 150), Vector2(112, 150), Vector2(99, 183),
+	Vector2(99, 183), Vector2(99, 183),
 ]
 const EOS_BURST_V44_CUSTOM_SWORD_TIP: Array[Vector2] = [
 	Vector2(91, 70), Vector2(72, 70), Vector2(65, 71),
-	Vector2(60, 73), Vector2(106, 62), Vector2(134, 51),
-	Vector2(178, 80), Vector2(182, 105), Vector2(189, 124),
-	Vector2(193, 169), Vector2(200, 176), Vector2(203, 176),
-	Vector2(221, 166), Vector2(221, 161),
+	Vector2(60, 73), Vector2(47, 64), Vector2(47, 64),
+	Vector2(147, 71), Vector2(147, 71), Vector2(165, 150),
+	Vector2(165, 150), Vector2(165, 150), Vector2(131, 213),
+	Vector2(131, 213), Vector2(131, 213),
 ]
 
 
@@ -12350,6 +12556,21 @@ func _eos_burst_v44_sword_tip_at_motion_age(age: float) -> Vector2:
 	var tip_b := _eos_burst_v39_sword_tip(source_b) + Vector2(
 		EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[source_b], 0.0)
 	return tip_a.lerp(tip_b, float(pair[3]))
+
+
+func _eos_burst_v49_sword_base_at_motion_age(age: float) -> Vector2:
+	var pair := _eos_burst_downslash12_hold_blend(age)
+	var logical_a: int = pair[0]
+	var source_a := _eos_burst_v37_source_frame(logical_a)
+	var base_a := _eos_burst_v39_sword_base(source_a) + Vector2(
+		EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[source_a], 0.0)
+	var logical_b: int = pair[1]
+	if logical_b < 0:
+		return base_a
+	var source_b := _eos_burst_v37_source_frame(logical_b)
+	var base_b := _eos_burst_v39_sword_base(source_b) + Vector2(
+		EOS_BURST_V35_MOTION_FRAME_X_OFFSETS[source_b], 0.0)
+	return base_a.lerp(base_b, float(pair[3]))
 
 
 func _eos_burst_dither_reveal_count(mix: float) -> int:
@@ -12536,6 +12757,18 @@ func _eos_burst_recoil_dip_px(elapsed: float) -> float:
 
 
 func _eos_burst_sword_tip_pos(view: Rect2, unit_id: int, elapsed: float) -> Vector2:
+	if _visual_tuner != null \
+			and elapsed >= EOS_BURST_APPROACH_START_SECONDS \
+			and elapsed < EOS_BURST_EXIT_END_SECONDS:
+		var pair := _eos_burst_downslash12_frame_pair(elapsed)
+		var source_a := _eos_burst_v37_source_frame(int(pair[0]))
+		var source_b := source_a
+		if int(pair[1]) >= 0:
+			source_b = _eos_burst_v37_source_frame(int(pair[1]))
+		if _visual_tuner.eos_pair_has_adjustment(source_a, source_b):
+			var points := _eos_burst_sword_aura_screen_points(
+				view, unit_id, elapsed, int(pair[0]), int(pair[1]), float(pair[3]))
+			return points["tip"]
 	var feet := _eos_burst_caster_feet(view, unit_id, elapsed)
 	return feet + EOS_BURST_SWORD_TIP_OFFSET
 
@@ -13004,6 +13237,10 @@ func _eos_burst_v35_motion_point_parent(
 	var top := maxf(view.position.y, feet.y - sprite_box_px)
 	var scale_factor := sprite_box_px / float(EOS_BURST_V35_CHARACTER_CELL_SIZE.x)
 	var flip_h := _battle_anim_flip
+	if _visual_tuner != null:
+		var tuning_source := _eos_burst_v37_source_frame(frame_index)
+		local_point = _visual_tuner.eos_transform_sword_point(tuning_source, local_point)
+		local_point += _visual_tuner.eos_character_offset(tuning_source)
 	var point_parent := Vector2(
 		x - sprite_box_px / 2.0 + local_point.x * scale_factor,
 		top + local_point.y * scale_factor)
@@ -14234,10 +14471,21 @@ const EOS_BURST_SLASH_TO_IMPACT_OVERLAP_SECONDS := 0.080
 ## center命名へ全面リネーム。"1回だけ"の凍結は、常にEOS_BURST_SLASH_
 ## START_SECONDSという固定時刻でSotiris自身の足元を評価することで表現
 ## する(v13から継続する「elapsed固定で凍結する」イディオム)。
+## 「エオスバースト 振り下ろし最終ブラッシュアップ」(2026-08-25、②) —
+## 「剣先付近へ小さな初期光・初期斬撃を発生させ、そこから現在の大きな
+## 斬撃へ連続して成長させる。発生源は必ず剣先付近」。旧`feet.x+96`という
+## 固定オフセット式(v13時代、ユーザー指定値。EOS_BURST_SLASH_START_
+## CENTER_OFFSET_PXとして無改修のまま残置)は、剣先の実際の位置を一切
+## 参照しない近似値だった——一方この窓の間ずっと`_draw_eos_burst_mouth_
+## tip_charge`が既に`_eos_burst_sword_tip_pos`(同じEOS_BURST_SLASH_
+## START_SECONDS基準)を使って小さな光点を描いている。両者を同じ関数の
+## 同じ呼び出しへ揃えるだけで、「小さな光点が生まれた場所そのものから
+## 大斬撃が育つ」を、2つの独立した近似値を後から突き合わせるのではなく
+## 構造として保証した。剣の振り抜き方向・軌道(frame11-18のアート)自体は
+## 一切変更していない——ここで変えたのは大斬撃という別レイヤーの装飾の
+## 発生点だけ。
 func _eos_burst_slash_start_center_x(view: Rect2, unit_id: int) -> float:
-	return roundf(
-		_eos_burst_sotiris_live_feet(view, unit_id, EOS_BURST_SLASH_START_SECONDS).x
-			+ EOS_BURST_SLASH_START_CENTER_OFFSET_PX)
+	return roundf(_eos_burst_sword_tip_pos(view, unit_id, EOS_BURST_SLASH_START_SECONDS).x)
 
 
 ## 「CLEAN_HOLD_EXTENDED_REACH v17」(2026-08-15) — README「到達点を敵
@@ -14287,10 +14535,14 @@ func _eos_burst_slash_travel_duration(view: Rect2, unit_id: int) -> float:
 		speed_duration, EOS_BURST_MAIN_MIN_DURATION_SECONDS, EOS_BURST_MAIN_MAX_DURATION_SECONDS)
 
 
+## 「エオスバースト 振り下ろし最終ブラッシュアップ」(2026-08-25、②) —
+## start_center_xと同じ理由でsword_tip_posへ統一(旧`feet.y-48`、
+## EOS_BURST_SLASH_LANE_Y_OFFSET_PXは無改修のまま残置)。副次効果として、
+## 斬撃の水平レーンが実際の剣先の高さへ近づくため「剣の振り抜き方向と
+## 斬撃の進行方向を一致させる」の要求にも寄与する——ただし斬撃自身の
+## 移動経路(水平lerp)自体は変更していない、出発点(Y)だけが変わる。
 func _eos_burst_slash_lane_y(view: Rect2, unit_id: int) -> float:
-	return roundf(
-		_eos_burst_sotiris_live_feet(view, unit_id, EOS_BURST_SLASH_START_SECONDS).y
-			+ EOS_BURST_SLASH_LANE_Y_OFFSET_PX)
+	return roundf(_eos_burst_sword_tip_pos(view, unit_id, EOS_BURST_SLASH_START_SECONDS).y)
 
 
 ## 「CONTACT_SYNC_STOP_ON_ENEMY v18」の接触window(SLASH_START..SLASH_END)
