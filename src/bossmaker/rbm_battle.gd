@@ -100,10 +100,10 @@ func _check_battle_over() -> void:
 		battle_over = true
 		winner = "boss"
 
-## ally_actions: Dictionary[String unit_id -> Dictionary action]. A missing/absent
-## entry for a living ally defaults to a plain "attack" (matches "何も選ばなければ
-## 通常攻撃" — a sane default, not a spec requirement, only relevant to keep this
-## batch API well-defined for callers that omit downed/irrelevant units).
+## ally_actions: Dictionary[String unit_id -> Dictionary action]. A missing entry,
+## or one with an unrecognized "type", is NOT a implicit attack (Step 2 fix #3) —
+## it resolves as an explicit no-op failure ("unspecified_action" / "invalid_action")
+## so a broken caller can never silently deal damage it never asked for.
 ## action shapes: {"type":"attack"} / {"type":"defend"} /
 ##                {"type":"skill","skill_id":String,"target_id":int}
 func resolve_turn(ally_actions: Dictionary) -> Dictionary:
@@ -111,10 +111,18 @@ func resolve_turn(ally_actions: Dictionary) -> Dictionary:
 	if battle_over:
 		return {"log": log, "battle_over": true, "winner": winner, "turn": current_turn}
 
-	# TURN START — reset per-turn postures, then pre-apply "defend"/"かばう" for the
-	# WHOLE turn (these are locked-in commands, not resolved lazily at the acting
-	# unit's own turn-order slot; otherwise a low-SPD defender wouldn't reduce an
-	# earlier-acting boss's damage that same turn).
+	# The turn number this call is resolving — captured before any mutation, and
+	# returned as-is regardless of whether current_turn advances afterward (Step 2
+	# fix #5: "turn" always means "the turn just resolved", never the next one).
+	var resolved_turn := current_turn
+
+	# TURN START — reset per-turn postures, then pre-apply "防御" (only) for the
+	# WHOLE turn: it is a locked-in base command, not resolved lazily at the acting
+	# unit's own turn-order slot, so a low-SPD defender still reduces an
+	# earlier-acting boss's damage that same turn (Step 2 confirmation #1).
+	# かばう (a skill, not a base command) is deliberately NOT pre-applied here —
+	# it only takes effect once the tank's own action actually resolves below
+	# (Step 2 fix #2).
 	for unit in party:
 		unit.is_defending = false
 		unit.protecting_ally_id = -1
@@ -123,16 +131,8 @@ func resolve_turn(ally_actions: Dictionary) -> Dictionary:
 		var unit := _unit_by_id(int(id_key))
 		if unit == null or unit.is_downed():
 			continue
-		match str(action.get("type", "")):
-			"defend":
-				unit.is_defending = true
-			"skill":
-				var skill := _find_skill(unit, str(action.get("skill_id", "")))
-				if str(skill.get("effect", "")) == "guard_redirect":
-					var target_id := int(action.get("target_id", -1))
-					var target := _unit_by_id(target_id)
-					if target != null and not target.is_downed():
-						unit.protecting_ally_id = target_id
+		if str(action.get("type", "")) == "defend":
+			unit.is_defending = true
 
 	# NORMAL ACTION PHASE
 	for token in turn_order:
@@ -142,24 +142,33 @@ func resolve_turn(ally_actions: Dictionary) -> Dictionary:
 		if acting == null or acting.is_downed():
 			continue
 		if acting.is_ally:
-			var action: Dictionary = ally_actions.get(str(acting.id), {"type": "attack"})
-			log.append(_resolve_ally_action(acting, action))
+			var id_key := str(acting.id)
+			if not ally_actions.has(id_key):
+				log.append({"actor": acting.id, "action": "none", "failed": true, "reason": "unspecified_action"})
+			else:
+				log.append(_resolve_ally_action(acting, ally_actions[id_key]))
 		else:
 			log.append(_resolve_boss_action(acting))
 		_check_battle_over()
 
-	# TURN END — turn-scoped state clears regardless of whether it triggered.
+	# TURN END — every turn-scoped posture clears here, regardless of whether it
+	# ever triggered, so state is fully at rest between resolve_turn() calls
+	# (Step 2 fix #4).
 	for unit in party:
 		unit.counter_pending_this_turn = false
 		unit.active_counter_skill = {}
+		unit.is_defending = false
+		unit.protecting_ally_id = -1
 
 	if not battle_over:
 		current_turn += 1
 
-	return {"log": log, "battle_over": battle_over, "winner": winner, "turn": current_turn}
+	return {"log": log, "battle_over": battle_over, "winner": winner, "turn": resolved_turn}
 
+## Step 2 fix #3: an unrecognized action "type" must never be treated as an attack.
 func _resolve_ally_action(unit: RBMUnit, action: Dictionary) -> Dictionary:
-	match str(action.get("type", "attack")):
+	var action_type := str(action.get("type", ""))
+	match action_type:
 		"attack":
 			return _resolve_normal_attack(unit)
 		"defend":
@@ -167,7 +176,7 @@ func _resolve_ally_action(unit: RBMUnit, action: Dictionary) -> Dictionary:
 		"skill":
 			return _resolve_ally_skill(unit, str(action.get("skill_id", "")), int(action.get("target_id", -1)))
 		_:
-			return _resolve_normal_attack(unit)
+			return {"actor": unit.id, "action": "none", "failed": true, "reason": "invalid_action", "raw_type": action_type}
 
 ## v0.1-B §7: 無属性・ATK×1.0・SP消費0・使用でSP+10（最大SP超えない）。
 ## v0.1-B §10: 通常攻撃は「攻撃スキル」ではない — 居合の対象外。
@@ -189,6 +198,16 @@ func _resolve_ally_skill(unit: RBMUnit, skill_id: String, target_id: int) -> Dic
 		result["reason"] = "unknown_skill"
 		return result
 
+	var effect := str(skill.get("effect", ""))
+
+	# Step 2 fix #7: validate the target BEFORE spending SP. A since-downed
+	# target means the whole action is 不発 (void) — no SP cost, no redirect.
+	var validation := _validate_skill_target(unit, skill, effect, target_id)
+	if not bool(validation.get("valid", true)):
+		result["failed"] = true
+		result["reason"] = str(validation.get("reason", "invalid_target"))
+		return result
+
 	var cost := int(skill.get("sp_cost", 0))
 	if unit.has_sp_resource():
 		if unit.sp < cost:
@@ -197,16 +216,12 @@ func _resolve_ally_skill(unit: RBMUnit, skill_id: String, target_id: int) -> Dic
 			return result
 		unit.sp -= cost
 
-	match str(skill.get("effect", "")):
+	match effect:
 		"damage":
-			if boss.is_downed():
-				result["failed"] = true
-				result["reason"] = "target_downed"
-			else:
-				var atk_mult := float(skill.get("atk_multiplier", 1.0))
-				var attribute := RBMConstants.attribute_from_name(str(skill.get("attribute", "NEUTRAL")))
-				result["target"] = "boss"
-				result["amount"] = _compute_and_apply_damage(unit, boss, atk_mult, attribute, true)
+			var atk_mult := float(skill.get("atk_multiplier", 1.0))
+			var attribute := RBMConstants.attribute_from_name(str(skill.get("attribute", "NEUTRAL")))
+			result["target"] = "boss"
+			result["amount"] = _compute_and_apply_damage(unit, boss, atk_mult, attribute, true)
 		"heal":
 			_resolve_heal_skill(unit, skill, target_id, result)
 		"sp_recover_single_no_self":
@@ -231,12 +246,46 @@ func _resolve_ally_skill(unit: RBMUnit, skill_id: String, target_id: int) -> Dic
 			var rate := float(skill.get("reduction_rate", RBMConstants.IRON_WALL_REDUCTION))
 			RBMConstants.set_timed_effect(party_timed_effects, "iron_wall", current_turn, duration, rate)
 		"guard_redirect":
-			result["protecting"] = unit.protecting_ally_id
+			# Step 2 fix #2: かばう only takes effect here, at the tank's own
+			# action resolution — never pre-applied at TURN START.
+			unit.protecting_ally_id = target_id
+			result["protecting"] = target_id
 		_:
 			pass
 
 	_check_battle_over()
 	return result
+
+## Step 2 fix #7: returns whether `skill`'s target is currently valid, checked
+## BEFORE any SP is spent. Effects with no meaningful external target (self/
+## party-wide effects) are always valid. TOCTOU is not a concern — nothing
+## mutates state between this check and the actual application in the same
+## synchronous call.
+func _validate_skill_target(caster: RBMUnit, skill: Dictionary, effect: String, target_id: int) -> Dictionary:
+	match effect:
+		"damage":
+			if boss.is_downed():
+				return {"valid": false, "reason": "target_downed"}
+		"heal":
+			match str(skill.get("target", "ally_chosen")):
+				"ally_chosen", "ally_chosen_no_self":
+					var no_self := str(skill.get("target", "")) == "ally_chosen_no_self"
+					var target := _unit_by_id(target_id)
+					if target == null or target.is_downed() or (no_self and target_id == caster.id):
+						return {"valid": false, "reason": "invalid_target"}
+				_:
+					pass  # "ally_all" always has some valid subset, even if empty.
+		"sp_recover_single_no_self":
+			var target := _unit_by_id(target_id)
+			if target == null or target.is_downed() or target_id == caster.id or not target.has_sp_resource():
+				return {"valid": false, "reason": "invalid_target"}
+		"guard_redirect":
+			var target := _unit_by_id(target_id)
+			if target == null or target.is_downed():
+				return {"valid": false, "reason": "invalid_target"}
+		_:
+			pass
+	return {"valid": true}
 
 func _resolve_heal_skill(caster: RBMUnit, skill: Dictionary, target_id: int, result: Dictionary) -> void:
 	var amount := int(skill.get("heal_amount", 0))
@@ -308,10 +357,11 @@ func _resolve_boss_action(unit: RBMUnit) -> Dictionary:
 			var atk_mult := float(skill.get("atk_multiplier", 1.0))
 			var attribute := RBMConstants.attribute_from_name(str(skill.get("attribute", "NEUTRAL")))
 			if str(skill.get("target", "ally_random_single")) == "ally_all":
+				# Required fix #1: かばう must never apply to an all-target attack.
 				var hits := {}
 				for ally in party:
 					if not ally.is_downed():
-						hits[ally.id] = _apply_boss_hit_to_ally(ally, atk_mult, attribute)
+						hits[ally.id] = _apply_boss_hit_to_ally(ally, atk_mult, attribute, false)
 				result["hits"] = hits
 			else:
 				var living := _living_allies()
@@ -319,7 +369,7 @@ func _resolve_boss_action(unit: RBMUnit) -> Dictionary:
 					result["failed"] = true
 				else:
 					var target: RBMUnit = living[rng.randi_range(0, living.size() - 1)]
-					var hit := _apply_boss_hit_to_ally(target, atk_mult, attribute)
+					var hit := _apply_boss_hit_to_ally(target, atk_mult, attribute, true)
 					for key in hit.keys():
 						result[key] = hit[key]
 		"heal":
@@ -333,15 +383,18 @@ func _resolve_boss_action(unit: RBMUnit) -> Dictionary:
 	_check_battle_over()
 	return result
 
-## Resolves one boss attack landing on `target` — applying かばう redirection and
-## カウンター interception first (v0.1-B §7, §10, §16). Returns a partial log dict
-## to be merged into the caller's result.
-func _apply_boss_hit_to_ally(target: RBMUnit, atk_mult: float, attribute: RBMConstants.Attribute) -> Dictionary:
+## Resolves one boss attack landing on `target` — applying かばう redirection
+## (single-target attacks only, per required fix #1: `allow_redirect` must be
+## false for an "ally_all" hit) and カウンター interception (unrestricted — the
+## spec never limits counter to single-target attacks). v0.1-B §7, §10, §16.
+## Returns a partial log dict to be merged into the caller's result.
+func _apply_boss_hit_to_ally(target: RBMUnit, atk_mult: float, attribute: RBMConstants.Attribute, allow_redirect: bool) -> Dictionary:
 	var actual_target := target
-	for unit in party:
-		if unit.protecting_ally_id == target.id and not unit.is_downed():
-			actual_target = unit
-			break
+	if allow_redirect:
+		for unit in party:
+			if unit.protecting_ally_id == target.id and not unit.is_downed():
+				actual_target = unit
+				break
 
 	if actual_target.counter_pending_this_turn:
 		actual_target.counter_pending_this_turn = false
@@ -350,7 +403,9 @@ func _apply_boss_hit_to_ally(target: RBMUnit, atk_mult: float, attribute: RBMCon
 		var counter_attribute := RBMConstants.attribute_from_name(str(counter_skill.get("attribute", "NEUTRAL")))
 		var counter_mult := float(counter_skill.get("atk_multiplier", 1.0))
 		var reflected := _compute_and_apply_damage(actual_target, boss, counter_mult, counter_attribute, true)
-		return {"blocked": true, "counter": true, "target": actual_target.id, "reflected": reflected}
+		# Required fix #6: the incoming hit that the counter blocked is explicitly
+		# logged as amount=0, distinct from the (separate, real) reflected damage.
+		return {"blocked": true, "counter": true, "target": actual_target.id, "amount": 0, "reflected": reflected}
 
 	var amount := _compute_and_apply_damage(boss, actual_target, atk_mult, attribute, false)
 	return {"amount": amount, "target": actual_target.id}

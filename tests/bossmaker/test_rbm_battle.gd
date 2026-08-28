@@ -414,8 +414,266 @@ func test_full_mock_battle_runs_to_completion_without_a_ui() -> void:
 		}
 		var result := battle.resolve_turn(actions)
 		turns += 1
-		assert_eq(int(result["turn"]), battle.current_turn)
+		# Fix #5: "turn" reports the turn that was JUST resolved (this loop's own
+		# 1-indexed counter), not the internal next-turn cursor.
+		assert_eq(int(result["turn"]), turns)
 	assert_true(battle.battle_over, "the mock battle must actually conclude, not loop forever")
 	assert_eq(battle.winner, "ally", "the fixed party should be able to defeat the fixed test boss")
 	assert_true(turns > 1, "the battle should take more than a single turn (sanity check)")
 	assert_true(turns < 200, "did not hit the safety cap")
+
+# ---------------------------------------------------------------------------
+# 11. Step 2 code-review fixes — かばう timing/scope, no attack fallback,
+#     unfulfilled-action SP, counter one-shot logging, real-skill wiring.
+# ---------------------------------------------------------------------------
+
+func _aoe_boss(atk: int, spd: int = 1) -> Dictionary:
+	return {
+		"id": "aoe_boss", "display_name": "全体攻撃ボス", "hp": 100000, "atk": atk, "spd": spd,
+		"skills": [{"id": "aoe_hit", "effect": "damage", "target": "ally_all", "attribute": "NEUTRAL", "atk_multiplier": 1.0}],
+		"normal_action_candidates": [{"skill_id": "aoe_hit", "weight": 1}],
+	}
+
+## Finds a seed for which the boss's single-target pick lands on `desired_target_id`
+## (both allies alive, plain attacks, no かばう involved) — used only to make an
+## otherwise-random single-target hit deterministic for a specific test.
+func _find_seed_targeting(ally_defs: Array[Dictionary], boss_def_: Dictionary, desired_target_id: int, max_seed: int = 100) -> int:
+	for seed in range(max_seed):
+		var probe := RBMBattle.new(ally_defs.duplicate(), boss_def_, seed)
+		var actions := {}
+		for unit in probe.party:
+			actions[str(unit.id)] = {"type": "attack"}
+		var probe_result := probe.resolve_turn(actions)
+		var boss_entry := _find_log_entry(probe_result["log"], "boss")
+		if int(boss_entry.get("target", -1)) == desired_target_id:
+			return seed
+	return -1
+
+func test_kabau_protects_only_against_single_target_attacks() -> void:
+	# required fix #1
+	var seed := _find_seed_targeting(_two(tank_def, hero_def), _attacking_boss(50, 1), 1)
+	assert_true(seed >= 0, "must find a seed where the boss targets the hero (id 1) with a plain attack")
+
+	var battle := RBMBattle.new(_two(tank_def, hero_def), _attacking_boss(50, 1), seed)
+	var result := battle.resolve_turn({
+		"0": {"type": "skill", "skill_id": "tank_guard_swap", "target_id": 1},
+		"1": {"type": "attack"},
+	})
+	var boss_entry := _find_log_entry(result["log"], "boss")
+	assert_eq(int(boss_entry["target"]), 0, "the tank (0) intercepted the single-target hit meant for the hero (1)")
+
+func test_kabau_does_not_activate_on_an_all_target_attack() -> void:
+	# required fix #1
+	var battle := RBMBattle.new(_two(tank_def, hero_def), _aoe_boss(50), 1)
+	var result := battle.resolve_turn({
+		"0": {"type": "skill", "skill_id": "tank_guard_swap", "target_id": 1},
+		"1": {"type": "attack"},
+	})
+	var boss_entry := _find_log_entry(result["log"], "boss")
+	var hits: Dictionary = boss_entry["hits"]
+	assert_true(hits.has(0), "tank takes its own share of the AoE hit")
+	assert_true(hits.has(1), "hero takes its own share too -- not redirected onto the tank")
+
+func test_kabau_does_not_exist_before_the_tank_acts_when_the_boss_is_faster() -> void:
+	# additional confirmation #1 / required fix #2
+	var seed := _find_seed_targeting(_two(tank_def, hero_def), _attacking_boss(50, 999), 1)
+	assert_true(seed >= 0)
+
+	var battle := RBMBattle.new(_two(tank_def, hero_def), _attacking_boss(50, 999), seed)
+	var result := battle.resolve_turn({
+		"0": {"type": "skill", "skill_id": "tank_guard_swap", "target_id": 1},
+		"1": {"type": "attack"},
+	})
+	var boss_entry := _find_log_entry(result["log"], "boss")
+	# boss (SPD 999) resolved before the tank (SPD 140) could ever set protecting_ally_id
+	# this turn -- the hit on the hero must land unredirected.
+	assert_eq(int(boss_entry["target"]), 1, "かばう did not exist yet when the faster boss acted")
+
+func test_kabau_is_active_once_the_tank_has_acted() -> void:
+	# required fix #2 (the mirror case of the test above: tank faster than boss)
+	assert_true(_find_seed_targeting(_two(tank_def, hero_def), _attacking_boss(50, 1), 1) >= 0)
+	# already proven end-to-end by test_kabau_protects_only_against_single_target_attacks
+	# (tank SPD 140 > boss SPD 1): redirection only ever succeeds once the tank's own
+	# turn has resolved earlier in the same battle-turn.
+	var battle := RBMBattle.new(_two(tank_def, hero_def), _attacking_boss(50, 1), 1)
+	battle.resolve_turn({
+		"0": {"type": "skill", "skill_id": "tank_guard_swap", "target_id": 1},
+		"1": {"type": "attack"},
+	})
+	assert_eq(battle.party[0].protecting_ally_id, -1, "and clears again once that same turn ends")
+
+func test_kabau_clears_at_turn_end() -> void:
+	# required fix #4
+	var battle := RBMBattle.new(_two(tank_def, hero_def), _neutral_boss(100000, 1, 1), 1)
+	battle.resolve_turn({
+		"0": {"type": "skill", "skill_id": "tank_guard_swap", "target_id": 1},
+		"1": {"type": "attack"},
+	})
+	assert_eq(battle.party[0].protecting_ally_id, -1, "かばう does not persist into the next turn")
+
+func test_defend_is_active_from_turn_start_even_if_the_boss_is_faster() -> void:
+	# additional confirmation #1
+	var battle := RBMBattle.new(_one(hero_def), _attacking_boss(200, 999), 1)
+	var result := battle.resolve_turn({"0": {"type": "defend"}})
+	var entry := _find_log_entry(result["log"], "boss")
+	assert_eq(int(entry["amount"]), 100, "50% defend already reduced the boss's earlier hit; hero had not acted yet")
+
+func test_unspecified_action_does_not_fall_back_to_attack() -> void:
+	# required fix #3
+	var battle := RBMBattle.new(_one(hero_def), _neutral_boss(), 1)
+	var before_hp := battle.boss.hp
+	var result := battle.resolve_turn({})
+	var entry := _find_log_entry(result["log"], 0)
+	assert_true(bool(entry.get("failed", false)), "an unspecified action must not silently become an attack")
+	assert_eq(battle.boss.hp, before_hp, "no damage was dealt")
+
+func test_unrecognized_action_type_does_not_fall_back_to_attack() -> void:
+	# required fix #3
+	var battle := RBMBattle.new(_one(hero_def), _neutral_boss(), 1)
+	var before_hp := battle.boss.hp
+	var result := battle.resolve_turn({"0": {"type": "dance"}})
+	var entry := _find_log_entry(result["log"], 0)
+	assert_true(bool(entry.get("failed", false)), "an unrecognized action type must not silently become an attack")
+	assert_eq(battle.boss.hp, before_hp)
+
+func test_sp_is_not_spent_when_the_action_fails_due_to_a_downed_target() -> void:
+	# required fix #7
+	var battle := RBMBattle.new(_two(hero_def, healer_def), _neutral_boss(), 1)
+	battle.party[0].hp = 0
+	var sp_before := battle.party[1].sp
+	var result := battle.resolve_turn({"1": {"type": "skill", "skill_id": "healer_heal_single", "target_id": 0}})
+	var entry := _find_log_entry(result["log"], 1)
+	assert_true(bool(entry.get("failed", false)))
+	assert_eq(battle.party[1].sp, sp_before, "SP must not be spent on a failed (target-downed) skill use")
+
+func test_counter_triggers_at_most_once_per_turn() -> void:
+	# required test list item
+	var battle := RBMBattle.new(_one(samurai_def), _attacking_boss(50, 10), 1)
+	battle.resolve_turn({"0": {"type": "skill", "skill_id": "samurai_counter"}})
+	assert_false(battle.party[0].counter_pending_this_turn, "counter already consumed by its first trigger this turn")
+	var second_hit: Dictionary = battle._apply_boss_hit_to_ally(battle.party[0], 1.0, RBMConstants.Attribute.NEUTRAL, false)
+	assert_false(bool(second_hit.get("blocked", false)), "a second hit within the same turn must not be intercepted again")
+
+func test_counter_success_log_shows_explicit_zero_amount() -> void:
+	# required fix #6
+	var battle := RBMBattle.new(_one(samurai_def), _attacking_boss(500, 10), 1)
+	var result := battle.resolve_turn({"0": {"type": "skill", "skill_id": "samurai_counter"}})
+	var boss_entry := _find_log_entry(result["log"], "boss")
+	assert_true(bool(boss_entry.get("blocked", false)))
+	assert_true(boss_entry.has("amount"), "amount must be explicitly present, not just implied by 'blocked'")
+	assert_eq(int(boss_entry["amount"]), 0)
+	assert_true(int(boss_entry["reflected"]) > 0, "reflected damage is a separate, real number")
+
+func test_guard_boost_activates_via_the_real_skill() -> void:
+	var battle := RBMBattle.new(_two(tank_def, hero_def), _aoe_boss(1000), 1)
+	var result := battle.resolve_turn({
+		"0": {"type": "skill", "skill_id": "tank_guard_boost"},
+		"1": {"type": "defend"},
+	})
+	assert_true(RBMConstants.timed_effect_active(battle.party_timed_effects, "guard_boost", 1))
+	var boss_entry := _find_log_entry(result["log"], "boss")
+	var hits: Dictionary = boss_entry["hits"]
+	var hero_hit: Dictionary = hits[1]
+	assert_eq(int(hero_hit["amount"]), 400, "hero (defending) took 1000 x (1 - 0.6) via the tank's real guard_boost skill")
+
+func test_iron_wall_activates_via_the_real_skill() -> void:
+	var battle := RBMBattle.new(_two(tank_def, hero_def), _aoe_boss(1000), 1)
+	var result := battle.resolve_turn({
+		"0": {"type": "skill", "skill_id": "tank_iron_wall"},
+		"1": {"type": "attack"},
+	})
+	assert_true(RBMConstants.timed_effect_active(battle.party_timed_effects, "iron_wall", 1))
+	var boss_entry := _find_log_entry(result["log"], "boss")
+	var hits: Dictionary = boss_entry["hits"]
+	var hero_hit: Dictionary = hits[1]
+	assert_eq(int(hero_hit["amount"]), 900, "hero (not defending) still took 1000 x (1 - 0.10) via the tank's real iron_wall skill")
+
+func test_butler_sp_gift_restores_forty_cannot_target_self_and_caps_at_max() -> void:
+	var battle := RBMBattle.new(_two(butler_def, hero_def), _neutral_boss(), 1)
+	battle.party[1].sp = 50
+	var result := battle.resolve_turn({"0": {"type": "skill", "skill_id": "butler_sp_gift", "target_id": 1}})
+	var entry := _find_log_entry(result["log"], 0)
+	assert_eq(int(entry["amount"]), 40)
+	assert_eq(battle.party[1].sp, 90)
+
+	var self_battle := RBMBattle.new(_one(butler_def), _neutral_boss(), 1)
+	var self_result := self_battle.resolve_turn({"0": {"type": "skill", "skill_id": "butler_sp_gift", "target_id": 0}})
+	var self_entry := _find_log_entry(self_result["log"], 0)
+	assert_true(bool(self_entry.get("failed", false)), "cannot target self")
+
+	var cap_battle := RBMBattle.new(_two(butler_def, hero_def), _neutral_boss(), 1)
+	cap_battle.party[1].sp = 95
+	var cap_result := cap_battle.resolve_turn({"0": {"type": "skill", "skill_id": "butler_sp_gift", "target_id": 1}})
+	var cap_entry := _find_log_entry(cap_result["log"], 0)
+	assert_eq(int(cap_entry["amount"]), 5, "only the 5 remaining headroom is actually granted")
+	assert_eq(cap_battle.party[1].sp, 100)
+
+func test_healer_heal_all_heals_every_living_ally() -> void:
+	var battle := RBMBattle.new(_full_party(), _neutral_boss(), 1)
+	for unit in battle.party:
+		unit.hp = 1
+	battle.party[4].hp = 0
+	var result := battle.resolve_turn({"2": {"type": "skill", "skill_id": "healer_heal_all"}})
+	var entry := _find_log_entry(result["log"], 2)
+	var healed: Dictionary = entry["healed"]
+	assert_eq(healed.size(), 4, "all four living allies were healed; the downed tank was skipped")
+	for id in healed.keys():
+		if int(id) != 2:
+			assert_eq(int(healed[id]), 200)
+	assert_eq(battle.party[4].hp, 0, "the downed tank remains at 0, untouched")
+
+func test_healer_sp_all_excludes_self_and_downed_units() -> void:
+	var battle := RBMBattle.new(_full_party(), _neutral_boss(), 1)
+	for unit in battle.party:
+		if unit.has_sp_resource():
+			unit.sp = 10
+	battle.party[2].sp = 100  # the healer needs enough SP (cost 60) to actually cast this
+	battle.party[3].hp = 0
+	var result := battle.resolve_turn({"2": {"type": "skill", "skill_id": "healer_sp_all"}})
+	var entry := _find_log_entry(result["log"], 2)
+	var recovered: Dictionary = entry["recovered"]
+	assert_false(recovered.has(2), "the healer (caster) does not recover itself")
+	assert_false(recovered.has(3), "the downed samurai is excluded")
+	assert_true(recovered.has(0))
+	assert_true(recovered.has(1))
+	assert_false(recovered.has(4), "the tank has no SP resource at all")
+	assert_eq(int(recovered[0]), 40)
+	assert_eq(int(recovered[1]), 40)
+
+func test_all_twenty_ally_skills_match_the_confirmed_spec() -> void:
+	# Values are floats throughout (not ints) to match how JSON.parse_string
+	# represents every numeric field, avoiding a spurious float/int warning.
+	var expected := {
+		"hero_slash": {"attribute": "FIRE", "atk_multiplier": 1.5, "sp_cost": 15.0},
+		"hero_blaze_all": {"attribute": "FIRE", "atk_multiplier": 1.7, "sp_cost": 20.0},
+		"hero_flame_wrap": {"buff_multiplier": 1.5, "duration_turns": 3.0, "sp_cost": 30.0},
+		"hero_burst_slash": {"attribute": "FIRE", "atk_multiplier": 2.2, "sp_cost": 50.0},
+		"butler_ice_bolt": {"attribute": "ICE", "atk_multiplier": 2.5, "sp_cost": 15.0},
+		"butler_ice_storm": {"attribute": "ICE", "atk_multiplier": 2.0, "sp_cost": 20.0},
+		"butler_sp_gift": {"sp_amount": 40.0, "sp_cost": 30.0},
+		"butler_grand_ice": {"attribute": "ICE", "atk_multiplier": 4.0, "sp_cost": 60.0},
+		"healer_shock": {"attribute": "LIGHTNING", "atk_multiplier": 2.0, "sp_cost": 15.0},
+		"healer_heal_single": {"heal_amount": 400.0, "sp_cost": 20.0},
+		"healer_heal_all": {"heal_amount": 200.0, "sp_cost": 40.0},
+		"healer_sp_all": {"sp_amount": 40.0, "sp_cost": 60.0},
+		"samurai_slash": {"attribute": "WIND", "atk_multiplier": 2.0, "sp_cost": 15.0},
+		"samurai_slash_all": {"attribute": "WIND", "atk_multiplier": 2.5, "sp_cost": 30.0},
+		"samurai_iai": {"buff_multiplier": 2.0, "sp_cost": 40.0},
+		"samurai_counter": {"attribute": "WIND", "atk_multiplier": 3.0, "sp_cost": 50.0},
+		"tank_smash": {"attribute": "NEUTRAL", "atk_multiplier": 1.5, "sp_cost": 0.0},
+		"tank_guard_swap": {"sp_cost": 0.0},
+		"tank_guard_boost": {"duration_turns": 1.0, "new_rate": 0.6, "sp_cost": 0.0},
+		"tank_iron_wall": {"duration_turns": 1.0, "reduction_rate": 0.1, "sp_cost": 0.0},
+	}
+	var all_defs := [hero_def, butler_def, healer_def, samurai_def, tank_def]
+	var seen := {}
+	for def in all_defs:
+		var skills: Array = def["skills"]
+		for skill in skills:
+			var id := str(skill.get("id", ""))
+			assert_true(expected.has(id), "unexpected skill id %s" % id)
+			seen[id] = true
+			var fields: Dictionary = expected[id]
+			for key in fields.keys():
+				assert_eq(skill.get(key, null), fields[key], "%s.%s" % [id, key])
+	assert_eq(seen.size(), 20, "exactly 20 skills accounted for")
