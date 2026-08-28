@@ -1,0 +1,45 @@
+{
+	"id": "butler",
+	"display_name": "氷属性・老執事",
+	"attribute": "ICE",
+	"hp": 450,
+	"atk": 220,
+	"spd": 120,
+	"max_sp": 150,
+	"skills": [
+		{
+			"id": "butler_ice_bolt",
+			"display_name": "氷属性単体魔法",
+			"effect": "damage",
+			"target": "boss",
+			"attribute": "ICE",
+			"atk_multiplier": 2.5,
+			"sp_cost": 15
+		},
+		{
+			"id": "butler_ice_storm",
+			"display_name": "氷属性全体魔法",
+			"effect": "damage",
+			"target": "boss",
+			"attribute": "ICE",
+			"atk_multiplier": 2.0,
+			"sp_cost": 20
+		},
+		{
+			"id": "butler_sp_gift",
+			"display_name": "SP回復",
+			"effect": "sp_recover_single_no_self",
+			"sp_amount": 40,
+			"sp_cost": 30
+		},
+		{
+			"id": "butler_grand_ice",
+			"display_name": "氷属性大魔法",
+			"effect": "damage",
+			"target": "boss",
+			"attribute": "ICE",
+			"atk_multiplier": 4.0,
+			"sp_cost": 60
+		}
+	]
+}

@@ -1,0 +1,46 @@
+{
+	"id": "hero",
+	"display_name": "炎属性・勇者",
+	"attribute": "FIRE",
+	"hp": 650,
+	"atk": 240,
+	"spd": 100,
+	"max_sp": 100,
+	"skills": [
+		{
+			"id": "hero_slash",
+			"display_name": "単体攻撃",
+			"effect": "damage",
+			"target": "boss",
+			"attribute": "FIRE",
+			"atk_multiplier": 1.5,
+			"sp_cost": 15
+		},
+		{
+			"id": "hero_blaze_all",
+			"display_name": "全体攻撃",
+			"effect": "damage",
+			"target": "boss",
+			"attribute": "FIRE",
+			"atk_multiplier": 1.7,
+			"sp_cost": 20
+		},
+		{
+			"id": "hero_flame_wrap",
+			"display_name": "炎纏い",
+			"effect": "buff_atk_self",
+			"buff_multiplier": 1.5,
+			"duration_turns": 3,
+			"sp_cost": 30
+		},
+		{
+			"id": "hero_burst_slash",
+			"display_name": "炎属性高威力単体攻撃",
+			"effect": "damage",
+			"target": "boss",
+			"attribute": "FIRE",
+			"atk_multiplier": 2.2,
+			"sp_cost": 50
+		}
+	]
+}

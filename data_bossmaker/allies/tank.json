@@ -1,0 +1,42 @@
+{
+	"id": "tank",
+	"display_name": "無属性・巨大な筋肉のハンマー使い",
+	"attribute": "NEUTRAL",
+	"hp": 950,
+	"atk": 200,
+	"spd": 140,
+	"max_sp": null,
+	"skills": [
+		{
+			"id": "tank_smash",
+			"display_name": "ハンマー強打",
+			"effect": "damage",
+			"target": "boss",
+			"attribute": "NEUTRAL",
+			"atk_multiplier": 1.5,
+			"sp_cost": 0
+		},
+		{
+			"id": "tank_guard_swap",
+			"display_name": "かばう",
+			"effect": "guard_redirect",
+			"sp_cost": 0
+		},
+		{
+			"id": "tank_guard_boost",
+			"display_name": "防御強化",
+			"effect": "guard_boost",
+			"duration_turns": 1,
+			"new_rate": 0.6,
+			"sp_cost": 0
+		},
+		{
+			"id": "tank_iron_wall",
+			"display_name": "鉄壁",
+			"effect": "party_damage_reduction",
+			"duration_turns": 1,
+			"reduction_rate": 0.1,
+			"sp_cost": 0
+		}
+	]
+}

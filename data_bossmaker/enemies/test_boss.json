@@ -1,0 +1,22 @@
+{
+	"id": "test_boss",
+	"display_name": "テスト用ボス",
+	"hp": 3000,
+	"atk": 150,
+	"spd": 90,
+	"weak_attribute": "ICE",
+	"resist_attribute": "FIRE",
+	"skills": [
+		{
+			"id": "boss_claw",
+			"display_name": "爪撃",
+			"effect": "damage",
+			"target": "ally_random_single",
+			"attribute": "NEUTRAL",
+			"atk_multiplier": 1.0
+		}
+	],
+	"normal_action_candidates": [
+		{ "skill_id": "boss_claw", "weight": 1 }
+	]
+}

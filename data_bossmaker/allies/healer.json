@@ -1,0 +1,43 @@
+{
+	"id": "healer",
+	"display_name": "雷属性・少女ヒーラー",
+	"attribute": "LIGHTNING",
+	"hp": 800,
+	"atk": 140,
+	"spd": 110,
+	"max_sp": 120,
+	"skills": [
+		{
+			"id": "healer_shock",
+			"display_name": "雷属性単体攻撃",
+			"effect": "damage",
+			"target": "boss",
+			"attribute": "LIGHTNING",
+			"atk_multiplier": 2.0,
+			"sp_cost": 15
+		},
+		{
+			"id": "healer_heal_single",
+			"display_name": "単体HP回復",
+			"effect": "heal",
+			"target": "ally_chosen",
+			"heal_amount": 400,
+			"sp_cost": 20
+		},
+		{
+			"id": "healer_heal_all",
+			"display_name": "全体HP回復",
+			"effect": "heal",
+			"target": "ally_all",
+			"heal_amount": 200,
+			"sp_cost": 40
+		},
+		{
+			"id": "healer_sp_all",
+			"display_name": "全体SP回復",
+			"effect": "sp_recover_all_no_self",
+			"sp_amount": 40,
+			"sp_cost": 60
+		}
+	]
+}

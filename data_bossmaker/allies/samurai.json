@@ -1,0 +1,44 @@
+{
+	"id": "samurai",
+	"display_name": "風属性・侍",
+	"attribute": "WIND",
+	"hp": 700,
+	"atk": 280,
+	"spd": 70,
+	"max_sp": 130,
+	"skills": [
+		{
+			"id": "samurai_slash",
+			"display_name": "風属性単体斬撃",
+			"effect": "damage",
+			"target": "boss",
+			"attribute": "WIND",
+			"atk_multiplier": 2.0,
+			"sp_cost": 15
+		},
+		{
+			"id": "samurai_slash_all",
+			"display_name": "風属性全体斬撃",
+			"effect": "damage",
+			"target": "boss",
+			"attribute": "WIND",
+			"atk_multiplier": 2.5,
+			"sp_cost": 30
+		},
+		{
+			"id": "samurai_iai",
+			"display_name": "居合の構え",
+			"effect": "buff_next_attack",
+			"buff_multiplier": 2.0,
+			"sp_cost": 40
+		},
+		{
+			"id": "samurai_counter",
+			"display_name": "カウンター",
+			"effect": "counter_stance",
+			"attribute": "WIND",
+			"atk_multiplier": 3.0,
+			"sp_cost": 50
+		}
+	]
+}
