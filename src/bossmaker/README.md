@@ -1,13 +1,15 @@
-# RPG BOSS MAKER — 戦闘コア（分離境界）
+# Makers & Challengers — 戦闘コア（分離境界）
 
-このディレクトリ（`src/bossmaker/`）と `data_bossmaker/` は、RPG BOSS MAKER（仮称）専用の
-戦闘コアです。既存UNDERDESKの `src/core/sim.gd` / `src/ui/main.gd` とは意図的に分離されて
-おり、どちらの方向にも依存しません。
+このディレクトリ（`src/bossmaker/`）と `data_bossmaker/` は、Makers & Challengers専用の
+戦闘コアです（内部ディレクトリ名/クラス接頭辞`bossmaker`/`RBM`は開発時の作業名"RPG Boss
+Maker"に由来し、内部識別子としてそのまま維持している——現在の正式なゲーム名は
+Makers & Challengers）。既存UNDERDESKの `src/core/sim.gd` / `src/ui/main.gd` とは意図的に
+分離されており、どちらの方向にも依存しません。
 
 ## なぜ分離しているか
 
 既存 `UDSim` にはUNDERDESK進行・DEF・REWIND・REWINDⅡ・部位破壊・どうぐ・報酬・ステージ進行・
-既存ボスAIが強く結合しており、これらを少しずつRPG BOSS MAKER仕様へ改造する方式は採用しない
+既存ボスAIが強く結合しており、これらを少しずつMakers & Challengers仕様へ改造する方式は採用しない
 （Step 1調査結果／Step 2指示 §1参照）。代わりに、同じGodotプロジェクト内に新しい戦闘境界を
 作り、将来的にUI/Creator/Clear Checkを接続したのち、不要になった旧コードを削除する。
 
