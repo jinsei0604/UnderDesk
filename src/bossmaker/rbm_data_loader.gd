@@ -30,9 +30,16 @@ static func unit_from_ally_def(def: Dictionary, id: int) -> RBMUnit:
 	unit.id = id
 	unit.display_name = str(def.get("display_name", def.get("id", "")))
 	unit.is_ally = true
+	unit.character_id = str(def.get("id", ""))
 	unit.attribute = RBMConstants.attribute_from_name(str(def.get("attribute", "NEUTRAL")))
-	unit.weak_attribute = RBMConstants.weakness_for(unit.attribute)
-	unit.resist_attribute = RBMConstants.resistance_for(unit.attribute)
+	# v0.1-C: allies remain single-attribute creatures (their own weakness/
+	# resistance always derives from exactly one fixed pairwise chart lookup,
+	# per RBMConstants.ATTRIBUTE_WEAKNESS/ATTRIBUTE_RESISTANCE) -- so their
+	# list form is always 0 or 1 entries, never author-configured to be more.
+	var ally_weak: Variant = RBMConstants.weakness_for(unit.attribute)
+	unit.weak_attributes = [ally_weak] if ally_weak != null else []
+	var ally_resist: Variant = RBMConstants.resistance_for(unit.attribute)
+	unit.resist_attributes = [ally_resist] if ally_resist != null else []
 	unit.max_hp = int(def.get("hp", 1))
 	unit.hp = unit.max_hp
 	unit.atk = int(def.get("atk", 0))
@@ -56,9 +63,23 @@ static func unit_from_boss_def(def: Dictionary) -> RBMUnit:
 	unit.atk = int(def.get("atk", 0))
 	unit.spd = int(def.get("spd", 0))
 	unit.max_sp = RBMConstants.NO_SP
-	var weak: Variant = def.get("weak_attribute", null)
-	var resist: Variant = def.get("resist_attribute", null)
-	unit.weak_attribute = RBMConstants.attribute_from_name(str(weak)) if weak != null else null
-	unit.resist_attribute = RBMConstants.attribute_from_name(str(resist)) if resist != null else null
+	unit.weak_attributes = _attribute_list_from_def(def, "weak_attribute", "weak_attributes")
+	unit.resist_attributes = _attribute_list_from_def(def, "resist_attribute", "resist_attributes")
 	unit.skills = _skills_from_def(def)
 	return unit
+
+## v0.1-C 多属性対応: accepts either shape a boss `def` Dictionary may arrive
+## in -- the new plural array key (preferred, if present: a list of attribute-
+## name Strings, as RBMDefinitionLoader's resolved boss_def now always
+## includes), or the legacy singular key (a single attribute-name String or
+## null), which older/raw fixtures (e.g. hand-built test Dictionaries that
+## predate v0.1-C) may still use on its own. Never both interpreted at once.
+static func _attribute_list_from_def(def: Dictionary, singular_key: String, plural_key: String) -> Array:
+	if def.has(plural_key):
+		var raw: Array = def[plural_key]
+		var out: Array = []
+		for value_variant in raw:
+			out.append(RBMConstants.attribute_from_name(str(value_variant)))
+		return out
+	var single: Variant = def.get(singular_key, null)
+	return [RBMConstants.attribute_from_name(str(single))] if single != null else []

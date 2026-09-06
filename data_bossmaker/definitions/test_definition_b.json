@@ -1,0 +1,30 @@
+{
+	"id": "test_definition_b",
+	"boss": {
+		"boss_id": "frost_sentinel_b",
+		"boss_name": "氷の番人",
+		"hp": 4000,
+		"atk": 180,
+		"spd": 60,
+		"weak_attribute": "FIRE",
+		"resist_attribute": "ICE",
+		"skills": [
+			{ "skill_id": "sentinel_frost_bite", "name": "氷牙", "type": "attack", "target": "single", "attribute": "ICE", "atk_multiplier": 1.2 },
+			{ "skill_id": "sentinel_regen", "name": "自己再生", "type": "self_heal", "heal_amount": 300 },
+			{ "skill_id": "sentinel_focus", "name": "力の集中", "type": "atk_self_buff", "buff_multiplier": 1.5, "duration_turns": 2 },
+			{ "skill_id": "sentinel_frost_nova", "name": "氷結波動", "type": "attack", "target": "all", "attribute": "ICE", "atk_multiplier": 0.8 }
+		],
+		"normal_actions": [
+			{ "skill_id": "sentinel_frost_bite", "weight": 1 }
+		],
+		"scripted_actions": [
+			{ "turn": 2, "skill_id": "sentinel_focus", "timing": "turn_start_interrupt", "order": 0 },
+			{ "turn": 3, "skill_id": "sentinel_frost_nova", "timing": "replace", "order": 0 },
+			{ "turn": 4, "skill_id": "sentinel_regen", "timing": "turn_end_interrupt", "order": 0 }
+		]
+	},
+	"party": [
+		{ "character_id": "tank", "allowed_skill_ids": ["tank_smash", "tank_iron_wall"] },
+		{ "character_id": "samurai", "allowed_skill_ids": ["samurai_slash", "samurai_counter"] }
+	]
+}

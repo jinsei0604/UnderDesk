@@ -75,7 +75,7 @@ func test_all_five_stats_match_spec() -> void:
 		{"hp": 450, "atk": 220, "spd": 120, "sp": 150},
 		{"hp": 800, "atk": 140, "spd": 110, "sp": 120},
 		{"hp": 700, "atk": 280, "spd": 70, "sp": 130},
-		{"hp": 950, "atk": 200, "spd": 140, "sp": RBMConstants.NO_SP},
+		{"hp": 950, "atk": 200, "spd": 140, "sp": 100},
 	]
 	for i in range(5):
 		var unit := battle.party[i]
@@ -92,12 +92,12 @@ func test_battle_start_sp_is_full_for_sp_bearing_units() -> void:
 	assert_eq(battle.party[2].sp, 120, "healer starts at max SP")
 	assert_eq(battle.party[3].sp, 130, "samurai starts at max SP")
 
-func test_tank_has_no_sp_resource_at_all() -> void:
+func test_tank_uses_the_standard_sp_resource_with_max_100() -> void:
 	var battle := RBMBattle.new(_full_party(), boss_def, 1)
 	var tank := battle.party[4]
-	assert_false(tank.has_sp_resource())
-	assert_eq(tank.max_sp, RBMConstants.NO_SP)
-	assert_eq(tank.sp, 0)
+	assert_true(tank.has_sp_resource())
+	assert_eq(tank.max_sp, 100)
+	assert_eq(tank.sp, 100)
 
 # ---------------------------------------------------------------------------
 # 2. Normal attack (v0.1-B §7)
@@ -120,11 +120,12 @@ func test_normal_attack_restores_ten_sp_capped_at_max() -> void:
 	battle2.resolve_turn({"0": {"type": "attack"}})
 	assert_eq(battle2.party[0].sp, 30, "SP+10 with headroom")
 
-func test_normal_attack_does_not_restore_sp_for_the_sp_less_tank() -> void:
+func test_normal_attack_restores_sp_for_the_tank_via_the_standard_path() -> void:
 	var battle := RBMBattle.new(_one(tank_def), _neutral_boss(), 1)
+	battle.party[0].sp = 50
 	battle.resolve_turn({"0": {"type": "attack"}})
-	assert_eq(battle.party[0].sp, 0, "tank never accrues SP")
-	assert_false(battle.party[0].has_sp_resource())
+	assert_eq(battle.party[0].sp, 60, "tank now follows the same normal-attack SP recovery path")
+	assert_true(battle.party[0].has_sp_resource())
 
 # ---------------------------------------------------------------------------
 # 3. Attribute correction (v0.1-B §5, §8)
@@ -311,8 +312,8 @@ func test_atk_buff_actually_multiplies_subsequent_damage() -> void:
 	battle.resolve_turn({"0": {"type": "skill", "skill_id": "hero_flame_wrap"}})
 	var result := battle.resolve_turn({"0": {"type": "attack"}})
 	var entry := _find_log_entry(result["log"], 0)
-	# 240 * 1.5 (flame wrap) * 1.0 (normal attack multiplier) = 360.0
-	assert_eq(int(entry["amount"]), 360)
+	# 240 * 1.75 (flame wrap) * 1.0 (normal attack multiplier) = 420.0
+	assert_eq(int(entry["amount"]), 420)
 
 func test_reusing_an_effect_refreshes_duration_without_stacking_the_multiplier() -> void:
 	var battle := RBMBattle.new(_one(hero_def), _neutral_boss(), 1)
@@ -321,7 +322,7 @@ func test_reusing_an_effect_refreshes_duration_without_stacking_the_multiplier()
 	battle.resolve_turn({"0": {"type": "skill", "skill_id": "hero_flame_wrap"}})  # re-applied at turn 3
 	var effect: Dictionary = battle.party[0].timed_effects["atk_buff"]
 	assert_eq(int(effect["applied_at_turn"]), 3, "duration window restarts from the re-use turn")
-	assert_almost_eq(float(effect["value"]), 1.5, 0.0001, "multiplier does not stack (still x1.5, not x2.25)")
+	assert_almost_eq(float(effect["value"]), 1.75, 0.0001, "multiplier does not stack (still x1.75, not x3.0625)")
 
 func test_one_turn_effect_is_active_only_through_the_turn_it_was_used() -> void:
 	var battle := RBMBattle.new(_one(hero_def), _neutral_boss(), 1)
@@ -341,17 +342,17 @@ func test_iai_does_not_apply_to_normal_attack() -> void:
 	battle.resolve_turn({"0": {"type": "skill", "skill_id": "samurai_iai"}})
 	var result := battle.resolve_turn({"0": {"type": "attack"}})
 	var entry := _find_log_entry(result["log"], 0)
-	# samurai ATK 280 x1.0, NOT x2.0 -- iai must remain pending afterwards.
+	# samurai ATK 280 x1.0, NOT x2.5 -- iai must remain pending afterwards.
 	assert_eq(int(entry["amount"]), 280)
-	assert_almost_eq(battle.party[0].next_attack_bonus_multiplier, 2.0, 0.0001, "iai is still pending; normal attack did not consume it")
+	assert_almost_eq(battle.party[0].next_attack_bonus_multiplier, 2.5, 0.0001, "iai is still pending; normal attack did not consume it")
 
-func test_iai_doubles_damage_of_the_next_attack_skill_only_once() -> void:
+func test_iai_multiplies_damage_of_the_next_attack_skill_by_2_5_only_once() -> void:
 	var battle := RBMBattle.new(_one(samurai_def), _neutral_boss(), 1)
 	battle.resolve_turn({"0": {"type": "skill", "skill_id": "samurai_iai"}})
 	var result := battle.resolve_turn({"0": {"type": "skill", "skill_id": "samurai_slash"}})
 	var entry := _find_log_entry(result["log"], 0)
-	# 280 * 2.0 (skill) * 2.0 (iai) = 1120.0
-	assert_eq(int(entry["amount"]), 1120)
+	# 280 * 2.0 (skill) * 2.5 (iai) = 1400.0
+	assert_eq(int(entry["amount"]), 1400)
 	assert_almost_eq(battle.party[0].next_attack_bonus_multiplier, 1.0, 0.0001, "iai consumed after one attack-skill use")
 
 	# a further attack skill must NOT be doubled again.
@@ -369,8 +370,8 @@ func test_iai_plus_counter_succeeds_when_counter_actually_triggers() -> void:
 	var boss_entry := _find_log_entry(result["log"], "boss")
 	assert_true(bool(boss_entry.get("blocked", false)), "the boss's attack was intercepted")
 	assert_true(bool(boss_entry.get("counter", false)))
-	# reflected: samurai ATK 280 x3.0 (counter) x2.0 (iai, consumed here) = 1680.0
-	assert_eq(int(boss_entry["reflected"]), 1680)
+	# reflected: samurai ATK 280 x3.0 (counter) x2.5 (iai, consumed here) = 2100.0
+	assert_eq(int(boss_entry["reflected"]), 2100)
 	assert_almost_eq(battle.party[0].next_attack_bonus_multiplier, 1.0, 0.0001, "iai was consumed by the counter-reflect")
 
 func test_iai_is_preserved_when_the_counter_does_not_trigger() -> void:
@@ -382,7 +383,7 @@ func test_iai_is_preserved_when_the_counter_does_not_trigger() -> void:
 	var result := battle.resolve_turn({"0": {"type": "skill", "skill_id": "samurai_counter"}})
 	var boss_entry := _find_log_entry(result["log"], "boss")
 	assert_false(bool(boss_entry.get("blocked", false)), "counter had nothing left to intercept this turn")
-	assert_almost_eq(battle.party[0].next_attack_bonus_multiplier, 2.0, 0.0001, "iai must remain pending -- the counter never triggered")
+	assert_almost_eq(battle.party[0].next_attack_bonus_multiplier, 2.5, 0.0001, "iai must remain pending -- the counter never triggered")
 	assert_false(battle.party[0].counter_pending_this_turn, "counter stance clears at turn end regardless of trigger")
 
 func test_iai_clears_when_the_samurai_is_downed() -> void:
@@ -391,7 +392,7 @@ func test_iai_clears_when_the_samurai_is_downed() -> void:
 	var boss := _attacking_boss(1, 1)
 	var battle := RBMBattle.new(_one(samurai_def), boss, 1)
 	battle.resolve_turn({"0": {"type": "skill", "skill_id": "samurai_iai"}})
-	assert_almost_eq(battle.party[0].next_attack_bonus_multiplier, 2.0, 0.0001, "iai armed")
+	assert_almost_eq(battle.party[0].next_attack_bonus_multiplier, 2.5, 0.0001, "iai armed")
 	battle.boss.atk = 100000  # now lethal, even through a 50% defend
 	battle.resolve_turn({"0": {"type": "defend"}})
 	assert_true(battle.party[0].is_downed())
@@ -691,9 +692,10 @@ func test_healer_sp_all_excludes_self_and_downed_units() -> void:
 	assert_false(recovered.has(3), "the downed samurai is excluded")
 	assert_true(recovered.has(0))
 	assert_true(recovered.has(1))
-	assert_false(recovered.has(4), "the tank has no SP resource at all")
+	assert_true(recovered.has(4), "the tank now has the same standard SP resource as every other ally")
 	assert_eq(int(recovered[0]), 40)
 	assert_eq(int(recovered[1]), 40)
+	assert_eq(int(recovered[4]), 40)
 
 func test_all_twenty_ally_skills_match_the_confirmed_spec() -> void:
 	# Values are floats throughout (not ints) to match how JSON.parse_string
@@ -707,10 +709,10 @@ func test_all_twenty_ally_skills_match_the_confirmed_spec() -> void:
 	var expected := {
 		"hero_slash": {"effect": "damage", "target": "boss", "attribute": "FIRE", "atk_multiplier": 1.5, "sp_cost": 15.0},
 		"hero_blaze_all": {"effect": "damage", "target": "boss", "attribute": "FIRE", "atk_multiplier": 1.7, "sp_cost": 20.0},
-		"hero_flame_wrap": {"effect": "buff_atk_self", "buff_multiplier": 1.5, "duration_turns": 3.0, "sp_cost": 30.0},
+		"hero_flame_wrap": {"effect": "buff_atk_self", "buff_multiplier": 1.75, "duration_turns": 3.0, "sp_cost": 30.0},
 		"hero_burst_slash": {"effect": "damage", "target": "boss", "attribute": "FIRE", "atk_multiplier": 2.2, "sp_cost": 50.0},
 		"butler_ice_bolt": {"effect": "damage", "target": "boss", "attribute": "ICE", "atk_multiplier": 2.5, "sp_cost": 15.0},
-		"butler_ice_storm": {"effect": "damage", "target": "boss", "attribute": "ICE", "atk_multiplier": 2.0, "sp_cost": 20.0},
+		"butler_ice_storm": {"effect": "damage", "target": "boss", "attribute": "ICE", "atk_multiplier": 2.8, "sp_cost": 20.0},
 		# 老執事SP回復: 単体・自分自身対象不可 -- encoded by this exact effect id.
 		"butler_sp_gift": {"effect": "sp_recover_single_no_self", "sp_amount": 40.0, "sp_cost": 30.0},
 		"butler_grand_ice": {"effect": "damage", "target": "boss", "attribute": "ICE", "atk_multiplier": 4.0, "sp_cost": 60.0},
@@ -722,7 +724,7 @@ func test_all_twenty_ally_skills_match_the_confirmed_spec() -> void:
 		"samurai_slash": {"effect": "damage", "target": "boss", "attribute": "WIND", "atk_multiplier": 2.0, "sp_cost": 15.0},
 		"samurai_slash_all": {"effect": "damage", "target": "boss", "attribute": "WIND", "atk_multiplier": 2.5, "sp_cost": 30.0},
 		# 居合
-		"samurai_iai": {"effect": "buff_next_attack", "buff_multiplier": 2.0, "sp_cost": 40.0},
+		"samurai_iai": {"effect": "buff_next_attack", "buff_multiplier": 2.5, "sp_cost": 40.0},
 		# カウンター
 		"samurai_counter": {"effect": "counter_stance", "attribute": "WIND", "atk_multiplier": 3.0, "sp_cost": 50.0},
 		"tank_smash": {"effect": "damage", "target": "boss", "attribute": "NEUTRAL", "atk_multiplier": 1.5, "sp_cost": 0.0},

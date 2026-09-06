@@ -22,7 +22,7 @@
 			"effect": "damage",
 			"target": "boss",
 			"attribute": "ICE",
-			"atk_multiplier": 2.0,
+			"atk_multiplier": 2.8,
 			"sp_cost": 20
 		},
 		{

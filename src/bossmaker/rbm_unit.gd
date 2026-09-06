@@ -8,10 +8,35 @@ var id: int = -1
 var display_name: String = ""
 var is_ally: bool = true
 
+## Phase 2: 固定5キャラクターのマスターJSON上のid（"hero"/"tank"等、
+## RBMDefinitionLoader.KNOWN_ALLY_PATHSのキーと一致）。ADVANCED AIの
+## character_alive/character_downed/character_downed_instant条件が、
+## パーティ内の配列位置に依存しない安定した参照でユニットを特定するために
+## 使う（既存のint idはparty配列内の位置由来で、パーティ構成が変わると
+## 同じcharacter_idでも別のidになりうるため、この用途には使えない）。
+## ボスユニットは空文字列のまま（ボスに複数種類はなく参照する必要が無い）。
+var character_id: String = ""
+
 var attribute: RBMConstants.Attribute = RBMConstants.Attribute.NEUTRAL
-## Variant: an RBMConstants.Attribute value, or null if this unit has no weakness/resistance.
-var weak_attribute: Variant = null
-var resist_attribute: Variant = null
+
+## v0.1-C 多属性対応: a unit may have any number of weaknesses/resistances (0
+## or more each) -- each entry is an RBMConstants.Attribute. Creator-side
+## validation guarantees the same attribute is never registered as both a
+## weakness and a resistance for one unit simultaneously (out of scope for
+## this engine to re-validate/arbitrate -- see RBMConstants.attribute_multiplier_for_lists).
+var weak_attributes: Array = []
+var resist_attributes: Array = []
+
+## v0.1-B single-value fields, kept ONLY so code/tests written before v0.1-C's
+## multi-attribute support keep reading exactly what they always did (a single
+## RBMConstants.Attribute value, or null if this unit has no weakness/
+## resistance at all). Computed live off the list above -- never a second,
+## independently-settable copy -- so the two representations can never drift
+## out of sync with each other.
+var weak_attribute: Variant:
+	get: return weak_attributes[0] if not weak_attributes.is_empty() else null
+var resist_attribute: Variant:
+	get: return resist_attributes[0] if not resist_attributes.is_empty() else null
 
 var max_hp: int = 1
 var hp: int = 1

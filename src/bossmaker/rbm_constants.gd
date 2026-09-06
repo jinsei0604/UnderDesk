@@ -47,6 +47,17 @@ const IRON_WALL_REDUCTION := 0.10
 static func attribute_from_name(value: String) -> Attribute:
 	return ATTRIBUTE_BY_NAME.get(value, Attribute.NEUTRAL)
 
+## Phase 2: ATTRIBUTE_BY_NAME（文字列→enum）の逆引き。ADVANCED AIの
+## received_attribute_instant/last_received_attribute条件がDefinition上の
+## 文字列表現（"FIRE"等）と実際の攻撃属性（enum）を比較するために使う。
+## 5件程度の線形探索のみで、ダメージ発生のたび高々1回しか呼ばれない
+## （RBMBattle._compute_and_apply_damage参照）ためコストは無視できる。
+static func attribute_name(attribute: Attribute) -> String:
+	for key in ATTRIBUTE_BY_NAME.keys():
+		if ATTRIBUTE_BY_NAME[key] == attribute:
+			return key
+	return "NEUTRAL"
+
 static func weakness_for(attribute: Attribute) -> Variant:
 	return ATTRIBUTE_WEAKNESS.get(attribute, null)
 
@@ -54,10 +65,27 @@ static func resistance_for(attribute: Attribute) -> Variant:
 	return ATTRIBUTE_RESISTANCE.get(attribute, null)
 
 ## 弱点1.2倍 / 耐性0.8倍 / それ以外1.0倍（v0.1-B §5・§8）。
+## Single-value form, kept for source/behavior compatibility with anything
+## still passing a single Attribute-or-null per side. v0.1-C's real battle
+## damage path uses attribute_multiplier_for_lists() below instead.
 static func attribute_multiplier(attack_attribute: Attribute, target_weak: Variant, target_resist: Variant) -> float:
 	if target_weak != null and attack_attribute == target_weak:
 		return ATTRIBUTE_MULTIPLIER_WEAK
 	if target_resist != null and attack_attribute == target_resist:
+		return ATTRIBUTE_MULTIPLIER_RESIST
+	return ATTRIBUTE_MULTIPLIER_NORMAL
+
+## v0.1-C 多属性対応: list-membership version of attribute_multiplier() above
+## -- a unit may now have any number of weaknesses/resistances (0 or more
+## each). Creator-side validation guarantees the same attribute is never
+## registered as both a weakness and a resistance for one unit at once, so
+## this engine never needs to arbitrate that case; the weak-checked-first
+## order below exists purely to mirror the original single-value function's
+## own check order, not to define a new tie-break rule.
+static func attribute_multiplier_for_lists(attack_attribute: Attribute, target_weak: Array, target_resist: Array) -> float:
+	if target_weak.has(attack_attribute):
+		return ATTRIBUTE_MULTIPLIER_WEAK
+	if target_resist.has(attack_attribute):
 		return ATTRIBUTE_MULTIPLIER_RESIST
 	return ATTRIBUTE_MULTIPLIER_NORMAL
 

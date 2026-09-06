@@ -29,7 +29,7 @@
 			"id": "samurai_iai",
 			"display_name": "居合の構え",
 			"effect": "buff_next_attack",
-			"buff_multiplier": 2.0,
+			"buff_multiplier": 2.5,
 			"sp_cost": 40
 		},
 		{

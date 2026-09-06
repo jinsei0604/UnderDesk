@@ -5,3 +5,16 @@
 # OS
 Thumbs.db
 .DS_Store
+
+# Supabase 最小接続PoC — 実値入りのローカル設定ファイル。
+# supabase_poc.local.env.example（テンプレート、値は空）はコミットする。
+supabase_poc.local.env
+
+# UI/アニメーション実機確認用スクリプト(tools/_ui_pass_shots/*.gd等)自体は
+# ソースコードとしてコミットするが、その生成物（スクリーンショット/検証
+# 動画、合計約2GB規模）はGit履歴を不要に肥大化させるため対象外とする。
+tools/_ui_pass_shots/out/
+tools/_ui_pass_shots/backup_before_frame_density_rework/
+tools/_ui_pass_shots/originals/
+tools/phase35_title_ui_screenshots/
+tools/phase35_ui_unification_screenshots/

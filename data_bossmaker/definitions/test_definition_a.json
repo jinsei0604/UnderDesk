@@ -1,0 +1,24 @@
+{
+	"id": "test_definition_a",
+	"boss": {
+		"boss_id": "cave_troll_a",
+		"boss_name": "テスト用ボス",
+		"hp": 3000,
+		"atk": 150,
+		"spd": 90,
+		"weak_attribute": "ICE",
+		"resist_attribute": "FIRE",
+		"skills": [
+			{ "skill_id": "boss_claw", "name": "爪撃", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 1.0 }
+		],
+		"normal_actions": [
+			{ "skill_id": "boss_claw", "weight": 1 }
+		]
+	},
+	"party": [
+		{ "character_id": "hero", "allowed_skill_ids": ["hero_slash", "hero_blaze_all", "hero_flame_wrap", "hero_burst_slash"] },
+		{ "character_id": "butler", "allowed_skill_ids": ["butler_ice_bolt", "butler_ice_storm", "butler_sp_gift", "butler_grand_ice"] },
+		{ "character_id": "healer", "allowed_skill_ids": ["healer_shock", "healer_heal_single", "healer_heal_all", "healer_sp_all"] },
+		{ "character_id": "tank", "allowed_skill_ids": ["tank_smash", "tank_guard_swap", "tank_guard_boost", "tank_iron_wall"] }
+	]
+}

@@ -5,7 +5,7 @@
 	"hp": 950,
 	"atk": 200,
 	"spd": 140,
-	"max_sp": null,
+	"max_sp": 100,
 	"skills": [
 		{
 			"id": "tank_smash",

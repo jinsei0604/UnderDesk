@@ -1,20 +1,37 @@
 ; Engine configuration file.
-; UNDERDESK - desktop-resident idle dungeon management
+; RPG BOSS MAKER - Phase 1 product launch configuration (branch rpg-boss-maker).
+; UNDERDESK's own entry point (src/ui/main.tscn / src/ui/main.gd) is untouched
+; and still present in this repository -- only THIS file's active
+; run/main_scene / config/name / window settings now target Boss Maker as the
+; launchable product on this branch (Step 8 §B/§C/§D, explicit user
+; instruction: do not leave UNDERDESK's 1280x180 resident-window config as
+; Boss Maker's product launch config).
 
 config_version=5
 
 [application]
 
-config/name="UNDERDESK"
-run/main_scene="res://src/ui/main.tscn"
-run/low_processor_mode=true
+config/name="Makers & Challengers"
+run/main_scene="res://src/bossmaker/rbm_game_root.tscn"
 config/features=PackedStringArray("4.7")
 
 [display]
 
+; 実機確認の最小修正: ボーダーレスフルスクリーン(mode=3/borderless=true)は
+; Windows標準のタイトルバー（最小化/最大化/閉じるボタン）が一切表示され
+; ないため、ユーザーが通常の「×」で終了できない操作性問題があった。
+; mode=0（通常ウィンドウ）+ borderless=false へ変更し、標準タイトルバーを
+; 復元する。viewport_width/height（1280x720論理デザイン解像度、stretch/
+; mode="canvas_items"の基準）とresizable=trueは無改修——通常ウィンドウでも
+; 起動時サイズは引き続き1280x720、リサイズ/最大化してもRBMGameRoot自身の
+; Window.size_changed追従により論理viewportとの一致(1280x720)は保たれる。
 window/size/viewport_width=1280
-window/size/viewport_height=180
+window/size/viewport_height=720
+window/size/mode=0
+window/size/borderless=false
 window/size/resizable=true
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
 
 [editor_plugins]
 

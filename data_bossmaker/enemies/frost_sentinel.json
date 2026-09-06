@@ -1,0 +1,31 @@
+{
+	"id": "frost_sentinel",
+	"display_name": "氷の番人",
+	"hp": 5000,
+	"atk": 180,
+	"spd": 60,
+	"weak_attribute": "FIRE",
+	"resist_attribute": "ICE",
+	"skills": [
+		{
+			"id": "sentinel_frost_bite",
+			"display_name": "氷牙",
+			"effect": "damage",
+			"target": "ally_random_single",
+			"attribute": "ICE",
+			"atk_multiplier": 1.2
+		},
+		{
+			"id": "sentinel_frost_nova",
+			"display_name": "氷結波動",
+			"effect": "damage",
+			"target": "ally_all",
+			"attribute": "ICE",
+			"atk_multiplier": 0.8
+		}
+	],
+	"normal_action_candidates": [
+		{ "skill_id": "sentinel_frost_bite", "weight": 1 },
+		{ "skill_id": "sentinel_frost_nova", "weight": 1 }
+	]
+}

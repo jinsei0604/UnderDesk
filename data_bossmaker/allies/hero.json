@@ -29,7 +29,7 @@
 			"id": "hero_flame_wrap",
 			"display_name": "炎纏い",
 			"effect": "buff_atk_self",
-			"buff_multiplier": 1.5,
+			"buff_multiplier": 1.75,
 			"duration_turns": 3,
 			"sp_cost": 30
 		},
