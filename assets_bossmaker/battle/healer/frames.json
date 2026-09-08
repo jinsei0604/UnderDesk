@@ -1,0 +1,365 @@
+{
+  "asset_id": "healer",
+  "canvas": [
+    512,
+    512
+  ],
+  "foot": [
+    256,
+    460
+  ],
+  "body_height": 288,
+  "source_scale": 0.3333333333333333,
+  "generated_source_scale": 0.2236024844720497,
+  "poses": [
+    {
+      "index": 0,
+      "source_bbox": [
+        94,
+        103,
+        195,
+        216
+      ],
+      "source_foot": [
+        196,
+        316
+      ],
+      "bbox": [
+        120,
+        176,
+        260,
+        288
+      ],
+      "source": "approved preview idle; exact bytes",
+      "generated_source_bbox": [
+        55,
+        25,
+        301,
+        322
+      ],
+      "generated_source_foot": [
+        216,
+        346
+      ]
+    },
+    {
+      "index": 1,
+      "source_bbox": [
+        507,
+        103,
+        138,
+        216
+      ],
+      "source_foot": [
+        576,
+        316
+      ],
+      "bbox": [
+        164,
+        176,
+        184,
+        288
+      ],
+      "generated_source_bbox": [
+        490,
+        24,
+        204,
+        321
+      ],
+      "generated_source_foot": [
+        592.5,
+        344
+      ]
+    },
+    {
+      "index": 2,
+      "source_bbox": [
+        837,
+        103,
+        246,
+        216
+      ],
+      "source_foot": [
+        906,
+        316
+      ],
+      "bbox": [
+        164,
+        176,
+        328,
+        288
+      ],
+      "generated_source_bbox": [
+        821,
+        24,
+        367,
+        321
+      ],
+      "generated_source_foot": [
+        926,
+        344
+      ]
+    },
+    {
+      "index": 3,
+      "source_bbox": [
+        1284,
+        103,
+        120,
+        216
+      ],
+      "source_foot": [
+        1344,
+        316
+      ],
+      "bbox": [
+        176,
+        176,
+        160,
+        288
+      ],
+      "generated_source_bbox": [
+        1245,
+        24,
+        177,
+        321
+      ],
+      "generated_source_foot": [
+        1332.5,
+        344
+      ]
+    },
+    {
+      "index": 4,
+      "source_bbox": [
+        136,
+        468,
+        111,
+        192
+      ],
+      "source_foot": [
+        190,
+        657
+      ],
+      "bbox": [
+        184,
+        208,
+        148,
+        256
+      ],
+      "generated_source_bbox": [
+        116,
+        368,
+        165,
+        288
+      ],
+      "generated_source_foot": [
+        195.5,
+        655
+      ]
+    },
+    {
+      "index": 5,
+      "source_bbox": [
+        466,
+        465,
+        219,
+        195
+      ],
+      "source_foot": [
+        583,
+        657
+      ],
+      "bbox": [
+        100,
+        204,
+        292,
+        260
+      ],
+      "generated_source_bbox": [
+        400,
+        364,
+        328,
+        292
+      ],
+      "generated_source_foot": [
+        573,
+        655
+      ]
+    },
+    {
+      "index": 6,
+      "source_bbox": [
+        889,
+        498,
+        141,
+        162
+      ],
+      "source_foot": [
+        943,
+        657
+      ],
+      "bbox": [
+        184,
+        248,
+        188,
+        216
+      ],
+      "generated_source_bbox": [
+        862,
+        414,
+        212,
+        242
+      ],
+      "generated_source_foot": [
+        942,
+        655
+      ]
+    },
+    {
+      "index": 7,
+      "source_bbox": [
+        1263,
+        486,
+        162,
+        174
+      ],
+      "source_foot": [
+        1314,
+        657
+      ],
+      "bbox": [
+        188,
+        232,
+        216,
+        232
+      ],
+      "generated_source_bbox": [
+        1220,
+        397,
+        243,
+        259
+      ],
+      "generated_source_foot": [
+        1297.5,
+        655
+      ]
+    },
+    {
+      "index": 8,
+      "source_bbox": [
+        132,
+        800,
+        120,
+        201
+      ],
+      "source_foot": [
+        192,
+        998
+      ],
+      "bbox": [
+        176,
+        196,
+        160,
+        268
+      ],
+      "generated_source_bbox": [
+        120,
+        697,
+        181,
+        300
+      ],
+      "generated_source_foot": [
+        209,
+        996
+      ]
+    },
+    {
+      "index": 9,
+      "source_bbox": [
+        481,
+        785,
+        189,
+        216
+      ],
+      "source_foot": [
+        571,
+        998
+      ],
+      "bbox": [
+        136,
+        176,
+        252,
+        288
+      ],
+      "generated_source_bbox": [
+        435,
+        675,
+        280,
+        322
+      ],
+      "generated_source_foot": [
+        571,
+        996
+      ]
+    },
+    {
+      "index": 10,
+      "source_bbox": [
+        882,
+        806,
+        156,
+        195
+      ],
+      "source_foot": [
+        942,
+        998
+      ],
+      "bbox": [
+        176,
+        204,
+        208,
+        260
+      ],
+      "generated_source_bbox": [
+        837,
+        706,
+        232,
+        290
+      ],
+      "generated_source_foot": [
+        926.5,
+        995
+      ]
+    },
+    {
+      "index": 11,
+      "source_bbox": [
+        1257,
+        797,
+        174,
+        204
+      ],
+      "source_foot": [
+        1359,
+        998
+      ],
+      "bbox": [
+        120,
+        192,
+        232,
+        272
+      ],
+      "generated_source_bbox": [
+        1195,
+        693,
+        258,
+        303
+      ],
+      "generated_source_foot": [
+        1345.5,
+        995
+      ]
+    }
+  ]
+}

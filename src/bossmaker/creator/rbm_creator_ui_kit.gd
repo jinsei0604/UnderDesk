@@ -612,11 +612,12 @@ class StepNavColumn:
 class BossProfilePanel:
 	extends Control
 
+	const VisualAssets = preload("res://src/bossmaker/visuals/rbm_visual_assets.gd")
 	const WIDTH_PX := 240.0
 	const PREVIEW_MIN_SIZE := Vector2(0.0, 120.0)
 
 	var _preview_surface: Control
-	var _preview_swatch: ColorRect
+	var _preview_swatch: TextureRect
 	var _name_label: Label
 	var _hp_label: Label
 	var _atk_label: Label
@@ -646,10 +647,13 @@ class BossProfilePanel:
 		_preview_surface.name = "BossProfilePreview"
 		_preview_surface.custom_minimum_size = PREVIEW_MIN_SIZE
 		column.add_child(_preview_surface)
-		_preview_swatch = ColorRect.new()
+		_preview_swatch = TextureRect.new()
 		_preview_swatch.name = "BossProfilePreviewSwatch"
 		_preview_swatch.set_anchors_preset(Control.PRESET_FULL_RECT)
 		_preview_swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_preview_swatch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_preview_swatch.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_preview_swatch.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		_preview_surface.add_child(_preview_swatch)
 
 		_name_label = _stat_label(column, "BossProfileNameLabel")
@@ -688,9 +692,9 @@ class BossProfilePanel:
 	## §8: 実在するDraftデータのみ——レベル/DEF等は一切参照しない。
 	func update(draft: RBMCreatorDraft) -> void:
 		if draft.appearance_id.is_empty():
-			_preview_swatch.color = Color("#232b38")
+			_preview_swatch.texture = null
 		else:
-			_preview_swatch.color = RBMCreatorAppearanceCatalog.placeholder_color(draft.appearance_id)
+			_preview_swatch.texture = VisualAssets.texture(VisualAssets.boss_asset(draft.appearance_id), 0)
 		_name_label.text = draft.boss_name if not draft.boss_name.is_empty() else "（未設定）"
 		_hp_label.text = "HP：%d" % draft.hp
 		_atk_label.text = "ATK：%d" % draft.atk

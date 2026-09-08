@@ -244,6 +244,7 @@ func _build_clear_check_section() -> void:
 	_move_into(_clear_check_button, section)
 
 func refresh() -> void:
+	_refresh_background_selector()
 	for child in _content.get_children():
 		_content.remove_child(child)
 		child.queue_free()
@@ -348,3 +349,31 @@ func is_step_valid() -> bool:
 
 func validation_message() -> String:
 	return ""
+
+func _refresh_background_selector() -> void:
+	var bottom: HBoxContainer = find_child("SummaryBottomBar",true,false)
+	if bottom == null: return
+	bottom.add_theme_constant_override("separation",16)
+	var row := bottom.get_node_or_null("BackgroundTimeSelector")
+	if row == null:
+		row = HBoxContainer.new()
+		row.name = "BackgroundTimeSelector"
+		row.add_theme_constant_override("separation",8)
+		bottom.add_child(row)
+		bottom.move_child(row,2)
+		var caption := Label.new()
+		caption.text = "戦闘背景"
+		row.add_child(caption)
+		for value in ["day","night"]:
+			var button := Button.new()
+			button.name = "DayBackgroundButton" if value == "day" else "NightBackgroundButton"
+			button.text = "昼" if value == "day" else "夜"
+			button.toggle_mode = true
+			button.custom_minimum_size = Vector2(76,44)
+			button.pressed.connect(func():
+				draft.battle_background = value
+				_refresh_background_selector()
+			)
+			row.add_child(button)
+	row.get_node("DayBackgroundButton").set_pressed_no_signal(draft.battle_background == "day")
+	row.get_node("NightBackgroundButton").set_pressed_no_signal(draft.battle_background == "night")

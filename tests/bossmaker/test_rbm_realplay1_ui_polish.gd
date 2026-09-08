@@ -138,7 +138,7 @@ func test_step2_hp_atk_spd_sliders_are_draggable_and_uncovered() -> void:
 	main.go_to_step(2)
 	await get_tree().process_frame
 	var step2: RBMCreatorStep2Stats = main._step_views[1]
-	_btn(step2, "EditStatsButton").pressed.emit()
+	assert_true(step2._edit_panel.visible, "能力は最初から編集可能")
 	await get_tree().process_frame
 
 	_assert_slider_is_draggable(step2._hp_slider, "STEP2 HP slider")
@@ -159,7 +159,7 @@ func test_step2_slider_value_changes_reflect_into_draft_and_paired_spinbox() -> 
 	main.go_to_step(2)
 	await get_tree().process_frame
 	var step2: RBMCreatorStep2Stats = main._step_views[1]
-	_btn(step2, "EditStatsButton").pressed.emit()
+	assert_true(step2._edit_panel.visible, "能力は最初から編集可能")
 	await get_tree().process_frame
 
 	step2._hp_slider.value = 12345.0
@@ -169,7 +169,7 @@ func test_step2_slider_value_changes_reflect_into_draft_and_paired_spinbox() -> 
 	step2._spd_slider.value = 7.0
 	assert_eq(step2._spd_spin.value, 7.0, "the paired SPD SpinBox must mirror the new slider value while editing")
 
-	_btn(step2, "ConfirmStatsButton").pressed.emit()
+	assert_null(step2.find_child("ConfirmStatsButton", true, false), "数値反映に決定は不要")
 	await get_tree().process_frame
 	assert_eq(main.draft.hp, 12345, "moving the HP slider then confirming must update draft.hp")
 	assert_eq(main.draft.atk, 42, "moving the ATK slider then confirming must update draft.atk")

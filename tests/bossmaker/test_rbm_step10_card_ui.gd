@@ -147,7 +147,8 @@ func test_step1_appearance_card_reflects_the_current_selection() -> void:
 	assert_eq(step1._appearance_preview_label.text, "現在の外見：%s" % RBMCreatorAppearanceCatalog.display_name("appearance_dragon"), "選択結果がカードへ反映されること")
 	assert_true(step1._appearance_preview_aspect == aspect_before, "外見変更後もプレビュー領域のAspect構造を作り直さないこと")
 	assert_true(step1._appearance_preview_surface == surface_before, "外見変更後も将来の画像差し替え先surfaceを維持すること")
-	assert_eq(step1._appearance_preview_swatch.color, RBMCreatorAppearanceCatalog.placeholder_color("appearance_dragon"))
+	assert_not_null(step1._appearance_preview_swatch.texture, "Selected appearance has real sprite artwork")
+	assert_eq(step1._appearance_preview_swatch.texture.resource_path, RBMVisualAssets.frame_path("dragon", 0))
 
 func test_step1_appearance_change_button_opens_the_existing_picker() -> void:
 	var main := await _new_creator_main()
@@ -165,7 +166,7 @@ func test_step1_appearance_change_button_opens_the_existing_picker() -> void:
 # §13 STEP2 能力 — 必須UIテスト
 # =============================================================================
 
-func test_step2_current_stats_are_shown_in_the_summary_card() -> void:
+func test_step2_current_stats_are_shown_in_the_editor() -> void:
 	var main := await _new_creator_main()
 	var step2: RBMCreatorStep2Stats = main._step_views[1]
 	step2.set_hp(5000)
@@ -173,31 +174,32 @@ func test_step2_current_stats_are_shown_in_the_summary_card() -> void:
 	step2.set_spd(120)
 	step2.toggle_weak("FIRE")
 	step2.toggle_resist("ICE")
-	assert_true(step2._summary_label.text.contains("5000"))
-	assert_true(step2._summary_label.text.contains("180"))
-	assert_true(step2._summary_label.text.contains("120"))
-	assert_true(step2._summary_label.text.contains(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get("FIRE", "FIRE"))))
-	assert_true(step2._summary_label.text.contains(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get("ICE", "ICE"))))
+	assert_true(step2._hp_spin.value == 5000.0)
+	assert_true(step2._atk_spin.value == 180.0)
+	assert_true(step2._spd_spin.value == 120.0)
+	assert_true(step2._weak_buttons["FIRE"].button_pressed)
+	assert_true(step2._resist_buttons["ICE"].button_pressed)
 
-func test_step2_summary_shows_none_when_weak_and_resist_are_unset() -> void:
+func test_step2_unset_attributes_are_unselected_in_editor() -> void:
 	var main := await _new_creator_main()
-	main.go_to_step(2)  # go_to_step()自身がrefresh()を呼ぶ、実際のナビゲーション経路
+	main.go_to_step(2)
+	var step2: RBMCreatorStep2Stats = main._step_views[1]
+	for attr in RBMDefinitionLoader.VALID_ATTRIBUTES:
+		assert_false(step2._weak_buttons[attr].button_pressed)
+		assert_false(step2._resist_buttons[attr].button_pressed)
+
+func test_step2_stat_controls_are_available_without_edit_button() -> void:
+	var main := await _new_creator_main()
+	var step2: RBMCreatorStep2Stats = main._step_views[1]
+	assert_null(step2.find_child("EditStatsButton", true, false))
 	await get_tree().process_frame
-	var step2: RBMCreatorStep2Stats = main._step_views[1]
-	assert_true(step2._summary_label.text.contains("なし"), "弱点/耐性が未設定の時は既存仕様に合った自然な表示（なし）にすること")
+	assert_true(step2._edit_panel.visible, "最初からSlider/SpinBox/属性ボタンが展開される")
+	assert_null(step2.find_child("StatsNormalDisplay", true, false))
 
-func test_step2_edit_stats_button_opens_the_stat_controls() -> void:
+func test_step2_hp_atk_spd_and_attributes_apply_without_confirm() -> void:
 	var main := await _new_creator_main()
 	var step2: RBMCreatorStep2Stats = main._step_views[1]
-	_btn(step2, "EditStatsButton").pressed.emit()
-	await get_tree().process_frame
-	assert_true(step2._edit_panel.visible, "編集を押した時だけSlider/SpinBox/属性ボタンが展開される")
-	assert_false(step2._normal_row.visible)
-
-func test_step2_hp_atk_spd_and_attribute_change_and_confirm_commits_to_draft() -> void:
-	var main := await _new_creator_main()
-	var step2: RBMCreatorStep2Stats = main._step_views[1]
-	_btn(step2, "EditStatsButton").pressed.emit()
+	assert_null(step2.find_child("EditStatsButton", true, false))
 	await get_tree().process_frame
 
 	step2._hp_spin.value = 3000
@@ -206,19 +208,19 @@ func test_step2_hp_atk_spd_and_attribute_change_and_confirm_commits_to_draft() -
 	_btn(step2, "Weak_FIRE").pressed.emit()
 	_btn(step2, "Resist_ICE").pressed.emit()
 	await get_tree().process_frame
-	# 決定前はまだDraftへ反映されていないこと。
-	assert_ne(main.draft.hp, 3000)
+	# 変更時にDraftへ反映されること。
+	assert_eq(main.draft.hp, 3000, "入力直後に反映")
 
-	_btn(step2, "ConfirmStatsButton").pressed.emit()
+	assert_null(step2.find_child("ConfirmStatsButton", true, false))
 	await get_tree().process_frame
 	assert_eq(main.draft.hp, 3000)
 	assert_eq(main.draft.atk, 150)
 	assert_eq(main.draft.spd, 80)
 	assert_true(main.draft.weak_attributes.has("FIRE"))
 	assert_true(main.draft.resist_attributes.has("ICE"))
-	assert_false(step2._edit_panel.visible, "決定後は通常カード表示へ戻ること")
+	assert_true(step2._edit_panel.visible, "変更後も編集を継続できる")
 
-func test_step2_cancel_discards_all_staged_changes() -> void:
+func test_step2_navigation_retains_all_immediate_changes() -> void:
 	var main := await _new_creator_main()
 	var step2: RBMCreatorStep2Stats = main._step_views[1]
 	step2.set_hp(999)
@@ -226,7 +228,7 @@ func test_step2_cancel_discards_all_staged_changes() -> void:
 	step2.set_spd(11)
 	step2.toggle_weak("WIND")
 
-	_btn(step2, "EditStatsButton").pressed.emit()
+	assert_null(step2.find_child("EditStatsButton", true, false))
 	await get_tree().process_frame
 	step2._hp_spin.value = 123456
 	step2._atk_spin.value = 1
@@ -235,13 +237,14 @@ func test_step2_cancel_discards_all_staged_changes() -> void:
 	_btn(step2, "Resist_LIGHTNING").pressed.emit()
 	await get_tree().process_frame
 
-	_btn(step2, "CancelStatsButton").pressed.emit()
+	main.go_to_step(3)
+	main.go_to_step(2)
 	await get_tree().process_frame
-	assert_eq(main.draft.hp, 999, "キャンセルでHPは編集開始時点の値のまま")
-	assert_eq(main.draft.atk, 88)
-	assert_eq(main.draft.spd, 11)
-	assert_true(main.draft.weak_attributes.has("WIND"), "キャンセルで弱点も編集開始時点のまま")
-	assert_false(main.draft.resist_attributes.has("LIGHTNING"))
+	assert_eq(main.draft.hp, 123456, "工程を離れて戻っても即時反映値を保持")
+	assert_eq(main.draft.atk, 1)
+	assert_eq(main.draft.spd, 1)
+	assert_false(main.draft.weak_attributes.has("WIND"))
+	assert_true(main.draft.resist_attributes.has("LIGHTNING"))
 
 # =============================================================================
 # §14 新STEP4 攻略パーティ — 必須UIテスト
@@ -617,7 +620,7 @@ func test_step5_toggle_and_confirm_commits_to_draft() -> void:
 	check.button_pressed = false
 	check.toggled.emit(false)
 	await get_tree().process_frame
-	# 決定前はまだDraftへ反映されていないこと。
+	# 変更時にDraftへ反映されること。
 	assert_true(main.draft.is_ally_skill_allowed("hero", skill_id))
 
 	_btn(step4, "ConfirmPartySkillsButton_hero").pressed.emit()

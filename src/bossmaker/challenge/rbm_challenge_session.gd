@@ -23,6 +23,15 @@ extends RefCounted
 ## このクラスにhistory配列・rewind_to()・reachable_turns()は存在しない。
 
 var battle: RBMBattle
+
+## Initial/rewind automatic actions are retained for the view, after normal synchronous resolution.
+var presentation_initial_state: Dictionary = {}
+var pending_presentation_log: Array[Dictionary] = []
+
+func take_presentation_log() -> Array[Dictionary]:
+	var entries := pending_presentation_log
+	pending_presentation_log = []
+	return entries
 var _definition: Dictionary
 var _seed: int
 var _last_start_result: Dictionary = {}
@@ -46,6 +55,8 @@ func start_errors() -> Array:
 	return _last_start_result.get("errors", [])
 
 func _start_fresh() -> void:
+	presentation_initial_state = {}
+	pending_presentation_log = []
 	_last_start_result = RBMDefinitionLoader.start_battle(_definition, _seed)
 	battle = _last_start_result.get("battle") if start_ok() else null
 	# 実機プレイ改善①: RBMCreatorTestSessionと同じ理由で、構築直後に一度
@@ -53,7 +64,8 @@ func _start_fresh() -> void:
 	# それを自動解決してから、最初の生存する味方の入力を待つ状態にする
 	# （履歴を持たないためRBMCreatorTestSessionのようなsnapshot記録は不要）。
 	if battle != null:
-		advance()
+		presentation_initial_state = battle.presentation_state()
+		pending_presentation_log = advance()
 
 ## §27/§28: 「最初からやり直す」確定時の実処理。同じDefinition・新しい乱数
 ## seed・Turn 1・初期HP/SP・一時状態初期化——すべてRBMBattle.new()を新しい

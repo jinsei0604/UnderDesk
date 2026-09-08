@@ -1,8 +1,0 @@
-{
-	"id": "skill_eos_burst",
-	"name_key": "SKILL_EOS_BURST_NAME",
-	"desc_key": "SKILL_EOS_BURST_DESC",
-	"sp_cost": null,
-	"target": "enemy",
-	"effect": "damage"
-}

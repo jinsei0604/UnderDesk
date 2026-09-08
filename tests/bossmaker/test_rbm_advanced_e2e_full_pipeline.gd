@@ -134,11 +134,11 @@ func _build_composite_advanced_draft(creator: RBMCreatorMain) -> Dictionary:
 
 	creator.go_to_step(2)
 	var step2: RBMCreatorStep2Stats = creator._step_views[1]
-	_btn(step2, "EditStatsButton").pressed.emit()
+	assert_true(step2._edit_panel.visible, "能力は最初から編集可能")
 	step2._hp_spin.value = 2200
 	step2._atk_spin.value = 1
 	step2._spd_spin.value = 1
-	_btn(step2, "ConfirmStatsButton").pressed.emit()
+	assert_null(step2.find_child("ConfirmStatsButton", true, false), "数値反映に決定は不要")
 	assert_eq(creator.draft.hp, 2200, "sanity: STEP2実UI経由で能力が反映されること")
 	assert_eq(creator.draft.atk, 1)
 	assert_eq(creator.draft.spd, 1)

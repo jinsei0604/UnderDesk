@@ -34,6 +34,9 @@ const CONTENT_TOP_MARGIN_PX := 40.0
 
 func _ready() -> void:
 	_build_ui()
+	var world = preload("res://src/bossmaker/rbm_world_ui.gd").new()
+	world.challenge_layout(self)
+	world.walk(self)
 
 func _build_ui() -> void:
 	var column := VBoxContainer.new()

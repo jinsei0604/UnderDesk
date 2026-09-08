@@ -195,6 +195,7 @@ func _do_save_new() -> void:
 	var result: Dictionary = main.press_save_as_new()
 	if not bool(result.get("ok", false)):
 		_choice_panel.visible = true
+		preload("res://src/bossmaker/rbm_audio.gd").cue(self, "ui_error")
 		_error_label.text = "保存に失敗しました"
 		return
 	_show_success(str(result.get("stage_id", "")))
@@ -204,11 +205,13 @@ func _do_save_new() -> void:
 func _on_overwrite_pressed() -> void:
 	var result: Dictionary = main.press_overwrite_save()
 	if not bool(result.get("ok", false)):
+		preload("res://src/bossmaker/rbm_audio.gd").cue(self, "ui_error")
 		_error_label.text = "保存に失敗しました"
 		return
 	_show_success(main.current_stage_id)
 
 func _show_success(stage_id: String) -> void:
+	preload("res://src/bossmaker/rbm_audio.gd").cue(self, "ui_save")
 	_choice_panel.visible = false
 	_same_name_panel.visible = false
 	_success_panel.visible = true

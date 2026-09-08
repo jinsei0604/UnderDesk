@@ -1,8 +1,0 @@
-{
-	"id": "skill_yomotsuhirasaka_dan",
-	"name_key": "SKILL_YOMOTSUHIRASAKA_DAN_NAME",
-	"desc_key": "SKILL_YOMOTSUHIRASAKA_DAN_DESC",
-	"sp_cost": null,
-	"target": "enemy",
-	"effect": "damage"
-}

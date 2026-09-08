@@ -1,6 +1,9 @@
 class_name RBMCreatorClearCheckView
 extends Control
 
+var _world_battle = preload("res://src/bossmaker/rbm_fullscreen_battle_ui.gd").new()
+var battle_background: String = "night"
+
 ## Phase 1 Step 5 — Clear Check: confirms the author can actually beat the
 ## boss they built (§1), then hosts a real battle using RBMCreatorTestSession
 ## (§24: Step 4's snapshot()/restore()-based REWIND primitive, reused
@@ -43,6 +46,10 @@ var _battle_panel: VBoxContainer
 var _mode_label: Label
 var _battlefield: Control
 var _battlefield_ally_row: Control
+## Tests may explicitly disable presentation; GPU windows enable it by default.
+var presentation_enabled: bool = DisplayServer.get_name() != "headless"
+var _presenter: RBMBattlePresenter
+var _boss_appearance_id: String = ""
 var _boss_label: Label
 var _party_rows: HBoxContainer
 var _turn_order_panel: Control
@@ -76,6 +83,8 @@ var _boss_detail_overlay: Dictionary = {}
 func setup(p_main: Node) -> void:
 	main = p_main
 	_build_ui()
+	_world_battle.setup(self)
+	visibility_changed.connect(_on_presentation_visibility_changed)
 
 func _build_ui() -> void:
 	# Phase 3.5 タイトル画面UI新設 §8/§9/§10: RBMCreatorTestBattleViewと同じ
@@ -176,16 +185,21 @@ func _on_confirm_start_pressed() -> void:
 ## -1 = random) purely for deterministic testability; normal Creator usage
 ## never passes one.
 func start_battle(definition: Dictionary, rng_seed: int = -1) -> void:
+	_cancel_presentation()
+	if draft != null:
+		_boss_appearance_id = draft.appearance_id
 	session = RBMCreatorTestSession.new(definition, rng_seed)
 	_log_label.text = ""
 	_battle_log_history.clear()
 	_close_target_picker()
 	_close_all_overlays()
 	_restart_confirm.visible = false
+	_se_outcome_played = false
 	_outcome_area.visible = false
 	_confirm_panel.visible = false
 	_battle_panel.visible = true
 	refresh()
+	_present_session_opening()
 	_check_clear_check_success()
 
 # ---------------------------------------------------------------------------
@@ -214,6 +228,7 @@ func _build_battle_panel(parent: Control) -> void:
 	# 高さ0のまま何も見た目を変えない。
 	_outcome_area = VBoxContainer.new()
 	_outcome_area.name = "OutcomeArea"
+	_se_outcome_played = false
 	_outcome_area.visible = false
 	_battle_panel.add_child(_outcome_area)
 	# Phase 3.5 UI統一§27: RBMCreatorTestBattleViewと同じ理由・同じ処置。
@@ -233,9 +248,19 @@ func _build_battle_panel(parent: Control) -> void:
 	_return_button.pressed.connect(_on_return_pressed)
 	_outcome_area.add_child(_return_button)
 
-	_build_battlefield(_battle_panel)
-	_build_info_row(_battle_panel)
-	_build_bottom_row(_battle_panel)
+	var arena_row := HBoxContainer.new()
+	arena_row.name = "ArenaRow"
+	arena_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_battle_panel.add_child(arena_row)
+	var battle_column := VBoxContainer.new()
+	battle_column.name = "BattleColumn"
+	battle_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	arena_row.add_child(battle_column)
+	_build_battlefield(battle_column)
+	_build_info_row(arena_row)
+	_log_label = RBMBattleUiKit.build_battle_message(battle_column)
+	_build_bottom_row(battle_column)
+	_command_area.reparent(arena_row.get_node("InfoRow"))
 
 	var action_row := HBoxContainer.new()
 	_battle_panel.add_child(action_row)
@@ -288,6 +313,7 @@ func _build_battlefield(parent: Control) -> void:
 	_battlefield.name = "Battlefield"
 	_battlefield.custom_minimum_size = Vector2(0, 260)
 	_battlefield.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_battlefield.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	parent.add_child(_battlefield)
 
 	var field_content := VBoxContainer.new()
@@ -308,29 +334,14 @@ func _build_battlefield(parent: Control) -> void:
 	_battlefield_ally_row = stage["ally_row"]
 
 func _build_info_row(parent: Control) -> void:
-	var row := HBoxContainer.new()
+	var row := VBoxContainer.new()
 	row.name = "InfoRow"
+	row.custom_minimum_size = Vector2(320, 0)
 	parent.add_child(row)
 
 	_turn_order_panel = RBMBattleUiKit.build_turn_order_panel()
 	row.add_child(_turn_order_panel)
 
-	var latest_info_panel := VBoxContainer.new()
-	latest_info_panel.name = "LatestInfoPanel"
-	latest_info_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(latest_info_panel)
-	# Phase 3.5 UI統一§21: RBMChallengeBattleViewと同じ理由——大きな見出しでは
-	# なく非常に小さく、本文を主役にする（このファイルの意図的な複製方針
-	# どおり）。
-	var latest_info_title := Label.new()
-	latest_info_title.name = "LatestInfoTitleLabel"
-	latest_info_title.text = "最新の戦闘情報"
-	latest_info_title.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
-	latest_info_panel.add_child(latest_info_title)
-	_log_label = Label.new()
-	_log_label.name = "LogLabel"
-	_log_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	latest_info_panel.add_child(_log_label)
 
 func _build_bottom_row(parent: Control) -> void:
 	var row := HBoxContainer.new()
@@ -358,7 +369,14 @@ func _build_bottom_row(parent: Control) -> void:
 
 	_rewind_list = VBoxContainer.new()
 	_rewind_list.name = "RewindList"
-	left_column.add_child(_rewind_list)
+	var rewind_scroll := ScrollContainer.new()
+	rewind_scroll.name = "RewindScroll"
+	rewind_scroll.custom_minimum_size = Vector2(240, 43)
+	rewind_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rewind_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	log_row.add_child(rewind_scroll)
+	_rewind_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rewind_scroll.add_child(_rewind_list)
 
 	_command_area = VBoxContainer.new()
 	_command_area.name = "CommandArea"
@@ -385,7 +403,7 @@ func _build_log_window() -> void:
 	(_log_window_overlay["title_label"] as Label).text = "戦闘ログ"
 	var scroll := ScrollContainer.new()
 	scroll.name = "LogWindowScroll"
-	scroll.custom_minimum_size = Vector2(420, 320)
+	RBMBattleUiKit.fit_log_window(_log_window_overlay, scroll)
 	# Phase 3.5 タイトル画面UI新設: RBMCreatorTestBattleViewと同一の理由・
 	# 同一の修正（このファイルの意図的な複製方針どおり）。
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -401,6 +419,8 @@ func open_log_window() -> void:
 	(_log_window_overlay["overlay"] as Control).visible = true
 
 func open_ally_detail(unit_id: int) -> void:
+	if _is_presenting():
+		return
 	var unit := _unit_by_id(unit_id)
 	if unit == null:
 		return
@@ -412,6 +432,8 @@ func open_ally_detail(unit_id: int) -> void:
 ## true）を表示する。CHALLENGEだけがdraft.challenge_info_visibilityで
 ## 一部を伏せる。
 func open_boss_detail() -> void:
+	if _is_presenting():
+		return
 	(_boss_detail_overlay["title_label"] as Label).text = session.battle.boss.display_name
 	RBMBattleUiKit.refresh_boss_detail_content(_boss_detail_overlay["content"], session.battle)
 	(_boss_detail_overlay["overlay"] as Control).visible = true
@@ -444,6 +466,8 @@ func act_defend(unit_id: int) -> void:
 	_resolve_and_refresh({"type": "defend"})
 
 func act_skill(unit_id: int, skill_id: String) -> void:
+	if _is_presenting():
+		return
 	var unit := _unit_by_id(unit_id)
 	if unit == null:
 		return
@@ -461,6 +485,8 @@ func act_skill_with_target(unit_id: int, skill_id: String, target_id: int) -> vo
 	_resolve_and_refresh({"type": "skill", "skill_id": skill_id, "target_id": target_id})
 
 func _open_skill_list() -> void:
+	if _is_presenting():
+		return
 	_main_command_row.visible = false
 	_skill_list_panel.visible = true
 
@@ -507,11 +533,13 @@ func _unit_by_id(unit_id: int) -> RBMUnit:
 ## §1/§6: コマンド／対象が確定した「その瞬間」に解決し、HP/SP/状態/ログを
 ## その場で反映してから次の行動者へ進む。
 func _resolve_and_refresh(action: Dictionary) -> void:
+	if _is_presenting():
+		return
 	if session == null or session.battle == null or session.battle.battle_over:
 		return
+	var before := session.battle.presentation_state()
 	var log := session.resolve_ally_action(action)
-	_render_log(log)
-	refresh()
+	_present_batch(log, before)
 	_check_clear_check_success()
 
 ## §13/§28-2: the ONLY place this whole class decides Clear Check succeeded
@@ -547,14 +575,17 @@ func _on_retry_pressed() -> void:
 	_do_restart()
 
 func _do_restart() -> void:
+	_cancel_presentation()
 	session.restart()
 	_log_label.text = ""
 	_battle_log_history.clear()
 	_close_target_picker()
 	_close_all_overlays()
+	_se_outcome_played = false
 	_outcome_area.visible = false
 	_restart_confirm.visible = false
 	refresh()
+	_present_session_opening()
 	_check_clear_check_success()
 
 # ---------------------------------------------------------------------------
@@ -564,6 +595,7 @@ func _do_restart() -> void:
 # ---------------------------------------------------------------------------
 
 func _on_return_pressed() -> void:
+	_cancel_presentation()
 	return_to_creator_requested.emit()
 
 # ---------------------------------------------------------------------------
@@ -571,13 +603,19 @@ func _on_return_pressed() -> void:
 # ---------------------------------------------------------------------------
 
 func rewind_to(turn: int) -> void:
-	session.rewind_to(turn)
+	_cancel_presentation()
+	if not session.rewind_to(turn):
+		refresh()
+		return
+	preload("res://src/bossmaker/rbm_audio.gd").cue(self, "rewind")
 	_log_label.text = ""
 	_battle_log_history = RBMBattleUiKit.history_truncated_for_rewind(_battle_log_history, turn)
 	_close_target_picker()
 	_close_all_overlays()
+	_se_outcome_played = false
 	_outcome_area.visible = false
 	refresh()
+	_present_session_opening()
 
 func _refresh_rewind_list() -> void:
 	RBMBattleUiKit.clear_children_safely(_rewind_list)
@@ -594,6 +632,9 @@ func _refresh_rewind_list() -> void:
 # ---------------------------------------------------------------------------
 
 func refresh() -> void:
+	_world_battle.update.call_deferred()
+	if _is_presenting():
+		return
 	if session == null or session.battle == null:
 		return
 	var battle := session.battle
@@ -603,11 +644,17 @@ func refresh() -> void:
 	for unit in battle.party:
 		_party_rows.add_child(RBMBattleUiKit.build_party_card(unit, open_ally_detail))
 	RBMBattleUiKit.refresh_battlefield_ally_row(_battlefield_ally_row, battle, open_ally_detail)
+	_configure_presentation()
 
 	RBMBattleUiKit.refresh_turn_order_panel(_turn_order_panel, battle)
 	_refresh_command_area()
 	_refresh_rewind_list()
 
+	if battle.battle_over and not _se_outcome_played and is_visible_in_tree():
+		preload("res://src/bossmaker/rbm_audio.gd").cue(self, "ui_clear_check_success" if battle.winner == "ally" else "defeat")
+		_se_outcome_played = true
+	elif not battle.battle_over:
+		_se_outcome_played = false
 	_outcome_area.visible = battle.battle_over
 	if battle.battle_over:
 		var won := battle.winner == "ally"
@@ -670,6 +717,7 @@ func _build_skill_list(unit: RBMUnit) -> void:
 		skill_button.name = "SkillButton_%s" % skill_id
 		# Phase 3.5 Step 3 §1: RBMCreatorTestBattleViewと同一ロジック。
 		skill_button.text = RBMBattleUiKit.skill_row_text(skill, unit)
+		skill_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		skill_button.disabled = RBMBattleUiKit.skill_is_disabled(skill, unit)
 		skill_button.pressed.connect(act_skill.bind(unit.id, skill_id))
 		skill_button.mouse_entered.connect(_show_skill_detail.bind(skill))
@@ -678,7 +726,7 @@ func _build_skill_list(unit: RBMUnit) -> void:
 
 	_skill_detail_label = Label.new()
 	_skill_detail_label.name = "SkillDetailLabel"
-	_skill_detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_skill_detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_skill_list_panel.add_child(_skill_detail_label)
 	if not unit.skills.is_empty():
 		_show_skill_detail(unit.skills[0])
@@ -690,3 +738,102 @@ func _show_skill_detail(skill: Dictionary) -> void:
 	var lines: Array[String] = [display_name]
 	lines.append_array(RBMBattleUiKit.skill_detail_lines(skill, true))
 	_skill_detail_label.text = "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Shared presentation: simulation stays synchronous; HUD follows motion impacts.
+# ---------------------------------------------------------------------------
+
+func set_boss_appearance(appearance_id: String) -> void:
+	_boss_appearance_id = appearance_id
+	if session != null and session.battle != null and not _is_presenting():
+		_configure_presentation()
+
+func _is_presenting() -> bool:
+	return is_instance_valid(_presenter) and _presenter.is_playing()
+
+func _configure_presentation() -> void:
+	if not is_instance_valid(_battlefield_ally_row):
+		return
+	if not is_instance_valid(_presenter):
+		_presenter = RBMBattlePresenter.new()
+		_presenter.name = "BattlePresenter"
+		add_child(_presenter)
+		_presenter.entry_impact.connect(_on_presentation_impact)
+		_presenter.finished.connect(_on_presentation_finished)
+	_presenter.enabled = presentation_enabled
+	var visual_stage: Node = _battlefield_ally_row.get_meta("visual_stage", null) as Node
+	_presenter.setup(visual_stage)
+	if is_instance_valid(visual_stage) and visual_stage.has_method("configure"):
+		visual_stage.call("configure", session.battle, _boss_appearance_id)
+		if not visual_stage.is_connected("ally_clicked", open_ally_detail):
+			visual_stage.connect("ally_clicked", open_ally_detail)
+		if not visual_stage.is_connected("boss_clicked", open_boss_detail):
+			visual_stage.connect("boss_clicked", open_boss_detail)
+		if not _is_presenting():
+			visual_stage.call("set_state", session.battle.presentation_state())
+
+func _present_batch(log: Array, before: Dictionary) -> void:
+	_configure_presentation()
+	if not is_instance_valid(_presenter) or not _presenter.can_animate() or log.is_empty():
+		_render_log(log)
+		refresh()
+		return
+	_close_all_overlays()
+	_set_presentation_input_locked(true)
+	_se_outcome_played = false
+	_outcome_area.visible = false
+	RBMBattlePresenter.apply_status_snapshot(self, before)
+	_presenter.play(log, session.battle, before)
+
+func _present_session_opening() -> void:
+	_configure_presentation()
+	var log := session.take_presentation_log()
+	# Existing synchronous/headless UI tests retain the historical empty opening log.
+	# Real windows replay every opening or rewind interrupt from its pre-action state.
+	if not log.is_empty() and is_instance_valid(_presenter) and _presenter.can_animate():
+		_present_batch(log, session.presentation_initial_state)
+
+func _on_presentation_impact(entry: Dictionary) -> void:
+	RBMBattlePresenter.apply_status_snapshot(self, entry.get("visual_state", {}))
+	_battle_log_history.append(entry)
+	# Do not replace a meaningful last action with a following boss no-op.
+	if str(entry.get("action", "none")) != "none" or _log_label.text.is_empty():
+		_log_label.text = RBMBattleUiKit.format_latest_info([entry], session.battle)
+	if is_instance_valid(_log_window_body_label):
+		_log_window_body_label.text = RBMBattleUiKit.format_log_window_text(_battle_log_history, session.battle)
+
+func _on_presentation_finished() -> void:
+	_set_presentation_input_locked(false)
+	refresh()
+
+func _cancel_presentation() -> void:
+	if is_instance_valid(_presenter):
+		_presenter.cancel()
+	_set_presentation_input_locked(false)
+
+func _set_presentation_input_locked(locked: bool) -> void:
+	if not is_instance_valid(_command_area):
+		return
+	# Preserve container geometry while a sprite is moving; hiding the command
+	# column would resize the battlefield and move actors underneath the animation.
+	for node in _command_area.find_children("*", "BaseButton", true, false):
+		var button := node as BaseButton
+		if locked:
+			if not button.has_meta("presentation_was_disabled"):
+				button.set_meta("presentation_was_disabled", button.disabled)
+			button.disabled = true
+		elif button.has_meta("presentation_was_disabled"):
+			button.disabled = bool(button.get_meta("presentation_was_disabled"))
+			button.remove_meta("presentation_was_disabled")
+
+func _on_presentation_visibility_changed() -> void:
+	if not is_visible_in_tree():
+		_cancel_presentation()
+	elif session != null and session.battle != null:
+		refresh()
+
+func _exit_tree() -> void:
+	_cancel_presentation()
+
+var _se_outcome_played := false

@@ -185,10 +185,13 @@ static func _describe_skill_entry(entry: Dictionary, actor_name: String, battle:
 		# 個別判定する（対象ごとに違う場合があるため一括では扱えない）。
 		var hits: Dictionary = entry["hits"]
 		for uid in hits.keys():
-			var target := unit_by_id(battle, int(uid))
+			var hit: Dictionary = hits[uid] if hits[uid] is Dictionary else {"target": uid, "amount": hits[uid]}
+			var target := unit_by_id(battle, int(hit.get("target", uid)))
 			if target != null:
 				_append_weak_resist_line(result_lines, skill, target)
-			result_lines.append("%s に %d ダメージ" % [actor_display_name(uid, battle), int(hits[uid])])
+			result_lines.append("%s に %d ダメージ" % [actor_display_name(hit.get("target", uid), battle), int(hit.get("amount", 0))])
+			if bool(hit.get("counter", false)):
+				result_lines.append("攻撃を防いだ！ 反撃！ %s に %d ダメージ" % [battle.boss.display_name, int(hit.get("reflected", 0))])
 	elif entry.has("healed"):
 		var healed: Dictionary = entry["healed"]
 		for uid in healed.keys():
@@ -222,7 +225,7 @@ static func _describe_skill_entry(entry: Dictionary, actor_name: String, battle:
 	if bool(entry.get("counter", false)) and bool(entry.get("blocked", false)):
 		result_lines.append("%s の攻撃を防いだ！" % ("ボス" if str(actor) != "boss" else "味方"))
 		if entry.has("reflected"):
-			result_lines.append("反撃！ %s に %d ダメージ" % [actor_display_name("boss" if str(actor) != "boss" else entry.get("target", "boss"), battle), int(entry["reflected"])])
+			result_lines.append("反撃！ %s に %d ダメージ" % [actor_display_name("boss", battle), int(entry["reflected"])])
 
 	return {"actor_name": actor_name, "headline": headline, "result_lines": result_lines}
 
@@ -530,7 +533,7 @@ static func build_party_card(unit: RBMUnit, on_click: Callable) -> Control:
 	body.add_child(header)
 
 	# §18: 「将来の顔アイコン領域」——正式ドット絵が無い間は暗い額縁のみ。
-	header.add_child(build_portrait_placeholder(32.0, "PartyRowPortrait_%d" % unit.id))
+	header.add_child(build_portrait(unit.character_id, 32.0, "PartyRowPortrait_%d" % unit.id))
 
 	var name_label := Label.new()
 	name_label.name = "PartyRowName_%d" % unit.id
@@ -608,11 +611,44 @@ static func _compact_panel_box() -> StyleBoxFlat:
 ## （既存の共有Panel StyleBox、新しい配色は増やさない）だけで表現する——
 ## AI画像は生成しない。中身を持たない空の額縁のまま、将来ここへ
 ## TextureRectを追加するだけで差し替えられる構造にしてある。
-static func build_portrait_placeholder(size: float, node_name: String) -> PanelContainer:
+static func build_portrait(asset_id: String, portrait_size: float, node_name: String) -> Control:
+	var portrait := TextureRect.new()
+	portrait.name = node_name
+	portrait.custom_minimum_size = Vector2(portrait_size, portrait_size)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var texture := RBMVisualAssets.texture(asset_id)
+	if texture != null:
+		var image := texture.get_image()
+		# get_image() can return null for a texture whose import settings make it
+		# non-CPU-readable (e.g. VRAM compression) -- fall back to the uncropped
+		# texture rather than crashing on a null Image.
+		if image == null:
+			portrait.texture = texture
+			return portrait
+		var used := image.get_used_rect()
+		var side := mini(used.size.x, int(used.size.y * 0.50))
+		var atlas := AtlasTexture.new()
+		atlas.atlas = texture
+		atlas.region = Rect2(used.position.x + (used.size.x - side) * 0.5, used.position.y, side, side)
+		portrait.texture = atlas
+	return portrait
+
+static func build_portrait_placeholder(size: float, node_name: String, asset_id: String = "") -> PanelContainer:
 	var frame := PanelContainer.new()
 	frame.name = node_name
 	frame.custom_minimum_size = Vector2(size, size)
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if not asset_id.is_empty():
+		var sprite := TextureRect.new()
+		sprite.texture = RBMVisualAssets.texture(asset_id)
+		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		frame.add_child(sprite)
 	return frame
 
 # =============================================================================
@@ -629,38 +665,22 @@ static func build_portrait_placeholder(size: float, node_name: String) -> PanelC
 static func build_battlefield_stage(parent: Control, boss_label: Label) -> Dictionary:
 	var stage := VBoxContainer.new()
 	stage.name = "BattlefieldStage"
-	stage.alignment = BoxContainer.ALIGNMENT_CENTER
 	stage.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	stage.add_theme_constant_override("separation", 0)
 	parent.add_child(stage)
-
-	var top_spacer := Control.new()
-	top_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	stage.add_child(top_spacer)
-
-	var boss_portrait_wrap := CenterContainer.new()
-	stage.add_child(boss_portrait_wrap)
-	boss_portrait_wrap.add_child(build_portrait_placeholder(112.0, "BossPortrait"))
-
-	var boss_label_wrap := CenterContainer.new()
-	stage.add_child(boss_label_wrap)
 	boss_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	boss_label_wrap.add_child(boss_label)
-
-	var mid_spacer := Control.new()
-	mid_spacer.custom_minimum_size = Vector2(0, 18)
-	stage.add_child(mid_spacer)
-
+	stage.add_child(boss_label)
+	var visual_stage := RBMBattleStage.new()
+	visual_stage.name = "BattleVisualStage"
+	visual_stage.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	stage.add_child(visual_stage)
+	# Stable compatibility handle used by the three battle views.
 	var ally_row := HBoxContainer.new()
 	ally_row.name = "BattlefieldAllyRow"
-	ally_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	ally_row.add_theme_constant_override("separation", 28)
+	ally_row.visible = false
+	ally_row.set_meta("visual_stage", visual_stage)
 	stage.add_child(ally_row)
-
-	var bottom_spacer := Control.new()
-	bottom_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	stage.add_child(bottom_spacer)
-
-	return {"stage": stage, "ally_row": ally_row}
+	return {"stage": stage, "ally_row": ally_row, "visual_stage": visual_stage}
 
 ## §16: 戦場内の味方1体分——アイコン枠＋名前のみ（HP/SP等は表示しない、
 ## build_party_card側の下部ステータス領域が既にその役割を持つ）。クリックで
@@ -694,6 +714,10 @@ static func build_battlefield_ally_presence(unit: RBMUnit, on_click: Callable) -
 ## 現在のbattle.partyへ合わせて作り直す（人数はCreatorの選択次第で変わる
 ## ため、build_party_cardと同じ理由でrefreshのたび作り直す設計）。
 static func refresh_battlefield_ally_row(ally_row: Control, battle: RBMBattle, on_click: Callable) -> void:
+	var visual_stage: Node = ally_row.get_meta("visual_stage", null) as Node
+	if is_instance_valid(visual_stage):
+		visual_stage.set_state(battle.presentation_state())
+		return
 	clear_children_safely(ally_row)
 	for unit in battle.party:
 		ally_row.add_child(build_battlefield_ally_presence(unit, on_click))
@@ -754,6 +778,9 @@ static func refresh_turn_order_panel(panel: Control, battle: RBMBattle) -> void:
 			name_text = "%s（戦闘不能）" % name_text
 		var name_label := Label.new()
 		name_label.text = name_text
+		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		name_label.tooltip_text = name_text
 		name_label.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
 		content.add_child(name_label)
 
@@ -795,27 +822,41 @@ static func _turn_order_row_box() -> StyleBoxFlat:
 	box.anti_aliasing = false
 	return box
 
-## §33バグ修正（発見: skill_list_panelにスキル数が多い/複数行の詳細説明が
-## 入ると、右側CommandArea列の自然な高さが左側の党カード列を大きく上回り、
-## column自体はスクロールしないVBoxContainerのため、画面下部の
-## 「最初からやり直す／挑戦をやめる」ボタン列がビューポート外へ押し出されて
-## いた（§33「戦闘下部UIが切れない」への直接違反）。
-## §38（明白な原因・小さな修正範囲の表示バグは仕様判断なしで直してよい）に
-## 基づく修正——skill_list_panel自体（中身・visibleの意味・既存テストが読む
-## プロパティ）には一切触れず、親としてScrollContainerを1枚挟むだけ。
-## ScrollContainerは（scroll_modeが無効化されていない軸について）子の実サイズ
-## を親へ伝播しない——これによりスキル数がいくつでも、下部ボタン列を画面外へ
-## 押し出すことが構造的に無くなる（軽微な省スペースのためcustom_minimum_size
-## は付けず、size_flags_vertical=EXPAND_FILLで兄弟のMainCommandRowと同じ列
-## 高さいっぱいに自然に広がるようにする——スキル数が少ない通常時は見た目上
-## 何も変わらない）。
+## Fixed four skills share the full right column with turn order.
+## Keep the helper name for callers, but no scroll viewport clips the fourth skill.
 static func wrap_skill_list_scroll(command_area: Control, skill_list_panel: Control) -> void:
+	command_area.add_child(skill_list_panel)
+	skill_list_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+static func build_battle_message(parent: Control) -> Label:
+	var panel := PanelContainer.new()
+	panel.name = "LatestInfoPanel"
+	panel.custom_minimum_size.y = 112
+	panel.add_theme_stylebox_override("panel", _turn_order_row_box())
+	parent.add_child(panel)
 	var scroll := ScrollContainer.new()
-	scroll.name = "SkillListScroll"
+	scroll.name = "LatestInfoScroll"
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel.add_child(scroll)
+	var label := Label.new()
+	label.name = "LogLabel"
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(label)
+	return label
+
+## Bound the log body, leaving its close header permanently outside scrolling.
+static func fit_log_window(window: Dictionary, scroll: ScrollContainer) -> void:
+	var panel: Control = window["panel"]
+	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	panel.offset_left = 140
+	panel.offset_right = -140
+	panel.offset_top = 70
+	panel.offset_bottom = -70
+	(window["close_button"] as Button).text = "閉じる ×"
+	(window["close_button"] as Button).custom_minimum_size = Vector2(112, 44)
+	(window["content"] as Control).size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	command_area.add_child(scroll)
-	scroll.add_child(skill_list_panel)
 
 ## §4/§5/§6: 詳細ウィンドウ（味方/ボス共通の枠組み）を1つ生成する。
 ## overlay: 全画面を覆う半透明の背景（mouse_filter=STOP、背後の通常攻撃/
@@ -829,6 +870,7 @@ static func wrap_skill_list_scroll(command_area: Control, skill_list_panel: Cont
 static func build_detail_overlay(parent: Control, window_name: String) -> Dictionary:
 	var overlay := Control.new()
 	overlay.name = "%sOverlay" % window_name
+	overlay.z_index = 100
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay.visible = false

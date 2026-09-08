@@ -395,14 +395,17 @@ func _on_challenge_requested(definition: Dictionary) -> void:
 	# はchallenge_info_visibilityを意図的に含めない、そちらのdocコメント
 	# 参照）から公開設定を取り出し、戦闘Viewへそのまま引き継ぐ。
 	var visibility: Dictionary = RBMBattleUiKit.ALL_VISIBLE
+	var appearance_id := ""
 	if _confirm_view._draft != null:
 		visibility = _confirm_view._draft.challenge_info_visibility
+		appearance_id = _confirm_view._draft.appearance_id
 	# CHALLENGE UI再設計 §4-F/§10: 「挑戦者数」記録——実際に戦闘が開始される
 	# この瞬間にのみ1回加算する（「最初からやり直す」「もう一度挑戦」は
 	# 新たな挑戦者としては数えない、判断——完了報告で開示）。
 	if not _confirm_view.stage_id.is_empty():
 		RBMLocalStageRepository.record_challenge_attempt(_confirm_view.stage_id)
-	_battle_view.start_battle(definition, visibility)
+	_battle_view.battle_background = _confirm_view._draft.battle_background if _confirm_view._draft != null else "night"
+	_battle_view.start_battle(definition, visibility, appearance_id)
 	_show_battle()
 
 ## CHALLENGE UI再設計 §4-F/§10: 「クリア者数」記録——RBMChallengeBattleView

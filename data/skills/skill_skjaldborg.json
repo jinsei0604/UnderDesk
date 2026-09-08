@@ -1,8 +1,0 @@
-{
-	"id": "skill_skjaldborg",
-	"name_key": "SKILL_SKJALDBORG_NAME",
-	"desc_key": "SKILL_SKJALDBORG_DESC",
-	"sp_cost": null,
-	"target": "ally",
-	"effect": "buff_def"
-}

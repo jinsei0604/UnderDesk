@@ -50,6 +50,8 @@ signal exited  ## §36: 未保存確認を解決した（または元々不要�
 ## 保存済みボス一覧（_show_list()）へ直接戻るためだけに使う。
 signal exited_to_saved_list
 
+var _world_ui = preload("res://src/bossmaker/rbm_world_ui.gd").new()
+
 var draft: RBMCreatorDraft = RBMCreatorDraft.new()
 var current_step: int = 1
 var has_reached_summary: bool = false
@@ -676,4 +678,14 @@ func _refresh() -> void:
 	## 埋め込まない）。
 	_header.title_label.text = "ボス作成 ｜ %s" % STEP_NAMES[current_step - 1]
 	_header.step_label.text = "STEP %d / %d" % [current_step, STEP_COUNT]
+	_refresh_world_ui.call_deferred()
 
+
+func _refresh_world_ui() -> void:
+	_world_ui.creator_layout(self)
+	_world_ui.creator_selection(self)
+	_world_ui.walk(self)
+	for battle_view in [_test_battle_view, _clear_check_view]:
+		if battle_view.get_parent() != self:
+			battle_view.reparent(self)
+			battle_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

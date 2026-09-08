@@ -1,6 +1,8 @@
 class_name RBMCreatorAppearancePicker
 extends Control
 
+const VisualAssets = preload("res://src/bossmaker/visuals/rbm_visual_assets.gd")
+
 ## Phase 1 Step 4 §1-3 — dedicated "ボス外見一覧" page (grid, current-selection
 ## highlight, 選択/戻る/決定). Grid is built directly from
 ## RBMCreatorAppearanceCatalog.all(), so adding more entries later needs no
@@ -30,9 +32,14 @@ func _build_ui() -> void:
 		var id := str(entry["id"])
 		var cell := VBoxContainer.new()
 		grid.add_child(cell)
-		var swatch := ColorRect.new()
+		var swatch := TextureRect.new()
+		swatch.name = "AppearancePreview_%s" % id
 		swatch.custom_minimum_size = Vector2(48, 48)
-		swatch.color = RBMCreatorAppearanceCatalog.placeholder_color(id)
+		swatch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		swatch.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		swatch.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		swatch.texture = VisualAssets.texture(VisualAssets.boss_asset(id), 0)
 		cell.add_child(swatch)
 		var button := Button.new()
 		button.name = "Appearance_%s" % id

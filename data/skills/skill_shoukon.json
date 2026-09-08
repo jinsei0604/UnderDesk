@@ -1,8 +1,0 @@
-{
-	"id": "skill_shoukon",
-	"name_key": "SKILL_SHOUKON_NAME",
-	"desc_key": "SKILL_SHOUKON_DESC",
-	"sp_cost": null,
-	"target": "ally",
-	"effect": "buff_atk"
-}

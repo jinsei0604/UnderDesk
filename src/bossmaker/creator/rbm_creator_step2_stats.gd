@@ -4,11 +4,7 @@ extends Control
 ## Phase 1 Step 4 §2 — STEP 2: HP/ATK/SPD (slider+数値入力を完全同期) + 弱点/耐性
 ## 複数選択（同属性を反対側へ選ぶと自動的に元側解除）.
 ##
-## §13（カードUI具体仕様）: 「ボス能力」1枚のカードへ、HP/ATK/SPD/弱点/耐性を
-## まとめて表示する。通常表示は現在値の要約のみ——大量のSlider/SpinBox/属性
-## 選択ボタンは「編集」を押した時だけカード内へ展開する。編集中はドラフトへ
-## 直接書き込まず、決定で確定・キャンセルで編集開始時点の値へ戻す（元値は
-## _staged_*へ一時退避、ドラフト自体は編集完了までは一切変更されない）。
+## 能力工程は常時編集。変更を作成中データへ即時反映し、保存は最終確認で行う。
 ##
 ## §2-4: ranges come straight from RBMDefinitionLoader's own constants, never
 ## redefined here.
@@ -44,16 +40,9 @@ var _spd_spin: SpinBox
 var _weak_buttons: Dictionary = {}   # attribute(String) -> Button
 var _resist_buttons: Dictionary = {}
 
-var _normal_row: Control
-var _summary_label: Label
-var _edit_button: Button
 var _edit_panel: Control
-var _confirm_button: Button
-var _cancel_button: Button
 
-## §13-2の「編集」中だけ有効な一時退避値——決定を押すまでdraft.hp/atk/spd/
-## weak_attributes/resist_attributesは一切変更しない。
-var _editing := false
+## Display values synchronized from the draft.
 var _staged_hp := 0
 var _staged_atk := 0
 var _staged_spd := 0
@@ -103,22 +92,9 @@ func _build_ui() -> void:
 	## （§8）。
 	card_column.add_child(RBMCreatorUiKit.build_section_title("ボス能力"))
 
-	_normal_row = VBoxContainer.new()
-	_normal_row.name = "StatsNormalDisplay"
-	_normal_row.add_theme_constant_override("separation", 12)
-	card_column.add_child(_normal_row)
-	_summary_label = Label.new()
-	_summary_label.name = "StatsSummaryLabel"
-	_normal_row.add_child(_summary_label)
-	_edit_button = Button.new()
-	_edit_button.name = "EditStatsButton"
-	_edit_button.text = "編集"
-	_edit_button.pressed.connect(_on_edit_pressed)
-	_normal_row.add_child(_edit_button)
-
 	_edit_panel = VBoxContainer.new()
 	_edit_panel.name = "StatsEditPanel"
-	_edit_panel.visible = false
+	_edit_panel.visible = true
 	## §6「項目同士が詰まりすぎない」: HP/ATK/SPDの各グループ・弱点/耐性・
 	## 決定行の間に明確な間隔を持たせる。
 	_edit_panel.add_theme_constant_override("separation", 18)
@@ -191,21 +167,11 @@ func _build_ui() -> void:
 		resist_row.add_child(button)
 		_resist_buttons[attribute] = button
 
-	var confirm_row := HBoxContainer.new()
-	confirm_row.name = "StatsConfirmRow"
-	confirm_row.add_theme_constant_override("separation", 10)
-	_edit_panel.add_child(confirm_row)
-	_confirm_button = Button.new()
-	_confirm_button.name = "ConfirmStatsButton"
-	_confirm_button.text = "決定"
-	_confirm_button.pressed.connect(_on_confirm_pressed)
-	confirm_row.add_child(_confirm_button)
-	_cancel_button = Button.new()
-	_cancel_button.name = "CancelStatsButton"
-	_cancel_button.text = "キャンセル"
-	_cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
-	_cancel_button.pressed.connect(_on_cancel_pressed)
-	confirm_row.add_child(_cancel_button)
+	var note := Label.new()
+	note.text = "数値・属性の変更はその場で反映されます。保存は最終確認から行えます。"
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.add_theme_font_size_override("font_size",14)
+	_edit_panel.add_child(note)
 
 ## §5/§6: 「HP」のような見出しを上段に、[HSlider][現在値SpinBox]を下段に
 ## 並べる——添付の基本構造どおり「項目名 → 現在値とスライダー」という
@@ -260,36 +226,25 @@ func _build_synced_row(parent: Control, label_text: String, min_value: int, max_
 	spin.min_value = min_value
 	spin.max_value = max_value
 	spin.step = 1
+	spin.update_on_text_changed = true
 	spin.custom_minimum_size = spin_min_size
 	row.add_child(spin)
 	return [slider, spin]
 
-func _on_edit_pressed() -> void:
-	_editing = true
-	_staged_hp = draft.hp
-	_staged_atk = draft.atk
-	_staged_spd = draft.spd
-	_staged_weak = draft.weak_attributes.duplicate()
-	_staged_resist = draft.resist_attributes.duplicate()
-	refresh()
-
 func _on_hp_control_changed(v: float) -> void:
-	if _syncing:
-		return
-	_staged_hp = clampi(int(v), RBMDefinitionLoader.BOSS_HP_MIN, RBMDefinitionLoader.BOSS_HP_MAX)
-	_sync_stat_controls()
+	if _syncing: return
+	draft.hp = clampi(int(v),RBMDefinitionLoader.BOSS_HP_MIN,RBMDefinitionLoader.BOSS_HP_MAX)
+	_updated()
 
 func _on_atk_control_changed(v: float) -> void:
-	if _syncing:
-		return
-	_staged_atk = clampi(int(v), RBMDefinitionLoader.BOSS_ATK_MIN, RBMDefinitionLoader.BOSS_ATK_MAX)
-	_sync_stat_controls()
+	if _syncing: return
+	draft.atk = clampi(int(v),RBMDefinitionLoader.BOSS_ATK_MIN,RBMDefinitionLoader.BOSS_ATK_MAX)
+	_updated()
 
 func _on_spd_control_changed(v: float) -> void:
-	if _syncing:
-		return
-	_staged_spd = clampi(int(v), RBMDefinitionLoader.BOSS_SPD_MIN, RBMDefinitionLoader.BOSS_SPD_MAX)
-	_sync_stat_controls()
+	if _syncing: return
+	draft.spd = clampi(int(v),RBMDefinitionLoader.BOSS_SPD_MIN,RBMDefinitionLoader.BOSS_SPD_MAX)
+	_updated()
 
 func _sync_stat_controls() -> void:
 	_syncing = true
@@ -302,20 +257,12 @@ func _sync_stat_controls() -> void:
 	_syncing = false
 
 func _on_weak_button_pressed(attribute: String) -> void:
-	if _staged_weak.has(attribute):
-		_staged_weak.erase(attribute)
-	else:
-		_staged_resist.erase(attribute)
-		_staged_weak.append(attribute)
-	_sync_attribute_buttons()
+	draft.toggle_weak_attribute(attribute)
+	_updated()
 
 func _on_resist_button_pressed(attribute: String) -> void:
-	if _staged_resist.has(attribute):
-		_staged_resist.erase(attribute)
-	else:
-		_staged_weak.erase(attribute)
-		_staged_resist.append(attribute)
-	_sync_attribute_buttons()
+	draft.toggle_resist_attribute(attribute)
+	_updated()
 
 func _sync_attribute_buttons() -> void:
 	for attribute in _weak_buttons.keys():
@@ -323,22 +270,6 @@ func _sync_attribute_buttons() -> void:
 	for attribute in _resist_buttons.keys():
 		(_resist_buttons[attribute] as Button).button_pressed = _staged_resist.has(attribute)
 
-func _on_confirm_pressed() -> void:
-	draft.hp = _staged_hp
-	draft.atk = _staged_atk
-	draft.spd = _staged_spd
-	draft.weak_attributes = _staged_weak.duplicate()
-	draft.resist_attributes = _staged_resist.duplicate()
-	_editing = false
-	refresh()
-
-func _on_cancel_pressed() -> void:
-	_editing = false
-	refresh()
-
-## §13外の既存プログラム的API——テスト/呼び出し元がUIを経由せず直接ボス能力
-## を設定するための経路（実機UIの「編集→決定」フローとは独立して常に即座に
-## ドラフトへ反映する、既存の挙動をそのまま維持）。
 func set_hp(value: int) -> void:
 	draft.hp = clampi(value, RBMDefinitionLoader.BOSS_HP_MIN, RBMDefinitionLoader.BOSS_HP_MAX)
 	refresh()
@@ -359,45 +290,27 @@ func toggle_resist(attribute: String) -> void:
 	draft.toggle_resist_attribute(attribute)
 	refresh()
 
-## 通常表示中も_hp_slider等の実コントロールは(非表示のまま)draft.hp等と
-## 常に一致させておく——「編集」を押した瞬間に古い値が一瞬見えることを防ぎ、
-## かつ既存の直接書き込みAPI（set_hp()/toggle_weak()等）経由の変更が
-## _hp_spin.value等へもプログラム的に反映され続けることを保証する。編集中
-## だけは、まだdraftへ書き込んでいない一時値(_staged_*)がそのまま真実の
-## 表示内容になる。
+## Always derive displayed control values from the current draft.
 func refresh() -> void:
-	_normal_row.visible = not _editing
-	_edit_panel.visible = _editing
-	if not _editing:
-		_staged_hp = draft.hp
-		_staged_atk = draft.atk
-		_staged_spd = draft.spd
-		_staged_weak = draft.weak_attributes.duplicate()
-		_staged_resist = draft.resist_attributes.duplicate()
+	_staged_hp = draft.hp
+	_staged_atk = draft.atk
+	_staged_spd = draft.spd
+	_staged_weak = draft.weak_attributes.duplicate()
+	_staged_resist = draft.resist_attributes.duplicate()
 	_sync_stat_controls()
 	_sync_attribute_buttons()
-	## Creator本体UIコンセプト確定パス §5/§6: 「情報のまとまりが一目で
-	## 分かる」ようコンパクトな1行1項目へ整理した——数値の中身
-	## （draft.hp/atk/spd）・「なし」を含む属性表示は既存のまま無改修
-	## （既存テストがcontains()で検証するのはこれらの部分文字列のみ）。
-	if not _editing:
-		_summary_label.text = "HP　　%d\nATK　%d\nSPD　%d\n\n弱点：%s\n耐性：%s" % [
-			draft.hp, draft.atk, draft.spd,
-			_attribute_list_text(draft.weak_attributes),
-			_attribute_list_text(draft.resist_attributes),
-		]
-
-func _attribute_list_text(attributes: Array) -> String:
-	if attributes.is_empty():
-		return "なし"
-	var labels: Array = []
-	for attribute in attributes:
-		labels.append(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute, attribute)))
-	return " / ".join(labels)
 
 func is_step_valid() -> bool:
 	return draft.step2_is_valid()
 
 func validation_message() -> String:
 	return "HP/ATK/SPDを範囲内に設定してください"
+
+
+func _updated() -> void:
+	refresh()
+	draft.sync_published_with_clear_check()
+	if main != null and is_instance_valid(main._boss_profile_panel):
+		main._boss_profile_panel.update(draft)
+		main._status_label.text = "" if is_step_valid() else validation_message()
 

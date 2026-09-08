@@ -1,3 +1,11 @@
+# 現在のプロジェクト
+
+Makers & Challengers専用プロジェクトです。旧ゲームの実行コードと専用素材は依存関係監査後に除去しました。`bossmaker`/`RBM`は内部識別子として維持しています。
+
+現在はCreator、TEST BATTLE、Clear Check、Challenge、昼夜背景、戦闘演出、採用SEを実装済みです。REWINDはTEST BATTLEとClear Checkに存在します。以下にある「まだUIを接続しない」「REWINDは存在しない」等の説明は、その見出しのフェーズ当時の履歴です。現在の挙動はコードと回帰テストを参照してください。
+
+## 以下は開発経緯の記録
+
 # Makers & Challengers — 戦闘コア（分離境界）
 
 このディレクトリ（`src/bossmaker/`）と `data_bossmaker/` は、Makers & Challengers専用の

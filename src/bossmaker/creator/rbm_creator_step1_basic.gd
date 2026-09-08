@@ -1,6 +1,8 @@
 class_name RBMCreatorStep1Basic
 extends Control
 
+const VisualAssets = preload("res://src/bossmaker/visuals/rbm_visual_assets.gd")
+
 ## Phase 1 Step 4 §1 — STEP 1: ボス名 + 外見選択.
 ##
 ## §12（カードUI具体仕様）: 「入力フォームを常時見せる」のではなく「現在の
@@ -26,7 +28,7 @@ var _name_display_label: Label
 var _edit_name_button: Button
 var _name_normal_row: Control
 var _name_edit_row: Control
-var _appearance_preview_swatch: ColorRect
+var _appearance_preview_swatch: TextureRect
 var _editing_name := false
 
 ## 実機プレイ改善①§12: RBMGameRootと同じ理由・同じ技法。columnの識別
@@ -170,10 +172,13 @@ func _build_appearance_card(parent: Control) -> void:
 	_appearance_preview_surface = RBMCreatorUiKit.AppearancePreviewFrame.new()
 	_appearance_preview_surface.name = "AppearancePreviewSurface"
 	_appearance_preview_aspect.add_child(_appearance_preview_surface)
-	_appearance_preview_swatch = ColorRect.new()
+	_appearance_preview_swatch = TextureRect.new()
 	_appearance_preview_swatch.name = "AppearancePreviewSwatch"
 	_appearance_preview_swatch.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_appearance_preview_swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_appearance_preview_swatch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_appearance_preview_swatch.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_appearance_preview_swatch.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_appearance_preview_surface.add_child(_appearance_preview_swatch)
 	var placeholder_center := CenterContainer.new()
 	placeholder_center.name = "AppearancePreviewPlaceholderCenter"
@@ -246,10 +251,11 @@ func refresh() -> void:
 
 	if draft.appearance_id.is_empty():
 		_appearance_preview_label.text = "（未選択）"
-		_appearance_preview_swatch.color = APPEARANCE_SWATCH_EMPTY_COLOR
+		_appearance_preview_swatch.texture = null
 	else:
 		_appearance_preview_label.text = "現在の外見：%s" % RBMCreatorAppearanceCatalog.display_name(draft.appearance_id)
-		_appearance_preview_swatch.color = RBMCreatorAppearanceCatalog.placeholder_color(draft.appearance_id)
+		_appearance_preview_swatch.texture = VisualAssets.texture(VisualAssets.boss_asset(draft.appearance_id), 0)
+	_appearance_preview_surface.get_node("AppearancePreviewPlaceholderCenter").visible = _appearance_preview_swatch.texture == null
 
 func is_step_valid() -> bool:
 	return draft.step1_is_valid()

@@ -188,7 +188,7 @@ static func build_boss_card(entry: Dictionary, is_selected: bool, on_click: Call
 	row.name = "BossCardRow_%s" % stage_id
 	card.add_child(row)
 
-	row.add_child(RBMBattleUiKit.build_portrait_placeholder(72.0, "BossCardImage_%s" % stage_id))
+	row.add_child(RBMBattleUiKit.build_portrait_placeholder(72.0, "BossCardImage_%s" % stage_id, RBMVisualAssets.boss_asset(str(entry.get("appearance_id", "")))))
 
 	var info := VBoxContainer.new()
 	info.name = "BossCardInfo_%s" % stage_id

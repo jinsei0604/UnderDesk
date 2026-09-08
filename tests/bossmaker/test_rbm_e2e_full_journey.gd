@@ -109,11 +109,11 @@ func test_full_phase1_journey_launch_through_challenge_result() -> void:
 	# STEPまで無理に実UI化するのは無関係なリファクタリングになるため）。
 	main.go_to_step(2)
 	var step2: RBMCreatorStep2Stats = main._step_views[1]
-	_btn(step2, "EditStatsButton").pressed.emit()
+	assert_true(step2._edit_panel.visible, "能力は最初から編集可能")
 	step2._hp_spin.value = 1  # TEST BATTLE/Clear Check/CHALLENGEすべてで確実に1撃勝利させる
 	step2._atk_spin.value = 1
 	step2._spd_spin.value = 1
-	_btn(step2, "ConfirmStatsButton").pressed.emit()
+	assert_null(step2.find_child("ConfirmStatsButton", true, false), "数値反映に決定は不要")
 	assert_eq(main.draft.hp, 1, "sanity: STEP2実UI経由で能力が反映されること")
 	assert_eq(main.draft.atk, 1)
 	assert_eq(main.draft.spd, 1)

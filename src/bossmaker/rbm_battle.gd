@@ -206,8 +206,34 @@ func _entry_is_before(a: Dictionary, b: Dictionary) -> bool:
 ## 瞬間」——advance_to_next_decision()はラウンド繰り上げのたびcurrent_turn
 ## を増分するため、繰り上げ前に追加されたentryは古いターン番号を、繰り上げ
 ## 後に追加されたentryは新しいターン番号を、それぞれ正しく受け取る。
+
+## Presentation metadata only: detached values, no RNG or battle-state writes.
+## A resolved batch may contain multiple boss actions; each impact needs its own HUD state.
+func presentation_state() -> Dictionary:
+	var allies := {}
+	for unit in party:
+		allies[str(unit.id)] = _presentation_unit_state(unit)
+	return {
+		"turn": current_turn, "battle_over": battle_over, "winner": winner,
+		"boss": _presentation_unit_state(boss), "party": allies,
+		"party_timed_effects": party_timed_effects.duplicate(true),
+	}
+
+func _presentation_unit_state(unit: RBMUnit) -> Dictionary:
+	return {
+		"id": unit.id, "character_id": unit.character_id, "display_name": unit.display_name,
+		"hp": unit.hp, "max_hp": unit.max_hp, "sp": unit.sp, "max_sp": unit.max_sp,
+		"is_downed": unit.is_downed(), "is_defending": unit.is_defending,
+		"counter_pending": unit.counter_pending_this_turn,
+		"protecting_ally_id": unit.protecting_ally_id,
+		"next_attack_bonus_multiplier": unit.next_attack_bonus_multiplier,
+		"timed_effects": unit.timed_effects.duplicate(true),
+	}
+
+
 func _log_entry(entry: Dictionary) -> Dictionary:
 	entry["turn"] = current_turn
+	entry["visual_state"] = presentation_state()
 	return entry
 
 func _unit_by_id(id: int) -> RBMUnit:
@@ -989,10 +1015,10 @@ func _apply_boss_hit_to_ally(target: RBMUnit, atk_mult: float, attribute: RBMCon
 		var reflected := _compute_and_apply_damage(actual_target, boss, counter_mult, counter_attribute, true, str(counter_skill.get("id", "")))
 		# Required fix #6: the incoming hit that the counter blocked is explicitly
 		# logged as amount=0, distinct from the (separate, real) reflected damage.
-		return {"blocked": true, "counter": true, "target": actual_target.id, "amount": 0, "reflected": reflected}
+		return {"blocked": true, "counter": true, "target": actual_target.id, "amount": 0, "reflected": reflected, "visual_original_target": target.id}
 
 	var amount := _compute_and_apply_damage(boss, actual_target, atk_mult, attribute, false)
-	return {"amount": amount, "target": actual_target.id}
+	return {"amount": amount, "target": actual_target.id, "visual_original_target": target.id}
 
 ## The single damage formula for both directions (v0.1-B §6, §7):
 ##   ATK × スキル倍率 × 属性補正 × (居合ボーナス, if applicable) × ダメージ軽減

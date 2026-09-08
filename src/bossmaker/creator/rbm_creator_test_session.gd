@@ -32,6 +32,15 @@ extends RefCounted
 var history: Array[Dictionary] = []
 var battle: RBMBattle
 
+## Initial/rewind automatic actions are retained for the view, after normal synchronous resolution.
+var presentation_initial_state: Dictionary = {}
+var pending_presentation_log: Array[Dictionary] = []
+
+func take_presentation_log() -> Array[Dictionary]:
+	var entries := pending_presentation_log
+	pending_presentation_log = []
+	return entries
+
 var _definition: Dictionary
 var _seed: int
 var _last_start_result: Dictionary = {}
@@ -52,6 +61,8 @@ func start_errors() -> Array:
 	return _last_start_result.get("errors", [])
 
 func _start_fresh() -> void:
+	presentation_initial_state = {}
+	pending_presentation_log = []
 	_last_start_result = RBMDefinitionLoader.start_battle(_definition, _seed)
 	if start_ok():
 		battle = _last_start_result["battle"]
@@ -62,7 +73,8 @@ func _start_fresh() -> void:
 		# 速いボスの1手等）を進める。手動でbattle.snapshot()を追加で呼ぶ
 		# 必要はもう無い（advance()に一本化した）。
 		history = []
-		advance()
+		presentation_initial_state = battle.presentation_state()
+		pending_presentation_log = advance()
 	else:
 		battle = null
 		history = []
@@ -160,5 +172,6 @@ func rewind_to(turn: int) -> bool:
 		return false
 	battle.restore(history[index])
 	history.resize(index + 1)
-	advance(true)
+	presentation_initial_state = battle.presentation_state()
+	pending_presentation_log = advance(true)
 	return true

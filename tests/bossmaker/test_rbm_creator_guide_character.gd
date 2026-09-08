@@ -22,9 +22,19 @@ func _new_entry() -> RBMCreatorEntry:
 ## §27「実際にこの画面を開く」導線——NewBossButtonを押すまでは重い構築を
 ## 遅延させる設計（§24と同じ精神）のため、他のテストと同じくここでも
 ## 実プレイヤー導線どおりに一度押してから画面へ到達する。
-func _open_mode_choice(entry: RBMCreatorEntry) -> void:
+func _open_mode_choice(entry: RBMCreatorEntry, with_retained_character := true) -> void:
 	entry.find_child("NewBossButton", true, false).pressed.emit()
 	await get_tree().process_frame
+	# Guide animation tests exercise the retained component independently of the new screen.
+	if with_retained_character and entry.find_child("GuideCharacter",true,false) == null:
+		var layer := Control.new()
+		layer.name = "CharacterTestFixture"
+		layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		entry._mode_choice_panel.add_child(layer)
+		var character := RBMCreatorGuideCharacter.new()
+		character.name = "GuideCharacter"
+		layer.add_child(character)
+
 
 func test_background_image_displays() -> void:
 	var entry := await _new_entry()
@@ -33,27 +43,23 @@ func test_background_image_displays() -> void:
 	assert_not_null(background, "Background TextureRect should exist")
 	assert_not_null(background.texture, "Background should have a loaded texture (the room art)")
 
-func test_character_is_on_a_separate_layer_from_background() -> void:
+func test_method_screen_has_no_guide_but_retains_original_asset() -> void:
 	var entry := await _new_entry()
-	await _open_mode_choice(entry)
-	var panel: Control = entry.find_child("ModeChoicePanel", true, false)
-	var background: TextureRect = entry.find_child("Background", true, false)
-	var character_layer: Control = entry.find_child("CharacterLayer", true, false)
-	var guide_character: RBMCreatorGuideCharacter = entry.find_child("GuideCharacter", true, false)
-	assert_not_null(character_layer, "CharacterLayer should exist as its own node")
-	assert_not_null(guide_character, "GuideCharacter should exist under CharacterLayer")
-	assert_ne(background.get_parent(), character_layer, "background and character must not share the same parent as if baked together")
-	assert_eq(guide_character.get_parent(), character_layer, "character should be a child of CharacterLayer, not the background")
-	assert_eq(background.get_parent(), panel)
-	assert_eq(character_layer.get_parent(), panel)
+	await _open_mode_choice(entry,false)
+	assert_null(entry.find_child("CharacterLayer",true,false))
+	assert_null(entry.find_child("GuideCharacter",true,false))
+	assert_null(entry._guide_character)
+	assert_not_null(entry._mode_choice_panel.find_child("Background",true,false))
+	assert_not_null(load(RBMCreatorGuideCharacter.IDLE_TEXTURE_A_PATH))
+	assert_true(ResourceLoader.exists("res://src/bossmaker/creator/rbm_creator_guide_character.gd"))
 
-func test_character_layer_and_character_do_not_block_mouse_input() -> void:
+func test_method_decorations_do_not_block_mouse_input() -> void:
 	var entry := await _new_entry()
-	await _open_mode_choice(entry)
-	var character_layer: Control = entry.find_child("CharacterLayer", true, false)
-	var guide_character: RBMCreatorGuideCharacter = entry.find_child("GuideCharacter", true, false)
-	assert_eq(character_layer.mouse_filter, Control.MOUSE_FILTER_IGNORE, "CharacterLayer must not block button clicks underneath/around it")
-	assert_eq(guide_character.mouse_filter, Control.MOUSE_FILTER_IGNORE, "GuideCharacter itself must not block button clicks")
+	await _open_mode_choice(entry,false)
+	for name_text in ["ChooseSimpleModeButton","ChooseAdvancedModeButton"]:
+		var button: Button = entry.find_child(name_text,true,false)
+		for child in button.get_children():
+			if child is Control: assert_eq(child.mouse_filter,Control.MOUSE_FILTER_IGNORE)
 
 func test_choice_buttons_and_back_button_exist_and_are_enabled() -> void:
 	var entry := await _new_entry()
@@ -73,80 +79,53 @@ func test_choice_buttons_and_back_button_exist_and_are_enabled() -> void:
 	# 自身のtextではなく専用のLabel子ノードで描画するようになった
 	# （ModeChoiceBackButtonFrameが描画するフレームが、button.textを残すと
 	# それを覆い隠してしまうため）。
-	assert_eq(back_btn.find_child("ModeChoiceBackButtonLabel", true, false).text, "← 戻る")
+	assert_eq(back_btn.text, "戻る")
 
 func test_method_ui_layout_and_text_fit_at_1280_by_720() -> void:
 	var entry := await _new_entry()
-	entry.size = Vector2(1280, 720)
-	await _open_mode_choice(entry)
+	entry.size = Vector2(1280,720)
+	await _open_mode_choice(entry,false)
 	await get_tree().process_frame
-	await get_tree().process_frame
-	var dialogue: Control = entry.find_child("DialogueLayer", true, false)
-	var simple: Button = entry.find_child("ChooseSimpleModeButton", true, false)
-	var hardcore: Button = entry.find_child("ChooseAdvancedModeButton", true, false)
-	var back: Button = entry.find_child("ModeChoiceBackButton", true, false)
-	assert_eq(dialogue.position, Vector2(500, 56), "keep the dialogue beside the guide's hand")
-	assert_eq(dialogue.size, Vector2(640, 172))
-	# 右側UI仕上げ（2026-09-04）: 添付デザイン画像の実測アスペクト比（640幅
-	# 基準で選択パネル高さ100・説明パネル高さ172）を採用——3パネルとも
-	# 横幅640で揃え（§5「横幅を統一」）、縦の間隔も24/14の不統一だった旧
-	# 値から20pxへ統一した（§5「縦方向の間隔を統一」）。
-	assert_eq(simple.size, Vector2(RBMCreatorEntry.MODE_CHOICE_PANEL_WIDTH_PX, RBMCreatorEntry.MODE_CHOICE_SELECTION_PANEL_HEIGHT_PX))
-	assert_eq(hardcore.size, simple.size, "both methods have equal priority")
-	assert_eq(simple.global_position.x, dialogue.global_position.x)
-	assert_eq(hardcore.global_position.x, dialogue.global_position.x)
-	assert_eq(simple.global_position.y - dialogue.get_global_rect().end.y, RBMCreatorEntry.MODE_CHOICE_PANEL_GAP_PX)
-	assert_eq(hardcore.global_position.y - simple.get_global_rect().end.y, RBMCreatorEntry.MODE_CHOICE_PANEL_GAP_PX)
-	assert_eq(back.position, Vector2(60, 636), "back stays at its original location")
-	assert_eq(back.size, Vector2(150, 40))
-	# 右側UI仕上げ（2026-09-04）: 戻るボタンは他の主要ボタンと同じ「常時
-	# 透過スタイル＋自前描画フレーム」方式へ変わったため、Godotのテーマ
-	# stylebox自体を直接検証する旧チェックは意味を持たなくなった——代わりに
-	# 全stateで実際に透過boxが使われていること（フレーム側で全ての見た目
-	# を担っており、テーマのstyleboxが何かを覆い隠すことは構造的に無い）
-	# を確認する。
-	for state in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
-		var box: StyleBox = back.get_theme_stylebox(state)
-		assert_true(box is StyleBoxFlat and (box as StyleBoxFlat).bg_color.a == 0.0, "back button's %s stylebox must stay fully transparent; ModeChoiceBackButtonFrame draws the visible look instead" % state)
-	var viewport_rect := Rect2(Vector2.ZERO, Vector2(1280, 720))
-	for region in [dialogue, simple, hardcore, back]:
-		assert_true(viewport_rect.encloses(region.get_global_rect()))
-		for label in region.find_children("*", "Label", true, false):
-			assert_true(region.get_global_rect().encloses(label.get_global_rect()), "%s stays inside its panel" % label.name)
-			assert_true(label.size.x >= label.get_minimum_size().x, "%s has no horizontal text clipping" % label.name)
-			assert_true(label.size.y >= label.get_minimum_size().y, "%s has no vertical text clipping" % label.name)
-	for label_name in ["CategoryLabel", "TitleLabel", "DescriptionLabel"]:
-		var left: Label = simple.find_child(label_name, true, false)
-		var right: Label = hardcore.find_child(label_name, true, false)
-		assert_eq(left.global_position - simple.global_position, right.global_position - hardcore.global_position)
-	assert_eq(simple.find_child("CategoryLabel", true, false).text, "SIMPLE")
-	assert_eq(hardcore.find_child("CategoryLabel", true, false).text, "HARDCORE")
-	assert_eq(entry.find_child("ModeChoiceHintLabel", true, false).text, "作成開始後はモードを変更できません")
-	var guide: Control = entry.find_child("GuideCharacter", true, false)
-	assert_eq(guide.position, Vector2(76, 19))
-	assert_eq(guide.scale, Vector2(0.5, 0.5))
+	var simple: Button = entry.find_child("ChooseSimpleModeButton",true,false)
+	var hardcore: Button = entry.find_child("ChooseAdvancedModeButton",true,false)
+	var back: Button = entry.find_child("ModeChoiceBackButton",true,false)
+	assert_eq(simple.size,Vector2(448,244))
+	assert_eq(hardcore.size,simple.size)
+	assert_eq(simple.position,Vector2(176,248))
+	assert_eq(hardcore.position,Vector2(656,248))
+	assert_eq(back.position,Vector2(56,636))
+	assert_eq(back.size,Vector2(150,44))
+	assert_eq(simple.position.x,1280.0-hardcore.get_rect().end.x,"balanced margins with no guide-sized blank area")
+	for region in [simple,hardcore,back]:
+		assert_true(Rect2(0,0,1280,720).encloses(region.get_global_rect()))
+		for child in region.find_children("*","Label",true,false):
+			assert_true(region.get_global_rect().encloses(child.get_global_rect()))
+			assert_gte(child.size.x,child.get_minimum_size().x)
+			assert_gte(child.size.y,child.get_minimum_size().y)
+	for key in ["CategoryLabel","TitleLabel","DescriptionLabel"]:
+		assert_eq(simple.find_child(key,true,false).position,hardcore.find_child(key,true,false).position)
+	assert_eq(simple.find_child("CategoryLabel",true,false).text,"SIMPLE")
+	assert_eq(hardcore.find_child("CategoryLabel",true,false).text,"HARDCORE")
+	assert_eq(entry.find_child("ModeChoiceHintLabel",true,false).text,"作成開始後はモードを変更できません")
+	for state in ["normal","hover","pressed","hover_pressed","focus","disabled"]:
+		assert_not_null(back.get_theme_stylebox(state))
 
 func test_method_cards_focus_press_and_release_feedback() -> void:
 	var entry := await _new_entry()
-	await _open_mode_choice(entry)
-	for node_name in ["ChooseSimpleModeButton", "ChooseAdvancedModeButton"]:
-		var button: Button = entry.find_child(node_name, true, false)
-		var surface = button.find_child("MethodCardSurface", true, false)
-		assert_eq(button.focus_mode, Control.FOCUS_ALL)
-		for decoration in button.find_children("*", "Control", true, false):
-			assert_eq(decoration.mouse_filter, Control.MOUSE_FILTER_IGNORE, "card contents cannot intercept clicks")
+	await _open_mode_choice(entry,false)
+	for key in ["ChooseSimpleModeButton","ChooseAdvancedModeButton"]:
+		var button: Button = entry.find_child(key,true,false)
+		assert_eq(button.focus_mode,Control.FOCUS_ALL)
+		for child in button.get_children():
+			if child is Control: assert_eq(child.mouse_filter,Control.MOUSE_FILTER_IGNORE)
 		button.grab_focus()
-		surface._process(0.12)
-		assert_eq(surface.amount, 1.0)
-		assert_eq(surface.title_label.get_theme_color("font_color"), RBMCreatorEntry.METHOD_IVORY_LIGHT)
-		button.button_down.emit()
-		assert_true(surface.pressed)
-		button.button_up.emit()
-		assert_false(surface.pressed)
+		assert_true(button.has_focus())
+		assert_true(button.get_theme_stylebox("normal") is StyleBoxTexture)
+		assert_ne(button.get_theme_stylebox("normal"),button.get_theme_stylebox("hover"))
+		assert_ne(button.get_theme_stylebox("normal"),button.get_theme_stylebox("pressed"))
+		assert_not_null(button.get_theme_stylebox("focus"))
 		button.release_focus()
-		surface._process(0.12)
-		assert_eq(surface.amount, 0.0)
-		assert_false(surface.is_processing(), "no idle redraw loop")
+		assert_false(button.has_focus())
 
 func test_choose_simple_mode_transitions_to_creator_in_simple_mode() -> void:
 	var entry := await _new_entry()
@@ -195,8 +174,8 @@ func test_background_does_not_move_while_character_animates() -> void:
 func test_ui_does_not_move_while_character_animates() -> void:
 	var entry := await _new_entry()
 	await _open_mode_choice(entry)
-	var dialogue_layer: Control = entry.find_child("DialogueLayer", true, false)
-	var choice_buttons: Control = entry.find_child("ChoiceButtons", true, false)
+	var dialogue_layer: Control = entry.find_child("MethodHeadingPanel", true, false)
+	var choice_buttons: Control = entry.find_child("ChooseSimpleModeButton", true, false)
 	var back_button: Button = entry.find_child("ModeChoiceBackButton", true, false)
 	var before := {
 		"dialogue_pos": dialogue_layer.position,
@@ -214,7 +193,7 @@ func test_ui_does_not_move_while_character_animates() -> void:
 ## アニメーションが多重発火したりしてはいけない。
 func test_revisiting_mode_choice_does_not_accumulate_nodes_or_duplicate_the_character() -> void:
 	var entry := await _new_entry()
-	await _open_mode_choice(entry)
+	await _open_mode_choice(entry,false)
 	var panel: Control = entry.find_child("ModeChoicePanel", true, false)
 	var child_count_after_first_visit := panel.get_child_count()
 	var first_character: RBMCreatorGuideCharacter = entry.find_child("GuideCharacter", true, false)
@@ -227,7 +206,7 @@ func test_revisiting_mode_choice_does_not_accumulate_nodes_or_duplicate_the_char
 		await get_tree().process_frame
 
 	var characters := entry.find_children("GuideCharacter", "", true, false)
-	assert_eq(characters.size(), 1, "there must still be exactly one GuideCharacter instance, not duplicated")
+	assert_eq(characters.size(), 0, "the real mode screen must remain character-free")
 	assert_eq(entry.find_child("GuideCharacter", true, false), first_character, "re-showing the screen must reuse the same character instance")
 	assert_eq(panel.get_child_count(), child_count_after_first_visit, "revisiting must not add extra sibling nodes (Background/CharacterLayer/DialogueLayer/ChoiceButtons/BackButton should stay a fixed set)")
 

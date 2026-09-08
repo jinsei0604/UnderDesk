@@ -173,7 +173,8 @@ func test_creator_entry_top_screen_uses_real_background_and_matches_reference_la
 	assert_not_null(underline, "title must keep its thin gold rule/diamond ornament")
 	assert_eq(new_label.text, "新しいボス戦を作る")
 	assert_eq(edit_label.text, "保存したボス戦を編集")
-	assert_eq(back_button.text, "← 戻る")
+	assert_eq(back_button.text, "戻る")
+	assert_not_null(back_button.icon, "戻る矢印は共通ピクセルアイコンで表示")
 
 	# タイトル→(区切り線)→説明→(扉)→2つの選択肢、という視線の流れ。
 	assert_true(title.global_position.y + title.size.y <= underline.global_position.y + EPSILON, "title must precede its underline")

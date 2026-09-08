@@ -1,9 +1,0 @@
-{
-	"id": "skill_fireball",
-	"name_key": "SKILL_FIREBALL_NAME",
-	"desc_key": "SKILL_FIREBALL_DESC",
-	"sp_cost": 5,
-	"power": 8,
-	"target": "enemy",
-	"effect": "damage"
-}

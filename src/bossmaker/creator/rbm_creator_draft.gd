@@ -63,6 +63,7 @@ const CHALLENGE_INFO_VISIBILITY_KEYS: Array[String] = [
 # STEP 1
 var boss_name: String = ""
 var appearance_id: String = ""
+var battle_background: String = "night"
 
 # STEP 2
 var hp: int = 1
@@ -1524,6 +1525,7 @@ func to_saved_dict() -> Dictionary:
 	return {
 		"boss_name": boss_name,
 		"appearance_id": appearance_id,
+		"battle_background": battle_background,
 		"hp": hp, "atk": atk, "spd": spd,
 		"weak_attributes": weak_attributes.duplicate(),
 		"resist_attributes": resist_attributes.duplicate(),
@@ -1592,6 +1594,7 @@ func clear_check_snapshot_for_save() -> Dictionary:
 func restore_from_saved_dict(data: Dictionary) -> void:
 	boss_name = str(data.get("boss_name", ""))
 	appearance_id = str(data.get("appearance_id", ""))
+	battle_background = "day" if data.get("battle_background", "night") == "day" else "night"
 	hp = int(data.get("hp", 1))
 	atk = int(data.get("atk", 1))
 	spd = int(data.get("spd", 1))

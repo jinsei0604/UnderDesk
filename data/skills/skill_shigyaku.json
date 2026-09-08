@@ -1,8 +1,0 @@
-{
-	"id": "skill_shigyaku",
-	"name_key": "SKILL_SHIGYAKU_NAME",
-	"desc_key": "SKILL_SHIGYAKU_DESC",
-	"sp_cost": null,
-	"target": "enemy",
-	"effect": "damage"
-}

@@ -1,8 +1,0 @@
-{
-	"id": "skill_lif",
-	"name_key": "SKILL_LIF_NAME",
-	"desc_key": "SKILL_LIF_DESC",
-	"sp_cost": null,
-	"target": "ally",
-	"effect": "heal"
-}

@@ -44,7 +44,7 @@ var _draft: RBMCreatorDraft = null
 var _content: VBoxContainer
 var _empty_state_label: Label
 var _detail_content: VBoxContainer
-var _preview_swatch: ColorRect
+var _preview_swatch: TextureRect
 var _boss_name_label: Label
 var _author_label: Label
 var _mode_label: Label
@@ -120,7 +120,10 @@ func _build_ui() -> void:
 	# だけ大きくする）。
 	var preview_frame := RBMBattleUiKit.build_portrait_placeholder(160.0, "ConfirmBossImage")
 	_detail_content.add_child(preview_frame)
-	_preview_swatch = ColorRect.new()
+	_preview_swatch = TextureRect.new()
+	_preview_swatch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_preview_swatch.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_preview_swatch.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_preview_swatch.name = "ConfirmBossImageSwatch"
 	_preview_swatch.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_preview_swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -250,9 +253,9 @@ func _refresh() -> void:
 	_author_label.text = "by %s" % (_draft.author_name if not _draft.author_name.is_empty() else "（未設定）")
 	_mode_label.text = RBMChallengeUiKit.mode_display_text(_draft.creator_mode)
 	if _draft.appearance_id.is_empty():
-		_preview_swatch.color = Color("#232b38")
+		_preview_swatch.texture = null
 	else:
-		_preview_swatch.color = RBMCreatorAppearanceCatalog.placeholder_color(_draft.appearance_id)
+		_preview_swatch.texture = RBMVisualAssets.texture(RBMVisualAssets.boss_asset(_draft.appearance_id))
 	_appearance_label.text = "外見: %s" % (RBMCreatorAppearanceCatalog.display_name(_draft.appearance_id) if not _draft.appearance_id.is_empty() else "（未選択）")
 	_stage_id_label.text = "ステージID: %s" % stage_id
 

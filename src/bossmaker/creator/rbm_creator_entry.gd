@@ -30,11 +30,10 @@ const SEARCH_FIELD_MIN_SIZE := Vector2(170.0, 32.0)
 const MODE_CHOICE_BACKGROUND_PATH := "res://assets_bossmaker/art/creator_method_select_background.png"
 
 ## 右側UI簡略化パス（2026-09-04）: 説明パネル／SIMPLE・HARDCORE選択パネルは
-## 現在ModeChoicePanelSurfaceのGodot描画プリミティブで再現しており、画像
-## 素材は使用していない（詳細はModeChoicePanelSurfaceのクラス冒頭コメント
-## 参照）。旧mode_choice_description_panel.png/_selection_panel.pngは
-## 過去のデザイン検討の記録として資産フォルダに残置しているが、コードから
-## の参照は無い。
+## Godotの描画プリミティブ（現在はRBMWorldUi.method_layout()側）で再現して
+## おり、画像素材は使用していない。旧mode_choice_description_panel.png/
+## _selection_panel.pngは過去のデザイン検討の記録として資産フォルダに残置
+## しているが、コードからの参照は無い。
 
 ## 「ボス戦を作成」TOP画面（_build_top_panel()）の背景。同じくユーザー
 ## 提供の完成アート（UIなしの扉背景）をそのまま使用——新規AI生成・
@@ -75,6 +74,9 @@ const STATUS_LABELS := {
 
 func _ready() -> void:
 	_build_ui()
+	var world = preload("res://src/bossmaker/rbm_world_ui.gd").new()
+	world.entry_layout(self)
+	world.walk(self)
 
 func _build_ui() -> void:
 	# Phase 3.5 UI統一§0/§5/§9: 従来はここに一切Themeを適用しておらず、
@@ -140,9 +142,9 @@ const ENTRY_BACK_BUTTON_SIZE := Vector2(150.0, 44.0)
 const ENTRY_BACK_BUTTON_MARGIN_PX := 40.0
 
 ## 「ボス戦を作成」入口だけで使うパレット。メインボタン自体は作成方法
-## 選択画面（_build_mode_choice_content()）と全く同じ紺＋金の意匠
-## （MethodChoiceSurface、完成イメージのボタン意匠と同一系統のため流用）
-## を使うので、ここにはタイトル・下線・戻るボタン用の色だけを残す。
+## 選択画面と同じ紺＋金の意匠（MethodChoiceSurface、完成イメージのボタン
+## 意匠と同一系統のため流用）を使うので、ここにはタイトル・下線・戻る
+## ボタン用の色だけを残す。
 const ENTRY_COLOR_ACCENT := Color("#ad8748")
 const ENTRY_COLOR_ACCENT_HOVER := Color("#d3aa5b")
 const ENTRY_COLOR_TITLE := Color("#eadcbd")
@@ -399,7 +401,18 @@ func _ensure_mode_choice_content_built() -> void:
 	if _mode_choice_content_built:
 		return
 	_mode_choice_content_built = true
-	_build_mode_choice_content()
+	# Character-free selection is constructed directly; keep reusable guide assets intact.
+	var background := TextureRect.new()
+	background.name = "Background"
+	background.texture = load(MODE_CHOICE_BACKGROUND_PATH)
+	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mode_choice_panel.add_child(background)
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var world = preload("res://src/bossmaker/rbm_world_ui.gd").new()
+	world.method_layout(self)
+	world.walk(_mode_choice_panel)
 
 ## 作成方法選択画面専用。共有Theme・入口・Creator本体へは適用しない。
 const METHOD_INK := Color("#111925")
@@ -472,364 +485,6 @@ class MethodChoiceSurface:
 		else:
 			draw_line(Vector2(2, 20), Vector2(2, size.y - 20), Color(METHOD_GOLD_LIGHT, amount), 3.0)
 
-## 右側UI簡略化パス（2026-09-04）: 説明パネル／SIMPLE・HARDCOREパネル専用。
-## 前回までは完成デザイン画像（唐草・大きな四隅装飾・上下中央の大きな
-## 菱形・二重に近い強い金枠）をそのまま描画していたが、「装飾が重すぎる」
-## との判断で、より簡素な意匠（角を落とした八角形＋細い二重線の金枠＋
-## 角に小さな菱形1つだけ）へ全面的に描き直した。
-##
-## 新しいリファレンス画像は調査の結果Format24bppRgb（アルファチャンネル
-## 無し）で、見た目の透明市松模様は実際には不透明なグレーのチェッカー柄
-## がそのまま画素として焼き込まれたものだった——ゲーム内でテクスチャとして
-## 直接使うと市松模様がそのまま描画されてしまうため使用できないと判断し
-## （「素材の比率が不自然になる/無理に画像をそのまま使用しない」の一種の
-## 具体例）、実測した色・比率をGodotの描画プリミティブで再現する方式を
-## 採用した。ネオン発光・拡大は行わない——濃紺地と金枠がわずかに明るくなる
-## 程度のtintのみ（§7）、押下時はパネル内部を暗くする（§9）。
-## MethodChoiceSurface（「ボス戦を作成」TOP画面で確定済み、変更禁止）とは
-## 完全に独立したクラス——ここへの変更がTOP画面へ波及することはない。
-class ModeChoicePanelSurface:
-	extends Control
-
-	const FILL_COLOR := Color("#0d2440")
-	const FILL_HOVER_COLOR := Color("#15305a")
-	const FILL_PRESSED_COLOR := Color("#081a2e")
-	const BORDER_COLOR := Color("#c9a15f")
-	const BORDER_HOVER_COLOR := Color("#e6c07d")
-	const INNER_BORDER_COLOR := Color("#8a6f45")
-	const CHAMFER_RATIO := 0.16
-	const CHAMFER_MIN_PX := 10.0
-	const CHAMFER_MAX_PX := 22.0
-	const INNER_INSET_PX := 7.0
-
-	var amount := 0.0
-	var target := 0.0
-	var pressed := false
-	var title_label: Label
-
-	func _ready() -> void:
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		set_process(false)
-
-	func set_state(highlighted: bool, down: bool) -> void:
-		target = 1.0 if highlighted else 0.0
-		pressed = down
-		set_process(true)
-		queue_redraw()
-
-	func _process(delta: float) -> void:
-		amount = move_toward(amount, target, delta / 0.12)
-		if is_instance_valid(title_label):
-			title_label.add_theme_color_override("font_color", METHOD_IVORY.lerp(METHOD_IVORY_LIGHT, amount))
-		queue_redraw()
-		if is_equal_approx(amount, target):
-			set_process(false)
-
-	## 角を落とした八角形の8頂点（左上から時計回り）。ModeChoiceBackButton
-	## Frameからも共有して呼ぶ（staticのため、そちらでもインスタンス不要）。
-	static func chamfer_points(rect_size: Vector2, chamfer: float) -> PackedVector2Array:
-		return PackedVector2Array([
-			Vector2(chamfer, 0.0),
-			Vector2(rect_size.x - chamfer, 0.0),
-			Vector2(rect_size.x, chamfer),
-			Vector2(rect_size.x, rect_size.y - chamfer),
-			Vector2(rect_size.x - chamfer, rect_size.y),
-			Vector2(chamfer, rect_size.y),
-			Vector2(0.0, rect_size.y - chamfer),
-			Vector2(0.0, chamfer),
-		])
-
-	func _draw() -> void:
-		var chamfer: float = clampf(size.y * CHAMFER_RATIO, CHAMFER_MIN_PX, CHAMFER_MAX_PX)
-		var outline := chamfer_points(size, chamfer)
-		var fill := FILL_PRESSED_COLOR if pressed else FILL_COLOR.lerp(FILL_HOVER_COLOR, amount)
-		var border := BORDER_COLOR.lerp(BORDER_HOVER_COLOR, amount)
-
-		draw_colored_polygon(outline, fill)
-		var closed_outline := PackedVector2Array(outline)
-		closed_outline.append(outline[0])
-		draw_polyline(closed_outline, border, 3.0, true)
-
-		# 細い内枠——外枠から一定距離だけ内側にオフセットした、ひとまわり
-		# 小さな八角形の輪郭のみ（塗りつぶしはしない）。
-		var inner_size := size - Vector2(INNER_INSET_PX, INNER_INSET_PX) * 2.0
-		var inner_chamfer: float = maxf(chamfer - INNER_INSET_PX, 2.0)
-		var inner_outline := chamfer_points(inner_size, inner_chamfer)
-		var offset_inner := PackedVector2Array()
-		for point in inner_outline:
-			offset_inner.append(point + Vector2(INNER_INSET_PX, INNER_INSET_PX))
-		offset_inner.append(offset_inner[0])
-		draw_polyline(offset_inner, Color(INNER_BORDER_COLOR, 0.75 + 0.2 * amount), 1.0, true)
-
-		# 角の切り欠き部分の中点に小さな菱形を1つだけ置く（唐草・大きな
-		# 四隅装飾・中央の大きな菱形は使わない）。
-		var diamond_half := chamfer * 0.28
-		var corner_midpoints := [
-			Vector2(chamfer * 0.5, chamfer * 0.5),
-			Vector2(size.x - chamfer * 0.5, chamfer * 0.5),
-			Vector2(size.x - chamfer * 0.5, size.y - chamfer * 0.5),
-			Vector2(chamfer * 0.5, size.y - chamfer * 0.5),
-		]
-		for corner_point in corner_midpoints:
-			var diamond := PackedVector2Array([
-				corner_point + Vector2(-diamond_half, 0.0),
-				corner_point + Vector2(0.0, -diamond_half),
-				corner_point + Vector2(diamond_half, 0.0),
-				corner_point + Vector2(0.0, diamond_half),
-			])
-			draw_colored_polygon(diamond, border)
-
-## 「作成方法選択」画面の「← 戻る」専用の軽量な枠（§10）。SIMPLE/HARDCORE
-## パネルと同じ角を落とした八角形のシルエット・同じ配色を共有しつつ、
-## 内枠・角の菱形は省いた最小限の意匠にとどめている（「メインパネルほど
-## 豪華にしなくて構いません」）。ホバー時のみ金枠を明るくする（文字色は
-## 呼び出し側でLabelのfont_colorをtitle_label経由で明るくする、他パネル
-## と同じ仕組み）。
-class ModeChoiceBackButtonFrame:
-	extends Control
-
-	const CHAMFER_RATIO := 0.22
-	const CHAMFER_MIN_PX := 6.0
-	const CHAMFER_MAX_PX := 12.0
-
-	var amount := 0.0
-	var target := 0.0
-	var pressed := false
-	var title_label: Label
-
-	func _ready() -> void:
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		set_process(false)
-
-	func set_state(highlighted: bool, down: bool) -> void:
-		target = 1.0 if highlighted else 0.0
-		pressed = down
-		set_process(true)
-		queue_redraw()
-
-	func _process(delta: float) -> void:
-		amount = move_toward(amount, target, delta / 0.12)
-		if is_instance_valid(title_label):
-			title_label.add_theme_color_override("font_color", METHOD_IVORY.lerp(METHOD_IVORY_LIGHT, amount))
-		queue_redraw()
-		if is_equal_approx(amount, target):
-			set_process(false)
-
-	func _draw() -> void:
-		var chamfer: float = clampf(size.y * CHAMFER_RATIO, CHAMFER_MIN_PX, CHAMFER_MAX_PX)
-		var outline := ModeChoicePanelSurface.chamfer_points(size, chamfer)
-		var fill := ModeChoicePanelSurface.FILL_PRESSED_COLOR if pressed else ModeChoicePanelSurface.FILL_COLOR
-		var border := ModeChoicePanelSurface.BORDER_COLOR.lerp(ModeChoicePanelSurface.BORDER_HOVER_COLOR, amount)
-		draw_colored_polygon(outline, fill)
-		var closed_outline := PackedVector2Array(outline)
-		closed_outline.append(outline[0])
-		draw_polyline(closed_outline, border, 2.0, true)
-
-func _method_label(node_name: String, content: String, font_size: int, color: Color) -> Label:
-	var label := Label.new()
-	label.name = node_name
-	label.text = content
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", color)
-	return label
-
-## 右側UI仕上げ（2026-09-04）: SIMPLE/HARDCOREは全く同じレイアウト規則
-## （§4「SIMPLEと完全に同じレイアウト規則を使用してください」）——この
-## 1関数を両方が共有することでレイアウトの完全一致を構造的に保証する。
-func _configure_method_card(button: Button, category: String, title: String, description: String) -> void:
-	button.text = ""
-	button.tooltip_text = title
-	button.custom_minimum_size = Vector2(MODE_CHOICE_PANEL_WIDTH_PX, MODE_CHOICE_SELECTION_PANEL_HEIGHT_PX)
-	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	for state in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
-		button.add_theme_stylebox_override(state, _entry_transparent_box())
-	var surface := ModeChoicePanelSurface.new()
-	surface.name = "MethodCardSurface"
-	surface.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	button.add_child(surface)
-	var margin := MarginContainer.new()
-	margin.name = "CardContent"
-	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# 左右余白は65px——素材の四隅装飾（左上/右上の金の唐草）が最も内側まで
-	# 入り込むのはパネル最上部で、実測で640幅換算約47-61px分——CategoryLabel
-	# がその高さに来るため、装飾と重ならない余白をここで確保する
-	# （§2/§3「文字を枠へ近づけすぎないでください」）。
-	for side in ["left", "right"]:
-		margin.add_theme_constant_override("margin_" + side, 65)
-	for side in ["top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 8)
-	button.add_child(margin)
-	var column := VBoxContainer.new()
-	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	column.add_theme_constant_override("separation", 2)
-	margin.add_child(column)
-	column.add_child(_method_label("CategoryLabel", category, 11, METHOD_GOLD_LIGHT))
-	var title_label := _method_label("TitleLabel", title, 20, METHOD_IVORY)
-	column.add_child(title_label)
-	surface.title_label = title_label
-	var description_label := _method_label("DescriptionLabel", description, 12, METHOD_MUTED)
-	description_label.add_theme_constant_override("line_spacing", 1)
-	column.add_child(description_label)
-	var refresh := func() -> void:
-		surface.set_state(button.is_hovered() or button.has_focus(), button.is_pressed())
-	button.mouse_entered.connect(refresh)
-	button.mouse_exited.connect(refresh)
-	button.focus_entered.connect(refresh)
-	button.focus_exited.connect(refresh)
-	button.button_down.connect(func() -> void: surface.set_state(button.is_hovered() or button.has_focus(), true))
-	button.button_up.connect(func() -> void: surface.set_state(button.is_hovered() or button.has_focus(), false))
-	button.visibility_changed.connect(func() -> void:
-		if not button.is_visible_in_tree():
-			surface.set_state(false, false)
-	)
-
-func _build_mode_choice_content() -> void:
-	var background := TextureRect.new()
-	background.name = "Background"
-	background.texture = load(MODE_CHOICE_BACKGROUND_PATH)
-	background.set_anchors_preset(Control.PRESET_FULL_RECT)
-	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	# 修正パス（2026-09-03）§5/§6: 部屋画像は1448×1086（4:3）で、ゲーム画面は
-	# 1280×720（16:9）——STRETCH_KEEP_ASPECT_CENTEREDだと960×720で画面中央
-	# 表示になり、左右に160pxずつ黒帯が出ていた。STRETCH_KEEP_ASPECT_COVERED
-	# （アスペクト比は保ったまま画面全体を覆い、はみ出た分だけ上下をcrop）
-	# へ変更——1280×960.0で表示され、上下120pxずつだけ切れる（左右のcropは
-	# 発生しない、幅方向はちょうど1280に一致するため）。画像の拡縮変形は
-	# 一切行っていない（アスペクト比そのものは維持したまま）。
-	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_mode_choice_panel.add_child(background)
-	# STRETCH_KEEP_ASPECT_COVERED自体がTextureRectの描画命令内でcropを
-	# 行う（ノード自身のsizeは変わらず1280×720のまま、テクスチャの表示
-	# 範囲だけがそのrectに収まるよう内部でクロップされる）——追加の
-	# clip_contents設定等は不要。
-
-	var character_layer := Control.new()
-	character_layer.name = "CharacterLayer"
-	character_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
-	character_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_mode_choice_panel.add_child(character_layer)
-
-	_guide_character = RBMCreatorGuideCharacter.new()
-	# §7/§22: 実測した表示スケール——キャラクターの実コンテンツ高さ
-	# （約1294ネイティブpx）がおよそ600画面pxになる大きさで、部屋の背景
-	# （STRETCH_KEEP_ASPECT_CENTEREDで960×720表示）内の左寄りに、足元が
-	# 画面下部の床付近（画面y=700）へ来るよう配置。
-	_guide_character.scale = Vector2(GUIDE_CHARACTER_SCALE, GUIDE_CHARACTER_SCALE)
-	_guide_character.position = GUIDE_CHARACTER_POSITION
-	character_layer.add_child(_guide_character)
-
-	var dialogue_layer := PanelContainer.new()
-	dialogue_layer.name = "DialogueLayer"
-	dialogue_layer.offset_left = 500.0
-	dialogue_layer.offset_top = 56.0
-	dialogue_layer.offset_right = 500.0 + MODE_CHOICE_PANEL_WIDTH_PX
-	dialogue_layer.offset_bottom = 56.0 + MODE_CHOICE_DESCRIPTION_PANEL_HEIGHT_PX
-	dialogue_layer.add_theme_stylebox_override("panel", _entry_transparent_box())
-	_mode_choice_panel.add_child(dialogue_layer)
-	var dialogue_surface := ModeChoicePanelSurface.new()
-	dialogue_surface.name = "DialogueFrame"
-	dialogue_layer.add_child(dialogue_surface)
-
-	# §4: 見出しの羅列ではなく、キャラクターがプレイヤーへ話しかける形の
-	# 台詞へ——「後から最終確認画面で変更できます」という既存仕様の事実は
-	# そのまま2文目として残す（表現だけを変え、仕様は変更しない）。
-	# 右側UI仕上げ（2026-09-04）: 素材画像に既に区切り線（中央の菱形つき、
-	# 実測で高さ比64.8%の位置）が焼き込まれているため、独自のHSeparatorは
-	# 重ねず、その線をまたぐようメイン文/補足文を絶対位置で個別に配置する
-	# （VBoxContainerの自動整列だと素材側の区切り線と位置がずれるため）。
-	var dialogue_content := Control.new()
-	dialogue_content.name = "DialogueContent"
-	dialogue_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	dialogue_content.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dialogue_layer.add_child(dialogue_content)
-
-	var dialogue_label := _method_label("ModeChoiceDialogueLabel", "ボスを作る方法を選んでください。\nどちらの方法で作成を始めますか？", 21, METHOD_IVORY)
-	dialogue_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	dialogue_label.add_theme_constant_override("line_spacing", 6)
-	dialogue_label.anchor_right = 1.0
-	dialogue_label.offset_left = 34.0
-	dialogue_label.offset_right = -34.0
-	dialogue_label.offset_top = 20.0
-	dialogue_label.offset_bottom = 100.0
-	dialogue_content.add_child(dialogue_label)
-
-	var hint_label := _method_label("ModeChoiceHintLabel", "作成開始後はモードを変更できません", 14, METHOD_MUTED)
-	hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	hint_label.anchor_right = 1.0
-	hint_label.offset_left = 34.0
-	hint_label.offset_right = -34.0
-	hint_label.offset_top = 122.0
-	hint_label.offset_bottom = 156.0
-	dialogue_content.add_child(hint_label)
-
-	var choice_buttons := VBoxContainer.new()
-	choice_buttons.name = "ChoiceButtons"
-	choice_buttons.offset_left = 500.0
-	choice_buttons.offset_top = 56.0 + MODE_CHOICE_DESCRIPTION_PANEL_HEIGHT_PX + MODE_CHOICE_PANEL_GAP_PX
-	choice_buttons.offset_right = 500.0 + MODE_CHOICE_PANEL_WIDTH_PX
-	choice_buttons.add_theme_constant_override("separation", MODE_CHOICE_PANEL_GAP_PX)
-	_mode_choice_panel.add_child(choice_buttons)
-
-	# 「自然な最小構成への再設計」（2026-09-03）: 案内役キャラクターの
-	# Hover反応（ボタン方向へキャラ全体を傾ける）は削除した——キャラクター
-	# 全体のrotation_degreesを継続的に動かす実装が「髪や頭部の輪郭が
-	# フレームごとに変わる」不具合の原因の一つだったため（RBMCreator
-	# GuideCharacterのクラス冒頭コメント参照）。ボタン自体のHover見た目
-	# は画面専用の描画で表現し、キャラクターには接続しない。
-	var simple_button := Button.new()
-	simple_button.name = "ChooseSimpleModeButton"
-	_configure_method_card(simple_button, "SIMPLE", "シンプルで作る", "基本的な設定だけで\nすぐにボス戦を作成できます。")
-	simple_button.pressed.connect(_on_choose_simple_mode_pressed)
-	choice_buttons.add_child(simple_button)
-
-	var advanced_button := Button.new()
-	advanced_button.name = "ChooseAdvancedModeButton"
-	_configure_method_card(advanced_button, "HARDCORE", "ハードコアで作る", "行動条件などを細かく設定して\nボス戦を作り込めます。")
-	advanced_button.pressed.connect(_on_choose_advanced_mode_pressed)
-	choice_buttons.add_child(advanced_button)
-
-	# §10「右側UIと同じデザイン言語へ統一」: メインパネルと同じ濃紺＋古金の
-	# 語彙を、ModeChoiceBackButtonFrame（画像は使わない軽量な自前描画、
-	# 「メインパネルほど豪華にしなくて構いません」）で表現する。メイン
-	# パネルと同じくbutton.text自体は空にし、別レイヤーのLabelへテキストを
-	# 描画する（フレームがボタン本体の描画の後に子として描かれるため、
-	# button.textを残すとフレームの下に隠れてしまう）。
-	var back_button := Button.new()
-	back_button.name = "ModeChoiceBackButton"
-	back_button.text = ""
-	back_button.tooltip_text = "戻る"
-	back_button.custom_minimum_size = Vector2(150.0, 40.0)
-	back_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	for state in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
-		back_button.add_theme_stylebox_override(state, _entry_transparent_box())
-	var back_frame := ModeChoiceBackButtonFrame.new()
-	back_frame.name = "ModeChoiceBackButtonFrame"
-	back_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	back_button.add_child(back_frame)
-	var back_label := _method_label("ModeChoiceBackButtonLabel", "← 戻る", 16, METHOD_IVORY)
-	back_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	back_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	back_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	back_button.add_child(back_label)
-	back_frame.title_label = back_label
-	var back_refresh := func() -> void:
-		back_frame.set_state(back_button.is_hovered() or back_button.has_focus(), back_button.is_pressed())
-	back_button.mouse_entered.connect(back_refresh)
-	back_button.mouse_exited.connect(back_refresh)
-	back_button.focus_entered.connect(back_refresh)
-	back_button.focus_exited.connect(back_refresh)
-	back_button.button_down.connect(func() -> void: back_frame.set_state(back_button.is_hovered() or back_button.has_focus(), true))
-	back_button.button_up.connect(func() -> void: back_frame.set_state(back_button.is_hovered() or back_button.has_focus(), false))
-	back_button.offset_left = 60.0
-	back_button.offset_top = 636.0
-	back_button.offset_right = 60.0 + 150.0
-	back_button.offset_bottom = 636.0 + 40.0
-	back_button.pressed.connect(_on_mode_choice_back_pressed)
-	_mode_choice_panel.add_child(back_button)
 
 func _build_list_panel() -> void:
 	_list_panel = VBoxContainer.new()

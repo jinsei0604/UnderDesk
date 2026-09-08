@@ -1,9 +1,7 @@
 class_name RBMGameRoot
 extends Control
 
-## RPG BOSS MAKER Phase 1 Step 8 — 製品としての起動ルート。既存UNDERDESKの
-## main.tscn/main.gdには一切触れず、完全に新規のエントリポイントとして
-## project.godotのrun/main_sceneから直接起動される（§B）。
+## Makers & Challengersの起動ルート。project.godotから直接起動する。
 ##
 ## CREATE/CHALLENGEを選択する共通画面を持ち、既存の確定済みRBMCreatorEntry
 ## （Step 6）・RBMChallengeEntry（Step 7）を「1つだけ生成して保持し、
@@ -59,6 +57,9 @@ func _ready() -> void:
 	_sync_size_to_viewport()
 	get_tree().root.size_changed.connect(_on_root_window_size_changed)
 	_build_ui()
+	_se_audio = preload("res://src/bossmaker/rbm_audio.gd").for_owner(self)
+	_se_audio.bind_ui(self)
+	get_tree().node_added.connect(_se_node_added)
 
 func _on_root_window_size_changed() -> void:
 	_sync_size_to_viewport()
@@ -246,3 +247,13 @@ func _show_only(node: Control) -> void:
 	_menu_panel.visible = false
 	creator_entry.visible = (node == creator_entry)
 	challenge_entry.visible = (node == challenge_entry)
+
+var _se_audio: Node
+func _se_node_added(node: Node) -> void:
+	if is_ancestor_of(node) and node is BaseButton:
+		_se_bind_deferred.call_deferred(weakref(node))
+
+func _se_bind_deferred(reference: WeakRef) -> void:
+	var node = reference.get_ref()
+	if is_instance_valid(node) and is_instance_valid(_se_audio) and node.is_inside_tree():
+		_se_audio.bind_ui(node)

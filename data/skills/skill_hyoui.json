@@ -1,8 +1,0 @@
-{
-	"id": "skill_hyoui",
-	"name_key": "SKILL_HYOUI_NAME",
-	"desc_key": "SKILL_HYOUI_DESC",
-	"sp_cost": null,
-	"target": "ally",
-	"effect": "special"
-}
