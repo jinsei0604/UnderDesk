@@ -78,7 +78,10 @@ func _build_ui() -> void:
 	# ——既存のButton.disabled（無効状態、RBMUiThemeの既存disabledスタイル
 	# をそのまま使う、新しい見た目は作らない）で「準備中」を示す。文言に
 	# も明示し、アイコンは追加しない（§3）。
-	discover_row_1.add_child(RBMChallengeUiKit.build_category_button("注目（準備中）", "FeaturedCategoryButton", func(): category_selected.emit(CATEGORY_FEATURED), true))
+	# Phase 4D: 「注目（準備中）」プレースホルダーをオンライン一覧の入口として
+	# 有効化する(ランキングアルゴリズム自体はPhase 5まで未実装のまま——
+	# ここは単に公開済みオンラインボスの一覧を開くだけ)。
+	discover_row_1.add_child(RBMChallengeUiKit.build_category_button("オンライン", "FeaturedCategoryButton", func(): category_selected.emit(CATEGORY_FEATURED)))
 	discover_row_1.add_child(RBMChallengeUiKit.build_category_button("新着", "NewCategoryButton", func(): category_selected.emit(CATEGORY_NEW)))
 	discover_row_1.add_child(RBMChallengeUiKit.build_category_button("未挑戦", "UnchallengedCategoryButton", func(): category_selected.emit(CATEGORY_UNCHALLENGED)))
 

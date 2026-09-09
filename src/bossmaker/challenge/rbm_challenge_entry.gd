@@ -63,6 +63,8 @@ const CONTENT_TOP_MARGIN_PX := 40.0
 const SEARCH_FIELD_MIN_SIZE := Vector2(170.0, 32.0)
 
 var _hub_view: RBMChallengeHubView
+var _online_list_view: RBMOnlineBossListView
+var _last_browse_was_online := false
 var _list_panel: VBoxContainer
 var _category_title_label: Label
 var _name_search_field: LineEdit
@@ -99,6 +101,7 @@ func _build_ui() -> void:
 	RBMBattleUiKit.add_root_background(self)
 
 	_build_hub_view()
+	_build_online_list_view()
 
 	## §36の既存方針どおり、RBMLocalStageRepository.load_stage()から新規に
 	## 復元されたRBMCreatorDraftだけを受け取る——先に構築してから
@@ -132,6 +135,36 @@ func _build_hub_view() -> void:
 	_hub_view.search_requested.connect(_on_hub_search_requested)
 	_hub_view.back_to_root_requested.connect(_on_back_to_root_pressed)
 	add_child(_hub_view)
+
+## Phase 4D-1: 「オンライン」カテゴリ専用の別パネル。既存のローカル一覧
+## (_list_panel)とは独立させ、ローカルChallenge既存動作を一切変更しない。
+func _build_online_list_view() -> void:
+	_online_list_view = RBMOnlineBossListView.new()
+	_online_list_view.name = "OnlineBossListView"
+	_online_list_view.visible = false
+	_online_list_view.boss_selected.connect(_on_online_boss_selected)
+	_online_list_view.back_requested.connect(_on_back_to_hub_pressed)
+	add_child(_online_list_view)
+
+func _on_online_boss_selected(boss_id: String, draft: RBMCreatorDraft, _boss_name: String, _author_name: String) -> void:
+	# ローカルの_on_stage_row_pressed()と同じ着地点(_confirm_view.open())へ
+	# 接続する——新しい別Battle経路は作らない(ユーザー確定仕様)。
+	# stage_idの形式(10桁の数字)とオンラインboss_id(UUID)は一致しないため、
+	# RBMLocalStageRepository.record_challenge_attempt/clear()はこの
+	# boss_idに対しては安全にno-op(_is_valid_stage_id()が弾く)——オンライン
+	# のClear記録自体は今回のスコープ外(将来Phase 5用に接続しやすい構造の
+	# 考慮のみ、ユーザー確定仕様)。
+	_selected_stage_id = ""
+	_confirm_view.open(boss_id, draft)
+	_show_online_browse()
+
+func _show_online_browse() -> void:
+	_hub_view.visible = false
+	_online_list_view.visible = true
+	_list_panel.visible = false
+	_confirm_view.visible = true
+	_battle_view.visible = false
+	_last_browse_was_online = true
 
 ## §7/§8: SIMPLE/HARDCORE/注目/新着/未挑戦/人気/高難度/検索がすべて共有する
 ## 唯一の共通レイアウト——左にボスカード一覧（スクロール可能、§18）、右に
@@ -219,12 +252,13 @@ func _build_list_panel() -> void:
 # ---------------------------------------------------------------------------
 
 func _on_hub_category_selected(category: String) -> void:
-	# CHALLENGE discovery 最終調整 §3: 「注目」はランキングアルゴリズムが
-	# 未確定のため、押しても通常一覧を「注目一覧」であるかのように見せない
-	# ——ハブ側のボタン自体をdisabled（準備中）にしてあるため実UIからは
-	# そもそも到達しないが、直接この関数が呼ばれた場合でも同じ保証を
-	# 構造的に持たせるため、ここでも明示的に無視する（一覧を開かない）。
+	# Phase 4D-1: 「注目」ボタンはランキングアルゴリズム(Phase 5)とは別に、
+	# オンライン公開ボス一覧の入口として有効化した——ローカルの一覧
+	# (_list_panel/_refresh_list())には一切触れず、別パネルを開くだけ。
 	if category == RBMChallengeHubView.CATEGORY_FEATURED:
+		_confirm_view.clear_selection()
+		_show_online_browse()
+		_online_list_view.refresh()
 		return
 	_current_category = category
 	_category_title_label.text = _category_display_title(category)
@@ -322,8 +356,9 @@ func _refresh_list() -> void:
 		RBMChallengeHubView.CATEGORY_HARDCORE:
 			entries = RBMChallengeUiKit.filter_by_mode(entries, RBMChallengeUiKit.MODE_ADVANCED)
 		# CATEGORY_FEATURED（注目）はここへは到達しない——
-		# _on_hub_category_selected()が「注目」選択を無視するため
-		# _current_categoryがこの値になることはない（§3、準備中）。
+		# _on_hub_category_selected()が別のオンライン一覧パネルを開いて
+		# 早期returnするため（Phase 4D-1）、_current_categoryがこの値に
+		# なることはない。
 		RBMChallengeHubView.CATEGORY_NEW:
 			entries = RBMChallengeUiKit.sort_by_published_at_desc(entries)
 		RBMChallengeHubView.CATEGORY_UNCHALLENGED:
@@ -415,7 +450,12 @@ func _on_challenge_won() -> void:
 		RBMLocalStageRepository.record_challenge_clear(_confirm_view.stage_id)
 
 func _on_battle_returned_to_list() -> void:
-	_show_browse()
+	# Phase 4D-1: オンライン一覧経由で挑戦した場合は、戦闘終了後もオンライン
+	# 一覧側へ戻す(ローカルの_list_panelへ迷い込ませない)。
+	if _last_browse_was_online:
+		_show_online_browse()
+	else:
+		_show_browse()
 
 # ---------------------------------------------------------------------------
 # Step 8 §5: 共通ルートとの接続
@@ -434,6 +474,7 @@ func enter_challenge() -> void:
 
 func _show_hub() -> void:
 	_hub_view.visible = true
+	_online_list_view.visible = false
 	_list_panel.visible = false
 	_confirm_view.visible = false
 	_battle_view.visible = false
@@ -443,12 +484,15 @@ func _show_hub() -> void:
 ## 画面遷移としては扱わない。
 func _show_browse() -> void:
 	_hub_view.visible = false
+	_online_list_view.visible = false
 	_list_panel.visible = true
 	_confirm_view.visible = true
 	_battle_view.visible = false
+	_last_browse_was_online = false
 
 func _show_battle() -> void:
 	_hub_view.visible = false
+	_online_list_view.visible = false
 	_list_panel.visible = false
 	_confirm_view.visible = false
 	_battle_view.visible = true

@@ -690,6 +690,16 @@ static func _validate_clear_check_snapshot_shape(snapshot: Dictionary, save_vers
 ## §43: 壊れたJSON・存在しないファイルはクラッシュせず{"ok":false}を返す。
 ## 名前を"load"ではなく"load_stage"にしているのはGDScriptの組み込み
 ## load(path)（Resourceローダー）との衝突を避けるため。
+## Phase 4B: オンラインボスpayload内のdraft_fieldsは、この保存ファイル形式
+## と同じ「著作フィールドのDictionary」を再利用する(RBMOnlineBossPayload
+## 参照)。信用できないオンラインデータの型検証にも、ローカル保存ファイル
+## 用に既にあるこの検証をそのまま使う——同じ形の危険(壊れたArray/
+## Dictionary、型の合わないint/float)を防ぐロジックを重複させないため。
+## 意味検証(スキルIDが実在するか等)はここでは行わない——
+## RBMDefinitionLoader.resolve()が呼ばれた時点で別途検証される。
+static func validate_draft_shape_for_online(draft_data: Dictionary) -> bool:
+	return _validate_draft_shape(draft_data)
+
 static func load_stage(stage_id: String) -> Dictionary:
 	if not _is_valid_stage_id(stage_id):
 		return {"ok": false, "error": "invalid_stage_id"}

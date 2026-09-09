@@ -55,6 +55,15 @@ var _publish_button: Button
 var _unpublish_button: Button
 var _publish_status_label: Label
 
+## Phase 4C: ローカル公開(_publish_button/_unpublish_button、既存仕様は
+## 無改修)とは別の、オンライン公開専用の操作。RBMBossPublisherの状態を
+## そのまま反映するだけ——独自のClear Check判定は持たない
+## (RBMOnlineBossPayload.build_for_publish()が既存のis_clear_check_
+## currently_valid()を再利用する)。
+var _publish_online_button: Button
+var _online_status_label: Label
+var _boss_publisher: RBMBossPublisher
+
 var _author_notes_edit: TextEdit
 var _author_notes_count_label: Label
 var _visibility_checkboxes: Dictionary = {}  # key(String) -> CheckBox
@@ -176,7 +185,70 @@ func _build_ui() -> void:
 	_unpublish_button.pressed.connect(func(): main.press_unpublish())
 	bottom_bar.add_child(_unpublish_button)
 
+	## Phase 4C: ローカル公開(上記_publish_button)とは別のオンライン公開。
+	## Clear Check判定は共有する(disabled条件はrefresh()で_publish_buttonと
+	## 同じ式を使う)が、押した結果はSupabase/Steam認証まで進む——正式
+	## Steam AppID未発行の間は必ず失敗し(steam_unavailable/not_configured
+	## 等)、成功扱いにならない(ユーザー確定仕様)。
+	_online_status_label = Label.new()
+	_online_status_label.name = "OnlinePublishStatusLabel"
+	bottom_bar.add_child(_online_status_label)
+
+	_publish_online_button = Button.new()
+	_publish_online_button.name = "PublishOnlineButton"
+	_publish_online_button.text = "オンライン公開"
+	_publish_online_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
+	_publish_online_button.pressed.connect(_on_publish_online_pressed)
+	bottom_bar.add_child(_publish_online_button)
+
 	_build_persistent_controls()
+
+## GUT専用: 実Steam/実Supabaseへ触れないfakeへ差し替える。
+func set_boss_publisher_for_testing(publisher: RBMBossPublisher) -> void:
+	_boss_publisher = publisher
+
+func _ensure_boss_publisher() -> void:
+	if _boss_publisher == null:
+		_boss_publisher = RBMBossPublisher.new()
+		add_child(_boss_publisher)
+
+func _on_publish_online_pressed() -> void:
+	_ensure_boss_publisher()
+	if _boss_publisher.current_state() == RBMBossPublisher.PublishState.REQUESTING_TICKET or \
+			_boss_publisher.current_state() == RBMBossPublisher.PublishState.UPLOADING:
+		return
+	_online_status_label.text = "公開中..."
+	var ok: bool = await _boss_publisher.publish(draft)
+	if ok:
+		_online_status_label.text = "オンライン公開に成功しました。"
+	else:
+		_online_status_label.text = _online_publish_failure_message(_boss_publisher.last_error_kind(), _boss_publisher.last_error_message())
+
+## §4C-7: 公開中/公開成功/認証失敗/通信失敗/validation失敗/Steam利用不可/
+## 正式Steam認証未設定を、ユーザーへ分かる形で表示する。大規模なUI再設計
+## はしない——既存の1行ラベルへ短い日本語文を出すだけ。
+func _online_publish_failure_message(error_kind: String, detail: String) -> String:
+	match error_kind:
+		"clear_check_not_valid":
+			return "クリアチェックを再確認してください。"
+		"steam_unavailable":
+			return "Steamが利用できません。Steamを起動してログインしてください。"
+		"steam_not_logged_on":
+			return "Steamにログインしていません。"
+		"steam_ticket_request_failed", "steam_ticket_failed":
+			return "Steam認証チケットの取得に失敗しました。"
+		"not_configured":
+			return "オンライン公開はまだ準備中です（正式Steam認証の設定待ち）。"
+		"forbidden":
+			return "この投稿を更新する権限がありません。"
+		"not_found":
+			return "投稿先が見つかりませんでした。"
+		"network_error", "http_5xx":
+			return "通信に失敗しました。しばらくしてからもう一度お試しください。"
+		"http_4xx", "invalid_payload", "payload_too_large":
+			return "送信内容に問題がありました。"
+		_:
+			return "オンライン公開に失敗しました（%s）。" % (error_kind if detail.is_empty() else detail)
 
 ## §6/§13相当: STEP1〜4が既に使っているRBMCreatorUiKit.build_section_title()
 ## （本文より一段大きく、左に小さな銀アクセント）をこの画面でも再利用する
@@ -261,6 +333,13 @@ func refresh() -> void:
 	_publish_button.visible = not draft.is_published()
 	_unpublish_button.visible = draft.is_published()
 	_publish_status_label.text = "公開中" if draft.is_published() else "未公開"
+
+	# Phase 4C-1: オンライン公開もローカル公開と同じClear Checkゲートを使う
+	# (RBMOnlineBossPayload.build_for_publish()が実際の判定を行う——ここは
+	# ボタンのdisabled表示だけの重複、ゲート自体は1箇所にしかない)。
+	_publish_online_button.disabled = not draft.is_clear_check_currently_valid()
+	if _online_status_label.text.is_empty():
+		_online_status_label.text = "オンライン未公開"
 
 # ---------------------------------------------------------------------------
 # 「挑戦設定」— Phase 1 Step 7 §11〜§20/§39〜§42（既存、無改修のまま

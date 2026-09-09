@@ -1,0 +1,91 @@
+class_name RBMBossApiAdapter
+extends Node
+
+## Phase 4C/4D/4E — Supabase Edge Functions(publish-boss/list-bosses/
+## get-boss/unpublish-boss)への実HTTPアクセスだけを行う薄いラッパー。
+## RBMBossPublisher/RBMBossBrowserはこのクラスの公開メソッドだけに依存し、
+## HTTPRequestへ直接触れない——GUTはRBMFakeBossApiAdapterへ差し替えて
+## headlessでテストする(RBMSteamAdapter/RBMFakeSteamAdapterと同じ
+## 既存パターン)。
+##
+## レスポンス解釈は既存のRBMSupabaseResponse(PostgREST向けに作られた
+## 2xx/4xx/5xx/JSON解析失敗/ネットワークエラーの分類)をそのまま再利用する
+## ——Edge Functionのレスポンス本文は単一のJSONオブジェクトなので、
+## rows[0]として1件だけ取り出す。
+##
+## 呼び出し側がこのNodeをシーンツリーへ追加する既存の軽量Nodeの流儀
+## (RBMSupabaseClient/RBMSteamAuthと同じ)。
+
+var _http_request: HTTPRequest
+
+func _ready() -> void:
+	if _http_request == null:
+		_http_request = HTTPRequest.new()
+		_http_request.name = "BossApiHttpRequest"
+		add_child(_http_request)
+
+func _ensure_ready() -> void:
+	if _http_request == null:
+		_ready()
+
+## 呼び出し側(RBMSteamConfig等)がURL/publishable keyの設定確認を既に
+## 行っている前提——ここでは未設定時のエラーだけ返す。
+func _config_error() -> Dictionary:
+	if RBMSupabaseConfig.url().is_empty():
+		return RBMSupabaseResponse.network_error("SUPABASE_URLが設定されていません。")
+	if RBMSupabaseConfig.publishable_key().is_empty():
+		return RBMSupabaseResponse.network_error("SUPABASE_PUBLISHABLE_KEYが設定されていません。")
+	return {}
+
+func _headers() -> PackedStringArray:
+	return PackedStringArray([
+		"apikey: %s" % RBMSupabaseConfig.publishable_key(),
+		"Authorization: Bearer %s" % RBMSupabaseConfig.publishable_key(),
+		"Content-Type: application/json",
+	])
+
+func _function_url(name: String) -> String:
+	return "%s/functions/v1/%s" % [RBMSupabaseConfig.url(), name]
+
+func _request(url: String, method: HTTPClient.Method, body: String = "") -> Dictionary:
+	_ensure_ready()
+	var config_error := _config_error()
+	if not config_error.is_empty():
+		return config_error
+	var request_error := _http_request.request(url, _headers(), method, body)
+	if request_error != OK:
+		return RBMSupabaseResponse.network_error("HTTPRequest.request() returned error code %d" % request_error)
+	var completed: Array = await _http_request.request_completed
+	return _interpret(completed)
+
+func _interpret(completed: Array) -> Dictionary:
+	var result := int(completed[0])
+	if result != HTTPRequest.RESULT_SUCCESS:
+		return RBMSupabaseResponse.network_error("HTTPRequest result code %d" % result)
+	var response_code := int(completed[1])
+	var body: PackedByteArray = completed[3]
+	var parsed := RBMSupabaseResponse.parse(response_code, body)
+	if not bool(parsed.get("ok", false)):
+		return parsed
+	var rows: Array = parsed.get("rows", [])
+	if rows.is_empty() or not (rows[0] is Dictionary):
+		return RBMSupabaseResponse.network_error("Edge Function returned an unexpected empty/non-object body")
+	var row: Dictionary = rows[0]
+	row["http_status"] = response_code
+	return row
+
+func publish(ticket_hex: String, payload: Dictionary, boss_id: String = "") -> Dictionary:
+	var body := {"ticket": ticket_hex, "payload": payload}
+	if not boss_id.is_empty():
+		body["boss_id"] = boss_id
+	return await _request(_function_url("publish-boss"), HTTPClient.METHOD_POST, JSON.stringify(body))
+
+func unpublish(ticket_hex: String, boss_id: String) -> Dictionary:
+	var body := {"ticket": ticket_hex, "boss_id": boss_id}
+	return await _request(_function_url("unpublish-boss"), HTTPClient.METHOD_POST, JSON.stringify(body))
+
+func list_bosses(limit: int = 20) -> Dictionary:
+	return await _request(_function_url("list-bosses") + "?limit=%d" % limit, HTTPClient.METHOD_GET)
+
+func get_boss(id: String) -> Dictionary:
+	return await _request(_function_url("get-boss") + "?id=%s" % id.uri_encode(), HTTPClient.METHOD_GET)

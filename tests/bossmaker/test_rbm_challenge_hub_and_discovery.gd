@@ -93,12 +93,14 @@ func test_hub_shows_all_9_navigation_entries_and_no_icons() -> void:
 		assert_eq(button.find_children("*", "TextureRect", true, false).size(), 0, "%s must not contain a TextureRect icon yet" % button.name)
 		assert_false(str(button.text).is_empty(), "%s must be text-based" % button.name)
 
-	# CHALLENGE discovery 最終調整 §3: 「注目」はアルゴリズム未確定のため、
-	# 通常のカテゴリボタンとは異なり無効状態（準備中）で表示されること。
-	# アイコンは追加しない（既存のdisabledスタイルボックスのみで表現）。
+	# Phase 4D-1: 「注目」はランキングアルゴリズム(Phase 5)未確定のままだが、
+	# オンライン公開ボス一覧の入口として有効化された——もはや無効状態の
+	# プレースホルダーではない。アイコンは追加しない(既存の他ボタンと
+	# 同じ文字のみのスタイル)。
 	var featured_button: Button = entry._hub_view.find_child("FeaturedCategoryButton", true, false)
-	assert_true(featured_button.disabled, "注目 must be shown as not-ready (disabled), not a working category")
-	assert_eq(featured_button.find_children("*", "TextureRect", true, false).size(), 0, "注目 must still be text-only, no icon added for the 準備中 state either")
+	assert_false(featured_button.disabled, "オンライン一覧の入口として有効化された「注目」ボタンは無効化されていてはいけない")
+	assert_eq(featured_button.text, "オンライン")
+	assert_eq(featured_button.find_children("*", "TextureRect", true, false).size(), 0, "「注目」も他ボタンと同じ文字のみ、アイコンは追加しない")
 
 func test_hub_back_to_root_returns_to_common_route() -> void:
 	var entry := _new_entry()
@@ -125,10 +127,10 @@ func test_unpublished_stage_never_appears_in_any_category_search_or_random() -> 
 	var entry := _new_entry()
 	entry.enter_challenge()
 
-	# CATEGORY_FEATURED（注目）はこのループから除外する——§3の仕様変更により
-	# 選択自体が一覧を開かないno-opになったため（専用テスト
-	# test_featured_button_is_disabled_and_selecting_it_does_not_open_any_list()
-	# で別途検証済み）、ここに含めても一覧の中身を何もテストしないまま
+	# CATEGORY_FEATURED（注目）はこのループから除外する——Phase 4D-1以降、
+	# 選択するとローカル一覧(_list_rows)ではなく別のオンライン一覧パネルが
+	# 開くため（専用テストtest_featured_button_opens_the_online_list_not_the_local_list()
+	# で別途検証済み）、ここに含めても_list_rowsの中身を何もテストしないまま
 	# 意味を誤解させるだけになる。
 	for category in [RBMChallengeHubView.CATEGORY_SIMPLE, RBMChallengeHubView.CATEGORY_HARDCORE, RBMChallengeHubView.CATEGORY_NEW, RBMChallengeHubView.CATEGORY_UNCHALLENGED, RBMChallengeHubView.CATEGORY_POPULAR, RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY]:
 		entry._on_hub_category_selected(category)
@@ -608,22 +610,23 @@ func test_new_category_ranking_does_not_change_when_a_stage_is_unpublished_and_r
 	assert_eq(first_card.name, "BossCard_%s" % stage_id_b, "unpublish+republish of the older stage must not move it back to the top of 新着")
 
 # ---------------------------------------------------------------------------
-# ■ 注目（アルゴリズム未確定・準備中）
+# ■ 注目（オンライン一覧の入口、Phase 4D-1）
 # ---------------------------------------------------------------------------
 
-## §5 item12: 注目が「未実装のランキング」として誤表示されない——ボタンは
-## 無効化されており、直接シグナルを発火させても一覧を開かない。
-func test_featured_button_is_disabled_and_selecting_it_does_not_open_any_list() -> void:
-	_publish("注目確認用ボスA")
-	_publish("注目確認用ボスB")
+## Phase 4D-1: 「注目」はオンライン公開ボス一覧の入口として有効化された。
+## ローカルの公開済みボス(_publish())には一切影響しない——選択すると
+## ローカル共通一覧(_list_panel)ではなく、別のオンライン一覧パネルが開く。
+func test_featured_button_opens_the_online_list_not_the_local_list() -> void:
+	_publish("ローカル公開ボスA")
+	_publish("ローカル公開ボスB")
 	var entry := _new_entry()
 	entry.enter_challenge()
 
 	var featured_button: Button = entry._hub_view.find_child("FeaturedCategoryButton", true, false)
 	assert_not_null(featured_button)
-	assert_true(featured_button.disabled, "注目 must be shown as not-ready (disabled), not a working category")
+	assert_false(featured_button.disabled, "オンライン一覧の入口として有効化された「注目」ボタンは無効化されていてはいけない")
 
-	# ハブに留まったまま——押しても共通一覧が「注目一覧」として開かれない。
 	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_FEATURED)
-	assert_true(entry._hub_view.visible, "selecting the not-ready 注目 category must not navigate away from the hub")
-	assert_false(entry._list_panel.visible, "選択しても共通一覧（＝『注目順』であるかのように見えるもの）を開いてはいけない")
+	assert_false(entry._hub_view.visible, "選択するとハブから遷移する")
+	assert_false(entry._list_panel.visible, "ローカル共通一覧(_list_panel)は開かない——別のオンライン一覧を使う")
+	assert_true(entry._online_list_view.visible, "オンライン一覧パネルが開く")

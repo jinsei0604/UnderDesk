@@ -274,4 +274,4 @@ func test_exit_tree_cancels_a_pending_ticket() -> void:
 	remove_child(auth)
 	assert_has(fake.cancelled_handles(), handle)
 	auth.queue_free()
-	await wait_frames(1)
+	await wait_process_frames(1)
