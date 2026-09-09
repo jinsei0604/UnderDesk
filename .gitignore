@@ -10,6 +10,15 @@ Thumbs.db
 # supabase_poc.local.env.example（テンプレート、値は空）はコミットする。
 supabase_poc.local.env
 
+# Steam認証基盤（Phase 4A-1）— 正式AppID未発行のため、開発確認用の
+# AppID 480はこのローカル専用ファイルにのみ置く。コミットしない
+# （正式AppID決定後もこのファイル自体はコミット対象にしない方針は
+# 変えず、正式値はRBMSteamConfig.OFFICIAL_APP_IDへ設定する）。
+# Steamworks公式のsteam_appid.txt規約（実行ファイルと同じ場所に置く
+# 開発用ファイル）も同じ理由でコミットしない。
+steam_dev_appid.local.txt
+steam_appid.txt
+
 # UI/アニメーション実機確認用スクリプト(tools/_ui_pass_shots/*.gd等)自体は
 # ソースコードとしてコミットするが、その生成物（スクリーンショット/検証
 # 動画、合計約2GB規模）はGit履歴を不要に肥大化させるため対象外とする。
