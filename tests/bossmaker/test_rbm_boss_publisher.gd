@@ -35,7 +35,14 @@ func _ready_steam_auth(available := true, logged_on := true) -> RBMSteamAuth:
 	fake.configure_logged_on(logged_on, 76561198000000001, "Tester")
 	var auth := RBMSteamAuth.new()
 	auth.set_adapter_for_testing(fake)
-	add_child_autofree(auth)
+	# add_child_autoqfree (queue_free), not add_child_autofree (free): when a
+	# test fires the fake ticket callback via call_deferred() and then makes
+	# no further await before returning, GUT's teardown can run while `auth`
+	# is still nested inside its own state_changed.emit() call (the signal
+	# emission that is resuming this whole await chain) -- Godot refuses an
+	# immediate .free() on a Node that is still "locked" like that. queue_free()
+	# defers the actual free past that point instead of erroring.
+	add_child_autoqfree(auth)
 	auth.initialize()
 	return auth
 
