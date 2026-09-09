@@ -14,6 +14,12 @@ var _sound: Node
 const Assets = preload("res://src/bossmaker/visuals/rbm_visual_assets.gd")
 const Motions = preload("res://src/bossmaker/visuals/rbm_motion_catalog.gd")
 const ACTOR_SCRIPT := "res://src/bossmaker/visuals/rbm_character_visual.gd"
+const HeroFire = preload("res://src/bossmaker/visuals/rbm_hero_fire_finish.gd")
+const HeroSword = preload("res://src/bossmaker/visuals/rbm_hero_sword.gd")
+var _hero_fire: Node2D
+var _hero_finish := false
+var _hero_elapsed := -1.0
+var _hero_shake := Vector2.ZERO
 
 var _battle: Variant
 var _appearance_id := ""
@@ -56,6 +62,10 @@ func _ready() -> void:
 	add_child(_effects)
 	_effects.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_effects.draw.connect(_draw_effects)
+	_hero_fire = HeroFire.new()
+	_hero_fire.z_index = 80
+	_hero_fire.visible = false
+	add_child(_hero_fire)
 	resized.connect(_layout_actors)
 	_layout_actors()
 
@@ -113,6 +123,11 @@ func _add_actor(key: String, asset_id: String) -> void:
 	_poses[key] = 0
 	if visual.has_method("setup"):
 		visual.call("setup", asset_id, Assets.display_height(asset_id) if not asset_id.is_empty() else 150.0)
+		if asset_id == "hero":
+			var sword := HeroSword.new()
+			sword.scale = Vector2.ONE * float(visual.get("_pixel_scale"))
+			sword.z_index = 1
+			visual.add_child(sword)
 
 func _layout_actors() -> void:
 	if _playing:
@@ -181,6 +196,9 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 	if str(_profile["kind"]) == "normal" and str(_asset_ids.get(_actor, "")) in ["butler", "healer"]:
 		_profile["advance"] = 0.0
 	_targets = _entry_targets()
+	_hero_finish = str(_entry.get("skill_id", "")) == "hero_burst_slash" and str(_asset_ids.get(_actor, "")) == "hero" and str(_profile["kind"]) == "fire_burst" and _targets.has("boss")
+	if _hero_finish:
+		_profile["advance"] = 0.0
 	_counters = _counter_targets()
 	_guards.clear()
 	_guard_offsets.clear()
@@ -215,6 +233,11 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 	_tween.tween_callback(_release)
 	_tween.tween_method(_travel_progress, 0.0, 1.0, float(_profile["travel"]))
 	_tween.tween_callback(_strike)
+	if _hero_finish:
+		# Keep the presenter on this entry until every finish layer has ended.
+		_tween.tween_method(_hero_finish_progress, 0.0, 2.1, 2.1)
+		_tween.tween_callback(_finish)
+		return
 	_tween.tween_interval(0.10)
 	if not _counters.is_empty():
 		_tween.tween_method(_counter_progress, 0.0, 1.0, 0.20)
@@ -224,6 +247,7 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 	_tween.tween_callback(_finish)
 
 func cancel() -> void:
+	_clear_hero_finish()
 	if is_instance_valid(_sound): _sound.stop_all()
 	if _tween != null and _tween.is_valid():
 		_tween.kill()
@@ -274,6 +298,55 @@ func _travel_progress(value: float) -> void:
 		var guard_visual: Control = _visuals[key]
 		guard_visual.position = (Vector2(_homes[key]) + Vector2(_guard_offsets.get(key, Vector2.ZERO)) * value).round()
 	_queue_visual_redraw()
+	if _hero_finish and is_instance_valid(_hero_fire):
+		_hero_fire.visible = true
+		_hero_fire.canvas_size = size
+		_hero_fire.flight = value
+		_hero_fire.launch_point = _foot(_actor) + Vector2(38, -42)
+		_hero_fire.target_point = _foot("boss") + Vector2(0, -90)
+		_hero_fire.queue_redraw()
+
+func _hero_finish_progress(elapsed: float) -> void:
+	_clear_hero_shake()
+	_hero_fire.visible = true
+	_hero_fire.age = elapsed
+	_hero_fire.flight = -1.0
+	_hero_fire.floor_point = _foot("boss")
+	_hero_fire.canvas_size = size
+	if elapsed >= 0.1 and elapsed < 0.35:
+		_recovery_progress((elapsed - 0.1) / 0.25)
+	elif elapsed >= 0.35:
+		_pose(_actor, Motions.Pose.IDLE)
+	_phase = "hero_finish"
+	if elapsed < 1.42 or bool(_unit_state("boss").get("is_downed", false)):
+		_pose("boss", Motions.Pose.HIT)
+	else:
+		_pose("boss", Motions.Pose.IDLE)
+	if _hero_elapsed < 0.11 and elapsed >= 0.11: _sound.play_sound("fire_move", -4)
+	if _hero_elapsed < 0.62 and elapsed >= 0.62: _sound.play_sound("fire_burst", 1)
+	_hero_elapsed = elapsed
+	if elapsed >= 0.74 and elapsed < 1.0:
+		var force := 14.0 * (1.0 - (elapsed - 0.74) / 0.26)
+		_hero_shake = (Vector2(sin(elapsed * 144), cos(elapsed * 186)) * force).snapped(Vector2(2, 2))
+		for visual in _visuals.values(): visual.position += _hero_shake
+		_hero_fire.position = _hero_shake
+	_hero_fire.queue_redraw()
+
+func _clear_hero_shake() -> void:
+	if _hero_shake != Vector2.ZERO:
+		for visual in _visuals.values():
+			if is_instance_valid(visual): visual.position -= _hero_shake
+	_hero_shake = Vector2.ZERO
+	if is_instance_valid(_hero_fire): _hero_fire.position = Vector2.ZERO
+
+func _clear_hero_finish() -> void:
+	_clear_hero_shake()
+	_hero_finish = false
+	_hero_elapsed = -1.0
+	if is_instance_valid(_hero_fire):
+		_hero_fire.visible = false
+		_hero_fire.age = -1.0
+		_hero_fire.flight = -1.0
 
 func _strike() -> void:
 	_play_se("impact")
@@ -330,6 +403,7 @@ func _recovery_progress(value: float) -> void:
 	_queue_visual_redraw()
 
 func _finish() -> void:
+	_clear_hero_finish()
 	_playing = false
 	_phase = "idle"
 	_progress = 0.0
@@ -459,6 +533,8 @@ func _draw() -> void:
 func _draw_effects() -> void:
 	_canvas = _effects
 	if not _playing or _profile.is_empty():
+		return
+	if _hero_finish and _phase != "windup":
 		return
 	var color := Motions.color_for(str(_profile["attribute"]))
 	var kind := str(_profile["kind"])
