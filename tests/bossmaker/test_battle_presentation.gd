@@ -143,3 +143,4 @@ func test_headless_views_keep_synchronous_commands_with_presentation_explicitly_
 		assert_lt(view.session.battle.boss.hp, before_hp)
 		assert_false(view._is_presenting())
 		assert_false(view._log_label.text.is_empty())
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally

@@ -157,6 +157,7 @@ func test_test_battle_victory_never_registers_as_clear_check_success() -> void:
 	assert_eq(view.session.battle.winner, "ally", "sanity: the TEST BATTLE was actually won")
 	assert_false(creator.draft.has_ever_cleared(), "a real TEST BATTLE win must never mark Clear Check as ever having succeeded")
 	assert_false(creator.draft.is_clear_check_currently_valid(), "and the public 'is it currently clear-checked' judgment path must also report false")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # §28 — 成功・失敗
@@ -175,6 +176,7 @@ func test_clear_check_success_via_real_win_condition() -> void:
 	assert_true(creator.draft.is_clear_check_currently_valid())
 	# 実機プレイ改善③ item8: "CLEAR CHECK COMPLETE"/"FAILED"を日本語化。
 	assert_eq(view._outcome_label.text, "クリアチェック成功")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## §28-2: structural guarantee that RBMCreatorClearCheckView never
 ## independently reimplements a boss.hp<=0 win check — it must decide success
@@ -216,6 +218,7 @@ func test_step7_shows_clear_check_completed_after_success() -> void:
 	step7.refresh()
 	assert_eq(step7._clear_check_status_label.text, "達成済み")
 	assert_eq(step7._clear_check_button.text, "クリアチェックを開始", "the button itself always keeps the same label; achievement is shown by the status label")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_defeat_does_not_record_success() -> void:
 	var creator := _new_creator()
@@ -229,6 +232,7 @@ func test_clear_check_defeat_does_not_record_success() -> void:
 	assert_false(creator.draft.has_ever_cleared())
 	assert_eq(view._outcome_label.text, "クリアチェック失敗")
 	assert_true(view._retry_button.visible, "failure screen shows もう一度挑戦")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_defeat_retry_starts_fresh_turn_1_battle() -> void:
 	var creator := _new_creator()
@@ -244,6 +248,7 @@ func test_defeat_retry_starts_fresh_turn_1_battle() -> void:
 	assert_eq(view.session.battle.current_turn, 1)
 	assert_eq(view.session.battle.party[0].hp, view.session.battle.party[0].max_hp, "full HP -- a fresh battle, not the old one")
 	assert_eq(view.session.reachable_turns(), [1], "REWIND history reset to just Turn 1 -- the previous attempt's history was not carried over")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_defeat_return_to_creator_preserves_draft() -> void:
 	var creator := _new_creator()
@@ -257,6 +262,7 @@ func test_defeat_return_to_creator_preserves_draft() -> void:
 	assert_eq(creator.current_step, RBMCreatorMain.STEP_COUNT)
 	assert_eq(creator.draft.boss_name, "強敵", "draft preserved after a defeat + Creatorに戻る")
 	assert_false(creator.draft.has_ever_cleared())
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_success_outcome_screen_has_only_return_button() -> void:
 	var creator := _new_creator()
@@ -267,6 +273,7 @@ func test_success_outcome_screen_has_only_return_button() -> void:
 	view.act_attack(view.session.battle.party[0].id)
 	assert_false(view._retry_button.visible, "§14: no もう一度挑戦 on the success screen")
 	assert_true(view._return_button.visible)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # §29 — Clear Check状態（比較対象/対象外/パーティ順序）
@@ -291,6 +298,7 @@ func test_clear_check_success_invalidated_by_hp_change_and_restored_when_reverte
 
 	creator.draft.hp = 1
 	assert_true(creator.draft.is_clear_check_currently_valid(), "reverted to the exact cleared value -> valid again, with no special restore step")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_success_invalidated_by_atk_change() -> void:
 	var creator := _new_creator()
@@ -298,6 +306,7 @@ func test_clear_check_success_invalidated_by_atk_change() -> void:
 	_win_clear_check(creator)
 	creator.draft.atk = 2
 	assert_false(creator.draft.is_clear_check_currently_valid())
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_success_invalidated_by_spd_change() -> void:
 	var creator := _new_creator()
@@ -305,6 +314,7 @@ func test_clear_check_success_invalidated_by_spd_change() -> void:
 	_win_clear_check(creator)
 	creator.draft.spd = 2
 	assert_false(creator.draft.is_clear_check_currently_valid())
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_success_invalidated_by_weak_attribute_change() -> void:
 	var creator := _new_creator()
@@ -314,6 +324,7 @@ func test_clear_check_success_invalidated_by_weak_attribute_change() -> void:
 	assert_false(creator.draft.is_clear_check_currently_valid())
 	creator.draft.toggle_weak_attribute("FIRE")
 	assert_true(creator.draft.is_clear_check_currently_valid(), "reverted -> valid again")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_success_invalidated_by_resist_attribute_change() -> void:
 	var creator := _new_creator()
@@ -321,6 +332,7 @@ func test_clear_check_success_invalidated_by_resist_attribute_change() -> void:
 	_win_clear_check(creator)
 	creator.draft.toggle_resist_attribute("ICE")
 	assert_false(creator.draft.is_clear_check_currently_valid())
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_success_invalidated_by_boss_skill_performance_change() -> void:
 	var creator := _new_creator()
@@ -331,6 +343,7 @@ func test_clear_check_success_invalidated_by_boss_skill_performance_change() -> 
 	assert_false(creator.draft.is_clear_check_currently_valid(), "changing a skill's own atk_multiplier invalidates")
 	creator.draft.update_skill(skill_id, {"name": "反撃", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 1.0})
 	assert_true(creator.draft.is_clear_check_currently_valid(), "reverted the skill's values exactly -> restored")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## Codex最終レビュー対応②: deleting a boss skill and recreating one with
 ## IDENTICAL user-facing values must invalidate Clear Check (add_skill()
@@ -359,6 +372,7 @@ func test_skill_delete_and_recreate_with_identical_values_invalidates_but_in_pla
 	var recreated_skill_id := creator.draft.add_skill(skill_data.duplicate(true))
 	assert_ne(recreated_skill_id, original_skill_id, "sanity: a genuinely new skill_id was assigned by add_skill()")
 	assert_false(creator.draft.is_clear_check_currently_valid(), "delete+recreate with identical values is still treated as a DIFFERENT skill (different skill_id) -- Clear Check stays invalid, per the confirmed §a decision")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_success_invalidated_by_normal_action_percentage_change() -> void:
 	var creator := _new_creator()
@@ -367,6 +381,7 @@ func test_clear_check_success_invalidated_by_normal_action_percentage_change() -
 	var skill_id := str(creator.draft.skills[0]["skill_id"])
 	creator.draft.normal_action_percentages[skill_id] = 50.0
 	assert_false(creator.draft.is_clear_check_currently_valid())
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_success_invalidated_by_normal_action_order_change() -> void:
 	# §22: normal_actions order is derived from draft.skills' own array order
@@ -389,6 +404,7 @@ func test_clear_check_success_invalidated_by_normal_action_order_change() -> voi
 	creator.draft.skills[0] = creator.draft.skills[1]
 	creator.draft.skills[1] = tmp
 	assert_false(creator.draft.is_clear_check_currently_valid(), "reordering draft.skills (and hence normal_actions' array order) invalidates even though membership/percentages are unchanged")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_success_invalidated_by_scripted_action_change() -> void:
 	var creator := _new_creator()
@@ -397,6 +413,7 @@ func test_clear_check_success_invalidated_by_scripted_action_change() -> void:
 	var skill_id := str(creator.draft.skills[0]["skill_id"])
 	creator.draft.add_scripted_action(1, skill_id, "turn_start_interrupt")
 	assert_false(creator.draft.is_clear_check_currently_valid())
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## Codex最終レビュー対応③ (turn): changes to an EXISTING scripted action's own
 ## turn -- not merely adding a brand-new one -- must invalidate, and
@@ -420,6 +437,7 @@ func test_clear_check_success_invalidated_by_scripted_action_turn_change_and_rev
 	creator.draft.remove_scripted_action(0)
 	creator.draft.add_scripted_action(3, skill_id, "replace")
 	assert_true(creator.draft.is_clear_check_currently_valid(), "reverted back to Turn 3 -> restored")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## Codex最終レビュー対応③ (timing): same as the turn-change test above, but
 ## for an existing scripted action's timing.
@@ -438,6 +456,7 @@ func test_clear_check_success_invalidated_by_scripted_action_timing_change_and_r
 	creator.draft.remove_scripted_action(0)
 	creator.draft.add_scripted_action(1, skill_id, "replace")
 	assert_true(creator.draft.is_clear_check_currently_valid(), "reverted timing -> restored")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## Codex最終レビュー対応③ (order): two scripted actions sharing the same
 ## (turn,timing) group, reordered via the genuine ↑/↓ path
@@ -459,6 +478,7 @@ func test_clear_check_success_invalidated_by_scripted_action_order_change_and_re
 
 	assert_true(creator.draft.move_scripted_action(0, 1), "move back down -- restores the original order")
 	assert_true(creator.draft.is_clear_check_currently_valid(), "reverted order -> restored")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_success_invalidated_by_party_member_change() -> void:
 	var creator := _new_creator()
@@ -467,6 +487,7 @@ func test_clear_check_success_invalidated_by_party_member_change() -> void:
 	creator.draft.remove_party_character("hero")
 	creator.draft.add_party_character("butler")
 	assert_false(creator.draft.is_clear_check_currently_valid(), "a different party member entirely -> invalid")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_success_invalidated_by_allowed_skill_ids_change() -> void:
 	var creator := _new_creator()
@@ -476,6 +497,7 @@ func test_clear_check_success_invalidated_by_allowed_skill_ids_change() -> void:
 	assert_false(creator.draft.is_clear_check_currently_valid())
 	creator.draft.set_ally_skill_allowed("hero", "hero_slash", true)
 	assert_true(creator.draft.is_clear_check_currently_valid(), "reverted -> restored (note: this also proves a pure toggle-off-then-on, which reorders allowed_skill_ids to the end, does NOT itself invalidate -- skill-list order has no battle-mechanical effect)")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_success_kept_when_only_boss_name_changes() -> void:
 	var creator := _new_creator()
@@ -483,6 +505,7 @@ func test_clear_check_success_kept_when_only_boss_name_changes() -> void:
 	_win_clear_check(creator)
 	creator.draft.boss_name = "改名後のボス"
 	assert_true(creator.draft.is_clear_check_currently_valid(), "boss name is explicitly not battle content (§20)")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_success_kept_when_only_appearance_changes() -> void:
 	var creator := _new_creator()
@@ -490,6 +513,7 @@ func test_clear_check_success_kept_when_only_appearance_changes() -> void:
 	_win_clear_check(creator)
 	creator.draft.appearance_id = "wolf"
 	assert_true(creator.draft.is_clear_check_currently_valid(), "appearance is explicitly not battle content (§20)")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_success_invalidated_when_party_order_changes() -> void:
 	var creator := _new_creator()
@@ -505,6 +529,7 @@ func test_clear_check_success_invalidated_when_party_order_changes() -> void:
 	# reorder without changing membership or any allowed_skill_ids.
 	creator.draft.party_character_ids = ["butler", "hero"]
 	assert_false(creator.draft.is_clear_check_currently_valid(), "equal-SPD action order makes party array order part of battle content")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func _win_multi_turn_clear_check(creator: RBMCreatorMain) -> void:
 	creator.press_clear_check()
@@ -540,6 +565,7 @@ func test_re_clear_check_genuine_defeat_preserves_past_success() -> void:
 	assert_true(session.battle.battle_over, "sanity: the fixture actually resolves to a loss within a bounded number of turns")
 	assert_eq(session.battle.winner, "boss", "sanity: this re-attempt is a genuine defeat, not a win")
 	assert_true(creator.draft.is_clear_check_currently_valid(), "§16/§29-17: a genuine defeat on a re-attempt (content unchanged) must not erase the earlier success record")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## §29-18: a mid-battle abort ("Creatorに戻る" before the battle ends) on a
 ## re-attempt must likewise not erase the earlier success record.
@@ -554,6 +580,7 @@ func test_re_clear_check_mid_battle_abort_preserves_past_success() -> void:
 	var view := creator._clear_check_view
 	view._on_return_pressed()  # abort without playing at all
 	assert_true(creator.draft.is_clear_check_currently_valid(), "an aborted re-attempt (no win) must not erase the earlier success record")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # §30 — REWIND（Clear Checkモードとの接続）
@@ -578,6 +605,7 @@ func test_clear_check_rewind_restores_turn_hp_and_reaches_turn_1() -> void:
 	assert_eq(session.battle.party[0].hp, turn1_hero_hp, "HP restored to Turn 1's start")
 	assert_eq(session.reachable_turns(), [1], "future history (turns 2-3) discarded")
 	assert_false(session.battle.battle_over)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_rewind_reproduces_rng_and_refires_scripted_actions() -> void:
 	# §30's own guidance: connection-testing, not re-proving the primitive.
@@ -608,6 +636,7 @@ func test_clear_check_rewind_reproduces_rng_and_refires_scripted_actions() -> vo
 	# behaves identically without erroring or drifting off Turn 2.
 	view.act_defend(session.battle.party[0].id)
 	assert_eq(session.battle.current_turn, 2, "the scripted action re-fired and the turn resolved again after REWIND, not treated as already-consumed")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## Codex最終レビュー対応④: the test above uses a boss with only ONE possible
 ## normal-action candidate, so a broken RNG restoration could coincidentally
@@ -658,6 +687,7 @@ func test_clear_check_rewind_reproduces_a_genuinely_rng_branching_battle_outcome
 	view.act_defend(session.battle.party[0].id)
 	var second_hp: int = session.battle.party[0].hp
 	assert_eq(second_hp, first_hp, "REWIND -> replay with the same input must reproduce the EXACT same RNG-branching outcome, not merely a coincidentally-matching one")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_rewind_does_not_affect_win_or_loss_outcome() -> void:
 	var creator := _new_creator()
@@ -677,6 +707,7 @@ func test_clear_check_rewind_does_not_affect_win_or_loss_outcome() -> void:
 	view.act_attack(session.battle.party[0].id)
 	assert_eq(session.battle.winner, "ally")
 	assert_true(creator.draft.has_ever_cleared(), "§7/§28: REWINDing beforehand never disqualifies an eventual win")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_clear_check_win_after_rewind_still_records_success() -> void:
 	var creator := _new_creator()
@@ -692,6 +723,7 @@ func test_clear_check_win_after_rewind_still_records_success() -> void:
 		view.act_attack(session.battle.party[0].id)
 	assert_eq(session.battle.winner, "ally")
 	assert_true(creator.draft.has_ever_cleared(), "a win reached via a REWIND-then-replay path still records Clear Check success")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # §31 — 最初からやり直す
@@ -714,6 +746,7 @@ func test_restart_button_requires_confirmation_before_resetting() -> void:
 	view._on_restart_cancel_pressed()
 	assert_false(view._restart_confirm.visible)
 	assert_eq(session.battle.current_turn, turn_before, "キャンセルで現在の戦闘のまま")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_restart_confirmed_resets_to_turn_1_with_fresh_state_new_seed_and_cleared_history() -> void:
 	var creator := _new_creator()
@@ -739,6 +772,7 @@ func test_restart_confirmed_resets_to_turn_1_with_fresh_state_new_seed_and_clear
 	assert_eq(session.battle.boss.hp, session.battle.boss.max_hp)
 	assert_eq(session.reachable_turns(), [1], "REWIND history reinitialized")
 	assert_false(session.battle.battle_over)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 	# "new RNG seed" is checked directly in the next test.
 
 func test_restart_confirmed_uses_a_new_rng_seed() -> void:
@@ -753,6 +787,7 @@ func test_restart_confirmed_uses_a_new_rng_seed() -> void:
 	# session.restart() reseeds via randi() -- astronomically unlikely to
 	# coincide with the fixed seed=1 this test started from.
 	assert_ne(view.session.battle.rng.seed, seed_before, "§9: a brand new random seed, not the same fixed one the test started with")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_restart_from_a_cleared_draft_does_not_erase_the_success_record() -> void:
 	var creator := _new_creator()
@@ -767,6 +802,7 @@ func test_restart_from_a_cleared_draft_does_not_erase_the_success_record() -> vo
 	view._on_restart_pressed()
 	view._on_restart_confirmed()
 	assert_true(creator.draft.is_clear_check_currently_valid(), "§9/§16: restarting mid-attempt (content unchanged) never erases an existing success record")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # §32 — 中断
@@ -786,6 +822,7 @@ func test_mid_battle_return_to_creator_aborts_without_success_and_keeps_draft() 
 	assert_eq(creator.current_step, RBMCreatorMain.STEP_COUNT, "specifically STEP 7")
 	assert_eq(creator.draft.boss_name, "多ターンボス", "draft preserved")
 	assert_false(creator.draft.has_ever_cleared(), "an abort mid-battle is never a success")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_mid_battle_return_to_creator_preserves_an_existing_past_success() -> void:
 	var creator := _new_creator()
@@ -799,6 +836,7 @@ func test_mid_battle_return_to_creator_preserves_an_existing_past_success() -> v
 	view.act_attack(view.session.battle.party[0].id)
 	view._on_return_pressed()
 	assert_true(creator.draft.is_clear_check_currently_valid(), "§11/§16: aborting a re-attempt never deletes a prior success record")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # Phase 2 §25: ランダム行動notice

@@ -159,6 +159,7 @@ func test_4_real_publish_button_press_exposes_the_stage_to_challenge() -> void:
 	var entry := _new_challenge_entry()
 	entry._refresh_list()
 	assert_eq(entry._list_rows.get_child_count(), 1)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # 5. 公開未達では公開ボタンが無効
@@ -183,6 +184,7 @@ func test_5_real_publish_button_is_disabled_before_clear_check() -> void:
 	assert_true(step5._publish_button.disabled, "the publish button must be disabled until Clear Check is achieved")
 	_btn(step5, "PublishButton").pressed.emit()
 	assert_false(main.draft.is_published(), "a disabled button must not be clickable in real UI, but even a direct emit must not publish")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # 6. 公開後にClear Check無効化変更をすると自動的に非公開になる
@@ -292,6 +294,7 @@ func test_8_real_unpublish_button_removes_the_stage_from_challenge() -> void:
 	var entry := _new_challenge_entry()
 	entry._refresh_list()
 	assert_eq(entry._list_rows.get_child_count(), 0)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # 9. 公開取り下げだけではClear Check達成状態を失わない

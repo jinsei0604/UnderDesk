@@ -374,6 +374,7 @@ func test_pressing_challenge_starts_a_real_battle_using_the_saved_definition() -
 	assert_true(entry._battle_view.visible)
 	assert_not_null(entry._battle_view.session.battle)
 	assert_eq(entry._battle_view.session.battle.boss.display_name, "戦闘開始ボス")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_challenge_battle_view_has_no_rewind_ui() -> void:
 	var stage_id := _save_playable_boss()
@@ -382,6 +383,7 @@ func test_challenge_battle_view_has_no_rewind_ui() -> void:
 	entry._confirm_view._on_challenge_pressed()
 	assert_false(entry._battle_view.has_method("rewind_to"))
 	assert_false(entry._battle_view.has_node("RewindList"))
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## §30: 勝敗はRBMBattle.battle_over/winnerだけで判定される——一撃で倒せる
 ## 極端なボスに対し、通常攻撃1回で実際に勝利することを直接確認する
@@ -398,6 +400,7 @@ func test_winning_a_real_battle_shows_clear_outcome() -> void:
 	# 実機プレイ改善③ item8: "CLEAR!"/"DEFEAT"は「クリア！」/「敗北」へ日本語化。
 	assert_eq(entry._battle_view._outcome_label.text, "クリア！")
 	assert_true(entry._battle_view._outcome_area.visible)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_losing_a_real_battle_shows_defeat_outcome() -> void:
 	var stage_id := _save_boss_that_wins_immediately()
@@ -408,6 +411,7 @@ func test_losing_a_real_battle_shows_defeat_outcome() -> void:
 	assert_true(entry._battle_view.session.battle.battle_over)
 	assert_eq(entry._battle_view.session.battle.winner, "boss")
 	assert_eq(entry._battle_view._outcome_label.text, "敗北")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## §25: CHALLENGEの勝利はClear Check成功として記録されない
 ## （TEST BATTLEの既存の扱いをそのまま踏襲——新しい仕様ではなく確認事項）。
@@ -426,6 +430,7 @@ func test_winning_a_challenge_never_records_clear_check_success() -> void:
 	var reloaded_draft := RBMCreatorDraft.new()
 	reloaded_draft.restore_clear_check_snapshot(reloaded.get("clear_check_data", {}))
 	assert_false(reloaded_draft.has_ever_cleared())
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # §27/§28 — 最初からやり直す（確認あり）
@@ -439,6 +444,7 @@ func test_restart_button_shows_a_confirmation_before_acting() -> void:
 	entry._battle_view._on_restart_pressed()
 	assert_true(entry._battle_view._restart_confirm.visible)
 	assert_eq(entry._battle_view.session.battle.current_turn, 1, "must not have actually restarted yet -- only the confirmation is showing")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_restart_cancel_leaves_battle_state_untouched() -> void:
 	var stage_id := _save_playable_boss()
@@ -451,6 +457,7 @@ func test_restart_cancel_leaves_battle_state_untouched() -> void:
 	entry._battle_view._on_restart_cancel_pressed()
 	assert_false(entry._battle_view._restart_confirm.visible)
 	assert_eq(entry._battle_view.session.battle.current_turn, turn_after_one_action)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_restart_confirmed_resets_to_turn_1_and_full_hp() -> void:
 	var stage_id := _save_playable_boss()
@@ -463,6 +470,7 @@ func test_restart_confirmed_resets_to_turn_1_and_full_hp() -> void:
 	assert_false(entry._battle_view._restart_confirm.visible)
 	assert_eq(entry._battle_view.session.battle.current_turn, 1)
 	assert_eq(entry._battle_view.session.battle.boss.hp, entry._battle_view.session.battle.boss.max_hp)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # §29 — 挑戦をやめる（確認あり、勝敗どちらにも記録されない）
@@ -476,6 +484,7 @@ func test_quit_button_shows_a_confirmation_before_returning_to_list() -> void:
 	entry._battle_view._on_quit_pressed()
 	assert_true(entry._battle_view._quit_confirm.visible)
 	assert_true(entry._battle_view.visible, "must still be on the battle screen -- only the confirmation is showing")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_quit_cancel_stays_on_the_battle_screen() -> void:
 	var stage_id := _save_playable_boss()
@@ -486,6 +495,7 @@ func test_quit_cancel_stays_on_the_battle_screen() -> void:
 	entry._battle_view._on_quit_cancel_pressed()
 	assert_false(entry._battle_view._quit_confirm.visible)
 	assert_true(entry._battle_view.visible)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_quit_confirmed_returns_to_the_challenge_list() -> void:
 	var stage_id := _save_playable_boss()
@@ -496,6 +506,7 @@ func test_quit_confirmed_returns_to_the_challenge_list() -> void:
 	entry._battle_view._on_quit_confirmed()
 	assert_true(entry._list_panel.visible)
 	assert_false(entry._battle_view.visible)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## §29: 途中でやめても勝敗どちらにも記録されない——draftのClear Check
 ## snapshotが未クリアのまま、保存ファイルも無傷。
@@ -509,6 +520,7 @@ func test_quitting_mid_battle_is_never_recorded_as_a_win_or_a_loss() -> void:
 	entry._battle_view._on_quit_pressed()
 	entry._battle_view._on_quit_confirmed()
 	assert_false(draft_before_battle.has_ever_cleared())
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # §32/§33/§34 — 結果画面: 勝利・敗北どちらも「もう一度挑戦」を確認なしで表示
@@ -522,6 +534,7 @@ func test_win_result_screen_shows_both_retry_and_return_to_list_buttons() -> voi
 	_win_immediately(entry._battle_view)
 	assert_true(entry._battle_view._retry_button.visible)
 	assert_true(entry._battle_view._return_button.visible)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_lose_result_screen_shows_both_retry_and_return_to_list_buttons() -> void:
 	var stage_id := _save_boss_that_wins_immediately()
@@ -531,6 +544,7 @@ func test_lose_result_screen_shows_both_retry_and_return_to_list_buttons() -> vo
 	entry._battle_view.act_attack(0)
 	assert_true(entry._battle_view._retry_button.visible)
 	assert_true(entry._battle_view._return_button.visible)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## §34: 結果画面からの「もう一度挑戦」は確認なしで即座に再挑戦できる
 ## （戦闘途中の「最初からやり直す」とは違い、既に決着済みで失うものが
@@ -546,6 +560,7 @@ func test_retry_from_result_screen_needs_no_confirmation() -> void:
 	assert_eq(entry._battle_view.session.battle.current_turn, 1)
 	assert_false(entry._battle_view.session.battle.battle_over)
 	assert_false(entry._battle_view._outcome_area.visible)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_return_to_list_from_result_screen_goes_back_to_the_challenge_list() -> void:
 	var stage_id := _save_boss_that_dies_in_one_hit()
@@ -555,6 +570,7 @@ func test_return_to_list_from_result_screen_goes_back_to_the_challenge_list() ->
 	_win_immediately(entry._battle_view)
 	entry._battle_view._on_return_pressed()
 	assert_true(entry._list_panel.visible)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # §36/§37/§58 — Creatorの未保存変更からの分離
@@ -579,6 +595,7 @@ func test_challenge_uses_the_saved_content_not_an_unsaved_creator_edit() -> void
 
 	entry._confirm_view._on_challenge_pressed()
 	assert_eq(entry._battle_view.session.battle.boss.display_name, "保存済みA", "the actual battle definition must also be the saved content")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # §23/§37/§59 — 進行中セッションのDefinitionは固定される
@@ -605,6 +622,7 @@ func test_an_in_progress_challenge_session_is_unaffected_by_a_concurrent_overwri
 	# （再ロードする経路が無いことの追加確認）。
 	entry._battle_view.session.restart()
 	assert_eq(entry._battle_view.session.battle.boss.max_hp, hp_at_start)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # Codex最終レビュー指摘対応 §5〜§8 — 実UI経由のマスク同期・具体表示・戻る
@@ -767,6 +785,7 @@ func test_winning_a_challenge_leaves_the_saved_json_byte_for_byte_unchanged() ->
 
 	var bytes_after := _read_stage_bytes(stage_id)
 	assert_eq(bytes_after, bytes_before, "a CHALLENGE win must never write anything back to the saved stage file")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## §13: 敗北後も保存JSONがバイト単位で完全不変。
 func test_losing_a_challenge_leaves_the_saved_json_byte_for_byte_unchanged() -> void:
@@ -782,6 +801,7 @@ func test_losing_a_challenge_leaves_the_saved_json_byte_for_byte_unchanged() -> 
 
 	var bytes_after := _read_stage_bytes(stage_id)
 	assert_eq(bytes_after, bytes_before, "a CHALLENGE loss must never write anything back to the saved stage file")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## §14: 「最初からやり直す」→確認→restart後も保存JSONがバイト単位で完全不変。
 func test_restarting_mid_challenge_leaves_the_saved_json_byte_for_byte_unchanged() -> void:
@@ -797,6 +817,7 @@ func test_restarting_mid_challenge_leaves_the_saved_json_byte_for_byte_unchanged
 
 	var bytes_after := _read_stage_bytes(stage_id)
 	assert_eq(bytes_after, bytes_before, "restarting a CHALLENGE must never write anything back to the saved stage file")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## §15: 「挑戦をやめる」→確認→一覧後も保存JSONがバイト単位で完全不変。
 func test_quitting_mid_challenge_leaves_the_saved_json_byte_for_byte_unchanged() -> void:
@@ -812,6 +833,7 @@ func test_quitting_mid_challenge_leaves_the_saved_json_byte_for_byte_unchanged()
 
 	var bytes_after := _read_stage_bytes(stage_id)
 	assert_eq(bytes_after, bytes_before, "quitting a CHALLENGE must never write anything back to the saved stage file")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 # ---------------------------------------------------------------------------
 # Codex最終レビュー指摘対応 §17 — 一覧の破損/未対応version統合テスト

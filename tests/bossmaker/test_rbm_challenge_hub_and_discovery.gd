@@ -416,6 +416,7 @@ func test_challenge_start_from_detail_panel_immediately_begins_battle_with_no_ex
 	assert_true(entry._battle_view.visible, "『このボスに挑戦』は追加の確認画面を挟まず即座に戦闘を開始する")
 	assert_not_null(entry._battle_view.session)
 	assert_true(entry._battle_view.session.start_ok())
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_challenge_attempt_is_recorded_exactly_once_per_battle_start_not_per_retry() -> void:
 	var stage_id := _publish("挑戦回数記録確認ボス")
@@ -430,6 +431,7 @@ func test_challenge_attempt_is_recorded_exactly_once_per_battle_start_not_per_re
 	entry._battle_view._on_restart_pressed()
 	entry._battle_view._on_restart_confirmed()
 	assert_eq(int(RBMLocalStageRepository.read_stage_stats(stage_id).get("challenge_count", 0)), 1, "restarting mid-session must not inflate the challenge count")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## CHALLENGE discovery 最終調整 §5 item2: 「最初からやり直す」（同一
 ## セッション内の継続）とは異なり、一度一覧へ戻ってから改めて『このボスに
@@ -460,6 +462,7 @@ func test_challenging_the_same_boss_again_after_returning_to_the_list_increments
 	_click_card(entry._list_rows.get_child(0))
 	entry._confirm_view._on_challenge_pressed()
 	assert_eq(int(RBMLocalStageRepository.read_stage_stats(stage_id).get("challenge_count", 0)), 2, "challenging the same boss again from the hub (after returning to the list) must increment challenge_count further")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 func test_challenge_clear_is_recorded_exactly_once_on_win() -> void:
 	var draft := RBMCreatorDraft.new()
@@ -484,6 +487,7 @@ func test_challenge_clear_is_recorded_exactly_once_on_win() -> void:
 
 	assert_eq(int(RBMLocalStageRepository.read_stage_stats(stage_id).get("clear_count", 0)), 1)
 	assert_eq(int(RBMLocalStageRepository.read_stage_stats(stage_id).get("challenge_count", 0)), 1)
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## CHALLENGE discovery 最終調整 §5 item3: 敗北はclear_countを増やさない
 ## （挑戦回数は通常どおり1加算される）。
@@ -513,6 +517,7 @@ func test_losing_a_battle_does_not_increment_clear_count() -> void:
 
 	assert_eq(int(RBMLocalStageRepository.read_stage_stats(stage_id).get("challenge_count", 0)), 1, "a battle start still counts as a challenge even if it ends in a loss")
 	assert_eq(int(RBMLocalStageRepository.read_stage_stats(stage_id).get("clear_count", 0)), 0, "a loss must never increment clear_count")
+	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## CHALLENGE discovery 最終調整 §5 item7: 「人」ではなく「回」で表示される。
 func test_card_challenge_count_reads_as_a_count_of_times_not_a_headcount() -> void:
