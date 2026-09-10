@@ -235,7 +235,8 @@ func test_full_phase1_journey_launch_through_challenge_result() -> void:
 	# 「保存しただけ」ではCHALLENGE側に表示されない——このE2Eの目的
 	# （STEP間ナビゲーション/実UI経由の反映）の対象外である保存成功サブ画面
 	# には専用の公開ボタンが無いため、本物の公開実効API（main.press_publish()、
-	# 最終確認画面のPublishButtonが呼ぶのと同じ処理）を直接呼ぶ——
+	# ローカル公開の既存処理そのもの——公開UI整理でユーザー向けUIからは
+	# 廃止されたが、機能自体は無改修のまま残る）を直接呼ぶ——
 	# Clear Checkは直前の手順9で既に本物のRBMBattle勝利により達成済み。
 	assert_true(bool(main.press_publish().get("ok", false)), "Clear Check達成済みのため公開できること")
 	assert_true(main.draft.is_published())

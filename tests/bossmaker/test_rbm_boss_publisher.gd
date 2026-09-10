@@ -190,3 +190,66 @@ func test_double_tap_while_publishing_is_ignored_not_a_second_request() -> void:
 	assert_true(first_ok)
 	assert_false(second_result["started"], "a publish already in flight must reject a concurrent duplicate call")
 	assert_eq(api.publish_calls.size(), 1)
+
+# ---------------------------------------------------------------------------
+# unpublish() — 公開UI整理（2026-09-10）: ソフト取り下げ。DB上のデータは
+# 削除せず、既存のunpublish-boss Edge Function(is_published=falseへ戻す
+# サーバ側実装、ここでは変更しない)を叩くだけ。認証経路はpublish()と共通。
+# ---------------------------------------------------------------------------
+
+func test_unpublish_fails_safely_when_steam_is_unavailable() -> void:
+	var auth := _ready_steam_auth(false, false)
+	var api := RBMFakeBossApiAdapter.new()
+	var publisher := _publisher(auth, api)
+
+	var ok: bool = await publisher.unpublish("some-boss-id")
+	assert_false(ok)
+	assert_eq(publisher.last_error_kind(), "steam_unavailable")
+	assert_eq(api.unpublish_calls.size(), 0)
+
+func test_unpublish_rejects_an_empty_boss_id_without_touching_steam_or_the_api() -> void:
+	var auth := _ready_steam_auth()
+	var api := RBMFakeBossApiAdapter.new()
+	var publisher := _publisher(auth, api)
+
+	var ok: bool = await publisher.unpublish("")
+	assert_false(ok)
+	assert_eq(api.unpublish_calls.size(), 0)
+
+func test_unpublish_succeeds_end_to_end_with_fake_steam_ticket_and_fake_api() -> void:
+	var auth := _ready_steam_auth()
+	var api := RBMFakeBossApiAdapter.new()
+	api.configure_unpublish_response({"ok": true})
+	var publisher := _publisher(auth, api)
+
+	_schedule_ticket_success(auth)
+	var ok: bool = await publisher.unpublish("abc-123")
+
+	assert_true(ok)
+	assert_eq(publisher.current_state(), RBMBossPublisher.PublishState.SUCCEEDED)
+	assert_eq(api.unpublish_calls.size(), 1)
+	assert_eq(api.unpublish_calls[0]["boss_id"], "abc-123")
+	assert_true((api.unpublish_calls[0]["ticket"] as String).length() > 0, "the hex ticket from Steam must actually be sent")
+
+func test_unpublish_surfaces_edge_function_rejection_as_failure() -> void:
+	var auth := _ready_steam_auth()
+	var api := RBMFakeBossApiAdapter.new()
+	api.configure_unpublish_response({"ok": false, "error_kind": "forbidden", "message": "not the owner"})
+	var publisher := _publisher(auth, api)
+
+	_schedule_ticket_success(auth)
+	var ok: bool = await publisher.unpublish("abc-123")
+
+	assert_false(ok)
+	assert_eq(publisher.last_error_kind(), "forbidden")
+
+func test_is_steam_available_reflects_the_injected_fake_without_a_network_call() -> void:
+	var available_auth := _ready_steam_auth(true, true)
+	var api := RBMFakeBossApiAdapter.new()
+	var publisher := _publisher(available_auth, api)
+	assert_true(publisher.is_steam_available())
+
+	var unavailable_auth := _ready_steam_auth(false, false)
+	var api2 := RBMFakeBossApiAdapter.new()
+	var publisher2 := _publisher(unavailable_auth, api2)
+	assert_false(publisher2.is_steam_available())

@@ -561,6 +561,41 @@ func sync_published_with_clear_check() -> void:
 		_published = false
 
 # ---------------------------------------------------------------------------
+# オンライン公開状態の永続化（公開UI整理、2026-09-10、ユーザー確定仕様）
+# ---------------------------------------------------------------------------
+## RBMBossPublisher/RBMBossApiAdapter経由のオンライン公開状態を、この
+## ローカルstageのメタデータとして保存/復元できるようにする——Creatorを
+## 閉じて再度開いた時に「公開を取り下げる」/「オンライン公開」のどちらを
+## 出すべきか判定できなかった問題（セッション内変数だけで持っていたため）
+## への対応。
+##
+## 完全に「オンライン管理用メタデータ」として扱う——上記の_published（ローカル
+## 公開、CHALLENGE一覧の可視化に使う既存フィールド、無改修）とは別物であり、
+## どちらもbattle_content_snapshot()（Clear Check比較専用）には一切含めない
+## （§17参照）。Supabase/Steamの既存publish/unpublish仕様自体も変更しない
+## ——ここはその結果をローカルへ書き残すだけ。
+var _online_boss_id: String = ""
+var _online_published: bool = false
+
+func online_boss_id() -> String:
+	return _online_boss_id
+
+func is_online_published() -> bool:
+	return _online_published
+
+## publish成功時にUI層（RBMCreatorStep7Summary）から呼ぶ。boss_idは
+## RBMBossPublisher.last_boss_id()——再publish時にこの同じidを渡せば
+## サーバ側は新規重複投稿ではなく既存レコードを更新する。
+func set_online_boss_id(boss_id: String) -> void:
+	_online_boss_id = boss_id
+
+## publish/unpublish成功時にUI層から呼ぶ。unpublish成功時はboss_idには
+## 触れず、この値だけをfalseへ更新する（ユーザー確定仕様「同じonline_boss_id
+## は保持してよい」）。
+func set_online_published(published: bool) -> void:
+	_online_published = published
+
+# ---------------------------------------------------------------------------
 # STEP 1
 # ---------------------------------------------------------------------------
 
@@ -1565,6 +1600,12 @@ func to_saved_dict() -> Dictionary:
 		# CHALLENGE UI再設計 §4-D: フィールド自体が存在しない旧保存データは
 		# 0（＝新着ソートで最も古い扱い）へ安全にフォールバックする。
 		"published_at_unix_time": _published_at_unix_time,
+		# 公開UI整理（2026-09-10）: オンライン公開管理用メタデータ。フィールド
+		# 自体が存在しない旧保存データは""/falseへ安全にフォールバックする
+		# （restore_from_saved_dict()参照）——古いsaveを自動的にオンライン
+		# 公開済み扱いにはしない。
+		"online_boss_id": _online_boss_id,
+		"online_published": _online_published,
 	}
 
 ## §15/§16/§18: 保存によって失われうるユーザー設定・状態すべてを含む、未保存
@@ -1631,6 +1672,10 @@ func restore_from_saved_dict(data: Dictionary) -> void:
 	# しない」。
 	_published = bool(data.get("published", false))
 	_published_at_unix_time = int(data.get("published_at_unix_time", 0))
+	# 公開UI整理（2026-09-10）: フィールド自体が存在しない旧stageは""/falseへ
+	# 安全にフォールバックする（未公開として扱う）。
+	_online_boss_id = str(data.get("online_boss_id", ""))
+	_online_published = bool(data.get("online_published", false))
 
 ## §10/§11: Clear Check証明の復元。空Dictionary(未クリア)ならそのまま
 ## _clear_check_success_snapshot = {}（has_ever_cleared()がfalseのまま）。

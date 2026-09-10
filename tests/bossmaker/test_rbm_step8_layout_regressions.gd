@@ -448,8 +448,8 @@ func test_step5_summary_confirm_content_has_real_display_area_and_does_not_overl
 	assert_true(bottom_bar_bottom <= viewport_bottom + EPSILON, "STEP5: bottom bar bottom (%s) must be within the viewport bottom (%s)" % [bottom_bar_bottom, viewport_bottom])
 	assert_gt(step5_summary._save_button.size.x, 0.0, "STEP5: 保存 button must have a real rect")
 	_assert_within_viewport(step5_summary._save_button, viewport, "STEP5 保存 button")
-	assert_gt(step5_summary._publish_button.size.x, 0.0, "STEP5: 公開 button must have a real rect")
-	_assert_within_viewport(step5_summary._publish_button, viewport, "STEP5 公開 button")
+	assert_gt(step5_summary._publish_online_button.size.x, 0.0, "STEP5: オンライン公開 button must have a real rect")
+	_assert_within_viewport(step5_summary._publish_online_button, viewport, "STEP5 オンライン公開 button")
 
 	# §19: TEST BATTLE/CLEAR CHECKは「動作確認」「CLEAR CHECK」セクションと
 	# してスクロール可能な_content内に実在すること（旧: 固定下部バー内）。

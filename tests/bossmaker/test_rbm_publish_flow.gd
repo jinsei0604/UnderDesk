@@ -59,11 +59,6 @@ func _new_challenge_entry() -> RBMChallengeEntry:
 	add_child_autofree(entry)
 	return entry
 
-func _btn(node: Node, button_name: String) -> Button:
-	var found: Button = node.find_child(button_name, true, false)
-	assert_not_null(found, "expected a real Button node named %s under %s" % [button_name, node])
-	return found
-
 # ---------------------------------------------------------------------------
 # 1. Clear Check未達でも保存可能
 # ---------------------------------------------------------------------------
@@ -135,8 +130,11 @@ func test_4_publishing_after_clear_check_exposes_the_stage_to_challenge() -> voi
 	entry._refresh_list()
 	assert_eq(entry._list_rows.get_child_count(), 1)
 
-## 実UI経由: 最終確認画面の[公開]ボタンを実際に押す。
-func test_4_real_publish_button_press_exposes_the_stage_to_challenge() -> void:
+## 公開UI整理（2026-09-10）: STEP5のローカル[公開]ボタンはユーザー向けUI
+## から廃止された（RBMCreatorMain.press_publish()自体は無改修のまま残る）
+## ため、実UIクリックの代わりに同じ公開API(press_publish())を直接叩く形で
+## 同じ挙動（Clear Check達成後の公開→CHALLENGE露出）を検証する。
+func test_4_press_publish_exposes_the_stage_to_challenge() -> void:
 	var main := _new_creator()
 	main.draft.boss_name = "実UI公開ボス"
 	main.draft.hp = 1000
@@ -145,16 +143,12 @@ func test_4_real_publish_button_press_exposes_the_stage_to_challenge() -> void:
 	main.draft.add_skill({"name": "斬撃", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 1.0})
 	main.draft.add_party_character("hero")
 	main.draft.record_clear_check_success()
-	main.go_to_step(RBMCreatorMain.STEP_COUNT)
-	var step5: RBMCreatorStep7Summary = main._step_views[RBMCreatorMain.STEP_COUNT - 1]
-	step5.refresh()
-	assert_false(step5._publish_button.disabled, "sanity: publish must be enabled once cleared")
-	assert_eq(step5._publish_status_label.text, "未公開", "must show an explicit 未公開 status before publishing")
-	_btn(step5, "PublishButton").pressed.emit()
+	assert_false(main.draft.is_published(), "must show an explicit unpublished state before publishing")
+
+	var result := main.press_publish()
+	assert_true(bool(result.get("ok", false)))
 	assert_true(main.draft.is_published())
 	assert_false(main.current_stage_id.is_empty(), "publishing an unsaved-but-cleared draft must implicitly save it")
-	step5.refresh()
-	assert_eq(step5._publish_status_label.text, "公開中", "must show an explicit 公開中 status once published")
 
 	var entry := _new_challenge_entry()
 	entry._refresh_list()
@@ -170,7 +164,7 @@ func test_5_publish_returns_false_and_does_nothing_before_clear_check() -> void:
 	assert_false(draft.publish(), "publish() must fail before Clear Check is achieved")
 	assert_false(draft.is_published())
 
-func test_5_real_publish_button_is_disabled_before_clear_check() -> void:
+func test_5_press_publish_does_nothing_before_clear_check() -> void:
 	var main := _new_creator()
 	main.draft.boss_name = "未達成ボス"
 	main.draft.hp = 1000
@@ -178,13 +172,9 @@ func test_5_real_publish_button_is_disabled_before_clear_check() -> void:
 	main.draft.spd = 50
 	main.draft.add_skill({"name": "斬撃", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 1.0})
 	main.draft.add_party_character("hero")
-	main.go_to_step(RBMCreatorMain.STEP_COUNT)
-	var step5: RBMCreatorStep7Summary = main._step_views[RBMCreatorMain.STEP_COUNT - 1]
-	step5.refresh()
-	assert_true(step5._publish_button.disabled, "the publish button must be disabled until Clear Check is achieved")
-	_btn(step5, "PublishButton").pressed.emit()
-	assert_false(main.draft.is_published(), "a disabled button must not be clickable in real UI, but even a direct emit must not publish")
-	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
+	var result := main.press_publish()
+	assert_false(bool(result.get("ok", false)), "publishing must fail until Clear Check is achieved")
+	assert_false(main.draft.is_published())
 
 # ---------------------------------------------------------------------------
 # 6. 公開後にClear Check無効化変更をすると自動的に非公開になる
@@ -264,8 +254,11 @@ func test_8_unpublishing_removes_the_stage_from_challenge() -> void:
 	entry._refresh_list()
 	assert_eq(entry._list_rows.get_child_count(), 0, "an explicitly unpublished stage must disappear from CHALLENGE")
 
-## 実UI経由: 最終確認画面の[公開を取り下げる]ボタン。
-func test_8_real_unpublish_button_removes_the_stage_from_challenge() -> void:
+## 公開UI整理（2026-09-10）: STEP5のローカル[公開を取り下げる]ボタンも
+## ユーザー向けUIから廃止された（press_unpublish()自体は無改修）ため、
+## 同じ公開API(press_publish()/press_unpublish())を直接叩いて同じ挙動を
+## 検証する。
+func test_8_press_unpublish_removes_the_stage_from_challenge() -> void:
 	var main := _new_creator()
 	main.draft.boss_name = "実UI取り下げボス"
 	main.draft.hp = 1000
@@ -274,22 +267,11 @@ func test_8_real_unpublish_button_removes_the_stage_from_challenge() -> void:
 	main.draft.add_skill({"name": "斬撃", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 1.0})
 	main.draft.add_party_character("hero")
 	main.draft.record_clear_check_success()
-	main.go_to_step(RBMCreatorMain.STEP_COUNT)
-	var step5: RBMCreatorStep7Summary = main._step_views[RBMCreatorMain.STEP_COUNT - 1]
-	step5.refresh()
-	_btn(step5, "PublishButton").pressed.emit()
+	main.press_publish()
 	assert_true(main.draft.is_published(), "sanity")
-	step5.refresh()
-	assert_true(step5._unpublish_button.visible, "once published, the screen must show 公開中/[公開を取り下げる] instead of [公開]")
-	assert_false(step5._publish_button.visible)
-	assert_eq(step5._publish_status_label.text, "公開中")
 
-	_btn(step5, "UnpublishButton").pressed.emit()
+	main.press_unpublish()
 	assert_false(main.draft.is_published())
-	step5.refresh()
-	assert_true(step5._publish_button.visible, "after withdrawing, [公開] must be offered again")
-	assert_false(step5._unpublish_button.visible)
-	assert_eq(step5._publish_status_label.text, "未公開", "withdrawing must restore the explicit 未公開 status")
 
 	var entry := _new_challenge_entry()
 	entry._refresh_list()
@@ -398,3 +380,84 @@ func test_11_published_field_with_wrong_type_is_rejected_by_the_repository() -> 
 	file.close()
 	var result := RBMLocalStageRepository.load_stage(stage_id)
 	assert_false(bool(result.get("ok", false)), "a non-boolean published field must be rejected as malformed")
+
+# ---------------------------------------------------------------------------
+# 12. オンライン公開状態のメタデータ（online_boss_id/online_published）が
+# 保存/読込で正しく往復し、Clear Check・battle_hashには一切影響しないこと
+# （公開UI整理、2026-09-10、ユーザー確定仕様）
+# ---------------------------------------------------------------------------
+
+func test_12_online_publish_metadata_round_trips_through_save_and_load() -> void:
+	var draft := _playable_draft("オンライン公開往復ボス")
+	draft.record_clear_check_success()
+	draft.set_online_boss_id("server-boss-123")
+	draft.set_online_published(true)
+	var save_result := RBMLocalStageRepository.save_new(draft)
+	var load_result := RBMLocalStageRepository.load_stage(str(save_result.get("stage_id", "")))
+	assert_true(bool(load_result.get("ok", false)))
+	var restored := RBMCreatorDraft.new()
+	restored.restore_from_saved_dict(load_result.get("draft_data", {}))
+	assert_eq(restored.online_boss_id(), "server-boss-123", "online_boss_id must survive a real file round trip")
+	assert_true(restored.is_online_published(), "online_published=true must survive a real file round trip")
+
+func test_12_unpublishing_online_keeps_the_boss_id_but_clears_published_across_a_round_trip() -> void:
+	var draft := _playable_draft("オンライン取り下げ往復ボス")
+	draft.set_online_boss_id("server-boss-456")
+	draft.set_online_published(false)
+	var save_result := RBMLocalStageRepository.save_new(draft)
+	var load_result := RBMLocalStageRepository.load_stage(str(save_result.get("stage_id", "")))
+	var restored := RBMCreatorDraft.new()
+	restored.restore_from_saved_dict(load_result.get("draft_data", {}))
+	assert_eq(restored.online_boss_id(), "server-boss-456", "online_boss_id must be kept even while unpublished, so re-publish can reuse it")
+	assert_false(restored.is_online_published())
+
+func test_12_a_stage_saved_before_the_online_publish_feature_defaults_to_unpublished() -> void:
+	var restored := RBMCreatorDraft.new()
+	restored.restore_from_saved_dict({"boss_name": "旧データボス"})
+	assert_eq(restored.online_boss_id(), "", "a save payload predating online publish must default to no boss_id")
+	assert_false(restored.is_online_published(), "a save payload predating online publish must default to unpublished, never auto-published")
+
+func test_12_online_boss_id_field_with_wrong_type_is_rejected_by_the_repository() -> void:
+	DirAccess.make_dir_recursive_absolute(TEST_DIR)
+	var stage_id := "7777777777"
+	var payload := {
+		"save_format_version": 1, "stage_id": stage_id,
+		"created_unix_time": 0, "updated_unix_time": 0,
+		"draft": {"online_boss_id": 12345},
+		"clear_check_success_snapshot": {},
+	}
+	var file := FileAccess.open("%s/%s.json" % [TEST_DIR, stage_id], FileAccess.WRITE)
+	file.store_string(JSON.stringify(payload))
+	file.close()
+	var result := RBMLocalStageRepository.load_stage(stage_id)
+	assert_false(bool(result.get("ok", false)), "a non-string online_boss_id field must be rejected as malformed")
+
+func test_12_online_published_field_with_wrong_type_is_rejected_by_the_repository() -> void:
+	DirAccess.make_dir_recursive_absolute(TEST_DIR)
+	var stage_id := "6666666666"
+	var payload := {
+		"save_format_version": 1, "stage_id": stage_id,
+		"created_unix_time": 0, "updated_unix_time": 0,
+		"draft": {"online_published": "not a bool"},
+		"clear_check_success_snapshot": {},
+	}
+	var file := FileAccess.open("%s/%s.json" % [TEST_DIR, stage_id], FileAccess.WRITE)
+	file.store_string(JSON.stringify(payload))
+	file.close()
+	var result := RBMLocalStageRepository.load_stage(stage_id)
+	assert_false(bool(result.get("ok", false)), "a non-boolean online_published field must be rejected as malformed")
+
+## 公開UI整理の中心的な安全要件——オンライン公開メタデータはClear Check
+## 判定にもbattle_hash（battle_content_snapshot()由来）にも一切影響しない
+## ことを直接検証する。
+func test_12_online_publish_metadata_never_affects_clear_check_or_battle_hash() -> void:
+	var draft := _playable_draft()
+	draft.record_clear_check_success()
+	var hash_before := RBMCanonicalJson.hash_of(draft.battle_content_snapshot())
+	var clear_check_before := draft.is_clear_check_currently_valid()
+
+	draft.set_online_boss_id("some-boss-id")
+	draft.set_online_published(true)
+
+	assert_eq(RBMCanonicalJson.hash_of(draft.battle_content_snapshot()), hash_before, "online publish metadata must never change battle_hash")
+	assert_eq(draft.is_clear_check_currently_valid(), clear_check_before, "online publish metadata must never change Clear Check validity")

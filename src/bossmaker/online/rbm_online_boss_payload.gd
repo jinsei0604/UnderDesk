@@ -22,7 +22,7 @@ const SCHEMA_VERSION := 1
 ## (§4B-3/§4E-8「対応していないボスデータとして安全に拒否」)。
 const MAX_SUPPORTED_SCHEMA_VERSION := 1
 
-const _LOCAL_ONLY_FIELDS := ["author_notes", "published", "published_at_unix_time"]
+const _LOCAL_ONLY_FIELDS := ["author_notes", "published", "published_at_unix_time", "online_boss_id", "online_published"]
 
 ## 公開直前に呼ぶ。Clear Check未達成、または現在の戦闘内容がClear Check
 ## 成功時のsnapshotと一致しない場合は送信前に拒否する

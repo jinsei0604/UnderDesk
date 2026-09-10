@@ -398,6 +398,13 @@ static func _validate_draft_shape(draft_data: Dictionary) -> bool:
 	# stageは常に合格（restore側がfalseへ安全にフォールバックする）。
 	if draft_data.has("published") and typeof(draft_data["published"]) != TYPE_BOOL:
 		return false
+	# 公開UI整理（2026-09-10）: オンライン公開管理用メタデータ。他の任意
+	# フィールドと同じ「存在すれば型を確認、フィールド自体が無ければ合格」
+	# 方針——restore側が""/falseへ安全にフォールバックする。
+	if not _optional_string_ok(draft_data, "online_boss_id"):
+		return false
+	if draft_data.has("online_published") and typeof(draft_data["online_published"]) != TYPE_BOOL:
+		return false
 	if not _optional_numeric_ok(draft_data, "next_slot_ordinal"):
 		return false
 	if draft_data.has("action_sequence"):

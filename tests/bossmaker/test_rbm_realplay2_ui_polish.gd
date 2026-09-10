@@ -173,11 +173,12 @@ func test_author_message_label_reads_new_text_not_the_old_one_in_step7_and_chall
 	# CHALLENGEに表示されないため、このテストがCHALLENGE確認画面側の内容を
 	# 確認するには実際に公開する必要がある——Clear Check達成はrecord_clear_
 	# check_success()（他の多くのテストで確立済みの直接API、実バトルを経ずに
-	# 状態だけ確定する）、公開自体は本物のPublishButtonクリックで行う。
+	# 状態だけ確定する）。公開UI整理（2026-09-10）でローカル公開ボタンは
+	# UIから廃止されたため、press_publish()を直接呼ぶ（機能自体は無改修）。
 	main.draft.record_clear_check_success()
 	step7.refresh()
 	await get_tree().process_frame
-	_btn(step7, "PublishButton").pressed.emit()
+	main.press_publish()
 	await get_tree().process_frame
 	assert_true(main.draft.is_published(), "sanity: publish must have succeeded")
 

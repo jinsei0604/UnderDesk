@@ -57,6 +57,15 @@ func last_error_message() -> String:
 func last_boss_id() -> String:
 	return _last_boss_id
 
+## UI側（RBMCreatorStep7Summary）がボタンをdisabledにするかどうかの判断
+## だけに使う軽い問い合わせ——実際のpublish()/unpublish()呼び出し前に
+## Steam/HTTPへ触れず、UI層がRBMSteamAuthへ直接依存しないための薄い
+## パススルー（既存の「UIはRBMBossPublisher経由でのみSteam/HTTPへ触れる」
+## という設計を維持する）。
+func is_steam_available() -> bool:
+	_ensure_setup()
+	return _steam_auth.is_available()
+
 ## 連打・二重投稿の防止(§4E-4のクライアント側の一枚目——DB側のidempotency_key
 ## と合わせた二段構え)。既に進行中なら無視してfalseを返す。
 func publish(draft: RBMCreatorDraft, boss_id: String = "") -> bool:
@@ -70,21 +79,8 @@ func publish(draft: RBMCreatorDraft, boss_id: String = "") -> bool:
 		return false
 	var payload: Dictionary = built["payload"]
 
-	if not _steam_auth.is_available():
-		_fail("steam_unavailable", "Steamが利用できません。Steamを起動してログインしてください。")
-		return false
-	if not _steam_auth.is_logged_on():
-		_fail("steam_not_logged_on", "Steamにログインしていません。")
-		return false
-
-	_set_state(PublishState.REQUESTING_TICKET)
-	if not _steam_auth.request_web_api_ticket():
-		_fail("steam_ticket_request_failed", _steam_auth.failure_reason())
-		return false
-
-	var ticket_result := await _await_ticket_result()
+	var ticket_result := await _acquire_ticket()
 	if not bool(ticket_result.get("ok", false)):
-		_fail("steam_ticket_failed", str(ticket_result.get("reason", "")))
 		return false
 
 	_set_state(PublishState.UPLOADING)
@@ -99,6 +95,56 @@ func publish(draft: RBMCreatorDraft, boss_id: String = "") -> bool:
 
 	_fail(str(response.get("error_kind", "unknown")), str(response.get("message", "")))
 	return false
+
+## ソフト取り下げ——DB上のボスデータ自体は削除しない、既存のunpublish-boss
+## Edge Function（is_published=falseへ戻すサーバ側の既存実装）を叩くだけ。
+## 認証経路(Steamチケット取得)はpublish()と共通のため_acquire_ticket()を
+## 再利用する。成功すればis_published=falseへ戻り、以後同じboss_idで
+## publish()を呼べば再度公開できる(サーバ側の既存契約、ここでは変更しない)。
+func unpublish(boss_id: String) -> bool:
+	_ensure_setup()
+	if _state == PublishState.REQUESTING_TICKET or _state == PublishState.UPLOADING:
+		return false
+	if boss_id.is_empty():
+		_fail("no_boss_id", "boss_id is empty")
+		return false
+
+	var ticket_result := await _acquire_ticket()
+	if not bool(ticket_result.get("ok", false)):
+		return false
+
+	_set_state(PublishState.UPLOADING)
+	var response: Dictionary = await _api_adapter.unpublish(str(ticket_result.get("hex", "")), boss_id)
+	_steam_auth.complete_ticket()
+
+	if bool(response.get("ok", false)):
+		_set_state(PublishState.SUCCEEDED)
+		return true
+
+	_fail(str(response.get("error_kind", "unknown")), str(response.get("message", "")))
+	return false
+
+## publish()/unpublish()共通のSteamチケット取得手順（可用性/ログイン確認
+## →チケット要求→callback待ち）。呼び出し元がREQUESTING_TICKET/FAILED等の
+## 状態遷移・エラー報告を担う——ここは結果のDictionaryを返すだけ。
+func _acquire_ticket() -> Dictionary:
+	if not _steam_auth.is_available():
+		_fail("steam_unavailable", "Steamが利用できません。Steamを起動してログインしてください。")
+		return {"ok": false}
+	if not _steam_auth.is_logged_on():
+		_fail("steam_not_logged_on", "Steamにログインしていません。")
+		return {"ok": false}
+
+	_set_state(PublishState.REQUESTING_TICKET)
+	if not _steam_auth.request_web_api_ticket():
+		_fail("steam_ticket_request_failed", _steam_auth.failure_reason())
+		return {"ok": false}
+
+	var ticket_result := await _await_ticket_result()
+	if not bool(ticket_result.get("ok", false)):
+		_fail("steam_ticket_failed", str(ticket_result.get("reason", "")))
+		return {"ok": false}
+	return {"ok": true, "hex": str(ticket_result.get("hex", ""))}
 
 func _await_ticket_result() -> Dictionary:
 	# `while true` never falls through on its own (no break), but GDScript's

@@ -119,7 +119,7 @@ func _init() -> void:
 	main.go_to_step(RBMCreatorMain.STEP_COUNT)
 	await process_frame
 	var step5: RBMCreatorStep7Summary = main._step_views[RBMCreatorMain.STEP_COUNT - 1]
-	print("step5: nav visible=%s profile visible=%s nav_row visible=%s publish_disabled=%s" % [main._step_nav_column.visible, main._boss_profile_panel.visible, main._nav_row.visible, step5._publish_button.disabled])
+	print("step5: nav visible=%s profile visible=%s nav_row visible=%s publish_disabled=%s" % [main._step_nav_column.visible, main._boss_profile_panel.visible, main._nav_row.visible, step5._publish_online_button.disabled])
 	await _shot("09_step5_initial_uncleared")
 
 	var summary_content: Control = step5.find_child("SummaryContent", true, false)
@@ -134,13 +134,15 @@ func _init() -> void:
 	# --- 10: Clear Check達成後（公開ボタン有効化、まだ未公開）。
 	main.draft.record_clear_check_success()
 	step5.refresh()
-	print("step5 after clear: publish_disabled=%s status_text=%s" % [step5._publish_button.disabled, step5._clear_check_status_label.text])
+	print("step5 after clear: publish_disabled=%s status_text=%s" % [step5._publish_online_button.disabled, step5._clear_check_status_label.text])
 	await _shot("10_step5_clear_check_achieved")
 
-	# --- 11: 公開後（公開中ステータス+取り下げるボタン）。
-	_click(step5, "PublishButton")
+	# --- 11: オンライン公開後（成功すればボタンが「公開を取り下げる」に
+	# 切り替わる。Steam未設定環境ではここは失敗しボタンのまま——公開UI整理
+	# 後、ローカル公開ボタンは廃止されたためオンライン公開ボタンのみを叩く）。
+	_click(step5, "PublishOnlineButton")
 	await process_frame
-	print("published=%s publish_visible=%s unpublish_visible=%s" % [main.draft.is_published(), step5._publish_button.visible, step5._unpublish_button.visible])
+	print("online_published=%s button_text=%s" % [step5.draft.is_online_published(), step5._publish_online_button.text])
 	await _shot("11_step5_published")
 
 	# --- 12: CHALLENGE一覧（公開済みボスが表示される）。
