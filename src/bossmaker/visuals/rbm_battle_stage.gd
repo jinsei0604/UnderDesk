@@ -16,10 +16,15 @@ const Motions = preload("res://src/bossmaker/visuals/rbm_motion_catalog.gd")
 const ACTOR_SCRIPT := "res://src/bossmaker/visuals/rbm_character_visual.gd"
 const HeroFire = preload("res://src/bossmaker/visuals/rbm_hero_fire_finish.gd")
 const HeroSword = preload("res://src/bossmaker/visuals/rbm_hero_sword.gd")
+const ButlerIce = preload("res://src/bossmaker/visuals/rbm_butler_ice_finish.gd")
 var _hero_fire: Node2D
 var _hero_finish := false
 var _hero_elapsed := -1.0
 var _hero_shake := Vector2.ZERO
+var _butler_ice: Node2D
+var _butler_finish := false
+var _butler_elapsed := -1.0
+var _butler_shake := Vector2.ZERO
 
 var _battle: Variant
 var _appearance_id := ""
@@ -66,6 +71,10 @@ func _ready() -> void:
 	_hero_fire.z_index = 80
 	_hero_fire.visible = false
 	add_child(_hero_fire)
+	_butler_ice = ButlerIce.new()
+	_butler_ice.z_index = 80
+	_butler_ice.visible = false
+	add_child(_butler_ice)
 	resized.connect(_layout_actors)
 	_layout_actors()
 
@@ -199,6 +208,9 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 	_hero_finish = str(_entry.get("skill_id", "")) == "hero_burst_slash" and str(_asset_ids.get(_actor, "")) == "hero" and str(_profile["kind"]) == "fire_burst" and _targets.has("boss")
 	if _hero_finish:
 		_profile["advance"] = 0.0
+	_butler_finish = str(_entry.get("skill_id", "")) == "butler_grand_ice" and str(_asset_ids.get(_actor, "")) == "butler" and str(_profile["kind"]) == "ice_grand" and _targets.has("boss")
+	if _butler_finish:
+		_profile["advance"] = 0.0
 	_counters = _counter_targets()
 	_guards.clear()
 	_guard_offsets.clear()
@@ -238,6 +250,11 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 		_tween.tween_method(_hero_finish_progress, 0.0, 2.1, 2.1)
 		_tween.tween_callback(_finish)
 		return
+	if _butler_finish:
+		# Keep the presenter on this entry until every finish layer has ended.
+		_tween.tween_method(_butler_finish_progress, 0.0, 2.4, 2.4)
+		_tween.tween_callback(_finish)
+		return
 	_tween.tween_interval(0.10)
 	if not _counters.is_empty():
 		_tween.tween_method(_counter_progress, 0.0, 1.0, 0.20)
@@ -248,6 +265,7 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 
 func cancel() -> void:
 	_clear_hero_finish()
+	_clear_butler_finish()
 	if is_instance_valid(_sound): _sound.stop_all()
 	if _tween != null and _tween.is_valid():
 		_tween.kill()
@@ -348,6 +366,45 @@ func _clear_hero_finish() -> void:
 		_hero_fire.age = -1.0
 		_hero_fire.flight = -1.0
 
+func _butler_finish_progress(elapsed: float) -> void:
+	_clear_butler_shake()
+	_butler_ice.visible = true
+	_butler_ice.age = elapsed
+	_butler_ice.floor_point = _foot("boss")
+	_butler_ice.canvas_size = size
+	if elapsed >= 0.1 and elapsed < 0.35:
+		_recovery_progress((elapsed - 0.1) / 0.25)
+	elif elapsed >= 0.35:
+		_pose(_actor, Motions.Pose.IDLE)
+	_phase = "butler_finish"
+	if elapsed < 1.6 or bool(_unit_state("boss").get("is_downed", false)):
+		_pose("boss", Motions.Pose.HIT)
+	else:
+		_pose("boss", Motions.Pose.IDLE)
+	if _butler_elapsed < 0.72 and elapsed >= 0.72: _sound.play_sound("ice_burst", 1)
+	_butler_elapsed = elapsed
+	if elapsed >= 0.72 and elapsed < 0.98:
+		var force := 16.0 * (1.0 - (elapsed - 0.72) / 0.26)
+		_butler_shake = (Vector2(sin(elapsed * 144), cos(elapsed * 186)) * force).snapped(Vector2(2, 2))
+		for visual in _visuals.values(): visual.position += _butler_shake
+		_butler_ice.position = _butler_shake
+	_butler_ice.queue_redraw()
+
+func _clear_butler_shake() -> void:
+	if _butler_shake != Vector2.ZERO:
+		for visual in _visuals.values():
+			if is_instance_valid(visual): visual.position -= _butler_shake
+	_butler_shake = Vector2.ZERO
+	if is_instance_valid(_butler_ice): _butler_ice.position = Vector2.ZERO
+
+func _clear_butler_finish() -> void:
+	_clear_butler_shake()
+	_butler_finish = false
+	_butler_elapsed = -1.0
+	if is_instance_valid(_butler_ice):
+		_butler_ice.visible = false
+		_butler_ice.age = -1.0
+
 func _strike() -> void:
 	_play_se("impact")
 	if not _guards.is_empty(): _sound.play_sound("guard_hit", -5)
@@ -404,6 +461,7 @@ func _recovery_progress(value: float) -> void:
 
 func _finish() -> void:
 	_clear_hero_finish()
+	_clear_butler_finish()
 	_playing = false
 	_phase = "idle"
 	_progress = 0.0
@@ -534,7 +592,7 @@ func _draw_effects() -> void:
 	_canvas = _effects
 	if not _playing or _profile.is_empty():
 		return
-	if _hero_finish and _phase != "windup":
+	if (_hero_finish or _butler_finish) and _phase != "windup":
 		return
 	var color := Motions.color_for(str(_profile["attribute"]))
 	var kind := str(_profile["kind"])
