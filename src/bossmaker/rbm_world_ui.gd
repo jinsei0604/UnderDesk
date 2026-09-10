@@ -358,7 +358,7 @@ func creator_layout(main: RBMCreatorMain) -> void:
 		summary_back.custom_minimum_size = Vector2(150,44)
 		summary_back.add_theme_font_size_override("font_size",16)
 		button_style(summary_back)
-		for key in ["SaveButton","PublishButton"]:
+		for key in ["SaveButton","PublishOnlineButton"]:
 			var b: Button = summary.find_child(key,true,false)
 			b.custom_minimum_size = Vector2(120,44)
 			button_style(b,true)

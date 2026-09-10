@@ -10,7 +10,7 @@ extends Control
 ## ③「動作確認」（任意のTEST BATTLE）
 ## ④「CLEAR CHECK」（未達成/達成済みの状態表示＋専用の開始ボタン、保存/
 ## 公開のボタン列とは独立したセクション）。
-## 下部バーは「← 戻る」（左）／「保存」「公開」（右）のみ——RBMCreatorMain
+## 下部バーは「← 戻る」（左）／「保存」「オンライン公開」（右）のみ——RBMCreatorMain
 ## の共有_nav_row（戻る/最終確認へ戻る/次へ）はこのSTEPでは非表示にする
 ## （RBMCreatorMain._refresh()参照）ため、戻るはこの画面自身が持つ。
 ##
@@ -21,9 +21,17 @@ extends Control
 ## 残置、予想ダメージもRBMCreatorDraft.party_damage_preview()等に無改修の
 ## まま残置——このファイルからの呼び出しを削除しただけ）。
 ##
-## §24〜§27（公開機能、ユーザー確定仕様）: 保存は常に無条件で可能。公開は
-## Clear Check達成時のみ可能で、実際にCHALLENGE側へ露出させる実効を持つ
-## （RBMCreatorMain.press_publish()/press_unpublish()参照）。
+## §24〜§27（公開機能、ユーザー確定仕様）: 保存は常に無条件で可能。
+##
+## 公開UI整理（ユーザー指示、2026-09-10）: ローカル公開（旧「公開」/
+## 「公開を取り下げる」ボタン、RBMCreatorMain.press_publish()/
+## press_unpublish()）はユーザー向けUIから廃止した——このSTEPからはもう
+## 呼ばれない。ただし関数自体・draft.publish()/unpublish()/is_published()・
+## ローカルCHALLENGE一覧側の可視化条件は一切削除・変更していない（既存の
+## ローカル保存機能そのものは残す、という指示どおり）。UIには単一の
+## オンライン公開ボタンだけが残り、未公開なら「オンライン公開」、
+## オンライン公開中なら「公開を取り下げる」に表示・処理を切り替える
+## （_refresh_publish_online_button()参照）。
 
 const TIMING_LABELS := RBMCreatorStep4Actions.TIMING_LABELS
 const TYPE_LABELS := RBMActionEditorForm.TYPE_LABELS
@@ -51,18 +59,35 @@ var _test_battle_button: Button
 var _clear_check_button: Button
 var _clear_check_status_label: Label
 var _save_button: Button
-var _publish_button: Button
-var _unpublish_button: Button
-var _publish_status_label: Label
 
-## Phase 4C: ローカル公開(_publish_button/_unpublish_button、既存仕様は
-## 無改修)とは別の、オンライン公開専用の操作。RBMBossPublisherの状態を
-## そのまま反映するだけ——独自のClear Check判定は持たない
-## (RBMOnlineBossPayload.build_for_publish()が既存のis_clear_check_
-## currently_valid()を再利用する)。
+## 公開UI整理: 公開系ボタンはこの1つだけ——未公開なら「オンライン公開」、
+## オンライン公開中なら「公開を取り下げる」に文言・処理を切り替える。
+## Clear Check判定はこのUI自身では持たず、draft.is_clear_check_currently_
+## valid()を都度参照する(RBMOnlineBossPayload.build_for_publish()が公開
+## 実行時に同じ判定を再度行う——ここは表示専用の重複)。
 var _publish_online_button: Button
 var _online_status_label: Label
+var _online_unavailable_label: Label
 var _boss_publisher: RBMBossPublisher
+
+## オンライン公開状態そのもの（真偽値/online_boss_id）はdraft側
+## （RBMCreatorDraft.is_online_published()/online_boss_id()、to_saved_dict()/
+## restore_from_saved_dict()で保存/復元される）に持たせている——Creatorを
+## 閉じて再度開いても「公開を取り下げる」/「オンライン公開」の出し分けが
+## 復元される。完全にオンライン管理用メタデータとして扱い、
+## battle_content_snapshot()/Clear Check判定には一切含めない
+## （rbm_creator_draft.gd参照）。このビュー自身は状態を持たず、
+## publish()/unpublish()成功のたびにdraft側を更新→即座に上書き保存する
+## だけ（_persist_online_state()参照）。
+
+## サーバー同期（ユーザー確定仕様、2026-09-11）: online_publishedは
+## ローカルキャッシュに過ぎず、最終的な正はSupabase側。online_boss_idが
+## 存在する保存済みstageをこの画面で初めて表示した時（＝Creatorで保存済み
+## stageを開いた時）に一度だけget-boss経由でサーバー側の実際の公開状態を
+## 確認し、キャッシュ/UIを同期する（_sync_online_state_from_server()参照）。
+## 確認できなかった場合（通信失敗等）はローカル値を一切書き換えない——
+## trueのままfalseにも、falseのままtrueにも絶対にしない。
+var _online_state_synced := false
 
 var _author_notes_edit: TextEdit
 var _author_notes_count_label: Label
@@ -141,8 +166,16 @@ func _build_ui() -> void:
 	## §19: 「← 戻る」（左）／「保存」「公開」（右）。RBMCreatorMainの共有
 	## 戻る/次へ行はこのSTEPでは非表示になる（RBMCreatorMain._refresh()の
 	## on_summary分岐参照）ため、この画面専用の戻るボタンを持つ。
-	var bottom_bar := HBoxContainer.new()
+	## HFlowContainer（HBoxContainerではない）: 英語ロケールでは各ラベル
+	## （"Publish Online"等）が日本語よりずっと長くなり、1行合計が1280px
+	## 幅に収まらずビューポート右端で見切れる（切れる/はみ出す）ことが
+	## 英語UI検証で判明したため、収まらない場合だけ自動折返しする
+	## HFlowContainerへ変更した。日本語は1行に収まる長さのままなので、
+	## 見た目・挙動は変えない。
+	var bottom_bar := HFlowContainer.new()
 	bottom_bar.name = "SummaryBottomBar"
+	bottom_bar.add_theme_constant_override("h_separation", 16)
+	bottom_bar.add_theme_constant_override("v_separation", 8)
 	outer.add_child(bottom_bar)
 
 	var back_button := Button.new()
@@ -151,13 +184,6 @@ func _build_ui() -> void:
 	back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	back_button.pressed.connect(func(): main.press_back())
 	bottom_bar.add_child(back_button)
-
-	## ユーザー確定仕様（公開機能）: STEP5は現在の公開状態（公開中/未公開）を
-	## 常に一目で分かる形で示す——保存/公開ボタンと同じ固定バー内に置き、
-	## 挑戦設定セクションをスクロールしていても見える。
-	_publish_status_label = Label.new()
-	_publish_status_label.name = "PublishStatusLabel"
-	bottom_bar.add_child(_publish_status_label)
 
 	var bottom_spacer := Control.new()
 	bottom_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -169,36 +195,26 @@ func _build_ui() -> void:
 	_save_button.pressed.connect(func(): main.press_save())
 	bottom_bar.add_child(_save_button)
 
-	## §25/§27: 公開はClear Check達成済みの場合のみ有効（disabled=trueで
-	## クリック自体を防ぐ）。公開中は代わりに「公開を取り下げる」を表示する
-	## （refresh()がvisibleを排他的に切り替える）。
-	_publish_button = Button.new()
-	_publish_button.name = "PublishButton"
-	_publish_button.text = "公開"
-	_publish_button.pressed.connect(func(): main.press_publish())
-	bottom_bar.add_child(_publish_button)
-
-	_unpublish_button = Button.new()
-	_unpublish_button.name = "UnpublishButton"
-	_unpublish_button.text = "公開を取り下げる"
-	_unpublish_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
-	_unpublish_button.pressed.connect(func(): main.press_unpublish())
-	bottom_bar.add_child(_unpublish_button)
-
-	## Phase 4C: ローカル公開(上記_publish_button)とは別のオンライン公開。
-	## Clear Check判定は共有する(disabled条件はrefresh()で_publish_buttonと
-	## 同じ式を使う)が、押した結果はSupabase/Steam認証まで進む——正式
-	## Steam AppID未発行の間は必ず失敗し(steam_unavailable/not_configured
-	## 等)、成功扱いにならない(ユーザー確定仕様)。
+	## Phase 4C→公開UI整理: 公開系はこのオンライン公開ボタン1つだけ。押した
+	## 結果はSupabase/Steam認証まで進む——正式Steam AppID未発行の間は
+	## is_steam_available()==falseとなるため、ボタン自体をdisabledにし
+	## （クリックして失敗させない、ユーザー指示）、_online_unavailable_label
+	## で理由を示す。
 	_online_status_label = Label.new()
 	_online_status_label.name = "OnlinePublishStatusLabel"
 	bottom_bar.add_child(_online_status_label)
 
+	_online_unavailable_label = Label.new()
+	_online_unavailable_label.name = "OnlineUnavailableLabel"
+	_online_unavailable_label.text = tr("オンライン公開は現在利用できません")
+	_online_unavailable_label.add_theme_color_override("font_color", RBMUiTheme.COLOR_TEXT_SECONDARY)
+	bottom_bar.add_child(_online_unavailable_label)
+
 	_publish_online_button = Button.new()
 	_publish_online_button.name = "PublishOnlineButton"
-	_publish_online_button.text = "オンライン公開"
+	_publish_online_button.text = tr("オンライン公開")
 	_publish_online_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
-	_publish_online_button.pressed.connect(_on_publish_online_pressed)
+	_publish_online_button.pressed.connect(_on_publish_online_button_pressed)
 	bottom_bar.add_child(_publish_online_button)
 
 	_build_persistent_controls()
@@ -212,17 +228,105 @@ func _ensure_boss_publisher() -> void:
 		_boss_publisher = RBMBossPublisher.new()
 		add_child(_boss_publisher)
 
+## ボタン1つで未公開/公開済みの両方を扱う——現在の状態(draft.is_online_
+## published())を見て実際の処理を振り分けるだけの薄いディスパッチャ。
+func _on_publish_online_button_pressed() -> void:
+	if draft.is_online_published():
+		_on_unpublish_online_pressed()
+	else:
+		_on_publish_online_pressed()
+
 func _on_publish_online_pressed() -> void:
 	_ensure_boss_publisher()
 	if _boss_publisher.current_state() == RBMBossPublisher.PublishState.REQUESTING_TICKET or \
 			_boss_publisher.current_state() == RBMBossPublisher.PublishState.UPLOADING:
 		return
-	_online_status_label.text = "公開中..."
-	var ok: bool = await _boss_publisher.publish(draft)
+	_online_status_label.text = tr("公開中...")
+	var ok: bool = await _boss_publisher.publish(draft, draft.online_boss_id())
 	if ok:
-		_online_status_label.text = "オンライン公開に成功しました。"
+		draft.set_online_boss_id(_boss_publisher.last_boss_id())
+		draft.set_online_published(true)
+		_persist_online_state()
+		_online_status_label.text = tr("オンライン公開に成功しました。")
 	else:
 		_online_status_label.text = _online_publish_failure_message(_boss_publisher.last_error_kind(), _boss_publisher.last_error_message())
+	_refresh_publish_online_button()
+
+## ソフト取り下げ——RBMBossApiAdapter.unpublish()（DB上のデータは削除せず
+## is_published=falseへ戻す既存のサーバ側実装）へ接続する。boss_idは
+## 直前に成功したpublish()から得たものをそのまま使う——再度publish()を
+## 呼べば同じboss_idを渡すため、サーバ側は既存レコードを復活させる形に
+## なる（新規重複投稿にはならない）。
+func _on_unpublish_online_pressed() -> void:
+	_ensure_boss_publisher()
+	if _boss_publisher.current_state() == RBMBossPublisher.PublishState.REQUESTING_TICKET or \
+			_boss_publisher.current_state() == RBMBossPublisher.PublishState.UPLOADING:
+		return
+	_online_status_label.text = tr("取り下げ中...")
+	var ok: bool = await _boss_publisher.unpublish(draft.online_boss_id())
+	if ok:
+		# online_boss_idはそのまま保持する（ユーザー確定仕様）——falseに
+		# するのは公開状態だけ、同じidで再度publish()できるようにする。
+		draft.set_online_published(false)
+		_persist_online_state()
+		_online_status_label.text = tr("オンライン公開を取り下げました。")
+	else:
+		_online_status_label.text = _online_publish_failure_message(_boss_publisher.last_error_kind(), _boss_publisher.last_error_message())
+	_refresh_publish_online_button()
+
+## publish()/unpublish()成功直後、online_boss_id/online_publishedを即座に
+## ディスクへ書き残す——ローカル公開のpress_publish()と同じ「未保存のまま
+## でも実効を持つ操作は自動的に保存する」既存方針を踏襲する（保存自体は
+## 通常のRBMLocalStageRepository.overwrite()/save_new()、save形式・
+## Clear Check・battle_hashには一切触れない、著作フィールドの1つが増えた
+## だけ）。
+func _persist_online_state() -> void:
+	if main.current_stage_id.is_empty():
+		main.press_save_as_new()
+	else:
+		main.press_overwrite_save()
+
+## サーバー同期（ユーザー確定仕様、2026-09-11）: RBMBossPublisher.
+## check_online_published()（get-boss、Steamチケット不要）でサーバー側の
+## 実際の公開状態を確認し、ローカルキャッシュ(draft.is_online_published())
+## と食い違っていれば更新して保存する。確認できなかった場合
+## ("unknown" — 通信失敗/タイムアウト/5xx/その他の4xx等）はローカル値・
+## online_boss_idとも一切書き換えず、確認できなかった旨だけ表示する
+## （「非公開と確認できた」と「サーバーへ接続できなかった」を混同しない、
+## 最重要のユーザー確定仕様）。
+func _sync_online_state_from_server() -> void:
+	_ensure_boss_publisher()
+	_online_status_label.text = tr("オンライン状態を確認中...")
+	var result := await _boss_publisher.check_online_published(draft.online_boss_id())
+	match str(result.get("state", "unknown")):
+		"published":
+			if not draft.is_online_published():
+				draft.set_online_published(true)
+				_persist_online_state()
+			_online_status_label.text = tr("オンライン公開中")
+		"not_published":
+			if draft.is_online_published():
+				draft.set_online_published(false)
+				_persist_online_state()
+			_online_status_label.text = tr("オンライン未公開")
+		_:
+			_online_status_label.text = tr("オンライン状態を確認できません")
+	_refresh_publish_online_button()
+
+## ボタンの文言/disabled、利用不可メッセージの表示切替をまとめる。
+## Steam利用不可時はクリックして失敗させるのではなくdisabledにする
+## （ユーザー指示）。公開済み状態からの取り下げは、内容編集でClear Check
+## が無効化されていても押せるようにする（取り下げ自体をブロックしない）。
+func _refresh_publish_online_button() -> void:
+	_ensure_boss_publisher()
+	var steam_ok := _boss_publisher.is_steam_available()
+	_online_unavailable_label.visible = not steam_ok
+	if draft.is_online_published():
+		_publish_online_button.text = tr("公開を取り下げる")
+		_publish_online_button.disabled = not steam_ok
+	else:
+		_publish_online_button.text = tr("オンライン公開")
+		_publish_online_button.disabled = not steam_ok or not draft.is_clear_check_currently_valid()
 
 ## §4C-7: 公開中/公開成功/認証失敗/通信失敗/validation失敗/Steam利用不可/
 ## 正式Steam認証未設定を、ユーザーへ分かる形で表示する。大規模なUI再設計
@@ -230,25 +334,25 @@ func _on_publish_online_pressed() -> void:
 func _online_publish_failure_message(error_kind: String, detail: String) -> String:
 	match error_kind:
 		"clear_check_not_valid":
-			return "クリアチェックを再確認してください。"
+			return tr("クリアチェックを再確認してください。")
 		"steam_unavailable":
-			return "Steamが利用できません。Steamを起動してログインしてください。"
+			return tr("Steamが利用できません。Steamを起動してログインしてください。")
 		"steam_not_logged_on":
-			return "Steamにログインしていません。"
+			return tr("Steamにログインしていません。")
 		"steam_ticket_request_failed", "steam_ticket_failed":
-			return "Steam認証チケットの取得に失敗しました。"
+			return tr("Steam認証チケットの取得に失敗しました。")
 		"not_configured":
-			return "オンライン公開はまだ準備中です（正式Steam認証の設定待ち）。"
+			return tr("オンライン公開はまだ準備中です（正式Steam認証の設定待ち）。")
 		"forbidden":
-			return "この投稿を更新する権限がありません。"
+			return tr("この投稿を更新する権限がありません。")
 		"not_found":
-			return "投稿先が見つかりませんでした。"
+			return tr("投稿先が見つかりませんでした。")
 		"network_error", "http_5xx":
-			return "通信に失敗しました。しばらくしてからもう一度お試しください。"
+			return tr("通信に失敗しました。しばらくしてからもう一度お試しください。")
 		"http_4xx", "invalid_payload", "payload_too_large":
-			return "送信内容に問題がありました。"
+			return tr("送信内容に問題がありました。")
 		_:
-			return "オンライン公開に失敗しました（%s）。" % (error_kind if detail.is_empty() else detail)
+			return tr("オンライン公開に失敗しました（%s）。") % (error_kind if detail.is_empty() else detail)
 
 ## §6/§13相当: STEP1〜4が既に使っているRBMCreatorUiKit.build_section_title()
 ## （本文より一段大きく、左に小さな銀アクセント）をこの画面でも再利用する
@@ -329,17 +433,17 @@ func refresh() -> void:
 	_content.add_child(HSeparator.new())
 	_build_clear_check_section()
 
-	_publish_button.disabled = not draft.is_clear_check_currently_valid()
-	_publish_button.visible = not draft.is_published()
-	_unpublish_button.visible = draft.is_published()
-	_publish_status_label.text = "公開中" if draft.is_published() else "未公開"
-
-	# Phase 4C-1: オンライン公開もローカル公開と同じClear Checkゲートを使う
-	# (RBMOnlineBossPayload.build_for_publish()が実際の判定を行う——ここは
-	# ボタンのdisabled表示だけの重複、ゲート自体は1箇所にしかない)。
-	_publish_online_button.disabled = not draft.is_clear_check_currently_valid()
 	if _online_status_label.text.is_empty():
-		_online_status_label.text = "オンライン未公開"
+		_online_status_label.text = tr("オンライン公開中") if draft.is_online_published() else tr("オンライン未公開")
+	_refresh_publish_online_button()
+
+	## この画面を初めて表示した時（＝保存済みstageをCreatorで開いた直後を
+	## 含む）に一度だけ、online_boss_idがあればサーバー側の実際の公開状態を
+	## 確認する。_online_state_syncedを先に立ててから非同期処理へ入るため、
+	## 完了前にrefresh()が再度呼ばれても二重に問い合わせない。
+	if not _online_state_synced and not draft.online_boss_id().is_empty():
+		_online_state_synced = true
+		_sync_online_state_from_server()
 
 # ---------------------------------------------------------------------------
 # 「挑戦設定」— Phase 1 Step 7 §11〜§20/§39〜§42（既存、無改修のまま
@@ -430,9 +534,8 @@ func validation_message() -> String:
 	return ""
 
 func _refresh_background_selector() -> void:
-	var bottom: HBoxContainer = find_child("SummaryBottomBar",true,false)
+	var bottom: HFlowContainer = find_child("SummaryBottomBar",true,false)
 	if bottom == null: return
-	bottom.add_theme_constant_override("separation",16)
 	var row := bottom.get_node_or_null("BackgroundTimeSelector")
 	if row == null:
 		row = HBoxContainer.new()

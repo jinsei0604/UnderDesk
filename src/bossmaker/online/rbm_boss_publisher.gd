@@ -66,6 +66,41 @@ func is_steam_available() -> bool:
 	_ensure_setup()
 	return _steam_auth.is_available()
 
+## オンライン公開状態のサーバー同期（ユーザー確定仕様、2026-09-11）:
+## online_published はローカルキャッシュであり、最終的な正はSupabase側。
+## 既存のget-boss Edge Function（公開済み(is_published=true)の行だけを
+## 返す、supabase/functions/get-boss/index.ts参照）をそのまま流用する——
+## 新しいAPIは増やさない。Steamチケットは不要（get-bossは認証不要の公開
+## 読み取りエンドポイント）。
+##
+## 戻り値の"state":
+##   "published"     — get-bossがok:trueで該当行を返した＝確認して公開中。
+##   "not_published" — get-bossがHTTP 404（"not_found"）を返した＝確認して
+##                      非公開（またはサーバー側で削除済み——soft unpublish
+##                      前提のこのアプリでは、自分がpublish()した既知の
+##                      boss_idに対して404が返るのは非公開化された場合の
+##                      み起こりうる、という前提に立った安全な解釈）。
+##   "unknown"       — ネットワークエラー・タイムアウト・5xx・その他の4xx
+##                      (400/403/429等)・JSON解析失敗等、「確認できな
+##                      かった」場合すべて。呼び出し側はこの場合ローカルの
+##                      online_boss_id/online_publishedを一切書き換えては
+##                      ならない(ユーザー確定仕様)——「非公開と確認できた」
+##                      と「サーバーへ接続できなかった」を混同しない。
+func check_online_published(boss_id: String) -> Dictionary:
+	_ensure_setup()
+	if boss_id.is_empty():
+		return {"state": "unknown", "error_kind": "no_boss_id"}
+	var response: Dictionary = await _api_adapter.get_boss(boss_id)
+	if bool(response.get("ok", false)):
+		return {"state": "published"}
+	if int(response.get("http_status", 0)) == 404:
+		return {"state": "not_published"}
+	return {
+		"state": "unknown",
+		"error_kind": str(response.get("error_kind", "unknown")),
+		"message": str(response.get("message", "")),
+	}
+
 ## 連打・二重投稿の防止(§4E-4のクライアント側の一枚目——DB側のidempotency_key
 ## と合わせた二段構え)。既に進行中なら無視してfalseを返す。
 func publish(draft: RBMCreatorDraft, boss_id: String = "") -> bool:

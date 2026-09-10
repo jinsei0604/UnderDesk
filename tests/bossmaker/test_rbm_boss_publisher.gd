@@ -253,3 +253,83 @@ func test_is_steam_available_reflects_the_injected_fake_without_a_network_call()
 	var api2 := RBMFakeBossApiAdapter.new()
 	var publisher2 := _publisher(unavailable_auth, api2)
 	assert_false(publisher2.is_steam_available())
+
+# ---------------------------------------------------------------------------
+# check_online_published() — サーバー同期（2026-09-11）: online_publishedは
+# ローカルキャッシュに過ぎず最終的な正はSupabase側。既存のget-boss(公開済み
+# の行だけを返す)をそのまま使い、新しいAPIは増やさない。Steamチケットは
+# 不要（get-bossは認証不要の公開読み取りエンドポイント）——auth無しの
+# publisherでもテストできることそのものが、この経路がSteamに依存しない
+# ことの裏付けにもなる。
+# ---------------------------------------------------------------------------
+
+func _publisher_no_auth(api: RBMFakeBossApiAdapter) -> RBMBossPublisher:
+	add_child_autofree(api)
+	var publisher := RBMBossPublisher.new()
+	add_child_autofree(publisher)
+	publisher.set_api_adapter_for_testing(api)
+	return publisher
+
+func test_check_online_published_returns_published_when_get_boss_succeeds() -> void:
+	var api := RBMFakeBossApiAdapter.new()
+	api.configure_get_response({"ok": true, "boss": {"id": "abc-123"}})
+	var publisher := _publisher_no_auth(api)
+
+	var result: Dictionary = await publisher.check_online_published("abc-123")
+	assert_eq(result.get("state"), "published")
+	assert_eq(api.get_calls, ["abc-123"])
+
+## get-boss(supabase/functions/get-boss/index.ts)はis_published=trueの行
+## だけをクエリし、該当なしならHTTP 404 + error_kind "not_found" を返す
+## （存在しない場合と非公開の場合を区別しない設計、実装済みEdge Function
+## のコード確認済み）——自分が過去にpublish()した既知のboss_idに対して
+## この404が返るのは、soft unpublishでis_published=falseへ戻された場合
+## だけなので、この文脈では安全に「非公開」と解釈できる。
+func test_check_online_published_returns_not_published_on_http_404() -> void:
+	var api := RBMFakeBossApiAdapter.new()
+	api.configure_get_response({"ok": false, "error_kind": "http_4xx", "http_status": 404, "message": "not found"})
+	var publisher := _publisher_no_auth(api)
+
+	var result: Dictionary = await publisher.check_online_published("abc-123")
+	assert_eq(result.get("state"), "not_published")
+
+## 最重要のユーザー確定仕様: 「非公開と確認できた」と「サーバーへ接続
+## できなかった」を混同しない——network_error/5xx/その他の4xx/JSON解析
+## 失敗など、404以外のあらゆる失敗はすべて"unknown"にまとめ、呼び出し側
+## （RBMCreatorStep7Summary）がローカルキャッシュを一切書き換えない前提を
+## 支える。
+func test_check_online_published_returns_unknown_on_network_error() -> void:
+	var api := RBMFakeBossApiAdapter.new()
+	api.configure_get_response({"ok": false, "error_kind": "network_error", "http_status": -1, "message": "DNS failure"})
+	var publisher := _publisher_no_auth(api)
+
+	var result: Dictionary = await publisher.check_online_published("abc-123")
+	assert_eq(result.get("state"), "unknown")
+
+func test_check_online_published_returns_unknown_on_http_5xx() -> void:
+	var api := RBMFakeBossApiAdapter.new()
+	api.configure_get_response({"ok": false, "error_kind": "http_5xx", "http_status": 503, "message": "server error"})
+	var publisher := _publisher_no_auth(api)
+
+	var result: Dictionary = await publisher.check_online_published("abc-123")
+	assert_eq(result.get("state"), "unknown")
+
+## 404以外の4xx（400/403/429等）も"not_found"と混同せず"unknown"に
+## まとめる——RBMSupabaseResponse.parse()は全4xxを一律"http_4xx"として
+## しか分類しないため、http_statusの実値(404かどうか)だけで判定する必要が
+## あることの直接的な裏付け。
+func test_check_online_published_treats_non_404_4xx_as_unknown_not_not_published() -> void:
+	var api := RBMFakeBossApiAdapter.new()
+	api.configure_get_response({"ok": false, "error_kind": "http_4xx", "http_status": 429, "message": "rate limited"})
+	var publisher := _publisher_no_auth(api)
+
+	var result: Dictionary = await publisher.check_online_published("abc-123")
+	assert_eq(result.get("state"), "unknown")
+
+func test_check_online_published_returns_unknown_for_an_empty_boss_id_without_calling_the_api() -> void:
+	var api := RBMFakeBossApiAdapter.new()
+	var publisher := _publisher_no_auth(api)
+
+	var result: Dictionary = await publisher.check_online_published("")
+	assert_eq(result.get("state"), "unknown")
+	assert_eq(api.get_calls.size(), 0)
