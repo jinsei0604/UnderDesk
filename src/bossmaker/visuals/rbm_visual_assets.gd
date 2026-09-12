@@ -14,10 +14,31 @@ const APPEARANCES := {
 	"appearance_slime": "slime", "appearance_wolf": "wolf", "appearance_knight": "knight",
 	"appearance_dragon": "dragon", "appearance_ghost": "ghost", "appearance_golem": "golem",
 }
+## 覚醒(Awakening)後の外見の命名規約——通常appearanceの資産と同じROOT配下、
+## asset_id + AWAKENED_SUFFIXという名前のフォルダに専用design.png/framesを
+## 置くだけで自動的に認識される(known()がこのsuffixを剥がした素の
+## asset_idをBOSS_IDSに照らして判定するため、BOSS_IDS自体へ個別に追記する
+## 必要はない)。今はまだどのボスにも覚醒後アセットが存在しないため、
+## has_awakened_design()は常にfalseを返す——呼び出し側(RBMBattleStage)は
+## そのまま通常の外見を保つ(is_awakened自体の内部状態には一切影響しない)。
+## ボスごとの実際の覚醒後デザイン・専用モーションはユーザー側で別途制作し、
+## このフォルダへ配置するだけで有効になる。
+const AWAKENED_SUFFIX := "_awakened"
+
 static var _texture_cache: Dictionary = {}
 
 static func known(asset_id: String) -> bool:
-	return ALLY_IDS.has(asset_id) or BOSS_IDS.has(asset_id)
+	if ALLY_IDS.has(asset_id) or BOSS_IDS.has(asset_id):
+		return true
+	if asset_id.ends_with(AWAKENED_SUFFIX):
+		return BOSS_IDS.has(asset_id.substr(0, asset_id.length() - AWAKENED_SUFFIX.length()))
+	return false
+
+static func awakened_asset_id(asset_id: String) -> String:
+	return asset_id + AWAKENED_SUFFIX
+
+static func has_awakened_design(asset_id: String) -> bool:
+	return ResourceLoader.exists(design_path(awakened_asset_id(asset_id)), "Texture2D")
 
 static func boss_asset(appearance_id: String) -> String:
 	# Empty/unknown IDs remain explicit unknowns. Do not invent a saved or visual
