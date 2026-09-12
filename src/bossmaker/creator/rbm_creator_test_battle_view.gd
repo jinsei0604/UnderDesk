@@ -105,7 +105,7 @@ func _build_ui() -> void:
 	# SmallLabelへ下げ、戦場（_build_battlefield）へ視覚的な主役を譲る。
 	_mode_label = Label.new()
 	_mode_label.name = "ModeLabel"
-	_mode_label.text = "テストバトル"
+	_mode_label.text = tr("テストバトル")
 	_mode_label.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
 	column.add_child(_mode_label)
 
@@ -132,12 +132,12 @@ func _build_ui() -> void:
 	_outcome_area.add_child(outcome_label)
 	_retry_button = Button.new()
 	_retry_button.name = "RetryButton"
-	_retry_button.text = "もう一度テスト"
+	_retry_button.text = tr("もう一度テスト")
 	_retry_button.pressed.connect(retry)
 	_outcome_area.add_child(_retry_button)
 	_return_button = Button.new()
 	_return_button.name = "ReturnToCreatorButton"
-	_return_button.text = "Creatorに戻る"
+	_return_button.text = tr("Creatorに戻る")
 	_return_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	_return_button.pressed.connect(_on_return_pressed)
 	_outcome_area.add_child(_return_button)
@@ -160,7 +160,7 @@ func _build_ui() -> void:
 	column.add_child(quit_row)
 	_quit_button = Button.new()
 	_quit_button.name = "QuitTestButton"
-	_quit_button.text = "テストを終了"
+	_quit_button.text = tr("テストを終了")
 	_quit_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	_quit_button.pressed.connect(_on_quit_pressed)
 	quit_row.add_child(_quit_button)
@@ -170,17 +170,17 @@ func _build_ui() -> void:
 	_quit_confirm.visible = false
 	column.add_child(_quit_confirm)
 	var quit_confirm_label := Label.new()
-	quit_confirm_label.text = "テスト戦闘を終了しますか？"
+	quit_confirm_label.text = tr("テスト戦闘を終了しますか？")
 	_quit_confirm.add_child(quit_confirm_label)
 	var cancel_button := Button.new()
 	cancel_button.name = "QuitCancelButton"
-	cancel_button.text = "キャンセル"
+	cancel_button.text = tr("キャンセル")
 	cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel_button.pressed.connect(func(): _quit_confirm.visible = false)
 	_quit_confirm.add_child(cancel_button)
 	var confirm_quit_button := Button.new()
 	confirm_quit_button.name = "QuitConfirmButton"
-	confirm_quit_button.text = "終了する"
+	confirm_quit_button.text = tr("終了する")
 	confirm_quit_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	confirm_quit_button.pressed.connect(_on_quit_confirmed)
 	_quit_confirm.add_child(confirm_quit_button)
@@ -300,7 +300,7 @@ func _build_bottom_row(parent: Control) -> void:
 
 func _build_log_window() -> void:
 	_log_window_overlay = RBMBattleUiKit.build_detail_overlay(self, "LogWindow")
-	(_log_window_overlay["title_label"] as Label).text = "戦闘ログ"
+	(_log_window_overlay["title_label"] as Label).text = tr("戦闘ログ")
 	var scroll := ScrollContainer.new()
 	scroll.name = "LogWindowScroll"
 	RBMBattleUiKit.fit_log_window(_log_window_overlay, scroll)
@@ -330,7 +330,7 @@ func open_ally_detail(unit_id: int) -> void:
 	var unit := _unit_by_id(unit_id)
 	if unit == null:
 		return
-	(_ally_detail_overlay["title_label"] as Label).text = unit.display_name
+	(_ally_detail_overlay["title_label"] as Label).text = tr(unit.display_name)
 	RBMBattleUiKit.refresh_ally_detail_content(_ally_detail_overlay["content"], unit, session.battle)
 	(_ally_detail_overlay["overlay"] as Control).visible = true
 
@@ -466,12 +466,12 @@ func _open_target_picker(unit_id: int, skill_id: String) -> void:
 		if not session.battle.is_valid_skill_target(unit_id, skill_id, unit.id):
 			continue
 		var button := Button.new()
-		button.text = unit.display_name
+		button.text = tr(unit.display_name)
 		button.pressed.connect(act_skill_with_target.bind(unit_id, skill_id, unit.id))
 		_target_picker.add_child(button)
 	var back_button := Button.new()
 	back_button.name = "TargetPickerBackButton"
-	back_button.text = "← 戻る"
+	back_button.text = tr("← 戻る")
 	back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	back_button.pressed.connect(_on_target_picker_back_pressed)
 	_target_picker.add_child(back_button)
@@ -544,7 +544,7 @@ func refresh() -> void:
 	if session == null or session.battle == null:
 		return
 	var battle := session.battle
-	_boss_label.text = "%s　（ターン%d）" % [battle.boss.display_name, battle.current_turn]
+	_boss_label.text = tr("%s　（ターン%d）") % [battle.boss.display_name, battle.current_turn]
 
 	RBMBattleUiKit.clear_children_safely(_party_rows)
 	for unit in battle.party:
@@ -564,7 +564,7 @@ func refresh() -> void:
 	_outcome_area.visible = battle.battle_over
 	if battle.battle_over:
 		var outcome_label: Label = _outcome_area.get_node("OutcomeLabel")
-		outcome_label.text = "勝利" if battle.winner == "ally" else "敗北"
+		outcome_label.text = tr("勝利") if battle.winner == "ally" else tr("敗北")
 
 ## §14/§15: 現在SPD順で入力待ちの味方1人だけのコマンドを表示する
 ## （通常攻撃／スキル／防御の3ボタン。スキル一覧は_skill_list_panelへ分離）。
@@ -594,20 +594,20 @@ func _refresh_command_area() -> void:
 
 	var attack_button := Button.new()
 	attack_button.name = "AttackButton"
-	attack_button.text = "通常攻撃"
+	attack_button.text = tr("通常攻撃")
 	attack_button.pressed.connect(act_attack.bind(unit.id))
 	_main_command_row.add_child(attack_button)
 
 	var skill_open_button := Button.new()
 	skill_open_button.name = "OpenSkillListButton"
-	skill_open_button.text = "スキル"
+	skill_open_button.text = tr("スキル")
 	skill_open_button.disabled = unit.skills.is_empty()
 	skill_open_button.pressed.connect(_open_skill_list)
 	_main_command_row.add_child(skill_open_button)
 
 	var defend_button := Button.new()
 	defend_button.name = "DefendButton"
-	defend_button.text = "防御"
+	defend_button.text = tr("防御")
 	defend_button.pressed.connect(act_defend.bind(unit.id))
 	_main_command_row.add_child(defend_button)
 
@@ -617,7 +617,7 @@ func _refresh_command_area() -> void:
 func _build_skill_list(unit: RBMUnit) -> void:
 	var back_button := Button.new()
 	back_button.name = "SkillListBackButton"
-	back_button.text = "← 戻る"
+	back_button.text = tr("← 戻る")
 	back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	back_button.pressed.connect(_close_skill_list)
 	_skill_list_panel.add_child(back_button)
@@ -648,7 +648,7 @@ func _build_skill_list(unit: RBMUnit) -> void:
 func _show_skill_detail(skill: Dictionary) -> void:
 	if _skill_detail_label == null:
 		return
-	var display_name := str(skill.get("display_name", skill.get("id", "")))
+	var display_name := tr(str(skill.get("display_name", skill.get("id", ""))))
 	var lines: Array[String] = [display_name]
 	lines.append_array(RBMBattleUiKit.skill_detail_lines(skill, true))
 	_skill_detail_label.text = "\n".join(lines)
@@ -659,7 +659,7 @@ func _refresh_rewind_list() -> void:
 	for turn in session.reachable_turns():
 		var button := Button.new()
 		button.name = "RewindTurnButton_%d" % turn
-		button.text = "ターン%d へ REWIND" % turn
+		button.text = tr("ターン%d へ REWIND") % turn
 		button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 		button.pressed.connect(rewind_to.bind(turn))
 		_rewind_list.add_child(button)

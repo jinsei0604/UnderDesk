@@ -30,6 +30,8 @@ var _empty_state_label: Label
 ## 変換する対応表をこのファイル内に閉じて持つ（他の画面はこれらのフィールド
 ## を生表示していないため、共有辞書ではなくこのファイル専用とした）。編集
 ## パネル内のスキル詳細行でのみ使用（§15-2: 通常表示は使用可/不可のみ）。
+## 値は表示用文字列——キー(effect_id/target_id)はスキル定義の内部IDで
+## あり翻訳対象ではない。呼び出し側で.get()の結果へtr()を適用する。
 const EFFECT_LABELS := {
 	"damage": "攻撃",
 	"heal": "HP回復",
@@ -70,7 +72,7 @@ func _build_ui() -> void:
 	add_child(column)
 	_empty_state_label = Label.new()
 	_empty_state_label.name = "EmptyPartyLabel"
-	_empty_state_label.text = "攻略パーティにキャラクターがいません。先に攻略パーティを選んでください。"
+	_empty_state_label.text = tr("攻略パーティにキャラクターがいません。先に攻略パーティを選んでください。")
 	column.add_child(_empty_state_label)
 
 	_character_sections = VBoxContainer.new()
@@ -159,11 +161,11 @@ func _build_character_card(character_id: String) -> void:
 	card.add_child(card_column)
 
 	var name_label := Label.new()
-	name_label.text = str(master.get("display_name", character_id))
+	name_label.text = tr(str(master.get("display_name", character_id)))
 	card_column.add_child(name_label)
 
 	var skills_caption := Label.new()
-	skills_caption.text = "使用可能スキル"
+	skills_caption.text = tr("使用可能スキル")
 	card_column.add_child(skills_caption)
 
 	if _editing_ids.has(character_id):
@@ -179,12 +181,12 @@ func _build_normal_panel(parent: Control, character_id: String, master: Dictiona
 		var label := Label.new()
 		label.name = "SkillStatusLabel_%s_%s" % [character_id, skill_id]
 		var allowed := draft.is_ally_skill_allowed(character_id, skill_id)
-		label.text = "%s   %s" % [str(skill.get("display_name", skill_id)), "使用可" if allowed else "使用不可"]
+		label.text = "%s   %s" % [tr(str(skill.get("display_name", skill_id))), tr("使用可") if allowed else tr("使用不可")]
 		row.add_child(label)
 
 	var edit_button := Button.new()
 	edit_button.name = "EditPartySkillsButton_%s" % character_id
-	edit_button.text = "編集"
+	edit_button.text = tr("編集")
 	edit_button.pressed.connect(_on_edit_pressed.bind(character_id))
 	parent.add_child(edit_button)
 
@@ -195,12 +197,12 @@ func _build_edit_panel(parent: Control, character_id: String, master: Dictionary
 	parent.add_child(bulk_row)
 	var on_button := Button.new()
 	on_button.name = "AllOnButton_%s" % character_id
-	on_button.text = "すべてON"
+	on_button.text = tr("すべてON")
 	on_button.pressed.connect(_on_staged_all_pressed.bind(character_id, true))
 	bulk_row.add_child(on_button)
 	var off_button := Button.new()
 	off_button.name = "AllOffButton_%s" % character_id
-	off_button.text = "すべてOFF"
+	off_button.text = tr("すべてOFF")
 	off_button.pressed.connect(_on_staged_all_pressed.bind(character_id, false))
 	bulk_row.add_child(off_button)
 
@@ -222,9 +224,9 @@ func _build_edit_panel(parent: Control, character_id: String, master: Dictionary
 		var label := Label.new()
 		var effect_id := str(skill.get("effect", ""))
 		var target_id := str(skill.get("target", ""))
-		var target_text := str(TARGET_LABELS.get(target_id, target_id)) if not target_id.is_empty() else "-"
-		label.text = "%s（%s、対象:%s、SP消費%s）" % [
-			str(skill.get("display_name", skill_id)), str(EFFECT_LABELS.get(effect_id, effect_id)),
+		var target_text := tr(str(TARGET_LABELS.get(target_id, target_id))) if not target_id.is_empty() else "-"
+		label.text = tr("%s（%s、対象:%s、SP消費%s）") % [
+			tr(str(skill.get("display_name", skill_id))), tr(str(EFFECT_LABELS.get(effect_id, effect_id))),
 			target_text, str(skill.get("sp_cost", 0)),
 		]
 		row.add_child(label)
@@ -233,12 +235,12 @@ func _build_edit_panel(parent: Control, character_id: String, master: Dictionary
 	parent.add_child(confirm_row)
 	var confirm_button := Button.new()
 	confirm_button.name = "ConfirmPartySkillsButton_%s" % character_id
-	confirm_button.text = "決定"
+	confirm_button.text = tr("決定")
 	confirm_button.pressed.connect(_on_confirm_pressed.bind(character_id))
 	confirm_row.add_child(confirm_button)
 	var cancel_button := Button.new()
 	cancel_button.name = "CancelPartySkillsButton_%s" % character_id
-	cancel_button.text = "キャンセル"
+	cancel_button.text = tr("キャンセル")
 	cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel_button.pressed.connect(_on_cancel_pressed.bind(character_id))
 	confirm_row.add_child(cancel_button)

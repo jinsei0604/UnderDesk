@@ -62,7 +62,7 @@ func _build_choice_panel(parent: Control) -> void:
 
 	var title := Label.new()
 	title.name = "SaveTitleLabel"
-	title.text = "保存"
+	title.text = tr("保存")
 	_choice_panel.add_child(title)
 
 	_boss_name_label = Label.new()
@@ -78,25 +78,25 @@ func _build_choice_panel(parent: Control) -> void:
 
 	_save_new_button = Button.new()
 	_save_new_button.name = "SaveNewButton"
-	_save_new_button.text = "保存する"
+	_save_new_button.text = tr("保存する")
 	_save_new_button.pressed.connect(_on_save_new_pressed)
 	button_row.add_child(_save_new_button)
 
 	_overwrite_button = Button.new()
 	_overwrite_button.name = "OverwriteButton"
-	_overwrite_button.text = "上書き保存"
+	_overwrite_button.text = tr("上書き保存")
 	_overwrite_button.pressed.connect(_on_overwrite_pressed)
 	button_row.add_child(_overwrite_button)
 
 	_save_as_new_button = Button.new()
 	_save_as_new_button.name = "SaveAsNewButton"
-	_save_as_new_button.text = "新しいボスとして保存"
+	_save_as_new_button.text = tr("新しいボスとして保存")
 	_save_as_new_button.pressed.connect(_on_save_as_new_pressed)
 	button_row.add_child(_save_as_new_button)
 
 	_back_button = Button.new()
 	_back_button.name = "SaveBackButton"
-	_back_button.text = "戻る"
+	_back_button.text = tr("戻る")
 	_back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	_back_button.pressed.connect(_on_back_pressed)
 	button_row.add_child(_back_button)
@@ -109,19 +109,19 @@ func _build_same_name_panel(parent: Control) -> void:
 
 	_same_name_message_label = Label.new()
 	_same_name_message_label.name = "SameNameMessageLabel"
-	_same_name_message_label.text = "同じ名前のボス戦がすでに保存されています。\nそれでも保存しますか？"
+	_same_name_message_label.text = tr("同じ名前のボス戦がすでに保存されています。\nそれでも保存しますか？")
 	_same_name_panel.add_child(_same_name_message_label)
 
 	var row := HBoxContainer.new()
 	_same_name_panel.add_child(row)
 	_same_name_confirm_button = Button.new()
 	_same_name_confirm_button.name = "SameNameConfirmButton"
-	_same_name_confirm_button.text = "保存する"
+	_same_name_confirm_button.text = tr("保存する")
 	_same_name_confirm_button.pressed.connect(_on_same_name_confirmed)
 	row.add_child(_same_name_confirm_button)
 	_same_name_cancel_button = Button.new()
 	_same_name_cancel_button.name = "SameNameCancelButton"
-	_same_name_cancel_button.text = "キャンセル"
+	_same_name_cancel_button.text = tr("キャンセル")
 	_same_name_cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	_same_name_cancel_button.pressed.connect(_on_same_name_cancelled)
 	row.add_child(_same_name_cancel_button)
@@ -134,7 +134,7 @@ func _build_success_panel(parent: Control) -> void:
 
 	var title := Label.new()
 	title.name = "SaveSuccessTitleLabel"
-	title.text = "保存しました"
+	title.text = tr("保存しました")
 	_success_panel.add_child(title)
 
 	_success_stage_id_label = Label.new()
@@ -143,7 +143,7 @@ func _build_success_panel(parent: Control) -> void:
 
 	_success_return_button = Button.new()
 	_success_return_button.name = "SuccessReturnButton"
-	_success_return_button.text = "クリエイター一覧に戻る"
+	_success_return_button.text = tr("クリエイター一覧に戻る")
 	_success_return_button.pressed.connect(_on_success_return_pressed)
 	_success_panel.add_child(_success_return_button)
 
@@ -196,7 +196,7 @@ func _do_save_new() -> void:
 	if not bool(result.get("ok", false)):
 		_choice_panel.visible = true
 		preload("res://src/bossmaker/rbm_audio.gd").cue(self, "ui_error")
-		_error_label.text = "保存に失敗しました"
+		_error_label.text = tr("保存に失敗しました")
 		return
 	_show_success(str(result.get("stage_id", "")))
 
@@ -206,7 +206,7 @@ func _on_overwrite_pressed() -> void:
 	var result: Dictionary = main.press_overwrite_save()
 	if not bool(result.get("ok", false)):
 		preload("res://src/bossmaker/rbm_audio.gd").cue(self, "ui_error")
-		_error_label.text = "保存に失敗しました"
+		_error_label.text = tr("保存に失敗しました")
 		return
 	_show_success(main.current_stage_id)
 
@@ -215,7 +215,7 @@ func _show_success(stage_id: String) -> void:
 	_choice_panel.visible = false
 	_same_name_panel.visible = false
 	_success_panel.visible = true
-	_success_stage_id_label.text = "ステージID：%s" % stage_id
+	_success_stage_id_label.text = tr("ステージID：%s") % stage_id
 
 ## 実機プレイ改善③ item4: 保存成功後「クリエイター一覧に戻る」は、STEP7等の
 ## 中間STEPを一切経由せず、保存済みボス一覧（RBMCreatorEntryの「保存した

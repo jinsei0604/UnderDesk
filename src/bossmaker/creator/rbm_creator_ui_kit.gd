@@ -695,31 +695,31 @@ class BossProfilePanel:
 			_preview_swatch.texture = null
 		else:
 			_preview_swatch.texture = VisualAssets.texture(VisualAssets.boss_asset(draft.appearance_id), 0)
-		_name_label.text = draft.boss_name if not draft.boss_name.is_empty() else "（未設定）"
-		_hp_label.text = "HP：%d" % draft.hp
-		_atk_label.text = "ATK：%d" % draft.atk
-		_spd_label.text = "SPD：%d" % draft.spd
-		_weak_label.text = "弱点：%s" % (", ".join(_attribute_labels(draft.weak_attributes)) if not draft.weak_attributes.is_empty() else "なし")
-		_resist_label.text = "耐性：%s" % (", ".join(_attribute_labels(draft.resist_attributes)) if not draft.resist_attributes.is_empty() else "なし")
+		_name_label.text = draft.boss_name if not draft.boss_name.is_empty() else tr("（未設定）")
+		_hp_label.text = tr("HP：%d") % draft.hp
+		_atk_label.text = tr("ATK：%d") % draft.atk
+		_spd_label.text = tr("SPD：%d") % draft.spd
+		_weak_label.text = tr("弱点：%s") % (", ".join(_attribute_labels(draft.weak_attributes)) if not draft.weak_attributes.is_empty() else tr("なし"))
+		_resist_label.text = tr("耐性：%s") % (", ".join(_attribute_labels(draft.resist_attributes)) if not draft.resist_attributes.is_empty() else tr("なし"))
 
 		if draft.skills.is_empty():
-			_skills_label.text = "（未設定）"
+			_skills_label.text = tr("（未設定）")
 		else:
 			var skill_names: Array = []
 			for skill in draft.skills:
 				skill_names.append(str(skill.get("name", "")))
-			_skills_label.text = "、".join(skill_names)
+			_skills_label.text = tr("、").join(skill_names)
 
 		_actions_label.text = _actions_summary(draft)
 
 		if draft.party_character_ids.is_empty():
-			_party_label.text = "（未選択）"
+			_party_label.text = tr("（未選択）")
 		else:
 			var names: Array = []
 			for character_id in draft.party_character_ids:
 				var master := draft.master_character_def(character_id)
-				names.append(str(master.get("display_name", character_id)))
-			_party_label.text = "、".join(names)
+				names.append(tr(str(master.get("display_name", character_id))))
+			_party_label.text = tr("、").join(names)
 
 	## §15/§27相当のACTIONS要約——旧最終確認画面(RBMCreatorStep7Summary)が
 	## 持っていた「実際に組んだ内容をそのまま読める形」のロジックをこの
@@ -729,7 +729,7 @@ class BossProfilePanel:
 	func _actions_summary(draft: RBMCreatorDraft) -> String:
 		if draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED:
 			if draft.action_sequence.is_empty():
-				return "（未設定）"
+				return tr("（未設定）")
 			var lines: Array = []
 			for i in range(draft.action_sequence.size()):
 				var slot: Dictionary = draft.action_sequence[i]
@@ -740,15 +740,15 @@ class BossProfilePanel:
 		for skill_id in draft.normal_action_percentages.keys():
 			var skill := draft.find_skill(str(skill_id))
 			var pct := float(draft.normal_action_percentages.get(str(skill_id), 0.0))
-			lines.append("通常：%s %.1f%%" % [str(skill.get("name", "?")), pct])
+			lines.append(tr("通常：%s %.1f%%") % [str(skill.get("name", "?")), pct])
 		for entry in draft.scripted_actions:
 			var skill := draft.find_skill(str(entry.get("skill_id", "")))
-			lines.append("指定：ターン%d %s" % [int(entry.get("turn", 0)), str(skill.get("name", "?"))])
-		return "\n".join(lines) if not lines.is_empty() else "（未設定）"
+			lines.append(tr("指定：ターン%d %s") % [int(entry.get("turn", 0)), str(skill.get("name", "?"))])
+		return "\n".join(lines) if not lines.is_empty() else tr("（未設定）")
 
 	func _attribute_labels(attributes: Array) -> Array:
 		var labels: Array = []
 		for attribute in attributes:
 			var attribute_id := str(attribute)
-			labels.append(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute_id, attribute_id)))
+			labels.append(tr(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute_id, attribute_id))))
 		return labels

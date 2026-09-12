@@ -33,6 +33,8 @@ const PERFORMANCE_SCROLL_HEIGHT_PX := 320.0
 const TAB_SKILLS := "skills"
 const TAB_PERFORMANCE := "performance"
 
+## 値は表示用文字列——キー(effect_id/target_id)はスキル定義の内部IDで
+## あり翻訳対象ではない。呼び出し側で.get()の結果へtr()を適用する。
 const SKILL_EFFECT_LABELS := {
 	"damage": "攻撃",
 	"heal": "HP回復",
@@ -100,7 +102,7 @@ func _build_ui() -> void:
 	header_row.name = "PartyHeaderRow"
 	column.add_child(header_row)
 	var header := Label.new()
-	header.text = "攻略パーティ"
+	header.text = tr("攻略パーティ")
 	header.theme_type_variation = RBMCreatorUiKit.VARIATION_SECTION_LABEL
 	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header_row.add_child(header)
@@ -108,7 +110,7 @@ func _build_ui() -> void:
 	## §16: 旧・大きな全幅ボタンから、右上へ寄せたコンパクトな二次操作へ。
 	_reset_all_button = Button.new()
 	_reset_all_button.name = "ResetAllAllyOverridesButton"
-	_reset_all_button.text = "全員を標準に戻す"
+	_reset_all_button.text = tr("全員を標準に戻す")
 	_reset_all_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	_reset_all_button.pressed.connect(_on_reset_all_overrides_pressed)
 	header_row.add_child(_reset_all_button)
@@ -126,7 +128,7 @@ func _build_ui() -> void:
 	column.add_child(add_row)
 	_add_button = Button.new()
 	_add_button.name = "AddCharacterButton"
-	_add_button.text = "＋ キャラクターを追加"
+	_add_button.text = tr("＋ キャラクターを追加")
 	_add_button.pressed.connect(_on_add_button_pressed)
 	add_row.add_child(_add_button)
 	_count_label = Label.new()
@@ -147,7 +149,7 @@ func _build_ui() -> void:
 
 	_selected_empty_label = Label.new()
 	_selected_empty_label.name = "SelectedCharacterEmptyLabel"
-	_selected_empty_label.text = "攻略パーティにキャラクターがいません。先に攻略パーティを選んでください。"
+	_selected_empty_label.text = tr("攻略パーティにキャラクターがいません。先に攻略パーティを選んでください。")
 	_selected_settings_panel.add_child(_selected_empty_label)
 
 	_selected_header_label = Label.new()
@@ -160,13 +162,13 @@ func _build_ui() -> void:
 	_selected_settings_panel.add_child(_tab_row)
 	_skills_tab_button = Button.new()
 	_skills_tab_button.name = "SkillsTabButton"
-	_skills_tab_button.text = "使用可能スキル"
+	_skills_tab_button.text = tr("使用可能スキル")
 	_skills_tab_button.toggle_mode = true
 	_skills_tab_button.pressed.connect(_on_tab_selected.bind(TAB_SKILLS))
 	_tab_row.add_child(_skills_tab_button)
 	_performance_tab_button = Button.new()
 	_performance_tab_button.name = "PerformanceTabButton"
-	_performance_tab_button.text = "性能調整"
+	_performance_tab_button.text = tr("性能調整")
 	_performance_tab_button.toggle_mode = true
 	_performance_tab_button.pressed.connect(_on_tab_selected.bind(TAB_PERFORMANCE))
 	_tab_row.add_child(_performance_tab_button)
@@ -275,7 +277,7 @@ func refresh() -> void:
 
 	var at_cap := draft.party_character_ids.size() >= RBMDefinitionLoader.MAX_PARTY_SIZE
 	_add_button.disabled = at_cap
-	_count_label.text = "%d / %d人" % [draft.party_character_ids.size(), RBMDefinitionLoader.MAX_PARTY_SIZE]
+	_count_label.text = tr("%d / %d人") % [draft.party_character_ids.size(), RBMDefinitionLoader.MAX_PARTY_SIZE]
 	if _add_candidates_panel.visible:
 		_rebuild_add_candidates()
 
@@ -293,7 +295,7 @@ func _build_party_card(character_id: String) -> void:
 
 	var select_button := Button.new()
 	select_button.name = "SelectCharacterButton_%s" % character_id
-	select_button.text = str(master.get("display_name", character_id))
+	select_button.text = tr(str(master.get("display_name", character_id)))
 	select_button.toggle_mode = true
 	select_button.button_pressed = (character_id == _selected_character_id)
 	select_button.pressed.connect(select_character.bind(character_id))
@@ -311,7 +313,7 @@ func _build_party_card(character_id: String) -> void:
 
 	var remove_button := Button.new()
 	remove_button.name = "RemoveCharacterButton_%s" % character_id
-	remove_button.text = "外す"
+	remove_button.text = tr("外す")
 	remove_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	remove_button.pressed.connect(_on_remove_pressed.bind(character_id))
 	column.add_child(remove_button)
@@ -322,7 +324,7 @@ func _rebuild_add_candidates() -> void:
 		child.queue_free()
 	_candidate_buttons.clear()
 	var caption := Label.new()
-	caption.text = "攻略パーティを選ぶ"
+	caption.text = tr("攻略パーティを選ぶ")
 	_add_candidates_panel.add_child(caption)
 	for character_id in RBMDefinitionLoader.KNOWN_ALLY_PATHS.keys():
 		if draft.party_character_ids.has(character_id):
@@ -330,7 +332,7 @@ func _rebuild_add_candidates() -> void:
 		var master := draft.master_character_def(character_id)
 		var checkbox := CheckBox.new()
 		checkbox.name = "AddCandidateButton_%s" % character_id
-		checkbox.text = str(master.get("display_name", character_id))
+		checkbox.text = tr(str(master.get("display_name", character_id)))
 		checkbox.button_pressed = _pending_party_selection.has(character_id)
 		checkbox.toggled.connect(_on_candidate_toggled.bind(character_id))
 		_add_candidates_panel.add_child(checkbox)
@@ -339,12 +341,12 @@ func _rebuild_add_candidates() -> void:
 	_add_candidates_panel.add_child(actions)
 	var confirm_button := Button.new()
 	confirm_button.name = "ConfirmAddCandidatesButton"
-	confirm_button.text = "決定"
+	confirm_button.text = tr("決定")
 	confirm_button.pressed.connect(_on_confirm_candidates_pressed)
 	actions.add_child(confirm_button)
 	var cancel_button := Button.new()
 	cancel_button.name = "CancelAddCandidatesButton"
-	cancel_button.text = "キャンセル"
+	cancel_button.text = tr("キャンセル")
 	cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel_button.pressed.connect(_on_cancel_candidates_pressed)
 	actions.add_child(cancel_button)
@@ -372,7 +374,7 @@ func _refresh_selected_settings() -> void:
 		return
 
 	var master := draft.master_character_def(_selected_character_id)
-	_selected_header_label.text = str(master.get("display_name", _selected_character_id))
+	_selected_header_label.text = tr(str(master.get("display_name", _selected_character_id)))
 	_skills_tab_button.button_pressed = (_selected_tab == TAB_SKILLS)
 	_performance_tab_button.button_pressed = (_selected_tab == TAB_PERFORMANCE)
 
@@ -400,12 +402,12 @@ func _build_skills_normal_panel(character_id: String, master: Dictionary) -> voi
 		var label := Label.new()
 		label.name = "SkillStatusLabel_%s_%s" % [character_id, skill_id]
 		var allowed := draft.is_ally_skill_allowed(character_id, skill_id)
-		label.text = "%s   %s" % [str(skill.get("display_name", skill_id)), "使用可" if allowed else "使用不可"]
+		label.text = "%s   %s" % [tr(str(skill.get("display_name", skill_id))), tr("使用可") if allowed else tr("使用不可")]
 		row.add_child(label)
 
 	var edit_button := Button.new()
 	edit_button.name = "EditPartySkillsButton_%s" % character_id
-	edit_button.text = "編集"
+	edit_button.text = tr("編集")
 	edit_button.pressed.connect(_on_edit_skills_pressed.bind(character_id))
 	_tab_content.add_child(edit_button)
 
@@ -424,12 +426,12 @@ func _build_skills_edit_panel(character_id: String, master: Dictionary) -> void:
 	_tab_content.add_child(bulk_row)
 	var on_button := Button.new()
 	on_button.name = "AllOnButton_%s" % character_id
-	on_button.text = "すべてON"
+	on_button.text = tr("すべてON")
 	on_button.pressed.connect(_on_staged_all_pressed.bind(true))
 	bulk_row.add_child(on_button)
 	var off_button := Button.new()
 	off_button.name = "AllOffButton_%s" % character_id
-	off_button.text = "すべてOFF"
+	off_button.text = tr("すべてOFF")
 	off_button.pressed.connect(_on_staged_all_pressed.bind(false))
 	bulk_row.add_child(off_button)
 
@@ -445,9 +447,9 @@ func _build_skills_edit_panel(character_id: String, master: Dictionary) -> void:
 		var label := Label.new()
 		var effect_id := str(skill.get("effect", ""))
 		var target_id := str(skill.get("target", ""))
-		var target_text := str(SKILL_TARGET_LABELS.get(target_id, target_id)) if not target_id.is_empty() else "-"
-		label.text = "%s（%s、対象:%s、SP消費%s）" % [
-			str(skill.get("display_name", skill_id)), str(SKILL_EFFECT_LABELS.get(effect_id, effect_id)),
+		var target_text := tr(str(SKILL_TARGET_LABELS.get(target_id, target_id))) if not target_id.is_empty() else "-"
+		label.text = tr("%s（%s、対象:%s、SP消費%s）") % [
+			tr(str(skill.get("display_name", skill_id))), tr(str(SKILL_EFFECT_LABELS.get(effect_id, effect_id))),
 			target_text, str(skill.get("sp_cost", 0)),
 		]
 		row.add_child(label)
@@ -456,12 +458,12 @@ func _build_skills_edit_panel(character_id: String, master: Dictionary) -> void:
 	_tab_content.add_child(confirm_row)
 	var confirm_button := Button.new()
 	confirm_button.name = "ConfirmPartySkillsButton_%s" % character_id
-	confirm_button.text = "決定"
+	confirm_button.text = tr("決定")
 	confirm_button.pressed.connect(_on_confirm_skills_pressed.bind(character_id))
 	confirm_row.add_child(confirm_button)
 	var cancel_button := Button.new()
 	cancel_button.name = "CancelPartySkillsButton_%s" % character_id
-	cancel_button.text = "キャンセル"
+	cancel_button.text = tr("キャンセル")
 	cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel_button.pressed.connect(_on_cancel_skills_pressed)
 	confirm_row.add_child(cancel_button)
@@ -509,7 +511,7 @@ func _build_performance_tab(character_id: String) -> void:
 	else:
 		var stats_label := Label.new()
 		stats_label.name = "CharacterInfoStatsLabel"
-		stats_label.text = "HP：%d\nATK：%d\nSPD：%d" % [
+		stats_label.text = tr("HP：%d\nATK：%d\nSPD：%d") % [
 			int(master.get("hp", 0)), int(master.get("atk", 0)), int(master.get("spd", 0)),
 		]
 		_tab_content.add_child(stats_label)
@@ -529,22 +531,22 @@ func _add_skill_performance_card(character_id: String, skill: Dictionary, effect
 	_tab_content.add_child(card)
 	var column := VBoxContainer.new()
 	card.add_child(column)
-	_add_info_label(column, "SkillNameLabel_%s" % skill_id, str(skill.get("display_name", skill_id)))
+	_add_info_label(column, "SkillNameLabel_%s" % skill_id, tr(str(skill.get("display_name", skill_id))))
 	var effect := str(skill.get("effect", ""))
-	_add_info_label(column, "SkillTypeLabel_%s" % skill_id, "種類：%s" % str(SKILL_EFFECT_LABELS.get(effect, effect)))
+	_add_info_label(column, "SkillTypeLabel_%s" % skill_id, tr("種類：%s") % tr(str(SKILL_EFFECT_LABELS.get(effect, effect))))
 	if skill.has("attribute"):
 		var attribute_id := str(skill.get("attribute", ""))
-		_add_info_label(column, "SkillAttributeLabel_%s" % skill_id, "属性：%s" % str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute_id, attribute_id)))
+		_add_info_label(column, "SkillAttributeLabel_%s" % skill_id, tr("属性：%s") % tr(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute_id, attribute_id))))
 	if skill.has("target"):
 		var target_id := str(skill.get("target", ""))
-		_add_info_label(column, "SkillTargetLabel_%s" % skill_id, "対象：%s" % str(SKILL_TARGET_LABELS.get(target_id, target_id)))
+		_add_info_label(column, "SkillTargetLabel_%s" % skill_id, tr("対象：%s") % tr(str(SKILL_TARGET_LABELS.get(target_id, target_id))))
 	_add_skill_effect_lines(column, draft.effective_character_def(character_id), effective_skill, effect, skill_id)
 	if draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED:
 		_add_skill_override_editor(column, character_id, skill, effective_skill)
 
 func _build_stat_override_editor(character_id: String, effective: Dictionary) -> void:
 	var caption := Label.new()
-	caption.text = "ハードコア ステータス設定"
+	caption.text = tr("ハードコア ステータス設定")
 	_tab_content.add_child(caption)
 	var labels := {"hp": "HP", "atk": "ATK", "spd": "SPD", "max_sp": "Max SP"}
 	for field in RBMDefinitionLoader.ALLY_STAT_OVERRIDE_FIELDS:
@@ -565,7 +567,7 @@ func _build_stat_override_editor(character_id: String, effective: Dictionary) ->
 		row.add_child(spin)
 	var reset := Button.new()
 	reset.name = "ResetAllyStatsButton_%s" % character_id
-	reset.text = "キャラクターステータスを標準値へ戻す"
+	reset.text = tr("キャラクターステータスを標準値へ戻す")
 	reset.pressed.connect(_on_reset_character_stats_pressed.bind(character_id))
 	_tab_content.add_child(reset)
 
@@ -582,7 +584,7 @@ func _add_skill_override_editor(parent: Control, character_id: String, master_sk
 		parent.add_child(row)
 		var value_label := Label.new()
 		value_label.name = "AllySkillOverrideLabel_%s_%s_%s" % [character_id, skill_id, field]
-		value_label.text = str(labels[field])
+		value_label.text = tr(str(labels[field]))
 		row.add_child(value_label)
 		var spin := SpinBox.new()
 		spin.name = "AllySkillOverrideSpin_%s_%s_%s" % [character_id, skill_id, field]
@@ -607,7 +609,7 @@ func _add_skill_override_editor(parent: Control, character_id: String, master_sk
 		row.add_child(spin)
 	var reset := Button.new()
 	reset.name = "ResetAllySkillButton_%s_%s" % [character_id, skill_id]
-	reset.text = "このスキルを標準値へ戻す"
+	reset.text = tr("このスキルを標準値へ戻す")
 	reset.pressed.connect(_on_reset_skill_pressed.bind(character_id, skill_id))
 	parent.add_child(reset)
 
@@ -629,30 +631,30 @@ func _add_skill_effect_lines(parent: Control, master: Dictionary, skill: Diction
 	match effect:
 		"damage":
 			var base_damage := RBMBattle.compute_damage_amount(float(master.get("atk", 0)), float(skill.get("atk_multiplier", 1.0)), 1.0, 1.0, 1.0)
-			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, "基礎ダメージ：%d" % base_damage)
-			_add_info_label(parent, "SkillEffectNoteLabel_%s" % skill_id, "属性補正・一時強化前")
+			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, tr("基礎ダメージ：%d") % base_damage)
+			_add_info_label(parent, "SkillEffectNoteLabel_%s" % skill_id, tr("属性補正・一時強化前"))
 		"heal":
-			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, "基本回復量：%d" % int(skill.get("heal_amount", 0)))
-			_add_info_label(parent, "SkillEffectNoteLabel_%s" % skill_id, "対象の不足HPまで")
+			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, tr("基本回復量：%d") % int(skill.get("heal_amount", 0)))
+			_add_info_label(parent, "SkillEffectNoteLabel_%s" % skill_id, tr("対象の不足HPまで"))
 		"sp_recover_single_no_self":
-			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, "自分以外の味方単体のSPを%d回復" % int(skill.get("sp_amount", 0)))
+			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, tr("自分以外の味方単体のSPを%d回復") % int(skill.get("sp_amount", 0)))
 		"sp_recover_all_no_self":
-			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, "自分以外の味方全体のSPを%d回復" % int(skill.get("sp_amount", 0)))
+			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, tr("自分以外の味方全体のSPを%d回復") % int(skill.get("sp_amount", 0)))
 		"buff_atk_self":
-			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, "ATK：%s倍" % str(float(skill.get("buff_multiplier", 1.0))))
-			_add_info_label(parent, "SkillDurationLabel_%s" % skill_id, "効果時間：%dターン" % int(skill.get("duration_turns", 1)))
+			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, tr("ATK：%s倍") % str(float(skill.get("buff_multiplier", 1.0))))
+			_add_info_label(parent, "SkillDurationLabel_%s" % skill_id, tr("効果時間：%dターン") % int(skill.get("duration_turns", 1)))
 		"buff_next_attack":
-			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, "次の攻撃スキル：%s倍" % str(float(skill.get("buff_multiplier", 1.0))))
+			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, tr("次の攻撃スキル：%s倍") % str(float(skill.get("buff_multiplier", 1.0))))
 		"counter_stance":
-			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, "攻撃を無効化して反撃（ATK倍率：%s倍）" % str(float(skill.get("atk_multiplier", 1.0))))
+			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, tr("攻撃を無効化して反撃（ATK倍率：%s倍）") % str(float(skill.get("atk_multiplier", 1.0))))
 		"guard_redirect":
-			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, "味方単体への攻撃をかばう")
+			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, tr("味方単体への攻撃をかばう"))
 		"guard_boost":
-			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, "防御時の軽減率：%d%%" % int(round(float(skill.get("new_rate", 0.0)) * 100.0)))
-			_add_info_label(parent, "SkillDurationLabel_%s" % skill_id, "効果時間：%dターン" % int(skill.get("duration_turns", 1)))
+			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, tr("防御時の軽減率：%d%%") % int(round(float(skill.get("new_rate", 0.0)) * 100.0)))
+			_add_info_label(parent, "SkillDurationLabel_%s" % skill_id, tr("効果時間：%dターン") % int(skill.get("duration_turns", 1)))
 		"party_damage_reduction":
-			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, "パーティの被ダメージ軽減：%d%%" % int(round(float(skill.get("reduction_rate", 0.0)) * 100.0)))
-			_add_info_label(parent, "SkillDurationLabel_%s" % skill_id, "効果時間：%dターン" % int(skill.get("duration_turns", 1)))
+			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, tr("パーティの被ダメージ軽減：%d%%") % int(round(float(skill.get("reduction_rate", 0.0)) * 100.0)))
+			_add_info_label(parent, "SkillDurationLabel_%s" % skill_id, tr("効果時間：%dターン") % int(skill.get("duration_turns", 1)))
 
 func _add_info_label(parent: Control, node_name: String, text: String) -> Label:
 	var label := Label.new()
@@ -667,5 +669,5 @@ func is_step_valid() -> bool:
 
 func validation_message() -> String:
 	if draft.party_character_ids.is_empty():
-		return "パーティを1人以上選んでください"
+		return tr("パーティを1人以上選んでください")
 	return ""

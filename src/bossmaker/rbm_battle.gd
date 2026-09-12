@@ -161,6 +161,24 @@ var _boss_action_cursor: int = 0
 ## キー付けされるためそれぞれ独立してカウントされる（§8確定仕様）。
 var _slot_use_counts: Dictionary = {}
 
+## =============================================================================
+## 覚醒（Awakening）— ボス専用の特別イベント。boss_def["awakening"]が空
+## Dictionaryなら以下は一切参照されない（RBMDefinitionLoader._resolve_
+## awakening()参照——覚醒未設定、または覚醒実装以前の旧ボスデータは常に
+## 空Dictionaryへ解決される）。
+##
+## 通常のaction_sequence（1ターン1スロットのラウンドロビン）とは完全に
+## 独立している——通常行動ループには一切含まれず、通常行動回数も消費しない。
+## 条件成立を検知した瞬間ではなく、現在resolveされていた1件のログentryが
+## 完全に確定した直後（_maybe_trigger_awakening()の呼び出し箇所を参照、
+## advance_to_next_decision()/resolve_pending_ally_action()いずれもentryを
+## logへappendしてbattle_overを確認した直後の、次のentryへ進む前の安全な
+## タイミングでのみ呼ぶ）に発動する——攻撃/ダメージ処理の途中で割り込む
+## ことは無い。
+var awakening: Dictionary = {}
+var is_awakened: bool = false
+var awakening_used: bool = false
+
 var rng: RandomNumberGenerator
 
 func _init(ally_defs: Array[Dictionary], p_boss_def: Dictionary, rng_seed: int = 0) -> void:
@@ -173,6 +191,10 @@ func _init(ally_defs: Array[Dictionary], p_boss_def: Dictionary, rng_seed: int =
 	boss_def = p_boss_def
 	boss = RBMDataLoader.unit_from_boss_def(p_boss_def)
 	turn_order = _compute_turn_order()
+	# 覚醒: 各Battle開始時に必ずis_awakened=false/awakening_used=falseへ
+	# 初期化する（Clear Check/Challenge/Test問わず、再戦時に前回Battleの
+	# 覚醒状態が持ち越されないようにするための唯一の初期化箇所）。
+	awakening = (p_boss_def.get("awakening", {}) as Dictionary).duplicate(true)
 
 ## v0.1-B §10 (confirmed): SPD descending; equal SPD favors an ally over the boss;
 ## no random tie-break. Allies never share SPD with each other in the fixed
@@ -217,6 +239,10 @@ func presentation_state() -> Dictionary:
 		"turn": current_turn, "battle_over": battle_over, "winner": winner,
 		"boss": _presentation_unit_state(boss), "party": allies,
 		"party_timed_effects": party_timed_effects.duplicate(true),
+		# 覚醒: 表示層（RBMBattleStage等）がボスの外見/モーション切り替えを
+		# 判断するための唯一の状態——is_awakenedのみで十分（awakening_usedは
+		# 表示に関与しない内部の一度きり判定用フラグ）。
+		"is_awakened": is_awakened,
 	}
 
 func _presentation_unit_state(unit: RBMUnit) -> Dictionary:
@@ -271,6 +297,42 @@ func _check_battle_over() -> void:
 		battle_over = true
 		winner = "boss"
 
+## 覚醒（Awakening）— 通常のaction_sequence評価とは別の、独立したチェック。
+## advance_to_next_decision()/resolve_pending_ally_action()が1件のログ
+## entryを完全に確定させ、_check_battle_over()も済ませた直後にだけ呼ぶ
+## （「現在の攻撃/Damage/Hit処理が完了した直後」を、そのentryが実際に
+## logへ追加された、まさにこの瞬間として実装している——毎フレームの
+## ポーリングは行わない）。
+## 条件評価は_evaluate_condition_group()をそのまま再利用する（awakening
+## 自身が"conditions"/"condition_logic"を持つ、action_sequenceスロットと
+## 全く同じ形のDictionaryのため、専用の評価ロジックを別途持たない）。
+## buff適用はRBMConstants.set_timed_effect()（ATK自己強化と全く同じ
+## 仕組み、"atk_buff"キーを共有）、heal適用はunit.heal()（自己回復と
+## 全く同じ）——覚醒専用の別計算は一切持たない。
+## is_awakened/awakening_usedはBuff状態（timed_effects）とは完全に別の
+## フィールドのため、Buffが期限切れになっても覚醒状態自体は一切変化
+## しない（Buffの期限管理はtimed_effect_active()が現在ターンとの比較で
+## その場ごとに判定するだけで、is_awakenedへは一切書き戻さない）。
+func _maybe_trigger_awakening(log: Array[Dictionary]) -> void:
+	if battle_over or awakening_used or awakening.is_empty():
+		return
+	if not _evaluate_condition_group(awakening):
+		return
+	awakening_used = true
+	is_awakened = true
+	var entry := {"actor": "boss", "action": "awakening"}
+	var buff: Dictionary = awakening.get("buff", {})
+	if not buff.is_empty():
+		var mult := float(buff.get("buff_multiplier", 1.0))
+		var duration := int(buff.get("duration_turns", 1))
+		RBMConstants.set_timed_effect(boss.timed_effects, "atk_buff", current_turn, duration, mult)
+		entry["buff_multiplier"] = mult
+		entry["buff_duration_turns"] = duration
+	var heal_amount := int(awakening.get("heal_amount", 0))
+	if heal_amount > 0:
+		entry["heal_amount"] = boss.heal(heal_amount)
+	log.append(_log_entry(entry))
+
 ## Turn REWIND (Step 4 §9, per the prior technical investigation's 案B):
 ## RBMBattle provides only the generic capture/restore primitive here — it has
 ## no opinion about how many snapshots exist, when they're taken, or what
@@ -322,6 +384,10 @@ func snapshot() -> Dictionary:
 		"boss_last_hit_was_weak": _boss_last_hit_was_weak,
 		"boss_action_cursor": _boss_action_cursor,
 		"slot_use_counts": _slot_use_counts.duplicate(true),
+		# 覚醒: REWINDが「覚醒した/使用済み」という一度きりの状態も正しく
+		# 巻き戻せるようにする——他のHARDCORE実行時状態と同じ扱い。
+		"is_awakened": is_awakened,
+		"awakening_used": awakening_used,
 	}
 
 func _snapshot_unit(unit: RBMUnit) -> Dictionary:
@@ -373,6 +439,8 @@ func restore(state: Dictionary) -> void:
 	_boss_last_hit_was_weak = bool(state.get("boss_last_hit_was_weak", false))
 	_boss_action_cursor = int(state.get("boss_action_cursor", 0))
 	_slot_use_counts = (state.get("slot_use_counts", {}) as Dictionary).duplicate(true)
+	is_awakened = bool(state.get("is_awakened", false))
+	awakening_used = bool(state.get("awakening_used", false))
 
 func _restore_unit(unit: RBMUnit, data: Dictionary) -> void:
 	unit.hp = int(data["hp"])
@@ -530,7 +598,19 @@ func advance_to_next_decision(stop_before_turn_processing: bool = false) -> Arra
 				_check_battle_over()
 				if battle_over:
 					return log
+				_maybe_trigger_awakening(log)
 			_round_turn_start_fired = true
+			# 条件なし覚醒(conditions=[])は_evaluate_condition_group()が常に
+			# trueを返すため、「誰かの行動が初めて解決されるまで待つ」のでは
+			# なく、TURN STARTの後始末が終わったこの時点――turn_start_
+			# interruptが1件も無ければ上のループが一度も回らず、次に
+			# turn_orderの先頭が生存アリーなら即座にreturnしてしまう――で
+			# 明示的に1回評価する。これにより「戦闘開始後の安全な最初の
+			# タイミングで1回だけ発動する」という仕様を、呼び出し側
+			# （Battle/UI初期化が既に完了した後にしかadvance_to_next_
+			# decision()を呼ばないビュー層）の既存の呼び出し規約を変えずに
+			# 満たす。
+			_maybe_trigger_awakening(log)
 
 		if _round_cursor < turn_order.size():
 			var token: String = turn_order[_round_cursor]
@@ -552,6 +632,7 @@ func advance_to_next_decision(stop_before_turn_processing: bool = false) -> Arra
 			_check_battle_over()
 			if battle_over:
 				return log
+			_maybe_trigger_awakening(log)
 			continue
 
 		# このラウンドの全スロットを処理し終えた — TURN END → 次ラウンドへ。
@@ -560,6 +641,7 @@ func advance_to_next_decision(stop_before_turn_processing: bool = false) -> Arra
 			_check_battle_over()
 			if battle_over:
 				return log
+			_maybe_trigger_awakening(log)
 		for unit in party:
 			unit.counter_pending_this_turn = false
 			unit.active_counter_skill = {}
@@ -644,6 +726,7 @@ func resolve_pending_ally_action(action: Dictionary) -> Array[Dictionary]:
 		return log
 	_round_cursor += 1
 	_check_battle_over()
+	_maybe_trigger_awakening(log)
 	return log
 
 ## Step 2 fix #3: an unrecognized action "type" must never be treated as an attack.

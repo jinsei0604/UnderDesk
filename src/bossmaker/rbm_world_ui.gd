@@ -182,7 +182,7 @@ func walk(node: Node) -> void:
 			var b: Button = c
 			var key := str(b.name)
 			if key in ["SkillListBackButton","TargetPickerBackButton"]:
-				b.text = "戻る"
+				b.text = tr("戻る")
 				b.icon = icon("left")
 				b.custom_minimum_size = Vector2(150,44)
 				b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -259,18 +259,18 @@ func entry_layout(entry: RBMCreatorEntry) -> void:
 			for child in b.get_children():
 				if child is Control: child.hide()
 			menu_button(b, key == "NewBossButton")
-			b.text = "新しいボス戦を作る" if key == "NewBossButton" else "保存したボス戦を編集"
+			b.text = tr("新しいボス戦を作る") if key == "NewBossButton" else tr("保存したボス戦を編集")
 			b.add_theme_font_size_override("font_size", 24)
 			b.icon = icon("right")
 			b.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	var back: Button = null
-	for b in entry._top_panel.find_children("*", "Button", true, false):
-		if "戻る" in b.text: back = b
+	# ボタンのtext内容ではなく、安定したノード名(BackToRootButton)で検索
+	# する——言語切替でtextが変わっても(戻る/Back)見失わないようにする。
+	var back: Button = entry._top_panel.find_child("BackToRootButton", true, false) as Button
 	if back:
 		for child in back.get_children():
 			if child is Control: child.hide()
 		button_style(back)
-		back.text = "戻る"
+		back.text = tr("戻る")
 		back.icon = icon("left")
 		back.reparent(entry._top_panel)
 		back.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
@@ -282,7 +282,7 @@ func method_layout(entry: RBMCreatorEntry) -> void:
 	var base: Control = entry._mode_choice_panel
 	if base.has_meta("world_layout"): return
 	base.set_meta("world_layout", true)
-	var hint := "作成開始後はモードを変更できません"
+	var hint := tr("作成開始後はモードを変更できません")
 	# Preserve background and referenced asset files. Remove only this screen's character node.
 	for child in base.get_children():
 		if str(child.name) != "Background":
@@ -290,7 +290,7 @@ func method_layout(entry: RBMCreatorEntry) -> void:
 			child.queue_free()
 	entry._guide_character = null
 	panel(base, Rect2(240, 64, 800, 128), true).name = "MethodHeadingPanel"
-	label(base, "ボスを作る方法を選択", Rect2(260, 80, 760, 48), 32, IVORY, true)
+	label(base, tr("ボスを作る方法を選択"), Rect2(260, 80, 760, 48), 32, IVORY, true)
 	label(base, hint, Rect2(260, 139, 760, 26), 15, MUTED, true).name = "ModeChoiceHintLabel"
 	for i in range(2):
 		var b := Button.new()
@@ -301,15 +301,15 @@ func method_layout(entry: RBMCreatorEntry) -> void:
 		base.add_child(b)
 		b.pressed.connect(entry._on_choose_simple_mode_pressed if i == 0 else entry._on_choose_advanced_mode_pressed)
 		label(b, "SIMPLE" if i == 0 else "HARDCORE", Rect2(32, 24, 384, 46), 32, IVORY).name = "CategoryLabel"
-		label(b, "シンプルで作る" if i == 0 else "ハードコアで作る", Rect2(32, 72, 384, 30), 19, GOLD).name = "TitleLabel"
-		label(b, "基本的な設定だけで\nすぐにボス戦を作成できます。" if i == 0 else "行動条件などを細かく設定して\nボス戦を作り込めます。", Rect2(32, 119, 384, 61), 17, IVORY).name = "DescriptionLabel"
-		label(b, "この方法で作成を始める", Rect2(32, 199, 350, 24), 15, MUTED)
+		label(b, tr("シンプルで作る") if i == 0 else tr("ハードコアで作る"), Rect2(32, 72, 384, 30), 19, GOLD).name = "TitleLabel"
+		label(b, tr("基本的な設定だけで\nすぐにボス戦を作成できます。") if i == 0 else tr("行動条件などを細かく設定して\nボス戦を作り込めます。"), Rect2(32, 119, 384, 61), 17, IVORY).name = "DescriptionLabel"
+		label(b, tr("この方法で作成を始める"), Rect2(32, 199, 350, 24), 15, MUTED)
 		var arrow := TextureRect.new()
 		arrow.texture = icon("right")
 		arrow.position = Vector2(394, 205)
 		arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(arrow)
-	nav(base, "戻る", Rect2(56,636,150,44), entry._on_mode_choice_back_pressed, "ModeChoiceBackButton")
+	nav(base, tr("戻る"), Rect2(56,636,150,44), entry._on_mode_choice_back_pressed, "ModeChoiceBackButton")
 
 func creator_layout(main: RBMCreatorMain) -> void:
 	if not main.has_meta("world_layout"):
@@ -329,7 +329,7 @@ func creator_layout(main: RBMCreatorMain) -> void:
 		var exit_row := exit.get_parent() as Control
 		exit.reparent(main._nav_row)
 		exit_row.hide()
-		exit.text = "作成を終了"
+		exit.text = tr("作成を終了")
 		button_style(exit)
 		var spacer := Control.new()
 		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -339,10 +339,10 @@ func creator_layout(main: RBMCreatorMain) -> void:
 		main._nav_row.move_child(spacer, 2)
 		main._nav_row.move_child(main._next_button, main._nav_row.get_child_count()-1)
 		main._nav_row.add_theme_constant_override("separation", 12)
-		main._back_button.text = "戻る"
+		main._back_button.text = tr("戻る")
 		main._back_button.icon = icon("left")
 		main._back_button.custom_minimum_size = Vector2(150, 44)
-		main._next_button.text = "次へ"
+		main._next_button.text = tr("次へ")
 		main._next_button.icon = icon("right")
 		main._next_button.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		main._next_button.custom_minimum_size = Vector2(150, 44)
@@ -353,11 +353,16 @@ func creator_layout(main: RBMCreatorMain) -> void:
 		center_exit_dialog(main)
 		var summary: Control = main._step_views[4]
 		var summary_back: Button = summary.find_child("BackButton",true,false)
-		summary_back.text = "戻る"
+		summary_back.text = tr("戻る")
 		summary_back.icon = icon("left")
 		summary_back.custom_minimum_size = Vector2(150,44)
 		summary_back.add_theme_font_size_override("font_size",16)
 		button_style(summary_back)
+		var summary_back_to_list: Button = summary.find_child("BackToCreatorListButton",true,false)
+		summary_back_to_list.icon = icon("left")
+		summary_back_to_list.custom_minimum_size = Vector2(150,44)
+		summary_back_to_list.add_theme_font_size_override("font_size",16)
+		button_style(summary_back_to_list)
 		for key in ["SaveButton","PublishOnlineButton"]:
 			var b: Button = summary.find_child(key,true,false)
 			b.custom_minimum_size = Vector2(120,44)
@@ -450,7 +455,7 @@ func center_exit_dialog(main: RBMCreatorMain) -> void:
 	var col: VBoxContainer = p.find_child("ExitConfirmColumn", true, false)
 	col.add_theme_constant_override("separation", 24)
 	var title := Label.new()
-	title.text = "変更内容を保存しますか？"
+	title.text = tr("変更内容を保存しますか？")
 	title.add_theme_font_size_override("font_size", 24)
 	col.add_child(title)
 	col.move_child(title, 0)
@@ -477,12 +482,12 @@ func challenge_layout(hub: RBMChallengeHubView) -> void:
 	var old: Control = hub.find_child("HubColumn", true, false)
 	old.hide()
 	panel(hub, Rect2(144, 64, 992, 504),true)
-	label(hub, "挑戦", Rect2(184, 84, 920, 54), 36)
-	label(hub, "遊びたいボスを選んでください", Rect2(184, 143, 920, 28), 16, MUTED)
-	label(hub, "モードから探す", Rect2(184, 197, 400, 22), 15, GOLD)
+	label(hub, tr("挑戦"), Rect2(184, 84, 920, 54), 36)
+	label(hub, tr("遊びたいボスを選んでください"), Rect2(184, 143, 920, 28), 16, MUTED)
+	label(hub, tr("モードから探す"), Rect2(184, 197, 400, 22), 15, GOLD)
 	var names := ["SimpleCategoryButton", "HardcoreCategoryButton", "FeaturedCategoryButton", "NewCategoryButton", "UnchallengedCategoryButton", "PopularCategoryButton", "HighDifficultyCategoryButton", "RandomChallengeButton", "SearchBossButton"]
 	var positions := [Rect2(184,232,440,76), Rect2(648,232,440,76), Rect2(184,374,164,58), Rect2(369,374,164,58), Rect2(554,374,164,58), Rect2(739,374,164,58), Rect2(924,374,164,58), Rect2(648,478,208,48), Rect2(880,478,208,48)]
-	label(hub, "ボスを見つける", Rect2(184,334,400,22), 15, GOLD)
+	label(hub, tr("ボスを見つける"), Rect2(184,334,400,22), 15, GOLD)
 	for i in range(names.size()):
 		var b: Button = old.find_child(names[i], true, false)
 		b.reparent(hub)
@@ -494,7 +499,7 @@ func challenge_layout(hub: RBMChallengeHubView) -> void:
 			b.add_theme_font_size_override("font_size", 24)
 	var back: Button = old.find_child("BackToRootButton", true, false)
 	back.reparent(hub)
-	back.text = "戻る"
+	back.text = tr("戻る")
 	back.icon = icon("left")
 	back.position = Vector2(56,636)
 	back.size = Vector2(150,44)

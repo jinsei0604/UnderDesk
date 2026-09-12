@@ -45,20 +45,20 @@ func _build_ui() -> void:
 
 	var back_button := Button.new()
 	back_button.name = "OnlineListBackButton"
-	back_button.text = "← 挑戦ハブ"
+	back_button.text = tr("← 挑戦ハブ")
 	back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	back_button.pressed.connect(func(): back_requested.emit())
 	header_row.add_child(back_button)
 
 	var title := Label.new()
 	title.name = "OnlineListTitleLabel"
-	title.text = "オンライン"
+	title.text = tr("オンライン")
 	title.theme_type_variation = RBMUiTheme.VARIATION_SECTION_LABEL
 	header_row.add_child(title)
 
 	var refresh_button := Button.new()
 	refresh_button.name = "OnlineListRefreshButton"
-	refresh_button.text = "更新"
+	refresh_button.text = tr("更新")
 	refresh_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	refresh_button.pressed.connect(func(): refresh())
 	header_row.add_child(refresh_button)
@@ -79,18 +79,18 @@ func _build_ui() -> void:
 	scroll.add_child(_rows_container)
 
 func refresh() -> void:
-	_status_label.text = "読み込み中..."
+	_status_label.text = tr("読み込み中...")
 	for child in _rows_container.get_children():
 		child.queue_free()
 
 	var response: Dictionary = await _api_adapter.list_bosses()
 	if not bool(response.get("ok", false)):
-		_status_label.text = "取得できませんでした（%s）。しばらくしてから「更新」を押してください。" % str(response.get("error_kind", response.get("message", "unknown")))
+		_status_label.text = tr("取得できませんでした（%s）。しばらくしてから「更新」を押してください。") % str(response.get("error_kind", response.get("message", "unknown")))
 		return
 
 	var bosses: Array = response.get("bosses", [])
 	if bosses.is_empty():
-		_status_label.text = "公開されているボスはまだありません。"
+		_status_label.text = tr("公開されているボスはまだありません。")
 		return
 
 	_status_label.text = ""
@@ -104,15 +104,15 @@ func _build_row(boss: Dictionary) -> Button:
 	var button := Button.new()
 	var boss_id := str(boss.get("id", ""))
 	button.name = "OnlineBossRow_%s" % boss_id
-	button.text = "%s　(作者: %s)" % [str(boss.get("boss_name", "")), str(boss.get("author_name", ""))]
+	button.text = tr("%s　(作者: %s)") % [str(boss.get("boss_name", "")), str(boss.get("author_name", ""))]
 	button.pressed.connect(func(): _on_row_pressed(boss_id))
 	return button
 
 func _on_row_pressed(boss_id: String) -> void:
-	_status_label.text = "取得中..."
+	_status_label.text = tr("取得中...")
 	var result: Dictionary = await RBMOnlineChallengeLoader.load_boss_for_challenge(_api_adapter, boss_id)
 	if not bool(result.get("ok", false)):
-		_status_label.text = "このボスは取得できませんでした（%s）。" % str(result.get("error", "unknown"))
+		_status_label.text = tr("このボスは取得できませんでした（%s）。") % str(result.get("error", "unknown"))
 		return
 	_status_label.text = ""
 	boss_selected.emit(

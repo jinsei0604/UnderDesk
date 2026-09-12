@@ -221,13 +221,13 @@ static func build_boss_card(entry: Dictionary, is_selected: bool, on_click: Call
 	# ではなく「挑戦 12回」（延べ回数だと分かる）表記へ変更。
 	var challenge_count_label := Label.new()
 	challenge_count_label.name = "BossCardChallengeCountLabel_%s" % stage_id
-	challenge_count_label.text = "挑戦 %d回" % int(entry.get("challenge_count", 0))
+	challenge_count_label.text = TranslationServer.translate("挑戦 %d回") % int(entry.get("challenge_count", 0))
 	challenge_count_label.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
 	stats_row.add_child(challenge_count_label)
 
 	var clear_rate_label := Label.new()
 	clear_rate_label.name = "BossCardClearRateLabel_%s" % stage_id
-	clear_rate_label.text = "クリア率 %s" % _percent_text(real_clear_rate(entry))
+	clear_rate_label.text = TranslationServer.translate("クリア率 %s") % _percent_text(real_clear_rate(entry))
 	clear_rate_label.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
 	stats_row.add_child(clear_rate_label)
 
@@ -245,7 +245,7 @@ static func set_card_selected(card: PanelContainer, is_selected: bool) -> void:
 
 static func _author_display_text(entry: Dictionary) -> String:
 	var author_name := str(entry.get("author_name", ""))
-	return author_name if not author_name.is_empty() else "（未設定）"
+	return author_name if not author_name.is_empty() else TranslationServer.translate("（未設定）")
 
 static func _percent_text(rate: float) -> String:
 	return "%.1f%%" % (rate * 100.0)

@@ -1,0 +1,476 @@
+keys,en
+ かつ , and 
+ または , or 
+%d / %d 文字,%d / %d chars
+%d / %d人,%d / %d
+%d HP回復,Heal %d HP
+%d〜%dターン目のあいだ,Between turn %d and %d
+%dターンごと,Every %d turns
+%dターン目,Turn %d
+%dターン目まで,Up to turn %d
+%dターン目以降,From turn %d onward
+%s  [%s]  外見:%s  ID:%s,%s  [%s]  Appearance: %s  ID: %s
+%s に %d %s,%s: %d %s
+%s に %d SP回復,%s recovers %d SP
+%s に %d ダメージ,%d damage to %s
+%s に %d 回復,%s heals %d
+%s にかばわれている,Protected by %s
+%s の攻撃を防いだ！,Blocked %s's attack!
+%s をかばう,Protecting %s
+%s　(作者: %s),%s (by %s)
+%s　SP %d%s,%s  SP %d%s
+%s　（ターン%d）,%s (Turn %d)
+%sが戦闘不能になっている,%s is down
+%sが生存している,%s is alive
+%s（%s、対象:%s、SP消費%s）,"%s (%s, Target: %s, SP Cost %s)"
+%s（%s）,%s (%s)
+%s（戦闘不能）,%s (Down)
+%s：%s,%s: %s
+ATK　%d,ATK  %d
+ATK　%s,ATK  %s
+ATK倍率,ATK Multiplier
+ATK強化 ×%s　残り%dターン,ATK Up ×%s  %d turns left
+ATK自己強化 / ATK×%.2f / %dターン,Self ATK Buff / ATK×%.2f / %d Turns
+ATK：%d,ATK: %d
+ATK：%s倍,ATK: ×%s
+Creatorに戻る,Back to Creator
+Creator一覧へ戻る,Back to Creator List
+HP %s / ATK %s / SPD %s,HP %s / ATK %s / SPD %s
+HP/ATK/SPDを範囲内に設定してください,Please set HP/ATK/SPD within range
+HP　%d / %d,HP  %d / %d
+HP　%s,HP  %s
+HP：%d,HP: %d
+"HP：%d
+ATK：%d
+SPD：%d","HP: %d
+ATK: %d
+SPD: %d"
+JSON解析に失敗しました: %s,Failed to parse JSON: %s
+SPD　%d,SPD  %d
+SPD　%s,SPD  %s
+SPD：%d,SPD: %d
+SP　%d / %d,SP  %d / %d
+STEAM_APP_ID未設定（環境変数、または steam_dev_appid.local.txt）。,"STEAM_APP_ID not set (environment variable, or steam_dev_appid.local.txt)."
+SUPABASE_PUBLISHABLE_KEYが設定されていません。,SUPABASE_PUBLISHABLE_KEY is not set.
+SUPABASE_PUBLISHABLE_KEYが設定されていません（環境変数、または supabase_poc.local.env）。,"SUPABASE_PUBLISHABLE_KEY is not set (environment variable, or supabase_poc.local.env)."
+SUPABASE_URLが設定されていません。,SUPABASE_URL is not set.
+SUPABASE_URLが設定されていません（環境変数、または supabase_poc.local.env）。,"SUPABASE_URL is not set (environment variable, or supabase_poc.local.env)."
+Steamが利用できません。Steamを起動してログインしてください。,Steam is unavailable. Please start Steam and log in.
+Steamにログインしていません。,Not logged in to Steam.
+Steam認証チケットの取得に失敗しました。,Failed to obtain a Steam auth ticket.
+Supabaseサーバーエラー (HTTP %d),Supabase server error (HTTP %d)
+by %s,by %s
+← 戻る,← Back
+← 挑戦ハブ,← Challenge Hub
+→ %s,→ %s
+■ 使用する攻撃,■ Attacks Used
+■ 使用回数,■ Use Limit
+■ 発動条件,■ Trigger Condition
+○ターンごと,Every ○ turns
+、,", "
+"「%s」を削除しますか？
+ステージID：%s
+
+この操作は取り消せません。","Delete ""%s""?
+Stage ID: %s
+
+This action cannot be undone."
+いつ使う？,When to use?
+このスキルを標準値へ戻す,Reset This Skill to Default
+このボスにはランダム行動が設定されています。挑戦ごとに行動が変化する場合があります。,This boss has random actions. Its behavior may vary each attempt.
+このボスに挑戦,Challenge This Boss
+このボスは取得できませんでした（%s）。,This boss couldn't be fetched (%s).
+このボスは行動しません,This boss won't act
+このボス戦はクリアチェックされていません,This boss battle hasn't passed Clear Check
+このランダム攻撃を削除,Delete This Random Attack
+この投稿を更新する権限がありません。,You don't have permission to update this post.
+この攻撃を削除,Delete This Attack
+この方法で作成を始める,Start Creating This Way
+この設定で攻略可能か確認します,Check whether this boss can be cleared with these settings
+これ以上ボスの行動を追加できません,No more actions can be added
+すべてOFF,All OFF
+すべてON,All ON
+すべて公開,Show All
+すべて非公開,Hide All
+なし,None
+まだ戦闘記録がありません,No battle log yet
+まだ設定されていません,Not set yet
+もう一度テスト,Test Again
+もう一度挑戦,Try Again
+やり直す,Restart
+オンライン,Online
+オンライン公開,Publish Online
+オンライン公開に失敗しました（%s）。,Failed to publish online (%s).
+オンライン公開に成功しました。,Published online successfully.
+オンライン公開はまだ準備中です（正式Steam認証の設定待ち）。,Online publishing isn't ready yet (waiting on official Steam auth setup).
+オンライン未公開,Not published online
+カウンター待機,Counter Stance
+キャラクター,Character
+キャラクターステータスを標準値へ戻す,Reset Character Stats to Default
+キャンセル,Cancel
+クリアチェック,Clear Check
+クリアチェックを再確認してください。,Please re-run Clear Check.
+クリアチェックを開始,Start Clear Check
+クリアチェックを開始できません（設定を確認してください）,Can't start Clear Check (please check your settings)
+クリアチェック中はREWINDを使用できます,You can use REWIND during a Clear Check
+クリアチェック失敗,Clear Check Failed
+クリアチェック成功,Clear Check Success
+クリア率 %s,Clear rate %s
+クリア！,Clear!
+クリエイター一覧に戻る,Back to Creator List
+クリエイター一覧へ戻る,Back to Creator List
+シンプルで作る,Create Simply
+スキル,Skill
+ステージID: %s,Stage ID: %s
+ステージIDで検索,Search by stage ID
+ステージID：%s,Stage ID: %s
+タイミング,Timing
+ターン,Turn
+ターン%d へ REWIND,REWIND to Turn %d
+ターン%d ・ %s ・ %s,Turn %d · %s · %s
+テストを終了,Exit Test
+テストバトル,Test Battle
+テストバトルを開始できません（設定を確認してください）,Can't start a test battle (please check your settings)
+テスト戦闘を終了しますか？,Exit the test battle?
+ネットワークエラー: %s,Network error: %s
+ハードコア ステータス設定,Hardcore Stat Settings
+ハードコアで作る,Create with Hardcore
+パーセント (%),Percent (%)
+パーティの被ダメージ軽減：%d%%,Party Damage Reduction: %d%%
+被ダメージ軽減率,Damage Reduction Rate
+パーティを1人以上選んでください,Please select at least one party member
+ボス,Boss
+ボスHPが%d%%〜%d%%のあいだ,Boss HP between %d%% and %d%%
+ボスHPが%d%%以上,Boss HP at least %d%%
+ボスHPが%d%%以下,Boss HP at most %d%%
+ボスのHPを0にする,Reduce the boss's HP to 0
+ボスを作る方法を選択,Choose How to Create Your Boss
+ボスを検索,Search Bosses
+ボスを見つける,Find a Boss
+ボスイラスト表示領域,Boss Illustration Area
+ボススキル,Boss Skills
+ボス作成 ｜ %s,Boss Creation | %s
+ボス名,Boss Name
+ボス名で検索,Search by boss name
+ボス名は%d文字以内にしてください,Boss name must be %d characters or fewer
+ボス性能,Boss Stats
+ボス情報,Boss Info
+ボス戦を作成,Create Boss Battle
+ボス能力,Boss Stats
+モードから探す,Browse by Mode
+ランダムで挑戦,Random Challenge
+ランダム抽選,Random Pick
+ランダム攻撃,Random Attack
+ランダム攻撃の設定,Random Attack Settings
+ランダム攻撃を作る,Create a Random Attack
+ランダム攻撃を追加,Add Random Attack
+ランダム攻撃（%s）,Random Attack (%s)
+リクエストエラー (HTTP %d),Request error (HTTP %d)
+・%s,• %s
+・%s: %s,• %s: %s
+上書き保存,Overwrite Save
+上限%,Max %
+上限ターン,Max Turn
+下限%,Min %
+下限ターン,Min Turn
+人数,Count
+人気,Popular
+作成,Create
+作成を終了,Exit Creator
+作成内容,Created Content
+作成開始後はモードを変更できません,Mode can't be changed after you start creating
+作者メッセージ: %s,Author's Message: %s
+作者メッセージ（挑戦確認画面に表示されます）,Author's Message (shown on the challenge confirmation screen)
+使用可能スキル,Available Skills
+使用回数：%d回,Use Limit: %d
+使用回数：制限なし,Use Limit: Unlimited
+使用率,Usage Rate
+保存,Save
+保存したボス戦を編集,Edit Saved Boss Battle
+保存しました,Saved
+保存する,Save
+保存せず終了,Exit Without Saving
+保存に失敗しました,Save failed
+候補となる攻撃を作る,Create a Candidate Attack
+候補なし,No candidates
+候補の性能を編集,Edit Candidate Stats
+候補の追加方法を選んでください,Choose how to add a candidate
+候補：%s,Candidates: %s
+全体,All
+全員を標準に戻す,Reset All to Default
+公開,Publish
+公開されているボスはまだありません。,No bosses have been published yet.
+公開を取り下げる,Unpublish
+公開中,Published
+公開中...,Publishing...
+制限なし,Unlimited
+削除,Delete
+削除する,Delete
+前回使った行動,Last Action Used
+前回使った行動が「%s」,"Last action used was ""%s"""
+前回受けた攻撃が弱点だった,Last hit taken was a weakness
+前回受けた攻撃の属性が%s,Last hit taken had the %s attribute
+前回受けた行動が「%s」,"Last action received was ""%s"""
+効果時間,Duration
+効果時間：%dターン,Duration: %d Turns
+効果：ATK ×%s,Effect: ATK ×%s
+効果：味方全体のダメージを継続軽減（鉄壁）,Effect: Continuously reduces party damage (Iron Wall)
+効果：味方全体の防御軽減率を強化（防御強化）,Effect: Boosts party guard reduction (Guard Up)
+効果：指定した味方への攻撃をかばう,Effect: Protects the chosen ally from attacks
+効果：次に受ける攻撃を無効化し反撃（カウンター待機）,Effect: Nullifies and counters the next attack (Counter Stance)
+効果：次の攻撃スキルのダメージを強化（居合の構え）,Effect: Boosts the next attack skill's damage (Iaijutsu Stance)
+動作確認,Test & Verify
+勝利,Victory
+勝利条件: %s,Win Condition: %s
+単体,Single Target
+反撃！ %s に %d ダメージ,Counter! %d damage to %s
+取得できませんでした（%s）。しばらくしてから「更新」を押してください。,Couldn't fetch the list (%s). Please try Refresh again later.
+取得中...,Fetching...
+"同じ名前のボス戦がすでに保存されています。
+それでも保存しますか？","A boss battle with the same name is already saved.
+Save anyway?"
+名前を決める,Set Name
+味方,Ally
+味方の行動,Ally Action
+味方単体への攻撃をかばう,Protects a single ally from attacks
+回復 / HP %d回復,Heal / %d HP
+回復 / 最大HPの%.1f%%（HP %d回復相当）,Heal / %.1f%% of Max HP (≈%d HP)
+回復SP：%d,SP Recovery: %d
+回復割合(%),Heal Percent (%)
+回復方式,Heal Mode
+回復量,Heal Amount
+回復量：%d,Heal Amount: %d
+回数を指定,Set a Count
+固定値,Fixed Value
+固定回復量,Fixed Heal Amount
+均等にする,Equalize
+基本回復量：%d,Base Heal Amount: %d
+"基本的な設定だけで
+すぐにボス戦を作成できます。","Create a boss battle quickly
+with just the basic settings."
+基準ダメージ: %d,Base Damage: %d
+基礎ダメージ：%d,Base Damage: %d
+"変更内容が保存されていません。
+保存せず終了すると変更内容は失われます。","Your changes haven't been saved.
+Exiting now will discard them."
+変更内容を保存しますか？,Save your changes?
+外す,Remove
+外見,Appearance
+外見: %s,Appearance: %s
+外見を変更,Change Appearance
+夜,Night
+威力：%s倍,Power: ×%s
+対象,Target
+対象の不足HPまで,Up to the target's missing HP
+対象：%s,Target: %s
+居合の構え,Iaijutsu Stance
+属性,Attribute
+属性補正・一時強化前,Before attribute modifiers or buffs
+属性：%s,Attribute: %s
+左の一覧からボスを選択してください,Select a boss from the list on the left
+弱点,Weak Attributes
+弱点: %s,Weak: %s
+弱点: ？？？,Weak: ???
+弱点　%s,Weak  %s
+弱点！,Weakness!
+弱点：%s,Weak: %s
+倍率,Multiplier
+強化倍率,Buff Multiplier
+強化後ATK: %d,ATK After Buff: %d
+性能を編集,Edit Stats
+性能調整,Stat Tuning
+情報公開設定（挑戦確認画面での表示/非表示）,Visibility Settings (shown/hidden on the challenge confirmation screen)
+成功（%d件）,Success (%d rows)
+成功（本文なし）,Success (no content)
+戦闘ログ,Battle Log
+戦闘背景,Battle Background
+戻る,Back
+投稿先が見つかりませんでした。,The post could not be found.
+持続ターン,Duration (Turns)
+指定行動,Scripted Actions
+指定行動を作る,Create Scripted Action
+指定行動を編集,Edit Scripted Action
+指定：ターン%d %s,Scripted: Turn %d %s
+挑戦,Challenge
+挑戦 %d回,Challenges: %d
+挑戦をやめる,Give Up Challenge
+挑戦を終了しますか？,End this challenge?
+挑戦一覧へ,To Challenge List
+挑戦者が使用するパーティ・使用可能スキル,Challenger's Party & Available Skills
+挑戦設定,Challenge Settings
+攻撃,Attack
+攻撃 / %s / %s / ATK ×%.2f,Attack / %s / %s / ATK ×%.2f
+攻撃 / %s / %s / 威力%d,Attack / %s / %s / Power %d
+攻撃の性能を編集,Edit Attack Stats
+攻撃の設定,Attack Settings
+攻撃の設定に不備があります（ランダム攻撃の候補が0件、または「自分で設定」の確率合計が100%%になっていないランダム攻撃があります）,"There's a problem with your attack settings (a random attack has 0 candidates, or its ""Set Manually"" probabilities don't total 100%%)"
+攻撃の追加方法を選んでください,Choose how to add an attack
+攻撃を作る,Create Attack
+攻撃を無効化して反撃（ATK倍率：%s倍）,Nullifies and counters (ATK ×%s)
+攻撃を追加,Add Attack
+攻撃を防いだ！ 反撃！ %s に %d ダメージ,Blocked! Counter! %d damage to %s
+攻略パーティ,Party
+攻略パーティにキャラクターがいません。先に攻略パーティを選んでください。,No characters in the party yet. Please choose your party first.
+攻略パーティを選ぶ,Choose Your Party
+攻略側の生存人数が%d人以上,At least %d party members alive
+攻略側の生存人数が%d人以下,At most %d party members alive
+攻略側の生存人数がちょうど%d人,Exactly %d party members alive
+敗北,Defeat
+数値・属性の変更はその場で反映されます。保存は最終確認から行えます。,Number and attribute changes apply immediately. Save from Final Review.
+新しいボスとして保存,Save as New Boss
+新しいボス戦を作る,Create New Boss Battle
+新しいボス戦を作るか、保存したボス戦を編集してください。,"Create a new boss battle, or edit a saved one."
+新しく攻撃を作る,Create a New Attack
+新着,New
+既存の攻撃から選ぶ,Choose an Existing Attack
+既存の攻撃から選んでください,Please choose from an existing attack
+昼,Day
+更新,Refresh
+最初からやり直しますか？,Restart from the beginning?
+最初からやり直す,Restart From the Beginning
+最大HPの%.1f%%相当,%.1f%% of Max HP
+最大HP割合,Max HP Percent
+最終確認へ戻る,Back to Final Review
+未公開,Unpublished
+未挑戦,Unchallenged
+未達成,Not Cleared
+条件の種類,Condition Type
+条件：%s,Condition: %s
+条件：なし,Condition: None
+検索,Search
+次の攻撃スキル：%s倍,Next Attack Skill: ×%s
+次へ,Next
+決定,Confirm
+注目,Featured
+消費SP：%d,SP Cost: %d
+特殊条件: %s,Special Rule: %s
+現在の外見：%s,Current Appearance: %s
+現在の戦闘履歴は失われます。最初からやり直しますか？,Your current battle log will be lost. Restart from the beginning?
+現在の状態,Current Status
+現在の状態：なし,Current Status: None
+発動確率の合計: 100.0%,Total Probability: 100.0%
+発動確率の合計を100%%にしてください（現在%.1f%%）,Please make the total probability 100%% (currently %.1f%%)
+確率設定,Probability Settings
+種類,Type
+種類：%s,Type: %s
+終了する,Exit
+編集,Edit
+耐性,Resist Attributes
+耐性: %s,Resist: %s
+耐性: ？？？,Resist: ???
+耐性　%s,Resist  %s
+耐性！,Resistant!
+耐性：%s,Resist: %s
+自分以外の味方全体のSPを%d回復,Recovers %d SP for all allies except self
+自分以外の味方単体のSPを%d回復,Recovers %d SP for one ally other than self
+自己回復 / %s / HP%d,Self Heal / %s / HP%d
+自己回復 / %s / 最大HPの%.1f%%,Self Heal / %s / %.1f%% of Max HP
+自己強化 / ATK ×%.2f / %dターン,Self Buff / ATK ×%.2f / %d Turns
+行動しなかった,Did Nothing
+行動を作る,Create Action
+行動を編集,Edit Action
+行動名,Action Name
+行動失敗（%s）,Action Failed (%s)
+"行動条件などを細かく設定して
+ボス戦を作り込めます。","Fine-tune action conditions and more
+to craft a detailed boss battle."
+行動順,Turn Order
+読み込み中...,Loading...
+追加する,Add
+送信内容に問題がありました。,There was a problem with the submitted content.
+通信に失敗しました。しばらくしてからもう一度お試しください。,Communication failed. Please try again later.
+通常攻撃,Attack
+通常行動,Normal Actions
+通常行動を作る,Create Normal Action
+通常行動を編集,Edit Normal Action
+通常：%s %.1f%%,Normal: %s %.1f%%
+遊びたいボスを選んでください,Choose a boss to challenge
+達成済み,Cleared
+選択,Select
+鉄壁　残り%dターン,Iron Wall  %d turns left
+閉じる ×,Close ×
+開始,Start
+防御,Defend
+防御強化　残り%dターン,Guard Up  %d turns left
+防御時の軽減率：%d%%,Guard Reduction: %d%%
+防御軽減率,Guard Reduction Rate
+非公開,Hidden
+高難度,High Difficulty
+（SP不足）,(Not Enough SP)
+（なし）,(None)
+（戦闘不能）,(Down)
+（未設定）,(Not Set)
+（未選択）,(Not Selected)
+＋ キャラクターを追加,+ Add Character
+＋ 指定行動を追加,+ Add Scripted Action
+＋ 攻撃を追加する,+ Add Attack
+＋ 条件をつける,+ Add Condition
+＋ 通常行動を作る,+ Create Normal Action
+？,?
+？？？,???
+外見と基本情報,Appearance
+能力,Stats
+行動,Actions
+ボススキル詳細,Boss Skill Details
+勝利条件,Win Condition
+特殊条件,Special Rule
+ボスHP ○%以下,Boss HP at most ○%
+ボスHP ○%以上,Boss HP at least ○%
+ボスHP ○%〜○%のあいだ,Boss HP between ○% and ○%
+○ターン目,Turn ○
+○ターン以降,From turn ○ onward
+○ターンまで,Up to turn ○
+○〜○ターンのあいだ,Between turn ○ and ○
+攻略側生存人数 ○人以下,At most ○ party members alive
+攻略側生存人数 ○人以上,At least ○ party members alive
+攻略側生存人数 ○人,Exactly ○ party members alive
+特定キャラクターが生存している,A specific character is alive
+特定キャラクターが戦闘不能,A specific character is downed
+前回のボス行動が特定スキル,Boss's last action was a specific skill
+前回受けたスキルが特定スキル,Last skill received was a specific skill
+前回受けた属性が特定属性,Last attribute received was a specific attribute
+すべて満たす (AND),Meet All (AND)
+いずれかを満たす (OR),Meet Any (OR)
+均等,Even
+自分で設定,Set Manually
+炎属性・勇者,Fire Hero
+雷属性・少女ヒーラー,Lightning Healer
+無属性・巨大な筋肉のハンマー使い,Neutral Hammer Titan
+氷属性・老執事,Ice Butler
+風属性・侍,Wind Samurai
+単体攻撃,Single Strike
+全体攻撃,Full Blast
+炎纏い,Flame Wrap
+炎属性高威力単体攻撃,Blazing Burst Slash
+雷属性単体攻撃,Lightning Strike
+単体HP回復,Single Heal
+全体HP回復,Full Heal
+全体SP回復,Full SP Recovery
+ハンマー強打,Hammer Smash
+かばう,Guard
+防御強化,Guard Boost
+鉄壁,Iron Wall
+氷属性単体魔法,Ice Bolt
+氷属性全体魔法,Ice Storm
+SP回復,SP Recovery
+SP回復量,SP Heal Amount
+SP消費,SP Cost
+氷属性大魔法,Grand Ice Magic
+風属性単体斬撃,Wind Slash
+風属性全体斬撃,Wind Slash (All)
+カウンター,Counter
+使用可,Available
+使用不可,Unavailable
+最終確認,Final Review
+炎,Fire
+氷,Ice
+雷,Lightning
+風,Wind
+無,None
+✓ クリアチェック済み,✓ Clear Checked
+オンライン公開は現在利用できません,Online publishing is currently unavailable
+取り下げ中...,Withdrawing...
+オンライン公開を取り下げました。,Unpublished online.
+オンライン公開中,Published online
+オンライン状態を確認中...,Checking online status...
+オンライン状態を確認できません,Couldn't check online status

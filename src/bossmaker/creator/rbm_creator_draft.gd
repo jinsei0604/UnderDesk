@@ -156,6 +156,59 @@ var creator_mode: String = CREATOR_MODE_SIMPLE
 var action_sequence: Array[Dictionary] = []
 var _next_slot_ordinal: int = 1
 
+## 覚醒（Awakening）——通常のaction_sequenceとは完全に独立した、ボス1体に
+## つき最大1つの特別イベント。通常行動ループ（1ターン1スロット）には一切
+## 含まれず、通常行動回数も消費しない。空Dictionary({})が「未設定」を表す
+## 唯一の状態——一度設定すると常に"conditions"/"condition_logic"キーを持つ
+## ため、これ以降is_empty()だけで有無を判定できる。
+## 著作形（保存・編集時にそのまま保持する形）:
+##   {"conditions": Array（action_sequenceスロットの条件と全く同じ著作形）,
+##    "condition_logic": "AND"|"OR",
+##    "buff": {"buff_multiplier":float,"duration_turns":int} または {}（未追加）,
+##    "heal": {"heal_mode":"fixed"|"percent","heal_fixed_amount":int,"heal_percent":float} または {}（未追加）}
+## buff/healは既存のATK自己強化・自己回復と全く同じ入力形——専用の別計算は
+## 持たない（resolved_heal_amount()/buffed_atk_preview()をそのまま再利用する）。
+var awakening: Dictionary = {}
+
+func has_awakening() -> bool:
+	return not awakening.is_empty()
+
+## 新規設定・編集どちらもこの1関数で置き換える（覚醒はid不要の単一設定の
+## ため、add/updateを分ける必要が無い）。`data`は"conditions"/"condition_logic"
+## を含む必要がある（"buff"/"heal"は省略時 {} 扱い）。
+func set_awakening(data: Dictionary) -> void:
+	awakening = {
+		"conditions": (data.get("conditions", []) as Array).duplicate(true),
+		"condition_logic": str(data.get("condition_logic", RBMActionPatternRules.DEFAULT_CONDITION_LOGIC)),
+		"buff": (data.get("buff", {}) as Dictionary).duplicate(true),
+		"heal": (data.get("heal", {}) as Dictionary).duplicate(true),
+	}
+
+func remove_awakening() -> void:
+	awakening = {}
+
+## to_definition()/battle_content_snapshot()共通の解決処理——著作形の
+## heal_mode等をresolved_heal_amount()で最終heal_amountへ焼き込む
+## （self_healスキルの_skills_for_definition()と全く同じ規則）。未設定なら
+## 空Dictionaryを返す（呼び出し側はis_empty()でキー自体を省略する）。
+func _resolved_awakening_for_definition() -> Dictionary:
+	if awakening.is_empty():
+		return {}
+	var resolved := {
+		"conditions": _normalized_conditions(awakening.get("conditions", [])),
+		"condition_logic": str(awakening.get("condition_logic", RBMActionPatternRules.DEFAULT_CONDITION_LOGIC)),
+	}
+	var buff: Dictionary = awakening.get("buff", {})
+	if not buff.is_empty():
+		resolved["buff"] = {
+			"buff_multiplier": float(buff.get("buff_multiplier", 1.0)),
+			"duration_turns": int(buff.get("duration_turns", 1)),
+		}
+	var heal: Dictionary = awakening.get("heal", {})
+	if not heal.is_empty():
+		resolved["heal_amount"] = resolved_heal_amount(heal)
+	return resolved
+
 func can_add_action_slot() -> bool:
 	return action_sequence.size() < RBMActionPatternRules.MAX_ACTION_SEQUENCE_SLOTS
 
@@ -1224,6 +1277,11 @@ func to_definition() -> Dictionary:
 		boss["weak_attributes"] = weak_attributes.duplicate()
 	if not resist_attributes.is_empty():
 		boss["resist_attributes"] = resist_attributes.duplicate()
+	# 覚醒: 通常actionsとは独立したトップレベルキー。未設定ならキー自体を
+	# 省略する（action_sequenceと同じ「存在しない=機構が一切存在しない」慣習）。
+	var resolved_awakening := _resolved_awakening_for_definition()
+	if not resolved_awakening.is_empty():
+		boss["awakening"] = resolved_awakening
 
 	var party: Array = []
 	for character_id in party_character_ids:
@@ -1458,6 +1516,7 @@ func battle_content_snapshot() -> Dictionary:
 		"normal_actions": _normal_actions_for_definition(),
 		"scripted_actions": _scripted_actions_for_definition(),
 		"action_sequence": _normalized_action_sequence_for_snapshot(),
+		"awakening": _resolved_awakening_for_definition(),
 		"party": _party_by_character_id_for_snapshot(),
 	}
 
@@ -1534,11 +1593,31 @@ func has_ever_cleared() -> bool:
 func is_clear_check_currently_valid() -> bool:
 	return has_ever_cleared() and battle_content_snapshot() == _clear_check_success_snapshot
 
+## 現在選択中の外見(appearance_id)が覚醒(Awakening)機能に対応しているか
+## ——ゲームデザイン上の可否そのもの。覚醒後アセットが実際に存在するか
+## (RBMVisualAssets.has_awakened_design())とは別概念のため、混同しない
+## （§3確定）。
+func supports_awakening() -> bool:
+	return RBMCreatorAppearanceCatalog.supports_awakening(appearance_id)
+
+## 覚醒が設定されているのに、現在の外見が覚醒非対応の場合は不正
+## ——通常はCreator STEP3が「覚醒対応の外見でなければ種類選択肢自体を
+## disabledにする」ため到達しないが、覚醒設定後に外見だけを非対応の
+## ものへ変更した場合にこの不整合が起こりうる。旧ボスデータ
+## (awakening未設定)には一切影響しない（has_awakening()がfalseの間は
+## 常にtrue）。
+func is_awakening_appearance_valid() -> bool:
+	return not has_awakening() or supports_awakening()
+
 ## §17/§21: whether the current Draft would pass RBMDefinitionLoader.resolve()
 ## right now (Step 6's "挑戦可能" vs "下書き" distinction). Never cached, never
 ## persisted to a save file (§22) -- always this same live re-derivation.
+## 覚醒×外見の整合性(is_awakening_appearance_valid())もここで合わせて
+## 見る——新規作成/公開用validationの唯一の共通ゲートに一本化するため
+## （is_playable()はTest Battle可否・Clear Check到達・公開のいずれもが
+## 最終的に依存する単一の判定関数）。
 func is_playable() -> bool:
-	return bool(RBMDefinitionLoader.resolve(to_definition()).get("ok", false))
+	return is_awakening_appearance_valid() and bool(RBMDefinitionLoader.resolve(to_definition()).get("ok", false))
 
 # ---------------------------------------------------------------------------
 # Phase 1 Step 6 — ローカル保存・再編集 (§7/§8/§9/§13/§14/§15/§46)
@@ -1582,6 +1661,10 @@ func to_saved_dict() -> Dictionary:
 		"creator_mode": creator_mode,
 		"action_sequence": action_sequence.duplicate(true),
 		"next_slot_ordinal": _next_slot_ordinal,
+		# フィールド自体が存在しない旧stage（覚醒機能が無かった頃に保存された
+		# もの）はawakening={}（未設定）へ安全にフォールバックする
+		# （restore_from_saved_dict()参照）。
+		"awakening": awakening.duplicate(true),
 		# HARDCORE AIサブシステム自体のバージョン印——stage JSON自体に保存する
 		# ことで、読込側（RBMLocalStageRepository._validate_draft_shape()）が
 		# 「この保存ファイルが前提とするHARDCORE AIサブシステムの版」を検証
@@ -1667,6 +1750,10 @@ func restore_from_saved_dict(data: Dictionary) -> void:
 	creator_mode = saved_mode if saved_mode == CREATOR_MODE_SIMPLE or saved_mode == CREATOR_MODE_ADVANCED else CREATOR_MODE_SIMPLE
 	action_sequence = _restore_action_sequence(data.get("action_sequence", []))
 	_next_slot_ordinal = int(data.get("next_slot_ordinal", 1))
+	# 覚醒: フィールド自体が存在しない旧stage（この機能以前に保存されたもの）
+	# はawakening={}（未設定）へ安全にフォールバックする——他の任意フィールド
+	# と同じ「存在しなければ安全なデフォルト」の慣習。
+	awakening = _restore_awakening(data.get("awakening", {}))
 	# §24〜§27（公開機能）: フィールド自体が存在しない旧stageはfalseへ安全に
 	# フォールバックする——ユーザー確定仕様「既存データを自動的に公開済みに
 	# しない」。
@@ -1749,6 +1836,16 @@ func restore_clear_check_snapshot(raw: Dictionary) -> void:
 	## Clear Check成功記録は今回失効して構わない——ここでは新キー
 	## "action_sequence"のみを読む（旧キーからの移行読み取りは行わない）。
 	var normalized_action_sequence := _normalized_clear_check_action_sequence(raw.get("action_sequence", []))
+	# 覚醒: 記録された時点で既にbattle_content_snapshot()＝
+	# _resolved_awakening_for_definition()の解決済み形（conditions/
+	# condition_logic/buff/heal_amount、"mode"のような著作専用フィールドは
+	# 持たない）で保存されている——action_sequenceと違い再解決の問題が無い
+	# ため、_normalized_conditions()を再利用しつつ型正規化だけを行う。
+	## §23と同じ方針: 覚醒実装以前に記録されたClear Check成功記録には
+	## このキー自体が存在しない——raw.get("awakening",{})が空Dictionaryの
+	## ままなら_normalized_clear_check_awakening()も空Dictionaryを返し、
+	## 「覚醒未設定のまま記録された」既存の成功記録は今後もそのまま有効。
+	var normalized_awakening := _normalized_clear_check_awakening(raw.get("awakening", {}))
 
 	_clear_check_success_snapshot = {
 		"hp": int(raw.get("hp", 0)),
@@ -1760,8 +1857,26 @@ func restore_clear_check_snapshot(raw: Dictionary) -> void:
 		"normal_actions": normalized_normal_actions,
 		"scripted_actions": normalized_scripted_actions,
 		"action_sequence": normalized_action_sequence,
+		"awakening": normalized_awakening,
 		"party": normalized_party,
 	}
+
+func _normalized_clear_check_awakening(raw: Dictionary) -> Dictionary:
+	if raw.is_empty():
+		return {}
+	var normalized := {
+		"conditions": _normalized_conditions(raw.get("conditions", [])),
+		"condition_logic": str(raw.get("condition_logic", RBMActionPatternRules.DEFAULT_CONDITION_LOGIC)),
+	}
+	var buff: Variant = raw.get("buff", {})
+	if buff is Dictionary and not (buff as Dictionary).is_empty():
+		normalized["buff"] = {
+			"buff_multiplier": float(buff.get("buff_multiplier", 1.0)),
+			"duration_turns": int(buff.get("duration_turns", 1)),
+		}
+	if raw.has("heal_amount"):
+		normalized["heal_amount"] = int(raw["heal_amount"])
+	return normalized
 
 func _normalized_clear_check_party(raw_party: Variant) -> Array:
 	var out: Array = []
@@ -1893,6 +2008,35 @@ func _restored_action_slot_authoring(slot: Dictionary) -> Dictionary:
 		restored["candidates"] = candidates
 	else:
 		restored["skill_id"] = str(slot.get("skill_id", ""))
+	return restored
+
+## 覚醒の著作形をそのまま型正規化して復元する——_restored_action_slot_
+## authoring()と同じ位置づけ（heal_mode等の著作専用フィールドはそのまま
+## 保持し、resolved_heal_amount()等による解決はto_definition()/battle_
+## content_snapshot()側だけで行う）。raw自体が空Dictionaryなら「未設定」
+## としてそのまま{}を返す。
+func _restore_awakening(raw: Dictionary) -> Dictionary:
+	if raw.is_empty():
+		return {}
+	var restored := {
+		"conditions": _normalized_conditions(raw.get("conditions", [])),
+		"condition_logic": str(raw.get("condition_logic", RBMActionPatternRules.DEFAULT_CONDITION_LOGIC)),
+		"buff": {},
+		"heal": {},
+	}
+	var buff_raw: Variant = raw.get("buff", {})
+	if buff_raw is Dictionary and not (buff_raw as Dictionary).is_empty():
+		restored["buff"] = {
+			"buff_multiplier": float(buff_raw.get("buff_multiplier", 1.0)),
+			"duration_turns": int(buff_raw.get("duration_turns", 1)),
+		}
+	var heal_raw: Variant = raw.get("heal", {})
+	if heal_raw is Dictionary and not (heal_raw as Dictionary).is_empty():
+		restored["heal"] = {
+			"heal_mode": str(heal_raw.get("heal_mode", "fixed")),
+			"heal_fixed_amount": int(heal_raw.get("heal_fixed_amount", 0)),
+			"heal_percent": float(heal_raw.get("heal_percent", 0.0)),
+		}
 	return restored
 
 ## restore_clear_check_snapshot()専用: 保存されたclear_check_snapshotの

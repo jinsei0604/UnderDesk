@@ -71,11 +71,11 @@ func _attacking_boss(atk: int, spd: int = 999, weak: Variant = null, resist: Var
 func test_all_five_stats_match_spec() -> void:
 	var battle := RBMBattle.new(_full_party(), boss_def, 1)
 	var expected := [
-		{"hp": 650, "atk": 240, "spd": 100, "sp": 100},
-		{"hp": 450, "atk": 220, "spd": 120, "sp": 150},
-		{"hp": 800, "atk": 140, "spd": 110, "sp": 120},
-		{"hp": 700, "atk": 280, "spd": 70, "sp": 130},
-		{"hp": 950, "atk": 200, "spd": 140, "sp": 100},
+		{"hp": 650, "atk": 240, "spd": 100, "sp": 100, "skills": 4},
+		{"hp": 450, "atk": 220, "spd": 120, "sp": 150, "skills": 4},
+		{"hp": 800, "atk": 140, "spd": 110, "sp": 120, "skills": 4},
+		{"hp": 700, "atk": 280, "spd": 70, "sp": 130, "skills": 4},
+		{"hp": 950, "atk": 200, "spd": 140, "sp": 100, "skills": 5},
 	]
 	for i in range(5):
 		var unit := battle.party[i]
@@ -83,7 +83,7 @@ func test_all_five_stats_match_spec() -> void:
 		assert_eq(unit.atk, int(expected[i]["atk"]), "unit %d atk" % i)
 		assert_eq(unit.spd, int(expected[i]["spd"]), "unit %d spd" % i)
 		assert_eq(unit.max_sp, int(expected[i]["sp"]), "unit %d max_sp" % i)
-		assert_eq(unit.skills.size(), 4, "unit %d skill count" % i)
+		assert_eq(unit.skills.size(), int(expected[i]["skills"]), "unit %d skill count" % i)
 
 func test_battle_start_sp_is_full_for_sp_bearing_units() -> void:
 	var battle := RBMBattle.new(_full_party(), boss_def, 1)
@@ -697,7 +697,7 @@ func test_healer_sp_all_excludes_self_and_downed_units() -> void:
 	assert_eq(int(recovered[1]), 40)
 	assert_eq(int(recovered[4]), 40)
 
-func test_all_twenty_ally_skills_match_the_confirmed_spec() -> void:
+func test_all_twenty_one_ally_skills_match_the_confirmed_spec() -> void:
 	# Values are floats throughout (not ints) to match how JSON.parse_string
 	# represents every numeric field, avoiding a spurious float/int warning.
 	#
@@ -728,6 +728,8 @@ func test_all_twenty_ally_skills_match_the_confirmed_spec() -> void:
 		# カウンター
 		"samurai_counter": {"effect": "counter_stance", "attribute": "WIND", "atk_multiplier": 3.0, "sp_cost": 50.0},
 		"tank_smash": {"effect": "damage", "target": "boss", "attribute": "NEUTRAL", "atk_multiplier": 1.5, "sp_cost": 0.0},
+		# 渾身の一撃(必殺技)
+		"tank_hammer_smash": {"effect": "damage", "target": "boss", "attribute": "NEUTRAL", "atk_multiplier": 3.0, "sp_cost": 50.0},
 		# かばう
 		"tank_guard_swap": {"effect": "guard_redirect", "sp_cost": 0.0},
 		# 防御強化
@@ -746,4 +748,4 @@ func test_all_twenty_ally_skills_match_the_confirmed_spec() -> void:
 			var fields: Dictionary = expected[id]
 			for key in fields.keys():
 				assert_eq(skill.get(key, null), fields[key], "%s.%s" % [id, key])
-	assert_eq(seen.size(), 20, "exactly 20 skills accounted for")
+	assert_eq(seen.size(), 21, "exactly 21 skills accounted for")

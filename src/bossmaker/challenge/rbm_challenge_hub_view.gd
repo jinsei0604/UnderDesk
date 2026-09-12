@@ -50,18 +50,18 @@ func _build_ui() -> void:
 
 	var title := Label.new()
 	title.name = "HubTitleLabel"
-	title.text = "挑戦"
+	title.text = tr("挑戦")
 	title.theme_type_variation = RBMUiTheme.VARIATION_TITLE_LABEL
 	column.add_child(title)
 
 	var subtitle := Label.new()
 	subtitle.name = "HubSubtitleLabel"
-	subtitle.text = "遊びたいボスを選んでください"
+	subtitle.text = tr("遊びたいボスを選んでください")
 	subtitle.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
 	column.add_child(subtitle)
 
 	column.add_child(HSeparator.new())
-	column.add_child(_section_heading("モードから探す"))
+	column.add_child(_section_heading(tr("モードから探す")))
 	var mode_row := HBoxContainer.new()
 	mode_row.name = "ModeRow"
 	column.add_child(mode_row)
@@ -69,7 +69,7 @@ func _build_ui() -> void:
 	mode_row.add_child(RBMChallengeUiKit.build_category_button("HARDCORE", "HardcoreCategoryButton", func(): category_selected.emit(CATEGORY_HARDCORE)))
 
 	column.add_child(HSeparator.new())
-	column.add_child(_section_heading("ボスを見つける"))
+	column.add_child(_section_heading(tr("ボスを見つける")))
 	var discover_row_1 := HBoxContainer.new()
 	discover_row_1.name = "DiscoverRow1"
 	column.add_child(discover_row_1)
@@ -81,15 +81,15 @@ func _build_ui() -> void:
 	# Phase 4D: 「注目（準備中）」プレースホルダーをオンライン一覧の入口として
 	# 有効化する(ランキングアルゴリズム自体はPhase 5まで未実装のまま——
 	# ここは単に公開済みオンラインボスの一覧を開くだけ)。
-	discover_row_1.add_child(RBMChallengeUiKit.build_category_button("オンライン", "FeaturedCategoryButton", func(): category_selected.emit(CATEGORY_FEATURED)))
-	discover_row_1.add_child(RBMChallengeUiKit.build_category_button("新着", "NewCategoryButton", func(): category_selected.emit(CATEGORY_NEW)))
-	discover_row_1.add_child(RBMChallengeUiKit.build_category_button("未挑戦", "UnchallengedCategoryButton", func(): category_selected.emit(CATEGORY_UNCHALLENGED)))
+	discover_row_1.add_child(RBMChallengeUiKit.build_category_button(tr("オンライン"), "FeaturedCategoryButton", func(): category_selected.emit(CATEGORY_FEATURED)))
+	discover_row_1.add_child(RBMChallengeUiKit.build_category_button(tr("新着"), "NewCategoryButton", func(): category_selected.emit(CATEGORY_NEW)))
+	discover_row_1.add_child(RBMChallengeUiKit.build_category_button(tr("未挑戦"), "UnchallengedCategoryButton", func(): category_selected.emit(CATEGORY_UNCHALLENGED)))
 
 	var discover_row_2 := HBoxContainer.new()
 	discover_row_2.name = "DiscoverRow2"
 	column.add_child(discover_row_2)
-	discover_row_2.add_child(RBMChallengeUiKit.build_category_button("人気", "PopularCategoryButton", func(): category_selected.emit(CATEGORY_POPULAR)))
-	discover_row_2.add_child(RBMChallengeUiKit.build_category_button("高難度", "HighDifficultyCategoryButton", func(): category_selected.emit(CATEGORY_HIGH_DIFFICULTY)))
+	discover_row_2.add_child(RBMChallengeUiKit.build_category_button(tr("人気"), "PopularCategoryButton", func(): category_selected.emit(CATEGORY_POPULAR)))
+	discover_row_2.add_child(RBMChallengeUiKit.build_category_button(tr("高難度"), "HighDifficultyCategoryButton", func(): category_selected.emit(CATEGORY_HIGH_DIFFICULTY)))
 
 	column.add_child(HSeparator.new())
 	var utility_row := HBoxContainer.new()
@@ -97,18 +97,18 @@ func _build_ui() -> void:
 	column.add_child(utility_row)
 	var random_button := Button.new()
 	random_button.name = "RandomChallengeButton"
-	random_button.text = "ランダムで挑戦"
+	random_button.text = tr("ランダムで挑戦")
 	random_button.pressed.connect(func(): random_requested.emit())
 	utility_row.add_child(random_button)
 	var search_button := Button.new()
 	search_button.name = "SearchBossButton"
-	search_button.text = "ボスを検索"
+	search_button.text = tr("ボスを検索")
 	search_button.pressed.connect(func(): search_requested.emit())
 	utility_row.add_child(search_button)
 
 	var back_button := Button.new()
 	back_button.name = "BackToRootButton"
-	back_button.text = "← 戻る"
+	back_button.text = tr("← 戻る")
 	back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	back_button.pressed.connect(func(): back_to_root_requested.emit())
 	column.add_child(back_button)

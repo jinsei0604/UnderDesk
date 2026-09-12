@@ -41,6 +41,32 @@ const NORMAL_CONDITION_TYPES: Array[String] = [
 	"last_boss_skill", "last_received_skill", "last_received_attribute", "weak_hit",
 ]
 
+## 通常攻撃(action_sequence、ランダム攻撃スロット含む)側のCreator UIの
+## 「条件の種類」ドロップダウンに表示する選択肢——検証用のNORMAL_CONDITION_
+## TYPES(旧保存データとの後方互換のため全型をそのまま残す、意味的
+## validationは変更しない)とは別に、UIが「新規に選べる」型だけを絞り込む。
+## turn_between(「○〜○ターンのあいだ」)は分かりにくいため新規選択肢からは
+## 除外するが、既存データのturn_between条件はNORMAL_CONDITION_TYPES・
+## RBMBattleの条件判定・RBMActionPatternSummaryの表示のいずれからも削除
+## していない——引き続き正しく読み込み・判定・表示される（新規に選べなく
+## なるだけ）。
+const NORMAL_ACTION_UI_CONDITION_TYPES: Array[String] = [
+	"hp_at_most", "hp_at_least", "hp_between",
+	"turn_at", "turn_at_least", "turn_at_most", "turn_every_n",
+	"allies_at_most", "allies_at_least", "allies_exactly",
+	"character_alive", "character_downed",
+	"last_boss_skill", "last_received_skill", "last_received_attribute", "weak_hit",
+]
+
+## 覚醒(Awakening)側のCreator UIの「条件の種類」ドロップダウンに表示する
+## 選択肢——覚醒は「条件は1個だけ・戦闘中に1回きり」という性質のため、
+## 確定仕様の6種類のみに絞る（ボスHP○%以下・○ターン目・攻略側生存人数
+## ○人以下・特定キャラクターが戦闘不能・前回受けたスキル・前回受けた属性）。
+const AWAKENING_UI_CONDITION_TYPES: Array[String] = [
+	"hp_at_most", "turn_at", "allies_at_most", "character_downed",
+	"last_received_skill", "last_received_attribute",
+]
+
 const CONDITION_LOGIC_TYPES: Array[String] = ["AND", "OR"]
 
 ## 1つのスロット内では単一のAND/ORのみ（ネスト条件は実装しない、旧仕様を
@@ -93,6 +119,8 @@ const CONDITION_TYPE_LABELS := {
 	"weak_hit": "前回受けた攻撃が弱点だった",
 }
 
+## これらも表示専用ラベル——キー(AND/OR、SLOT_KIND_*、RANDOM_MODE_*)は
+## 内部IDのため翻訳対象ではない。呼び出し側で.get()の結果へtr()を適用する。
 const CONDITION_LOGIC_LABELS := {"AND": "すべて満たす (AND)", "OR": "いずれかを満たす (OR)"}
 const SLOT_KIND_LABELS := {SLOT_KIND_SKILL: "通常攻撃", SLOT_KIND_RANDOM: "ランダム攻撃"}
 const RANDOM_MODE_LABELS := {RANDOM_MODE_EVEN: "均等", RANDOM_MODE_MANUAL: "自分で設定"}

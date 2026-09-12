@@ -14,6 +14,10 @@ config/name="Makers & Challengers"
 run/main_scene="res://src/bossmaker/rbm_game_root.tscn"
 config/features=PackedStringArray("4.7")
 
+[autoload]
+
+RBMLocale="*res://src/bossmaker/rbm_locale_manager.gd"
+
 [display]
 
 window/size/viewport_width=1280
@@ -23,6 +27,11 @@ window/stretch/mode="canvas_items"
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/gut/plugin.cfg")
+
+[internationalization]
+
+locale/translations=PackedStringArray("res://localization/ui_strings.en.translation")
+locale/fallback="ja"
 
 [rendering]
 

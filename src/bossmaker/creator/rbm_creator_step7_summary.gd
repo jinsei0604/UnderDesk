@@ -38,6 +38,8 @@ const TYPE_LABELS := RBMActionEditorForm.TYPE_LABELS
 
 ## Phase 1 Step 7 §14（公開設定の最終修正で7→6項目へ確定）、実機プレイ改善③
 ## item1（6→8項目）: CHALLENGE確認画面での表示/非表示設定ラベル。
+## 値は表示用文字列——キー(hp/atk/...)は公開設定の内部フィールド名の
+## ため翻訳対象ではない。呼び出し側で.get()の結果へtr()を適用する。
 const VISIBILITY_LABELS := {
 	"hp": "HP",
 	"atk": "ATK",
@@ -49,7 +51,22 @@ const VISIBILITY_LABELS := {
 	"special_condition": "特殊条件",
 }
 
-const CONTENT_SIDE_MARGIN_PX := 80.0
+## レイアウト監査（2026-09-11）: この左右マージンはscroll（確認内容）と
+## bottom_bar（戻る/保存/公開ボタン列）の両方に等しくかかる（両者とも同じ
+## outer VBoxContainerの子）——root_column自身が既に持つ24px分の左右
+## マージン（rbm_world_ui.gd creator_layout()参照）に、ここで さらに重ねて
+## かかるため、実際の合計左右マージンは24+CONTENT_SIDE_MARGIN_PXになる。
+## 元の80.0はbottom_bar側の必要幅を考慮せず「確認内容」の2カラム読みやすさ
+## だけを基準に決められていたため、日本語ロケールでオンライン公開ボタン
+## だけが2行目へ折り返される原因になっていた。さらにEnglishロケールでは
+## 「戦闘背景/Day/Night」「オンライン未公開」相当の文言がいずれも日本語
+## より長くなるぶん、日本語だけ収まる程度の縮小では足りない（実測で必要
+## 幅が約1193pxに対し、80.0のままだと実効幅1072px、40.0でも1152pxで
+## まだ足りなかった）——16.0まで縮小して初めて日本語・英語の両方が1行に
+## 収まることを実測・実GPU確認した。「確認内容」2カラム自体は左カラムの
+## 固定幅360px＋右カラムの可変幅で構成されており、マージンを詰めても
+## 内容が窮屈になったり折り返したりしない（単に外側の余白が減るだけ）。
+const CONTENT_SIDE_MARGIN_PX := 16.0
 
 var draft: RBMCreatorDraft
 var main: Node
@@ -111,7 +128,7 @@ func setup(p_draft: RBMCreatorDraft, p_main: Node) -> void:
 func _build_persistent_controls() -> void:
 	_test_battle_button = Button.new()
 	_test_battle_button.name = "TestBattleButton"
-	_test_battle_button.text = "テストバトル"
+	_test_battle_button.text = tr("テストバトル")
 	_test_battle_button.pressed.connect(func(): main.press_test_battle())
 
 	_clear_check_status_label = Label.new()
@@ -119,7 +136,7 @@ func _build_persistent_controls() -> void:
 
 	_clear_check_button = Button.new()
 	_clear_check_button.name = "ClearCheckButton"
-	_clear_check_button.text = "クリアチェックを開始"
+	_clear_check_button.text = tr("クリアチェックを開始")
 	_clear_check_button.pressed.connect(func(): main.press_clear_check())
 
 	## setup()直後、まだ一度もrefresh()が呼ばれていない間もfind_child()経由で
@@ -180,18 +197,40 @@ func _build_ui() -> void:
 
 	var back_button := Button.new()
 	back_button.name = "BackButton"
-	back_button.text = "← 戻る"
+	back_button.text = tr("← 戻る")
 	back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	back_button.pressed.connect(func(): main.press_back())
 	bottom_bar.add_child(back_button)
 
+	## クリエイター一覧へ直接戻る導線。従来は最終確認の「戻る」でSTEP4へ
+	## 戻り、そこで初めてRBMCreatorMainの共通exit_row(「Creator一覧へ戻る」、
+	## STEP5では_nav_rowと同じ理由で隠れている)を押す2段階操作が必要だった
+	## ——最終確認からも1回で一覧へ戻れるよう、同じmain.press_exit_creator()
+	## (未保存変更があれば確認ダイアログ、なければ即座に退出、既存仕様は
+	## 無改修)をここからも呼べるようにする。保存/公開のアクション群とは
+	## 役割が違うため、戻るボタンのすぐ右(スペーサーの手前、右側のアクション
+	## 群とは別)に置く。
+	var back_to_list_button := Button.new()
+	back_to_list_button.name = "BackToCreatorListButton"
+	back_to_list_button.text = tr("クリエイター一覧へ戻る")
+	back_to_list_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
+	back_to_list_button.pressed.connect(func(): main.press_exit_creator())
+	bottom_bar.add_child(back_to_list_button)
+
+	## レイアウト監査（2026-09-11）: SIZE_EXPAND_FILLのままだと、HFlowContainer
+	## は「その行に残っている幅をすべてこのスペーサーへ渡す」ため、翻訳文の
+	## 長さ次第で数十〜百数十pxもの不揃いな余白になり、結果としてこの行に
+	## まだ入るはずのオンライン公開ボタンが2行目へ押し出されていた（元々の
+	## 意図は「戻る系ナビゲーション」と「保存/公開」の間に視覚的な区切りを
+	## 入れることだけで、余白を最大化することではない）——固定幅の小さな
+	## 区切りに変更し、区切りの見た目は保ったまま無駄な幅の消費だけをなくす。
 	var bottom_spacer := Control.new()
-	bottom_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bottom_spacer.custom_minimum_size = Vector2(32, 0)
 	bottom_bar.add_child(bottom_spacer)
 
 	_save_button = Button.new()
 	_save_button.name = "SaveButton"
-	_save_button.text = "保存"
+	_save_button.text = tr("保存")
 	_save_button.pressed.connect(func(): main.press_save())
 	bottom_bar.add_child(_save_button)
 
@@ -375,19 +414,19 @@ func _build_creation_content_section() -> void:
 	var section := VBoxContainer.new()
 	section.name = "CreationContentSection"
 	_content.add_child(section)
-	section.add_child(_section_title("作成内容"))
+	section.add_child(_section_title(tr("作成内容")))
 	for i in range(RBMCreatorMain.STEP_COUNT - 1):
 		var row := HBoxContainer.new()
 		row.name = "CreationStepRow_%d" % (i + 1)
 		section.add_child(row)
 		var name_label := Label.new()
 		name_label.name = "CreationStepNameLabel_%d" % (i + 1)
-		name_label.text = str(RBMCreatorMain.STEP_NAMES[i])
+		name_label.text = tr(str(RBMCreatorMain.STEP_NAMES[i]))
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(name_label)
 		var edit_button := Button.new()
 		edit_button.name = "EditStepButton_%d" % (i + 1)
-		edit_button.text = "編集"
+		edit_button.text = tr("編集")
 		edit_button.pressed.connect(func(): main.edit_step(i + 1))
 		row.add_child(edit_button)
 
@@ -399,7 +438,7 @@ func _build_test_battle_section() -> void:
 	var section := VBoxContainer.new()
 	section.name = "TestBattleSection"
 	_content.add_child(section)
-	section.add_child(_section_title("動作確認"))
+	section.add_child(_section_title(tr("動作確認")))
 	_move_into(_test_battle_button, section)
 
 # ---------------------------------------------------------------------------
@@ -415,7 +454,7 @@ func _build_clear_check_section() -> void:
 	## §4: draft.is_clear_check_currently_valid()は都度再導出されるライブ値
 	## （キャッシュしない）——編集で無効化→元の内容へ戻せば自動的に「達成済み」
 	## 表示へ戻る既存契約（§17）をそのまま維持する。
-	_clear_check_status_label.text = "達成済み" if draft.is_clear_check_currently_valid() else "未達成"
+	_clear_check_status_label.text = tr("達成済み") if draft.is_clear_check_currently_valid() else tr("未達成")
 	_move_into(_clear_check_status_label, section)
 	_move_into(_clear_check_button, section)
 
@@ -454,10 +493,10 @@ func _build_challenge_settings_section() -> void:
 	var section := VBoxContainer.new()
 	section.name = "ChallengeSettingsSection"
 	_content.add_child(section)
-	section.add_child(_section_title("挑戦設定"))
+	section.add_child(_section_title(tr("挑戦設定")))
 
 	var notes_label := Label.new()
-	notes_label.text = "作者メッセージ（挑戦確認画面に表示されます）"
+	notes_label.text = tr("作者メッセージ（挑戦確認画面に表示されます）")
 	section.add_child(notes_label)
 
 	_author_notes_edit = TextEdit.new()
@@ -473,19 +512,19 @@ func _build_challenge_settings_section() -> void:
 	_update_author_notes_count_label()
 
 	var visibility_header := Label.new()
-	visibility_header.text = "情報公開設定（挑戦確認画面での表示/非表示）"
+	visibility_header.text = tr("情報公開設定（挑戦確認画面での表示/非表示）")
 	section.add_child(visibility_header)
 
 	var bulk_row := HBoxContainer.new()
 	section.add_child(bulk_row)
 	var show_all_button := Button.new()
 	show_all_button.name = "ShowAllVisibilityButton"
-	show_all_button.text = "すべて公開"
+	show_all_button.text = tr("すべて公開")
 	show_all_button.pressed.connect(_on_show_all_visibility_pressed)
 	bulk_row.add_child(show_all_button)
 	var hide_all_button := Button.new()
 	hide_all_button.name = "HideAllVisibilityButton"
-	hide_all_button.text = "すべて非公開"
+	hide_all_button.text = tr("すべて非公開")
 	hide_all_button.pressed.connect(_on_hide_all_visibility_pressed)
 	bulk_row.add_child(hide_all_button)
 
@@ -493,7 +532,7 @@ func _build_challenge_settings_section() -> void:
 	for key in RBMCreatorDraft.CHALLENGE_INFO_VISIBILITY_KEYS:
 		var checkbox := CheckBox.new()
 		checkbox.name = "VisibilityCheckBox_%s" % key
-		checkbox.text = str(VISIBILITY_LABELS.get(key, key))
+		checkbox.text = tr(str(VISIBILITY_LABELS.get(key, key)))
 		checkbox.button_pressed = draft.is_challenge_info_visible(key)
 		checkbox.toggled.connect(_on_visibility_toggled.bind(key))
 		section.add_child(checkbox)
@@ -509,7 +548,7 @@ func _on_author_notes_text_changed() -> void:
 	_update_author_notes_count_label()
 
 func _update_author_notes_count_label() -> void:
-	_author_notes_count_label.text = "%d / %d 文字" % [draft.author_notes.length(), RBMCreatorDraft.MAX_AUTHOR_NOTES_LENGTH]
+	_author_notes_count_label.text = tr("%d / %d 文字") % [draft.author_notes.length(), RBMCreatorDraft.MAX_AUTHOR_NOTES_LENGTH]
 
 func _on_visibility_toggled(pressed: bool, key: String) -> void:
 	draft.set_challenge_info_visible(key, pressed)
@@ -544,12 +583,12 @@ func _refresh_background_selector() -> void:
 		bottom.add_child(row)
 		bottom.move_child(row,2)
 		var caption := Label.new()
-		caption.text = "戦闘背景"
+		caption.text = tr("戦闘背景")
 		row.add_child(caption)
 		for value in ["day","night"]:
 			var button := Button.new()
 			button.name = "DayBackgroundButton" if value == "day" else "NightBackgroundButton"
-			button.text = "昼" if value == "day" else "夜"
+			button.text = tr("昼") if value == "day" else tr("夜")
 			button.toggle_mode = true
 			button.custom_minimum_size = Vector2(76,44)
 			button.pressed.connect(func():

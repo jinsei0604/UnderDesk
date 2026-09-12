@@ -22,7 +22,7 @@ const CONTENT_TOP_MARGIN_PX := 40.0
 ## 実機プレイ改善② item4: SpinBoxもHSliderと全く同じ理由（上記
 ## CREATOR_SLIDER_MIN_SIZEのコメント参照）でcustom_minimum_sizeを持たない
 ## 限りテーマ既定の最小サイズまで潰れ、現在値・最大桁数が見切れたり
-## 上下スピンボタンと数字が重なったりする。BOSS_HP_MAX=1,000,000（7桁）は
+## 上下スピンボタンと数字が重なったりする。BOSS_HP_MAX=99,999（5桁）は
 ## BOSS_ATK_MAX=9,999（4桁）/BOSS_SPD_MAX=500（3桁）より明確に多い桁数を
 ## 要求するため、HPだけ専用の広い幅を持たせる（値の範囲自体は変更しない）。
 const STAT_SPIN_MIN_SIZE_HP := Vector2(170.0, 32.0)
@@ -90,7 +90,7 @@ func _build_ui() -> void:
 	## §6: STEP1と同じCreator共通UI Kitのセクション見出し（本文より一段
 	## 大きく、左に小さな銀アクセント）——各STEPで別々のデザインを作らない
 	## （§8）。
-	card_column.add_child(RBMCreatorUiKit.build_section_title("ボス能力"))
+	card_column.add_child(RBMCreatorUiKit.build_section_title(tr("ボス能力")))
 
 	_edit_panel = VBoxContainer.new()
 	_edit_panel.name = "StatsEditPanel"
@@ -126,7 +126,7 @@ func _build_ui() -> void:
 	_edit_panel.add_child(weak_group)
 	var weak_caption := Label.new()
 	weak_caption.name = "WeakCaptionLabel"
-	weak_caption.text = "弱点"
+	weak_caption.text = tr("弱点")
 	weak_caption.theme_type_variation = RBMCreatorUiKit.VARIATION_SMALL_LABEL
 	weak_group.add_child(weak_caption)
 	var weak_row := HBoxContainer.new()
@@ -139,7 +139,7 @@ func _build_ui() -> void:
 	for attribute in RBMDefinitionLoader.VALID_ATTRIBUTES:
 		var button := Button.new()
 		button.name = "Weak_%s" % attribute
-		button.text = str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute, attribute))
+		button.text = tr(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute, attribute)))
 		button.toggle_mode = true
 		button.pressed.connect(_on_weak_button_pressed.bind(attribute))
 		weak_row.add_child(button)
@@ -151,7 +151,7 @@ func _build_ui() -> void:
 	_edit_panel.add_child(resist_group)
 	var resist_caption := Label.new()
 	resist_caption.name = "ResistCaptionLabel"
-	resist_caption.text = "耐性"
+	resist_caption.text = tr("耐性")
 	resist_caption.theme_type_variation = RBMCreatorUiKit.VARIATION_SMALL_LABEL
 	resist_group.add_child(resist_caption)
 	var resist_row := HBoxContainer.new()
@@ -161,14 +161,14 @@ func _build_ui() -> void:
 	for attribute in RBMDefinitionLoader.VALID_ATTRIBUTES:
 		var button := Button.new()
 		button.name = "Resist_%s" % attribute
-		button.text = str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute, attribute))
+		button.text = tr(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute, attribute)))
 		button.toggle_mode = true
 		button.pressed.connect(_on_resist_button_pressed.bind(attribute))
 		resist_row.add_child(button)
 		_resist_buttons[attribute] = button
 
 	var note := Label.new()
-	note.text = "数値・属性の変更はその場で反映されます。保存は最終確認から行えます。"
+	note.text = tr("数値・属性の変更はその場で反映されます。保存は最終確認から行えます。")
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.add_theme_font_size_override("font_size",14)
 	_edit_panel.add_child(note)
@@ -304,7 +304,7 @@ func is_step_valid() -> bool:
 	return draft.step2_is_valid()
 
 func validation_message() -> String:
-	return "HP/ATK/SPDを範囲内に設定してください"
+	return tr("HP/ATK/SPDを範囲内に設定してください")
 
 
 func _updated() -> void:

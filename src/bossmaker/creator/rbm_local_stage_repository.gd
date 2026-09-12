@@ -430,6 +430,40 @@ static func _validate_draft_shape(draft_data: Dictionary) -> bool:
 			return false
 		if float(draft_data["advanced_ai_version"]) != float(RBMCreatorDraft.ADVANCED_AI_VERSION):
 			return false
+	# 覚醒: フィールド自体が存在しない旧stage（この機能以前に保存されたもの）
+	# は常に合格（restore_from_saved_dict()が{}=未設定へ安全にフォールバック
+	# する）——他の任意フィールドと同じ「存在すれば型を確認、意味validation
+	# はしない」方針。
+	if draft_data.has("awakening"):
+		if not (draft_data["awakening"] is Dictionary) or not _validate_awakening_shape(draft_data["awakening"]):
+			return false
+	return true
+
+## 覚醒の著作形の型確認。conditions/condition_logicはaction_sequenceスロット
+## と全く同じ形のため_validate_action_sequence_conditions_array()をそのまま
+## 再利用する。buff/healは省略可能（空Dictionaryも合格——「変身だけの覚醒」）。
+static func _validate_awakening_shape(awakening: Dictionary) -> bool:
+	if awakening.is_empty():
+		return true
+	if not _optional_string_ok(awakening, "condition_logic"):
+		return false
+	if awakening.has("conditions"):
+		if not (awakening["conditions"] is Array) or not _validate_action_sequence_conditions_array(awakening["conditions"]):
+			return false
+	if awakening.has("buff"):
+		if not (awakening["buff"] is Dictionary):
+			return false
+		var buff: Dictionary = awakening["buff"]
+		if not _optional_numeric_ok(buff, "buff_multiplier") or not _optional_numeric_ok(buff, "duration_turns"):
+			return false
+	if awakening.has("heal"):
+		if not (awakening["heal"] is Dictionary):
+			return false
+		var heal: Dictionary = awakening["heal"]
+		if not _optional_string_ok(heal, "heal_mode"):
+			return false
+		if not _optional_numeric_ok(heal, "heal_fixed_amount") or not _optional_numeric_ok(heal, "heal_percent"):
+			return false
 	return true
 
 ## HARDCORE Creator: action_sequence配列の各エントリ（配置スロット）の型

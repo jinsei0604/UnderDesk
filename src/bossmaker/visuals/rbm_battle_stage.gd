@@ -17,6 +17,18 @@ const ACTOR_SCRIPT := "res://src/bossmaker/visuals/rbm_character_visual.gd"
 const HeroFire = preload("res://src/bossmaker/visuals/rbm_hero_fire_finish.gd")
 const HeroSword = preload("res://src/bossmaker/visuals/rbm_hero_sword.gd")
 const ButlerIce = preload("res://src/bossmaker/visuals/rbm_butler_ice_finish.gd")
+const HealerLightning = preload("res://src/bossmaker/visuals/rbm_healer_lightning_finish.gd")
+const SamuraiWind = preload("res://src/bossmaker/visuals/rbm_samurai_wind_finish.gd")
+const SamuraiWindBlock = preload("res://src/bossmaker/visuals/rbm_samurai_wind_block.gd")
+const TankHammer = preload("res://src/bossmaker/visuals/rbm_tank_hammer_finish.gd")
+const TankHammerImpactFrame = preload("res://src/bossmaker/visuals/rbm_tank_hammer_impact_frame.gd")
+const AwakeningTransform = preload("res://src/bossmaker/visuals/rbm_boss_awakening_transform.gd")
+## Skill-owned timelines. Add dedicated scripts here, not long stage branches.
+const SKILL_PRESENTATIONS = {
+	"healer_heal_all": {"actor": "healer", "kind": "heal_all", "script": preload("res://src/bossmaker/visuals/rbm_healer_saint_finish.gd")},
+}
+var _skill_presentation: Node2D
+const BOSS_SINGLE_PRESENTATIONS={"golem":preload("res://src/bossmaker/visuals/rbm_golem_single_punch.gd")}
 var _hero_fire: Node2D
 var _hero_finish := false
 var _hero_elapsed := -1.0
@@ -25,6 +37,37 @@ var _butler_ice: Node2D
 var _butler_finish := false
 var _butler_elapsed := -1.0
 var _butler_shake := Vector2.ZERO
+var _healer_lightning: Node2D
+var _healer_finish := false
+var _healer_elapsed := -1.0
+var _healer_shake := Vector2.ZERO
+var _samurai_wind: Node2D
+var _samurai_wind_block: Node2D
+var _samurai_finish := false
+var _samurai_elapsed := -1.0
+var _samurai_shake := Vector2.ZERO
+const SAMURAI_WIND_BLOCK_DURATION := 0.35
+const SAMURAI_WIND_PAUSE := 0.13
+const SAMURAI_WIND_START_DELAY := SAMURAI_WIND_BLOCK_DURATION + SAMURAI_WIND_PAUSE
+const SAMURAI_AFTERMATH_CUE_FRACS := [0.0, 0.32, 0.62, 0.85]
+const SAMURAI_AFTERMATH_CUE_GAINS := [-6.0, -11.0, -16.0, -22.0]
+var _tank_hammer: Node2D
+var _tank_impact_frame: Node2D
+var _tank_finish := false
+var _tank_elapsed := -1.0
+var _tank_shake := Vector2.ZERO
+## 白黒ヒットストップの実時間(着弾の瞬間、TankHammer.age=IMPACT_MOMENTの
+## まま静止する長さ)。tank専用の分岐でのみ使う——他の必殺技には影響しない。
+const TANK_HITSTOP_DURATION := 0.12
+
+## 覚醒(Awakening)の再生専用状態。演出内容そのものはボス固有になる予定
+## だが(コード設計方針参照)、今回はまだどのボスにも専用演出が用意されて
+## いないため、rbm_boss_awakening_transform.gd(仮の最小限表現、同ファイル
+## 冒頭のコメント参照)を共通で使う——将来ボスごとの専用ファイルへ差し替える
+## 際は、ここのpreload先とディスパッチ(_play_awakening_entry())だけを
+## 変更すればよい。
+var _awakening_transform: Node2D
+var _awakened_appearance_applied := false
 
 var _battle: Variant
 var _appearance_id := ""
@@ -75,6 +118,30 @@ func _ready() -> void:
 	_butler_ice.z_index = 80
 	_butler_ice.visible = false
 	add_child(_butler_ice)
+	_healer_lightning = HealerLightning.new()
+	_healer_lightning.z_index = 80
+	_healer_lightning.visible = false
+	add_child(_healer_lightning)
+	_samurai_wind = SamuraiWind.new()
+	_samurai_wind.z_index = 80
+	_samurai_wind.visible = false
+	add_child(_samurai_wind)
+	_samurai_wind_block = SamuraiWindBlock.new()
+	_samurai_wind_block.z_index = 80
+	_samurai_wind_block.visible = false
+	add_child(_samurai_wind_block)
+	_tank_hammer = TankHammer.new()
+	_tank_hammer.z_index = 80
+	_tank_hammer.visible = false
+	add_child(_tank_hammer)
+	_tank_impact_frame = TankHammerImpactFrame.new()
+	_tank_impact_frame.z_index = 85
+	_tank_impact_frame.visible = false
+	add_child(_tank_impact_frame)
+	_awakening_transform = AwakeningTransform.new()
+	_awakening_transform.z_index = 90
+	_awakening_transform.visible = false
+	add_child(_awakening_transform)
 	resized.connect(_layout_actors)
 	_layout_actors()
 
@@ -199,19 +266,40 @@ func set_state(snapshot: Dictionary) -> void:
 func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 	cancel()
 	_entry = entry.duplicate(true)
+	# 覚醒(Awakening)は通常の攻撃/防御/支援スキルと異なり、skill_id・target・
+	# kindを一切持たない独立したログentry(RBMBattle._maybe_trigger_
+	# awakening()参照)——windup/travel/strikeの汎用チェーンを一切経由せず、
+	# 専用の再生経路のみを使う。
+	if str(_entry.get("action", "")) == "awakening":
+		_play_awakening_entry()
+		return
 	_skill = skill.duplicate(true)
 	_profile = Motions.profile(_entry, _skill)
 	_actor = str(_entry.get("actor", "boss"))
 	if str(_profile["kind"]) == "normal" and str(_asset_ids.get(_actor, "")) in ["butler", "healer"]:
 		_profile["advance"] = 0.0
 	_targets = _entry_targets()
+	var dedicated: Dictionary = SKILL_PRESENTATIONS.get(str(_entry.get("skill_id", "")), {})
+	if not dedicated.is_empty() and _entry.get("action", "") == "skill" and str(_asset_ids.get(_actor, "")) == dedicated["actor"] and _profile["kind"] == dedicated["kind"] and not _targets.is_empty():
+		_skill_presentation = dedicated["script"].new()
+		add_child(_skill_presentation)
+		_tween = _skill_presentation.play(self)
+		return
 	_hero_finish = str(_entry.get("skill_id", "")) == "hero_burst_slash" and str(_asset_ids.get(_actor, "")) == "hero" and str(_profile["kind"]) == "fire_burst" and _targets.has("boss")
 	if _hero_finish:
 		_profile["advance"] = 0.0
 	_butler_finish = str(_entry.get("skill_id", "")) == "butler_grand_ice" and str(_asset_ids.get(_actor, "")) == "butler" and str(_profile["kind"]) == "ice_grand" and _targets.has("boss")
 	if _butler_finish:
 		_profile["advance"] = 0.0
+	_healer_finish = str(_entry.get("skill_id", "")) == "healer_shock" and str(_asset_ids.get(_actor, "")) == "healer" and str(_profile["kind"]) == "lightning" and _targets.has("boss")
+	if _healer_finish:
+		_profile["advance"] = 0.0
 	_counters = _counter_targets()
+	_samurai_finish = _actor == "boss" and not _counters.is_empty() and str(_asset_ids.get(_counters[0], "")) == "samurai"
+	# Unlike the other finishes, the hammer smash keeps a nonzero advance:
+	# the tank must physically walk into melee range using the same generic
+	# windup/travel slide every melee skill already uses (see _travel_progress).
+	_tank_finish = str(_entry.get("skill_id", "")) == "tank_hammer_smash" and str(_asset_ids.get(_actor, "")) == "tank" and str(_profile["kind"]) == "hammer_smash" and _targets.has("boss")
 	_guards.clear()
 	_guard_offsets.clear()
 	_counter_offsets.clear()
@@ -235,6 +323,12 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 		_visuals[key].z_index = 4
 	for key in _guards:
 		_visuals[key].z_index = 4
+	var boss_single = BOSS_SINGLE_PRESENTATIONS.get(str(_asset_ids.get(_actor,"")))
+	if boss_single != null and _actor == "boss" and _targets.size() == 1 and not _entry.has("hits") and str(_entry.get("action","")) in ["attack","skill"] and str(_profile["kind"]) in ["normal","boss_single"]:
+		_skill_presentation=boss_single.new()
+		add_child(_skill_presentation)
+		_tween=_skill_presentation.play(self)
+		return
 	_playing = true
 	_play_se("cast")
 	_phase = "windup"
@@ -255,6 +349,30 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 		_tween.tween_method(_butler_finish_progress, 0.0, 2.4, 2.4)
 		_tween.tween_callback(_finish)
 		return
+	if _healer_finish:
+		# Keep the presenter on this entry until every finish layer has ended.
+		_tween.tween_method(_healer_finish_progress, 0.0, 0.85, 0.85)
+		_tween.tween_callback(_finish)
+		return
+	if _samurai_finish:
+		# Keep the presenter on this entry until every finish layer has ended.
+		var samurai_total: float = SAMURAI_WIND_START_DELAY + SamuraiWind.AFTERMATH_START + SamuraiWind.AFTERMATH_DURATION + 0.05
+		_tween.tween_method(_samurai_finish_progress, 0.0, samurai_total, samurai_total)
+		_tween.tween_callback(_finish)
+		return
+	if _tank_finish:
+		# Keep the presenter on this entry until every finish layer has ended.
+		# The swing-down and the post-impact explosion are two tween_method
+		# segments with a tween_interval() hitstop in between (the same Tween
+		# primitives the counter sequence below already uses) so the white/
+		# black impact frame gets a real paused moment on screen.
+		_tween.tween_method(_tank_finish_progress, 0.0, TankHammer.IMPACT_MOMENT, TankHammer.IMPACT_MOMENT)
+		_tween.tween_callback(_tank_hitstop_begin)
+		_tween.tween_interval(TANK_HITSTOP_DURATION)
+		_tween.tween_callback(_tank_hitstop_end)
+		_tween.tween_method(_tank_finish_progress, TankHammer.IMPACT_MOMENT, TankHammer.TOTAL_DURATION, TankHammer.TOTAL_DURATION - TankHammer.IMPACT_MOMENT)
+		_tween.tween_callback(_finish)
+		return
 	_tween.tween_interval(0.10)
 	if not _counters.is_empty():
 		_tween.tween_method(_counter_progress, 0.0, 1.0, 0.20)
@@ -264,8 +382,13 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 	_tween.tween_callback(_finish)
 
 func cancel() -> void:
+	_clear_skill_presentation()
 	_clear_hero_finish()
 	_clear_butler_finish()
+	_clear_healer_finish()
+	_clear_samurai_finish()
+	_clear_tank_finish()
+	_clear_awakening_transform()
 	if is_instance_valid(_sound): _sound.stop_all()
 	if _tween != null and _tween.is_valid():
 		_tween.kill()
@@ -405,6 +528,295 @@ func _clear_butler_finish() -> void:
 		_butler_ice.visible = false
 		_butler_ice.age = -1.0
 
+func _healer_finish_progress(elapsed: float) -> void:
+	_clear_healer_shake()
+	_healer_lightning.visible = true
+	_healer_lightning.age = elapsed
+	_healer_lightning.floor_point = _foot("boss")
+	_healer_lightning.canvas_size = size
+	if elapsed >= 0.1 and elapsed < 0.35:
+		_recovery_progress((elapsed - 0.1) / 0.25)
+	elif elapsed >= 0.35:
+		_pose(_actor, Motions.Pose.IDLE)
+	_phase = "healer_finish"
+	if elapsed < 0.55 or bool(_unit_state("boss").get("is_downed", false)):
+		_pose("boss", Motions.Pose.HIT)
+	else:
+		_pose("boss", Motions.Pose.IDLE)
+	if _healer_elapsed < 0.25 and elapsed >= 0.25: _sound.play_sound("lightning_burst", 1)
+	_healer_elapsed = elapsed
+	if elapsed >= 0.25 and elapsed < 0.40:
+		var force := 8.0 * (1.0 - (elapsed - 0.25) / 0.15)
+		_healer_shake = (Vector2(sin(elapsed * 144), cos(elapsed * 186)) * force).snapped(Vector2(2, 2))
+		for visual in _visuals.values(): visual.position += _healer_shake
+		_healer_lightning.position = _healer_shake
+	_healer_lightning.queue_redraw()
+
+func _clear_healer_shake() -> void:
+	if _healer_shake != Vector2.ZERO:
+		for visual in _visuals.values():
+			if is_instance_valid(visual): visual.position -= _healer_shake
+	_healer_shake = Vector2.ZERO
+	if is_instance_valid(_healer_lightning): _healer_lightning.position = Vector2.ZERO
+
+func _clear_healer_finish() -> void:
+	_clear_healer_shake()
+	_healer_finish = false
+	_healer_elapsed = -1.0
+	if is_instance_valid(_healer_lightning):
+		_healer_lightning.visible = false
+		_healer_lightning.age = -1.0
+
+## The boss's own punch already landed via _strike() (which poses the
+## counterer GUARD and sets _phase="counter" without emitting impact, since
+## _counters is non-empty). This callback replaces the generic counter/
+## recovery/interval sequence entirely: it plays the short "counter
+## established" contact flash at the samurai, slides the boss back home
+## (mirroring what _recovery_progress does for the other finishes' own
+## attacker), then drives the long wind finish, emitting impact/HIT/flash on
+## the boss at the moment the big explosion actually lands the reflected hit.
+func _samurai_finish_progress(elapsed: float) -> void:
+	_clear_samurai_shake()
+	var counter_key := str(_counters[0]) if not _counters.is_empty() else ""
+	var s_chest := _chest(counter_key) + Vector2(0, 14)
+	var s_foot := _foot(counter_key)
+	var b_chest := _chest("boss")
+	_samurai_wind.canvas_size = size
+	_samurai_wind_block.canvas_size = size
+	if elapsed < SAMURAI_WIND_BLOCK_DURATION:
+		_samurai_wind_block.visible = true
+		_samurai_wind_block.age = elapsed
+		_samurai_wind_block.origin = s_chest
+		_samurai_wind_block.contact_point = s_chest + (b_chest - s_chest).normalized() * 28.0
+		_samurai_wind_block.queue_redraw()
+	elif _samurai_wind_block.visible:
+		_samurai_wind_block.visible = false
+	if elapsed >= 0.18 and _samurai_elapsed < 0.18 and counter_key != "":
+		_pose(counter_key, Motions.Pose.ULTIMATE_CHARGE)
+	if elapsed >= 0.05 and elapsed < 0.30:
+		_recovery_progress((elapsed - 0.05) / 0.25)
+	elif elapsed >= 0.30 and _visuals.has(_actor):
+		_visuals[_actor].position = Vector2(_homes[_actor])
+	var wind_age := elapsed - SAMURAI_WIND_START_DELAY
+	var prev_wind_age := _samurai_elapsed - SAMURAI_WIND_START_DELAY
+	if wind_age >= 0.0:
+		_samurai_wind.visible = true
+		_samurai_wind.age = wind_age
+		_samurai_wind.origin = s_chest
+		_samurai_wind.target = b_chest
+		_samurai_wind.floor_point = s_foot
+		if wind_age >= 0.25 and prev_wind_age < 0.25 and counter_key != "":
+			_pose(counter_key, Motions.Pose.ULTIMATE_RELEASE)
+		var idle_threshold: float = SamuraiWind.EXPLOSION_START + 0.42
+		if wind_age >= idle_threshold and prev_wind_age < idle_threshold and counter_key != "":
+			_pose(counter_key, Motions.Pose.IDLE)
+		_phase = "samurai_finish"
+		if wind_age < SamuraiWind.EXPLOSION_START + 0.6 or bool(_unit_state("boss").get("is_downed", false)):
+			_pose("boss", Motions.Pose.HIT)
+		else:
+			_pose("boss", Motions.Pose.IDLE)
+		if is_instance_valid(_sound):
+			if prev_wind_age < 0.25 and wind_age >= 0.25: _sound.play_sound("wind_swing", 0)
+			if prev_wind_age < 0.28 and wind_age >= 0.28: _sound.play_sound("wind_move", 0)
+			if prev_wind_age < SamuraiWind.IMPACT_START and wind_age >= SamuraiWind.IMPACT_START: _sound.play_sound("wind_impact_light", 0)
+			if prev_wind_age < SamuraiWind.EXPLOSION_START and wind_age >= SamuraiWind.EXPLOSION_START:
+				_sound.play_sound("wind_burst", 1)
+				_pose("boss", Motions.Pose.HIT)
+				_flash("boss")
+				impact.emit(_entry)
+			for i in range(SAMURAI_AFTERMATH_CUE_FRACS.size()):
+				var cue_time: float = SamuraiWind.AFTERMATH_START + SAMURAI_AFTERMATH_CUE_FRACS[i] * SamuraiWind.AFTERMATH_DURATION
+				if prev_wind_age < cue_time and wind_age >= cue_time:
+					_sound.play_sound("wind_end", SAMURAI_AFTERMATH_CUE_GAINS[i])
+		if wind_age >= SamuraiWind.EXPLOSION_START and wind_age < SamuraiWind.EXPLOSION_START + 0.26:
+			var force := 16.0 * (1.0 - (wind_age - SamuraiWind.EXPLOSION_START) / 0.26)
+			_samurai_shake = (Vector2(sin(elapsed * 144), cos(elapsed * 186)) * force).snapped(Vector2(2, 2))
+			for visual in _visuals.values(): visual.position += _samurai_shake
+			_samurai_wind.position = _samurai_shake
+		_samurai_wind.queue_redraw()
+	elif is_instance_valid(_sound) and _samurai_elapsed < 0.0 and elapsed >= 0.0:
+		_sound.play_sound("wind_impact_light", 0)
+	_samurai_elapsed = elapsed
+
+func _clear_samurai_shake() -> void:
+	if _samurai_shake != Vector2.ZERO:
+		for visual in _visuals.values():
+			if is_instance_valid(visual): visual.position -= _samurai_shake
+	_samurai_shake = Vector2.ZERO
+	if is_instance_valid(_samurai_wind): _samurai_wind.position = Vector2.ZERO
+
+func _clear_samurai_finish() -> void:
+	_clear_samurai_shake()
+	_samurai_finish = false
+	_samurai_elapsed = -1.0
+	if is_instance_valid(_samurai_wind):
+		_samurai_wind.visible = false
+		_samurai_wind.age = -1.0
+	if is_instance_valid(_samurai_wind_block):
+		_samurai_wind_block.visible = false
+		_samurai_wind_block.age = -1.0
+
+## Drives rbm_tank_hammer_finish.gd's own age across two tween_method
+## segments (before and after the hitstop interval in play_entry()); both
+## segments share this one callback since age only ever increases.
+func _tank_finish_progress(age: float) -> void:
+	_clear_tank_shake()
+	_tank_hammer.visible = true
+	_tank_hammer.age = age
+	var dir_x := signf(_foot("boss").x - _foot(_actor).x)
+	_tank_hammer.origin = _foot(_actor) + Vector2(dir_x * 14.0, -150.0)
+	_tank_hammer.impact_point = _foot("boss")
+	_tank_hammer.canvas_size = size
+	_phase = "tank_finish"
+	if age < TankHammer.AFTERMATH_START + 0.3 or bool(_unit_state("boss").get("is_downed", false)):
+		_pose("boss", Motions.Pose.HIT)
+	else:
+		_pose("boss", Motions.Pose.IDLE)
+	if is_instance_valid(_sound):
+		# hammer_swing plays almost fully underneath the generic
+		# neutral_blunt_swing/neutral_impact_heavy cues that every tank attack
+		# already triggers (see _play_se()) -- gain -5 keeps it audible as
+		# texture without stacking another full-strength layer on top of them.
+		if _tank_elapsed < 0.02 and age >= 0.02: _sound.play_sound("hammer_swing", -5)
+		var second_cue: float = TankHammer.IMPACT_MOMENT + TankHammer.SECOND_IMPACT_DELAY
+		if _tank_elapsed < second_cue and age >= second_cue: _sound.play_sound("hammer_burst_second", -6)
+	_tank_elapsed = age
+	var it := age - TankHammer.IMPACT_MOMENT
+	var shake_force := 0.0
+	if it >= 0.0 and it < 0.26:
+		shake_force = 20.0 * (1.0 - it / 0.26)
+	var it2 := it - TankHammer.SECOND_IMPACT_DELAY
+	if it2 >= 0.0 and it2 < 0.16:
+		var s2 := 10.0 * (1.0 - it2 / 0.16)
+		if s2 > shake_force: shake_force = s2
+	if shake_force > 0.05:
+		_tank_shake = (Vector2(sin(age * 144), cos(age * 186)) * shake_force).snapped(Vector2(2, 2))
+		for visual in _visuals.values(): visual.position += _tank_shake
+		_tank_hammer.position = _tank_shake
+	_tank_hammer.queue_redraw()
+
+## Fires the instant the hammer reaches the ground: shows the white/black
+## impact frame (which the following tween_interval() in play_entry() keeps
+## on screen for TANK_HITSTOP_DURATION) and plays the contact sound.
+func _tank_hitstop_begin() -> void:
+	if is_instance_valid(_sound): _sound.play_sound("hammer_impact", 0)
+	_tank_impact_frame.visible = true
+	_tank_impact_frame.canvas_size = size
+	_tank_impact_frame.contact_point = _foot("boss")
+	_tank_impact_frame.ground_y = minf(_foot(_actor).y, _foot("boss").y) - 6.0
+	_tank_impact_frame.hammer_facing = signf(_foot("boss").x - _foot(_actor).x)
+	_tank_impact_frame.tank_rect = _char_rect(_visuals.get(_actor))
+	_tank_impact_frame.boss_rect = _char_rect(_visuals.get("boss"))
+	_tank_impact_frame.queue_redraw()
+
+## Fires the instant color returns: hides the impact frame and starts the
+## explosion beat (the following tween_method resumes TankHammer.age here).
+func _tank_hitstop_end() -> void:
+	_tank_impact_frame.visible = false
+	_pose("boss", Motions.Pose.HIT)
+	_flash("boss")
+	# hammer_burst starts 120ms after hammer_impact while hammer_impact.wav is
+	# still ~140ms from finishing (both were mastered like every other cue --
+	# see the measurement in the completion report), so the two waveforms
+	# genuinely overlap. Gain -1 (down from the isolated-burst convention's
+	# +1 that fire_burst/ice_burst/wind_burst use) keeps hammer_burst the
+	# second-loudest beat without the overlap pushing the combined peak past
+	# what the other finishes ever reach.
+	if is_instance_valid(_sound): _sound.play_sound("hammer_burst", -1)
+
+func _clear_tank_shake() -> void:
+	if _tank_shake != Vector2.ZERO:
+		for visual in _visuals.values():
+			if is_instance_valid(visual): visual.position -= _tank_shake
+	_tank_shake = Vector2.ZERO
+	if is_instance_valid(_tank_hammer): _tank_hammer.position = Vector2.ZERO
+
+func _clear_tank_finish() -> void:
+	_clear_tank_shake()
+	_tank_finish = false
+	_tank_elapsed = -1.0
+	if is_instance_valid(_tank_hammer):
+		_tank_hammer.visible = false
+		_tank_hammer.age = -1.0
+	if is_instance_valid(_tank_impact_frame):
+		_tank_impact_frame.visible = false
+
+## Screen-space bounding rect of a character visual, for the impact frame's
+## blocky silhouettes (visible_rect() is in the visual's own local space).
+func _char_rect(visual: Variant) -> Rect2:
+	if not is_instance_valid(visual) or not visual.has_method("visible_rect"):
+		return Rect2()
+	var vr: Rect2 = visual.call("visible_rect")
+	return Rect2(visual.position + vr.position, vr.size)
+
+## 覚醒(Awakening)専用の再生経路——windup/travel/strikeの汎用チェーンを
+## 一切経由しない、独立したTween(_play_awakening_entry()自身が新しい
+## Tweenを作る、play_entry()冒頭のcancel()が前のTweenを既に片付けている)。
+## entry["visual_state"]（RBMBattle._log_entry()が発動直後のHP等を含めて
+## 記録済み）は、他の全entryと同じくimpact.emit(_entry)がpresenter側で
+## HUDへ反映する——覚醒自体は"impact"らしい対象・ダメージを持たないが、
+## 同じ二値シグナル契約(impact/finished)に揃えるためにそのまま踏襲する。
+func _play_awakening_entry() -> void:
+	_playing = true
+	_phase = "awakening"
+	_awakening_transform.visible = true
+	_awakening_transform.canvas_size = size
+	_awakening_transform.age = 0.0
+	_awakened_appearance_applied = false
+	_tween = create_tween()
+	_tween.tween_method(_awakening_transform_progress, 0.0, AwakeningTransform.DURATION, AwakeningTransform.DURATION)
+	_tween.tween_callback(_finish_awakening_entry)
+
+func _awakening_transform_progress(age: float) -> void:
+	_awakening_transform.age = age
+	# 演出のピーク付近で外見を切り替える——専用の覚醒後アセットが
+	# 用意されていない間はhas_awakened_design()が常にfalseを返すため、
+	# この呼び出しは何もせず通常の外見のまま(is_awakened自体の内部状態には
+	# 影響しない)。
+	if not _awakened_appearance_applied and age >= AwakeningTransform.DURATION * 0.5:
+		_awakened_appearance_applied = true
+		_apply_awakened_appearance()
+	_awakening_transform.queue_redraw()
+
+## ボスの外見を覚醒後専用アセットへ切り替える——_add_actor()を再度呼ぶ
+## (子ノードを増やす)のではなく、既存のActor_bossノードへsetup()を
+## 呼び直すことで同じノードのまま"再スキン"する。RBMVisualAssets.
+## has_awakened_design()がfalse(専用アセット未配置)の間は何もしない。
+func _apply_awakened_appearance() -> void:
+	var asset_id := str(_asset_ids.get("boss", ""))
+	if asset_id.is_empty():
+		return
+	var awakened_id := Assets.awakened_asset_id(asset_id)
+	if not Assets.has_awakened_design(awakened_id):
+		return
+	var boss_visual: Control = _visuals.get("boss")
+	if not is_instance_valid(boss_visual) or not boss_visual.has_method("setup"):
+		return
+	_asset_ids["boss"] = awakened_id
+	# 高さは元のasset_idの値を引き継ぐ(HEIGHTSへ"_awakened"サフィックス
+	# 付きの専用値を追加すればそちらが優先される、RBMVisualAssets.
+	# display_height()参照)。
+	boss_visual.call("setup", awakened_id, Assets.display_height(asset_id))
+	if boss_visual.has_method("set_pose"):
+		boss_visual.call("set_pose", int(_poses.get("boss", 0)))
+	_queue_visual_redraw()
+
+func _finish_awakening_entry() -> void:
+	_clear_awakening_transform()
+	_playing = false
+	_phase = "idle"
+	_reset_actors()
+	if _layout_pending:
+		_layout_actors()
+	_queue_visual_redraw()
+	impact.emit(_entry)
+	finished.emit()
+
+func _clear_awakening_transform() -> void:
+	if is_instance_valid(_awakening_transform):
+		_awakening_transform.visible = false
+		_awakening_transform.age = -1.0
+
 func _strike() -> void:
 	_play_se("impact")
 	if not _guards.is_empty(): _sound.play_sound("guard_hit", -5)
@@ -460,8 +872,12 @@ func _recovery_progress(value: float) -> void:
 	_queue_visual_redraw()
 
 func _finish() -> void:
+	_clear_skill_presentation()
 	_clear_hero_finish()
 	_clear_butler_finish()
+	_clear_healer_finish()
+	_clear_samurai_finish()
+	_clear_tank_finish()
 	_playing = false
 	_phase = "idle"
 	_progress = 0.0
@@ -473,6 +889,12 @@ func _finish() -> void:
 		_layout_actors()
 	_queue_visual_redraw()
 	finished.emit()
+
+func _clear_skill_presentation() -> void:
+	if is_instance_valid(_skill_presentation):
+		_skill_presentation.stop()
+		_skill_presentation.queue_free()
+	_skill_presentation = null
 
 func _reset_actors() -> void:
 	for key in _visuals:
@@ -589,10 +1011,11 @@ func _draw() -> void:
 	_draw_state_marks()
 
 func _draw_effects() -> void:
+	if is_instance_valid(_skill_presentation): return
 	_canvas = _effects
 	if not _playing or _profile.is_empty():
 		return
-	if (_hero_finish or _butler_finish) and _phase != "windup":
+	if (_hero_finish or _butler_finish or _healer_finish or _tank_finish) and _phase != "windup":
 		return
 	var color := Motions.color_for(str(_profile["attribute"]))
 	var kind := str(_profile["kind"])
@@ -680,9 +1103,6 @@ func _draw_attack_travel(origin: Vector2, target: Vector2, color: Color, kind: S
 			for index in range(count):
 				var offset := Vector2((index - (count - 1) * 0.5) * 16, -65.0 * (1.0 - _progress))
 				_draw_diamond((target + offset).round(), color, 13.0 if kind == "ice_grand" else 8.0)
-		"lightning":
-			var points := PackedVector2Array([target + Vector2(0, -80), target + Vector2(-12, -45), target + Vector2(9, -45), target])
-			_canvas.draw_polyline(points, color, 4.0, false)
 		"fire_sweep", "wind_sweep":
 			_draw_slash(point, color, 32.0, 1.0)
 			_draw_slash(point + Vector2(-14, 12), Color(color, 0.5), 25.0, 1.0)

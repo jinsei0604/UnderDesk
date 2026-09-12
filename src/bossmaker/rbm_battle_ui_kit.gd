@@ -87,11 +87,17 @@ static func find_skill_on_unit(unit: RBMUnit, skill_id: String) -> Dictionary:
 			return skill
 	return {}
 
+## ボスの名前はユーザーが自由入力する固有名のため翻訳しない（CSVに一致
+## しない文字列はTranslationServer.translate()を通しても無変換で返る
+## だけなので、味方側と同じ経路に通しても安全ではあるが、ここでは意図を
+## 明確にするためボス側だけ素通しする）。味方側は固定5キャラの
+## display_name（allies/*.json）のため翻訳対象——単一のこの関数を
+## 経由することで、戦闘ログ全体の味方名表示をまとめて翻訳できる。
 static func actor_display_name(actor, battle: RBMBattle) -> String:
 	if str(actor) == "boss":
 		return battle.boss.display_name
 	var unit := unit_by_id(battle, int(actor))
-	return unit.display_name if unit != null else "？"
+	return TranslationServer.translate(unit.display_name) if unit != null else TranslationServer.translate("？")
 
 ## entryの行動者が使ったskill_idから、その行動者(actor)自身のスキル一覧を
 ## 検索する（ボスならboss.skills、味方ならそのunitのskills）。
@@ -126,6 +132,8 @@ static func attribute_hit_kind(skill: Dictionary, target: RBMUnit) -> String:
 # ログ/最新戦闘情報の日本語整形 (§9/§10/§11)
 # =============================================================================
 
+## 値は表示用文字列——キー(unspecified_action等)は内部の失敗理由IDのため
+## 翻訳対象ではない。呼び出し側でTranslationServer.translate()を適用する。
 const REASON_LABELS := {
 	"unspecified_action": "行動が指定されていません",
 	"invalid_action": "不正な行動です",
@@ -135,6 +143,8 @@ const REASON_LABELS := {
 	"target_downed": "対象は戦闘不能です",
 }
 
+## 値は表示用文字列——キー(heal等)は内部のeffect IDのため翻訳対象では
+## ない。既定値"ダメージ"を含め、呼び出し側でTranslationServer.translate()を適用する。
 const AMOUNT_UNIT_BY_EFFECT := {
 	"heal": "回復",
 	"sp_recover_single_no_self": "SP回復",
@@ -153,7 +163,7 @@ static func describe_entry(entry: Dictionary, battle: RBMBattle) -> Dictionary:
 		var reason := str(entry.get("reason", ""))
 		return {
 			"actor_name": actor_name,
-			"headline": "行動失敗（%s）" % str(REASON_LABELS.get(reason, reason)),
+			"headline": TranslationServer.translate("行動失敗（%s）") % TranslationServer.translate(str(REASON_LABELS.get(reason, reason))),
 			"result_lines": [],
 		}
 	var action := str(entry.get("action", ""))
@@ -161,13 +171,13 @@ static func describe_entry(entry: Dictionary, battle: RBMBattle) -> Dictionary:
 		"attack":
 			return {
 				"actor_name": actor_name,
-				"headline": "通常攻撃",
-				"result_lines": ["%s に %d ダメージ" % [actor_display_name(entry.get("target", "boss"), battle), int(entry.get("amount", 0))]],
+				"headline": TranslationServer.translate("通常攻撃"),
+				"result_lines": [TranslationServer.translate("%s に %d ダメージ") % [actor_display_name(entry.get("target", "boss"), battle), int(entry.get("amount", 0))]],
 			}
 		"defend":
-			return {"actor_name": actor_name, "headline": "防御", "result_lines": []}
+			return {"actor_name": actor_name, "headline": TranslationServer.translate("防御"), "result_lines": []}
 		"none":
-			return {"actor_name": actor_name, "headline": "行動しなかった", "result_lines": []}
+			return {"actor_name": actor_name, "headline": TranslationServer.translate("行動しなかった"), "result_lines": []}
 		"skill":
 			return _describe_skill_entry(entry, actor_name, battle)
 		_:
@@ -177,7 +187,10 @@ static func _describe_skill_entry(entry: Dictionary, actor_name: String, battle:
 	var actor = entry.get("actor")
 	var skill_id := str(entry.get("skill_id", ""))
 	var skill := find_skill_for_actor(actor, skill_id, battle)
-	var headline := str(skill.get("display_name", skill_id))
+	## この関数はボス/味方どちらのスキル使用ログも扱う。ボス側スキル名は
+	## ユーザー入力の固有名（CSVに一致しなければ無変換で返るだけ）、味方
+	## 側は固定5キャラのdisplay_name（翻訳対象）——同じ経路を安全に通せる。
+	var headline := TranslationServer.translate(str(skill.get("display_name", skill_id)))
 	var result_lines: Array[String] = []
 
 	if entry.has("hits"):
@@ -189,33 +202,37 @@ static func _describe_skill_entry(entry: Dictionary, actor_name: String, battle:
 			var target := unit_by_id(battle, int(hit.get("target", uid)))
 			if target != null:
 				_append_weak_resist_line(result_lines, skill, target)
-			result_lines.append("%s に %d ダメージ" % [actor_display_name(hit.get("target", uid), battle), int(hit.get("amount", 0))])
+			result_lines.append(TranslationServer.translate("%s に %d ダメージ") % [actor_display_name(hit.get("target", uid), battle), int(hit.get("amount", 0))])
 			if bool(hit.get("counter", false)):
-				result_lines.append("攻撃を防いだ！ 反撃！ %s に %d ダメージ" % [battle.boss.display_name, int(hit.get("reflected", 0))])
+				result_lines.append(TranslationServer.translate("攻撃を防いだ！ 反撃！ %s に %d ダメージ") % [battle.boss.display_name, int(hit.get("reflected", 0))])
 	elif entry.has("healed"):
 		var healed: Dictionary = entry["healed"]
 		for uid in healed.keys():
-			result_lines.append("%s に %d 回復" % [actor_display_name(uid, battle), int(healed[uid])])
+			result_lines.append(TranslationServer.translate("%s に %d 回復") % [actor_display_name(uid, battle), int(healed[uid])])
 	elif entry.has("recovered"):
 		var recovered: Dictionary = entry["recovered"]
 		for uid in recovered.keys():
-			result_lines.append("%s に %d SP回復" % [actor_display_name(uid, battle), int(recovered[uid])])
+			result_lines.append(TranslationServer.translate("%s に %d SP回復") % [actor_display_name(uid, battle), int(recovered[uid])])
 	elif entry.has("amount"):
-		var unit_label := str(AMOUNT_UNIT_BY_EFFECT.get(str(skill.get("effect", "")), "ダメージ"))
+		# 比較は翻訳前の内部ラベル("ダメージ"固定値)で行い、表示直前だけ
+		# TranslationServer.translate()を適用する——言語切替がこの分岐ロジック自体に影響しない
+		# ようにするため。
+		var unit_label_raw := str(AMOUNT_UNIT_BY_EFFECT.get(str(skill.get("effect", "")), "ダメージ"))
+		var unit_label := TranslationServer.translate(unit_label_raw)
 		var target_variant = entry.get("target")
 		var target_unit: RBMUnit = null
 		if target_variant != null and str(target_variant) != "boss":
 			target_unit = unit_by_id(battle, int(target_variant))
 		elif str(target_variant) == "boss":
 			target_unit = battle.boss
-		if target_unit != null and unit_label == "ダメージ":
+		if target_unit != null and unit_label_raw == "ダメージ":
 			_append_weak_resist_line(result_lines, skill, target_unit)
 		if entry.has("target"):
-			result_lines.append("%s に %d %s" % [actor_display_name(entry["target"], battle), int(entry["amount"]), unit_label])
+			result_lines.append(TranslationServer.translate("%s に %d %s") % [actor_display_name(entry["target"], battle), int(entry["amount"]), unit_label])
 		else:
 			result_lines.append("%d %s" % [int(entry["amount"]), unit_label])
 	elif entry.has("protecting"):
-		result_lines.append("%s をかばう" % actor_display_name(entry["protecting"], battle))
+		result_lines.append(TranslationServer.translate("%s をかばう") % actor_display_name(entry["protecting"], battle))
 
 	# カウンター（ブロック＋反射）: §11「カウンター発動」。ブロックした事実と
 	# 反射ダメージの両方を表示する。反射側の弱点/耐性は、反射に使われた
@@ -223,18 +240,18 @@ static func _describe_skill_entry(entry: Dictionary, actor_name: String, battle:
 	# 保持しない）、今回は反射ダメージの数値のみを表示する——数値を捏造せず、
 	# 確実に取得できる情報だけを表示する方針。
 	if bool(entry.get("counter", false)) and bool(entry.get("blocked", false)):
-		result_lines.append("%s の攻撃を防いだ！" % ("ボス" if str(actor) != "boss" else "味方"))
+		result_lines.append(TranslationServer.translate("%s の攻撃を防いだ！") % (TranslationServer.translate("ボス") if str(actor) != "boss" else TranslationServer.translate("味方")))
 		if entry.has("reflected"):
-			result_lines.append("反撃！ %s に %d ダメージ" % [actor_display_name("boss", battle), int(entry["reflected"])])
+			result_lines.append(TranslationServer.translate("反撃！ %s に %d ダメージ") % [actor_display_name("boss", battle), int(entry["reflected"])])
 
 	return {"actor_name": actor_name, "headline": headline, "result_lines": result_lines}
 
 static func _append_weak_resist_line(result_lines: Array, skill: Dictionary, target: RBMUnit) -> void:
 	match attribute_hit_kind(skill, target):
 		"weak":
-			result_lines.append("弱点！")
+			result_lines.append(TranslationServer.translate("弱点！"))
 		"resist":
-			result_lines.append("耐性！")
+			result_lines.append(TranslationServer.translate("耐性！"))
 		_:
 			pass
 
@@ -256,7 +273,7 @@ static func format_latest_info(entries: Array, battle: RBMBattle) -> String:
 			break
 	var described := describe_entry(chosen, battle)
 	var lines: Array[String] = []
-	lines.append("%s：%s" % [described["actor_name"], described["headline"]])
+	lines.append(TranslationServer.translate("%s：%s") % [described["actor_name"], described["headline"]])
 	if not (described["result_lines"] as Array).is_empty():
 		lines.append("")
 		for line in described["result_lines"]:
@@ -270,9 +287,9 @@ static func format_log_lines_for_batch(entries: Array, battle: RBMBattle) -> Arr
 	var lines: Array[String] = []
 	for entry in entries:
 		var described := describe_entry(entry, battle)
-		lines.append("%s：%s" % [described["actor_name"], described["headline"]])
+		lines.append(TranslationServer.translate("%s：%s") % [described["actor_name"], described["headline"]])
 		for line in described["result_lines"]:
-			lines.append("→ %s" % str(line))
+			lines.append(TranslationServer.translate("→ %s") % str(line))
 	return lines
 
 ## §10: 累積ログ全体（複数ターンにまたがる、REWINDで既に未来側が除去済みの
@@ -281,7 +298,7 @@ static func format_log_lines_for_batch(entries: Array, battle: RBMBattle) -> Arr
 ## 持つ——このキーは見出しのグルーピングにのみ使い、本文には出力しない。
 static func format_log_window_text(history: Array[Dictionary], battle: RBMBattle) -> String:
 	if history.is_empty():
-		return "まだ戦闘記録がありません"
+		return TranslationServer.translate("まだ戦闘記録がありません")
 	var blocks: Array[String] = []
 	var current_turn := -1
 	var current_lines: Array[String] = []
@@ -293,9 +310,9 @@ static func format_log_window_text(history: Array[Dictionary], battle: RBMBattle
 			current_turn = entry_turn
 			current_lines = []
 		var described := describe_entry(entry, battle)
-		current_lines.append("%s：%s" % [described["actor_name"], described["headline"]])
+		current_lines.append(TranslationServer.translate("%s：%s") % [described["actor_name"], described["headline"]])
 		for line in described["result_lines"]:
-			current_lines.append("→ %s" % str(line))
+			current_lines.append(TranslationServer.translate("→ %s") % str(line))
 	if current_turn != -1:
 		blocks.append("TURN %d\n\n%s" % [current_turn, "\n".join(current_lines)])
 	return "\n\n".join(blocks)
@@ -344,7 +361,7 @@ static func turn_order_entries(battle: RBMBattle) -> Array[Dictionary]:
 		elif i == cursor and not battle.battle_over:
 			status = TURN_ORDER_STATUS_CURRENT
 		out.append({
-			"display_name": unit.display_name,
+			"display_name": TranslationServer.translate(unit.display_name),
 			"status": status,
 			"is_boss": is_boss,
 			"is_downed": unit.is_downed(),
@@ -371,25 +388,25 @@ static func unit_state_lines(unit: RBMUnit, battle: RBMBattle) -> Array[String]:
 	var lines: Array[String] = []
 	if RBMConstants.timed_effect_active(unit.timed_effects, "atk_buff", battle.current_turn):
 		var mult := float(RBMConstants.timed_effect_value(unit.timed_effects, "atk_buff", battle.current_turn, 1.0))
-		lines.append("ATK強化 ×%s　残り%dターン" % [_format_multiplier(mult), _remaining_turns(unit.timed_effects, "atk_buff", battle.current_turn)])
+		lines.append(TranslationServer.translate("ATK強化 ×%s　残り%dターン") % [_format_multiplier(mult), _remaining_turns(unit.timed_effects, "atk_buff", battle.current_turn)])
 	if unit.is_defending:
-		lines.append("防御")
+		lines.append(TranslationServer.translate("防御"))
 	if RBMConstants.timed_effect_active(battle.party_timed_effects, "guard_boost", battle.current_turn):
-		lines.append("防御強化　残り%dターン" % _remaining_turns(battle.party_timed_effects, "guard_boost", battle.current_turn))
+		lines.append(TranslationServer.translate("防御強化　残り%dターン") % _remaining_turns(battle.party_timed_effects, "guard_boost", battle.current_turn))
 	if RBMConstants.timed_effect_active(battle.party_timed_effects, "iron_wall", battle.current_turn):
-		lines.append("鉄壁　残り%dターン" % _remaining_turns(battle.party_timed_effects, "iron_wall", battle.current_turn))
+		lines.append(TranslationServer.translate("鉄壁　残り%dターン") % _remaining_turns(battle.party_timed_effects, "iron_wall", battle.current_turn))
 	if unit.next_attack_bonus_multiplier != 1.0:
-		lines.append("居合の構え")
+		lines.append(TranslationServer.translate("居合の構え"))
 	if unit.counter_pending_this_turn:
-		lines.append("カウンター待機")
+		lines.append(TranslationServer.translate("カウンター待機"))
 	if unit.protecting_ally_id != -1:
 		var protected_unit := unit_by_id(battle, unit.protecting_ally_id)
 		if protected_unit != null:
-			lines.append("%s をかばう" % protected_unit.display_name)
+			lines.append(TranslationServer.translate("%s をかばう") % TranslationServer.translate(protected_unit.display_name))
 	# かばう対象: 自分が「かばわれている」側かどうか(他ユニットのprotecting_ally_idが自分)。
 	for other in battle.party:
 		if other.id != unit.id and other.protecting_ally_id == unit.id and not other.is_downed():
-			lines.append("%s にかばわれている" % other.display_name)
+			lines.append(TranslationServer.translate("%s にかばわれている") % TranslationServer.translate(other.display_name))
 	return lines
 
 ## §5: ボスの「現在の状態」——このエンジンでボスが実際に持ちうる時限効果は
@@ -401,7 +418,7 @@ static func boss_state_lines(battle: RBMBattle) -> Array[String]:
 	var boss := battle.boss
 	if RBMConstants.timed_effect_active(boss.timed_effects, "atk_buff", battle.current_turn):
 		var mult := float(RBMConstants.timed_effect_value(boss.timed_effects, "atk_buff", battle.current_turn, 1.0))
-		lines.append("ATK強化 ×%s　残り%dターン" % [_format_multiplier(mult), _remaining_turns(boss.timed_effects, "atk_buff", battle.current_turn)])
+		lines.append(TranslationServer.translate("ATK強化 ×%s　残り%dターン") % [_format_multiplier(mult), _remaining_turns(boss.timed_effects, "atk_buff", battle.current_turn)])
 	return lines
 
 static func _format_multiplier(value: float) -> String:
@@ -418,6 +435,8 @@ static func _format_multiplier(value: float) -> String:
 # スキル詳細 (§16)
 # =============================================================================
 
+## 値は表示用文字列——キー(FIRE/ICE/...、boss/ally_all/...)は内部の
+## 属性・対象IDのため翻訳対象ではない。呼び出し側でTranslationServer.translate()を適用する。
 const ATTRIBUTE_DISPLAY_NAMES := {
 	"FIRE": "炎", "ICE": "氷", "LIGHTNING": "雷", "WIND": "風", "NEUTRAL": "無",
 }
@@ -437,33 +456,33 @@ const SKILL_TARGET_DISPLAY_NAMES := {
 static func skill_detail_lines(skill: Dictionary, is_ally: bool) -> Array[String]:
 	var lines: Array[String] = []
 	if is_ally and skill.has("sp_cost"):
-		lines.append("消費SP：%d" % int(skill["sp_cost"]))
+		lines.append(TranslationServer.translate("消費SP：%d") % int(skill["sp_cost"]))
 	if skill.has("target"):
 		var target_key := str(skill["target"])
-		lines.append("対象：%s" % str(SKILL_TARGET_DISPLAY_NAMES.get(target_key, target_key)))
+		lines.append(TranslationServer.translate("対象：%s") % TranslationServer.translate(str(SKILL_TARGET_DISPLAY_NAMES.get(target_key, target_key))))
 	if skill.has("attribute"):
-		lines.append("属性：%s" % str(ATTRIBUTE_DISPLAY_NAMES.get(str(skill["attribute"]), str(skill["attribute"]))))
+		lines.append(TranslationServer.translate("属性：%s") % TranslationServer.translate(str(ATTRIBUTE_DISPLAY_NAMES.get(str(skill["attribute"]), str(skill["attribute"])))))
 	if skill.has("atk_multiplier"):
-		lines.append("威力：%s倍" % _format_multiplier(float(skill["atk_multiplier"])))
+		lines.append(TranslationServer.translate("威力：%s倍") % _format_multiplier(float(skill["atk_multiplier"])))
 	if skill.has("heal_amount"):
-		lines.append("回復量：%d" % int(skill["heal_amount"]))
+		lines.append(TranslationServer.translate("回復量：%d") % int(skill["heal_amount"]))
 	if skill.has("sp_amount"):
-		lines.append("回復SP：%d" % int(skill["sp_amount"]))
+		lines.append(TranslationServer.translate("回復SP：%d") % int(skill["sp_amount"]))
 	if skill.has("buff_multiplier"):
-		lines.append("効果：ATK ×%s" % _format_multiplier(float(skill["buff_multiplier"])))
+		lines.append(TranslationServer.translate("効果：ATK ×%s") % _format_multiplier(float(skill["buff_multiplier"])))
 	if skill.has("duration_turns"):
-		lines.append("効果時間：%dターン" % int(skill["duration_turns"]))
+		lines.append(TranslationServer.translate("効果時間：%dターン") % int(skill["duration_turns"]))
 	match str(skill.get("effect", "")):
 		"buff_next_attack":
-			lines.append("効果：次の攻撃スキルのダメージを強化（居合の構え）")
+			lines.append(TranslationServer.translate("効果：次の攻撃スキルのダメージを強化（居合の構え）"))
 		"counter_stance":
-			lines.append("効果：次に受ける攻撃を無効化し反撃（カウンター待機）")
+			lines.append(TranslationServer.translate("効果：次に受ける攻撃を無効化し反撃（カウンター待機）"))
 		"guard_boost":
-			lines.append("効果：味方全体の防御軽減率を強化（防御強化）")
+			lines.append(TranslationServer.translate("効果：味方全体の防御軽減率を強化（防御強化）"))
 		"party_damage_reduction":
-			lines.append("効果：味方全体のダメージを継続軽減（鉄壁）")
+			lines.append(TranslationServer.translate("効果：味方全体のダメージを継続軽減（鉄壁）"))
 		"guard_redirect":
-			lines.append("効果：指定した味方への攻撃をかばう")
+			lines.append(TranslationServer.translate("効果：指定した味方への攻撃をかばう"))
 		_:
 			pass
 	return lines
@@ -480,9 +499,13 @@ static func skill_is_disabled(skill: Dictionary, unit: RBMUnit) -> bool:
 
 static func skill_row_text(skill: Dictionary, unit: RBMUnit) -> String:
 	var sp_cost := int(skill.get("sp_cost", 0))
-	var display_name := str(skill.get("display_name", skill.get("id", "")))
-	var suffix := "（SP不足）" if skill_is_disabled(skill, unit) else ""
-	return "%s　SP %d%s" % [display_name, sp_cost, suffix]
+	## 味方(固定5キャラ)のスキルdisplay_nameは翻訳対象。ボス側のスキル名
+	## （ユーザー入力）はこの関数を経由しない（ボス側UIはskill_performance_
+	## line()等、別の表示経路を使う）ため、ここは常に味方スキルとして
+	## 翻訳してよい。
+	var display_name := TranslationServer.translate(str(skill.get("display_name", skill.get("id", ""))))
+	var suffix: String = TranslationServer.translate("（SP不足）") if skill_is_disabled(skill, unit) else ""
+	return TranslationServer.translate("%s　SP %d%s") % [display_name, sp_cost, suffix]
 
 # =============================================================================
 # 再利用可能なControl生成ヘルパー (§21: 「可能な範囲で共通Battle UI
@@ -537,7 +560,7 @@ static func build_party_card(unit: RBMUnit, on_click: Callable) -> Control:
 
 	var name_label := Label.new()
 	name_label.name = "PartyRowName_%d" % unit.id
-	name_label.text = "%s%s" % [unit.display_name, "（戦闘不能）" if unit.is_downed() else ""]
+	name_label.text = "%s%s" % [TranslationServer.translate(unit.display_name), TranslationServer.translate("（戦闘不能）") if unit.is_downed() else ""]
 	name_label.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -703,7 +726,7 @@ static func build_battlefield_ally_presence(unit: RBMUnit, on_click: Callable) -
 
 	var name_label := Label.new()
 	name_label.name = "BattlefieldAllyName_%d" % unit.id
-	name_label.text = unit.display_name
+	name_label.text = TranslationServer.translate(unit.display_name)
 	name_label.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(name_label)
@@ -730,7 +753,7 @@ static func build_turn_order_panel() -> VBoxContainer:
 	panel.custom_minimum_size = Vector2(120, 0)
 	var title := Label.new()
 	title.name = "TurnOrderTitleLabel"
-	title.text = "行動順"
+	title.text = TranslationServer.translate("行動順")
 	title.theme_type_variation = RBMUiTheme.VARIATION_SECTION_LABEL
 	panel.add_child(title)
 	var list := VBoxContainer.new()
@@ -775,7 +798,7 @@ static func refresh_turn_order_panel(panel: Control, battle: RBMBattle) -> void:
 
 		var name_text: String = entry["display_name"]
 		if entry["is_downed"]:
-			name_text = "%s（戦闘不能）" % name_text
+			name_text = TranslationServer.translate("%s（戦闘不能）") % name_text
 		var name_label := Label.new()
 		name_label.text = name_text
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -853,7 +876,7 @@ static func fit_log_window(window: Dictionary, scroll: ScrollContainer) -> void:
 	panel.offset_right = -140
 	panel.offset_top = 70
 	panel.offset_bottom = -70
-	(window["close_button"] as Button).text = "閉じる ×"
+	(window["close_button"] as Button).text = TranslationServer.translate("閉じる ×")
 	(window["close_button"] as Button).custom_minimum_size = Vector2(112, 44)
 	(window["content"] as Control).size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -934,15 +957,15 @@ static func build_detail_overlay(parent: Control, window_name: String) -> Dictio
 ## build_detail_overlay()が返したもの)へ作り直す。
 static func refresh_ally_detail_content(content: Control, unit: RBMUnit, battle: RBMBattle) -> void:
 	clear_children_safely(content)
-	_add_detail_line(content, "HP　%d / %d" % [unit.hp, unit.max_hp])
+	_add_detail_line(content, TranslationServer.translate("HP　%d / %d") % [unit.hp, unit.max_hp])
 	if unit.has_sp_resource():
-		_add_detail_line(content, "SP　%d / %d" % [unit.sp, unit.max_sp])
-	_add_detail_line(content, "ATK　%d" % unit.atk)
-	_add_detail_line(content, "SPD　%d" % unit.spd)
+		_add_detail_line(content, TranslationServer.translate("SP　%d / %d") % [unit.sp, unit.max_sp])
+	_add_detail_line(content, TranslationServer.translate("ATK　%d") % unit.atk)
+	_add_detail_line(content, TranslationServer.translate("SPD　%d") % unit.spd)
 	_add_state_section_header(content)
 	var states := unit_state_lines(unit, battle)
 	if states.is_empty():
-		_add_detail_line(content, "現在の状態：なし")
+		_add_detail_line(content, TranslationServer.translate("現在の状態：なし"))
 	else:
 		for line in states:
 			_add_detail_line(content, line)
@@ -962,15 +985,15 @@ const ALL_VISIBLE := {
 static func refresh_boss_detail_content(content: Control, battle: RBMBattle, visibility: Dictionary = ALL_VISIBLE) -> void:
 	clear_children_safely(content)
 	var boss := battle.boss
-	_add_detail_line(content, "HP　%s" % (("%d / %d" % [boss.hp, boss.max_hp]) if bool(visibility.get("hp", true)) else "？？？"))
-	_add_detail_line(content, "ATK　%s" % (str(boss.atk) if bool(visibility.get("atk", true)) else "？？？"))
-	_add_detail_line(content, "SPD　%s" % (str(boss.spd) if bool(visibility.get("spd", true)) else "？？？"))
-	_add_detail_line(content, "弱点　%s" % (_attribute_list_text(boss.weak_attributes) if bool(visibility.get("weak_attributes", true)) else "？？？"))
-	_add_detail_line(content, "耐性　%s" % (_attribute_list_text(boss.resist_attributes) if bool(visibility.get("resist_attributes", true)) else "？？？"))
+	_add_detail_line(content, TranslationServer.translate("HP　%s") % (("%d / %d" % [boss.hp, boss.max_hp]) if bool(visibility.get("hp", true)) else TranslationServer.translate("？？？")))
+	_add_detail_line(content, TranslationServer.translate("ATK　%s") % (str(boss.atk) if bool(visibility.get("atk", true)) else TranslationServer.translate("？？？")))
+	_add_detail_line(content, TranslationServer.translate("SPD　%s") % (str(boss.spd) if bool(visibility.get("spd", true)) else TranslationServer.translate("？？？")))
+	_add_detail_line(content, TranslationServer.translate("弱点　%s") % (_attribute_list_text(boss.weak_attributes) if bool(visibility.get("weak_attributes", true)) else TranslationServer.translate("？？？")))
+	_add_detail_line(content, TranslationServer.translate("耐性　%s") % (_attribute_list_text(boss.resist_attributes) if bool(visibility.get("resist_attributes", true)) else TranslationServer.translate("？？？")))
 	_add_state_section_header(content)
 	var states := boss_state_lines(battle)
 	if states.is_empty():
-		_add_detail_line(content, "現在の状態：なし")
+		_add_detail_line(content, TranslationServer.translate("現在の状態：なし"))
 	else:
 		for line in states:
 			_add_detail_line(content, line)
@@ -982,17 +1005,17 @@ static func _add_state_section_header(content: Control) -> void:
 	var separator := HSeparator.new()
 	content.add_child(separator)
 	var state_title := Label.new()
-	state_title.text = "現在の状態"
+	state_title.text = TranslationServer.translate("現在の状態")
 	state_title.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
 	content.add_child(state_title)
 
 static func _attribute_list_text(attributes: Array) -> String:
 	if attributes.is_empty():
-		return "なし"
+		return TranslationServer.translate("なし")
 	var names: Array[String] = []
 	for attribute in attributes:
-		names.append(str(ATTRIBUTE_DISPLAY_NAMES.get(RBMConstants.attribute_name(attribute), "？")))
-	return "、".join(names)
+		names.append(TranslationServer.translate(str(ATTRIBUTE_DISPLAY_NAMES.get(RBMConstants.attribute_name(attribute), "？"))))
+	return TranslationServer.translate("、").join(names)
 
 static func _add_detail_line(content: Control, text: String) -> void:
 	var label := Label.new()

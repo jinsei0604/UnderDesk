@@ -44,6 +44,10 @@ var _scroll_container: ScrollContainer
 var _scroll_content: VBoxContainer
 
 var _list_view: VBoxContainer
+## 覚醒: 通常action_sequenceの一覧とは独立して一番下へ固定表示する
+## （↑↓の並び替え対象にはしない、_rebuild_slot_list()の末尾から再構築する）。
+var _awakening_separator: HSeparator
+var _awakening_card_container: VBoxContainer
 var _add_choice_view: VBoxContainer
 var _pick_existing_view: VBoxContainer
 var _skill_slot_view: VBoxContainer
@@ -79,6 +83,17 @@ var _skill_slot_form_slot: Control
 var _skill_slot_condition_uses_slot: Control
 var _skill_slot_confirm_button: Button
 var _skill_slot_delete_button: Button
+## 性能編集不具合修正: 「性能を編集」の内側フォーム自身が保存/キャンセル
+## ボタンを持つ文脈(_form_context=="skill_slot_edit_performance")では、
+## この外側の行([保存][キャンセル][この攻撃を削除])を隠す必要がある——
+## 隠さないと、内側フォームへ入力中の名前などが未保存のまま外側の「保存」
+## (SkillSlotConfirmButton)を押せてしまい、その入力内容がdraft.skillsへ
+## 一切反映されずに画面が閉じてしまう（_on_skill_slot_confirm_pressed()は
+## 覚醒以外の型ではフォームの現在値を読まないため）。新規作成/覚醒編集
+## 文脈では内側フォーム自身の保存/キャンセルを非表示にしているため
+## （set_save_cancel_buttons_visible(false)）、その場合はこの外側の行が
+## 唯一の保存/キャンセル手段のまま——_refresh_skill_slot_view()参照。
+var _skill_slot_actions_row: HBoxContainer
 
 # --- random_editor_view（ランダム攻撃の配置編集、§10） ---
 var _random_mode_option: OptionButton
@@ -126,6 +141,15 @@ var _condition_ally_skill_row: HBoxContainer
 var _condition_ally_skill_option: OptionButton
 var _condition_attribute_row: HBoxContainer
 var _condition_attribute_option: OptionButton
+## 条件タイプ「条件の種類」ドロップダウンに現在表示している選択肢——
+## 通常攻撃/ランダム攻撃のスロットを開いている間はRBMActionPatternRules.
+## NORMAL_ACTION_UI_CONDITION_TYPES、覚醒を開いている間はAWAKENING_UI_
+## CONDITION_TYPESへ_set_condition_type_options()経由で切り替える
+## （_condition_type_option.selectedのindexをこの配列へ直接引くため、
+## 常にOptionButtonの実際の項目と1対1で対応させる）。
+var _active_condition_types: Array[String] = RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES
+var _uses_section_heading: Label
+var _uses_row: HBoxContainer
 var _uses_unlimited_check: CheckBox
 var _uses_limited_check: CheckBox
 var _uses_count_spin: SpinBox
@@ -143,6 +167,12 @@ var _skill_slot_is_new_creation: bool = false  # true=「新しく攻撃を作�
 var _skill_slot_form_active: bool = false      # フォームが現在このビューに表示されているか
 var _skill_slot_has_original_snapshot: bool = false
 var _skill_slot_original_skill_snapshot: Dictionary = {}
+## 覚醒: 「覚醒を編集」から開いた専用セッションかどうか（_open_skill_slot_
+## for_awakening_edit()のみがtrueにする）。confirm/deleteの分岐に使う——
+## 新規作成フロー中に種類ドロップダウンで「覚醒」を選んだ場合は、この
+## フラグではなくフォームのcurrent_action_data()["type"]自体で判定する
+## （まだ何を作るか確定していないため）。
+var _skill_slot_editing_awakening: bool = false
 
 # --- 状態: random_editor_view ---
 var _random_editing_slot_id: String = ""  # ""なら新規配置
@@ -189,6 +219,7 @@ func _build_ui() -> void:
 	_form.setup(draft)
 	_form.saved.connect(_on_form_saved)
 	_form.cancelled.connect(_on_form_cancelled)
+	_form.type_changed.connect(_on_form_type_changed)
 
 	_condition_uses_block = _build_condition_uses_block()
 	_condition_uses_block.visible = false
@@ -245,7 +276,7 @@ func _labeled_spin_row(parent: Node, label_text: String, min_value: float, max_v
 
 func _character_display_name(character_id: String) -> String:
 	var master := RBMDataLoader.load_dict(str(RBMDefinitionLoader.KNOWN_ALLY_PATHS[character_id]))
-	return str(master.get("display_name", character_id))
+	return tr(str(master.get("display_name", character_id)))
 
 # ---------------------------------------------------------------------------
 # list_view（§3: 攻撃の一覧、番号付きカード）
@@ -258,7 +289,7 @@ func _build_list_view() -> VBoxContainer:
 	var header := Label.new()
 	header.name = "AttacksHeader"
 	header.theme_type_variation = RBMUiTheme.VARIATION_SECTION_LABEL
-	header.text = "攻撃"
+	header.text = tr("攻撃")
 	view.add_child(header)
 
 	_slot_list = VBoxContainer.new()
@@ -267,9 +298,18 @@ func _build_list_view() -> VBoxContainer:
 
 	_add_slot_button = Button.new()
 	_add_slot_button.name = "AddSlotButton"
-	_add_slot_button.text = "＋ 攻撃を追加する"
+	_add_slot_button.text = tr("＋ 攻撃を追加する")
 	_add_slot_button.pressed.connect(_on_add_slot_pressed)
 	view.add_child(_add_slot_button)
+
+	# 覚醒: 通常action_sequenceの一覧とは独立して一番下へ固定表示する
+	# （↑↓なし、未設定なら丸ごと非表示、_rebuild_awakening_card()参照）。
+	_awakening_separator = HSeparator.new()
+	_awakening_separator.name = "AwakeningSeparator"
+	view.add_child(_awakening_separator)
+	_awakening_card_container = VBoxContainer.new()
+	_awakening_card_container.name = "AwakeningCard"
+	view.add_child(_awakening_card_container)
 
 	return view
 
@@ -292,7 +332,7 @@ func _rebuild_slot_list() -> void:
 		card.add_child(row)
 		var edit_button := Button.new()
 		edit_button.name = "EditSlotButton_%d" % i
-		edit_button.text = "編集"
+		edit_button.text = tr("編集")
 		edit_button.pressed.connect(_on_edit_slot_pressed.bind(slot_id))
 		row.add_child(edit_button)
 		var up_button := Button.new()
@@ -307,11 +347,64 @@ func _rebuild_slot_list() -> void:
 		row.add_child(down_button)
 		var delete_button := Button.new()
 		delete_button.name = "DeleteSlotButton_%d" % i
-		delete_button.text = "削除"
+		delete_button.text = tr("削除")
 		delete_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 		delete_button.pressed.connect(_on_delete_slot_from_list_pressed.bind(slot_id))
 		row.add_child(delete_button)
 	_add_slot_button.disabled = not draft.can_add_action_slot()
+	_rebuild_awakening_card()
+
+## 覚醒: 未設定ならセパレータ/カードごと非表示。設定済みなら条件・自己強化・
+## HP回復の要約(既存のRBMActionPatternSummary.when_line()をそのまま再利用)
+## +編集/削除のみ（↑↓は無い——通常行動の並び替え対象ではないため）。
+func _rebuild_awakening_card() -> void:
+	for child in _awakening_card_container.get_children():
+		_awakening_card_container.remove_child(child)
+		child.queue_free()
+	var has_awakening := draft.has_awakening()
+	_awakening_separator.visible = has_awakening
+	_awakening_card_container.visible = has_awakening
+	if not has_awakening:
+		return
+	var awakening := draft.awakening
+	_add_label(_awakening_card_container, tr("覚醒"))
+	_add_label(_awakening_card_container, RBMActionPatternSummary.when_line(awakening.get("conditions", []), str(awakening.get("condition_logic", RBMActionPatternRules.DEFAULT_CONDITION_LOGIC)), draft))
+	_add_label(_awakening_card_container, _awakening_buff_line(awakening))
+	_add_label(_awakening_card_container, _awakening_heal_line(awakening))
+	var row := HBoxContainer.new()
+	_awakening_card_container.add_child(row)
+	var edit_button := Button.new()
+	edit_button.name = "EditAwakeningButton"
+	edit_button.text = tr("編集")
+	edit_button.pressed.connect(_on_edit_awakening_pressed)
+	row.add_child(edit_button)
+	var delete_button := Button.new()
+	delete_button.name = "DeleteAwakeningButton"
+	delete_button.text = tr("削除")
+	delete_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
+	delete_button.pressed.connect(_on_delete_awakening_pressed)
+	row.add_child(delete_button)
+
+func _awakening_buff_line(awakening: Dictionary) -> String:
+	var buff: Dictionary = awakening.get("buff", {})
+	if buff.is_empty():
+		return tr("自己強化：なし")
+	return tr("自己強化：ATK×%.2f / %dターン") % [float(buff.get("buff_multiplier", 1.0)), int(buff.get("duration_turns", 1))]
+
+func _awakening_heal_line(awakening: Dictionary) -> String:
+	var heal: Dictionary = awakening.get("heal", {})
+	if heal.is_empty():
+		return tr("HP回復：なし")
+	if str(heal.get("heal_mode", "fixed")) == "percent":
+		return tr("HP回復：最大HPの%.1f%%") % float(heal.get("heal_percent", 0.0))
+	return tr("HP回復：HP%d") % int(heal.get("heal_fixed_amount", 0))
+
+func _on_edit_awakening_pressed() -> void:
+	_open_skill_slot_for_awakening_edit()
+
+func _on_delete_awakening_pressed() -> void:
+	draft.remove_awakening()
+	refresh()
 
 func _on_add_slot_pressed() -> void:
 	if not draft.can_add_action_slot():
@@ -370,29 +463,29 @@ func _collect_slot_referenced_skill_ids(slot: Dictionary) -> Array[String]:
 func _build_add_choice_view() -> VBoxContainer:
 	var view := VBoxContainer.new()
 	view.name = "AddChoiceView"
-	_add_label(view, "攻撃の追加方法を選んでください")
+	_add_label(view, tr("攻撃の追加方法を選んでください"))
 
 	var pick_existing := Button.new()
 	pick_existing.name = "AddChoicePickExistingButton"
-	pick_existing.text = "既存の攻撃から選ぶ"
+	pick_existing.text = tr("既存の攻撃から選ぶ")
 	pick_existing.pressed.connect(_on_add_choice_pick_existing_pressed)
 	view.add_child(pick_existing)
 
 	var create_new := Button.new()
 	create_new.name = "AddChoiceCreateNewButton"
-	create_new.text = "新しく攻撃を作る"
+	create_new.text = tr("新しく攻撃を作る")
 	create_new.pressed.connect(_on_add_choice_create_new_pressed)
 	view.add_child(create_new)
 
 	var create_random := Button.new()
 	create_random.name = "AddChoiceCreateRandomButton"
-	create_random.text = "ランダム攻撃を作る"
+	create_random.text = tr("ランダム攻撃を作る")
 	create_random.pressed.connect(_on_add_choice_create_random_pressed)
 	view.add_child(create_random)
 
 	var cancel := Button.new()
 	cancel.name = "AddChoiceCancelButton"
-	cancel.text = "キャンセル"
+	cancel.text = tr("キャンセル")
 	cancel.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel.pressed.connect(_on_add_choice_cancel_pressed)
 	view.add_child(cancel)
@@ -421,7 +514,7 @@ func _on_add_choice_cancel_pressed() -> void:
 func _build_pick_existing_view() -> VBoxContainer:
 	var view := VBoxContainer.new()
 	view.name = "PickExistingView"
-	_add_label(view, "既存の攻撃から選んでください")
+	_add_label(view, tr("既存の攻撃から選んでください"))
 
 	_pick_existing_list = VBoxContainer.new()
 	_pick_existing_list.name = "PickExistingList"
@@ -429,7 +522,7 @@ func _build_pick_existing_view() -> VBoxContainer:
 
 	var cancel := Button.new()
 	cancel.name = "PickExistingCancelButton"
-	cancel.text = "キャンセル"
+	cancel.text = tr("キャンセル")
 	cancel.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel.pressed.connect(_on_pick_existing_cancel_pressed)
 	view.add_child(cancel)
@@ -453,11 +546,11 @@ func _rebuild_skill_pick_list(list_container: VBoxContainer, button_name_format:
 		var row := HBoxContainer.new()
 		row.name = "SkillPickRow_%d" % i
 		var label := Label.new()
-		label.text = "%s（%s）" % [str(skill.get("name", "?")), RBMActionPatternSummary.skill_performance_line(skill)]
+		label.text = tr("%s（%s）") % [str(skill.get("name", "?")), RBMActionPatternSummary.skill_performance_line(skill)]
 		row.add_child(label)
 		var select_button := Button.new()
 		select_button.name = button_name_format % i
-		select_button.text = "選択"
+		select_button.text = tr("選択")
 		select_button.pressed.connect(on_selected.bind(skill_id))
 		row.add_child(select_button)
 		list_container.add_child(row)
@@ -476,7 +569,7 @@ func _on_pick_existing_cancel_pressed() -> void:
 func _build_skill_slot_view() -> VBoxContainer:
 	var view := VBoxContainer.new()
 	view.name = "SkillSlotView"
-	_add_label(view, "攻撃の設定")
+	_add_label(view, tr("攻撃の設定"))
 
 	_skill_slot_performance_summary_row = HBoxContainer.new()
 	_skill_slot_performance_summary_row.name = "SkillSlotPerformanceSummaryRow"
@@ -486,7 +579,7 @@ func _build_skill_slot_view() -> VBoxContainer:
 	_skill_slot_performance_summary_row.add_child(_skill_slot_performance_summary_label)
 	var edit_performance_button := Button.new()
 	edit_performance_button.name = "SkillSlotEditPerformanceButton"
-	edit_performance_button.text = "性能を編集"
+	edit_performance_button.text = tr("性能を編集")
 	edit_performance_button.pressed.connect(_on_skill_slot_edit_performance_pressed)
 	_skill_slot_performance_summary_row.add_child(edit_performance_button)
 
@@ -498,7 +591,8 @@ func _build_skill_slot_view() -> VBoxContainer:
 	_skill_slot_condition_uses_slot.name = "SkillSlotConditionUsesSlot"
 	view.add_child(_skill_slot_condition_uses_slot)
 
-	var actions_row := HBoxContainer.new()
+	_skill_slot_actions_row = HBoxContainer.new()
+	var actions_row := _skill_slot_actions_row
 	view.add_child(actions_row)
 	_skill_slot_confirm_button = Button.new()
 	_skill_slot_confirm_button.name = "SkillSlotConfirmButton"
@@ -506,13 +600,13 @@ func _build_skill_slot_view() -> VBoxContainer:
 	actions_row.add_child(_skill_slot_confirm_button)
 	var cancel_button := Button.new()
 	cancel_button.name = "SkillSlotCancelButton"
-	cancel_button.text = "キャンセル"
+	cancel_button.text = tr("キャンセル")
 	cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel_button.pressed.connect(_on_skill_slot_cancel_pressed)
 	actions_row.add_child(cancel_button)
 	_skill_slot_delete_button = Button.new()
 	_skill_slot_delete_button.name = "SkillSlotDeleteButton"
-	_skill_slot_delete_button.text = "この攻撃を削除"
+	_skill_slot_delete_button.text = tr("この攻撃を削除")
 	_skill_slot_delete_button.pressed.connect(_on_skill_slot_delete_pressed)
 	actions_row.add_child(_skill_slot_delete_button)
 
@@ -522,18 +616,30 @@ func _open_skill_slot_for_new_creation() -> void:
 	_skill_slot_editing_slot_id = ""
 	_skill_slot_skill_id = ""
 	_skill_slot_is_new_creation = true
+	_skill_slot_editing_awakening = false
 	_skill_slot_has_original_snapshot = false
 	_pending_conditions = []
 	_pending_condition_logic = RBMActionPatternRules.DEFAULT_CONDITION_LOGIC
 	_pending_max_uses = RBMActionPatternRules.UNLIMITED_USES
 	_form.reparent(_skill_slot_form_slot)
-	_form.open_for_new("攻撃を作る")
+	_form.open_for_new(tr("攻撃を作る"))
+	# 覚醒は「最大1つ」と「現在の外見が覚醒に対応しているか」の2条件が
+	# 両方揃って初めて選択可能——理由が異なる2つのdisabled要因を、内部では
+	# 別々の真偽値のまま保持する(混同しない、UIには単一のdisabled状態
+	# だけを渡す)。選んでからエラーにするのではなく、最初から選べない
+	# 状態にする。
+	var awakening_already_configured := draft.has_awakening()
+	var appearance_supports_awakening := draft.supports_awakening()
+	_form.set_awakening_type_available(appearance_supports_awakening and not awakening_already_configured)
 	_form.set_save_cancel_buttons_visible(false)
 	_skill_slot_form_active = true
 	_condition_uses_block.reparent(_skill_slot_condition_uses_slot)
 	_condition_uses_block.visible = true
-	_skill_slot_confirm_button.text = "攻撃を追加"
+	_set_condition_type_options(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES)
+	_set_uses_section_visible(true)
+	_skill_slot_confirm_button.text = tr("攻撃を追加")
 	_skill_slot_delete_button.visible = false
+	_skill_slot_delete_button.text = tr("この攻撃を削除")
 	_show_only(_skill_slot_view)
 	_refresh_skill_slot_view()
 
@@ -541,6 +647,7 @@ func _open_skill_slot_for_existing_pick(skill_id: String) -> void:
 	_skill_slot_editing_slot_id = ""
 	_skill_slot_skill_id = skill_id
 	_skill_slot_is_new_creation = false
+	_skill_slot_editing_awakening = false
 	_skill_slot_original_skill_snapshot = draft.find_skill(skill_id).duplicate(true)
 	_skill_slot_has_original_snapshot = true
 	_pending_conditions = []
@@ -550,8 +657,11 @@ func _open_skill_slot_for_existing_pick(skill_id: String) -> void:
 	_skill_slot_form_active = false
 	_condition_uses_block.reparent(_skill_slot_condition_uses_slot)
 	_condition_uses_block.visible = true
-	_skill_slot_confirm_button.text = "攻撃を追加"
+	_set_condition_type_options(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES)
+	_set_uses_section_visible(true)
+	_skill_slot_confirm_button.text = tr("攻撃を追加")
 	_skill_slot_delete_button.visible = false
+	_skill_slot_delete_button.text = tr("この攻撃を削除")
 	_show_only(_skill_slot_view)
 	_refresh_skill_slot_view()
 
@@ -560,6 +670,7 @@ func _open_skill_slot_for_edit(slot_id: String) -> void:
 	_skill_slot_editing_slot_id = slot_id
 	_skill_slot_skill_id = str(slot.get("skill_id", ""))
 	_skill_slot_is_new_creation = false
+	_skill_slot_editing_awakening = false
 	_skill_slot_original_skill_snapshot = draft.find_skill(_skill_slot_skill_id).duplicate(true)
 	_skill_slot_has_original_snapshot = true
 	_pending_conditions = (slot.get("conditions", []) as Array).duplicate(true)
@@ -569,15 +680,45 @@ func _open_skill_slot_for_edit(slot_id: String) -> void:
 	_skill_slot_form_active = false
 	_condition_uses_block.reparent(_skill_slot_condition_uses_slot)
 	_condition_uses_block.visible = true
-	_skill_slot_confirm_button.text = "保存"
+	_set_condition_type_options(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES)
+	_set_uses_section_visible(true)
+	_skill_slot_confirm_button.text = tr("保存")
 	_skill_slot_delete_button.visible = true
+	_skill_slot_delete_button.text = tr("この攻撃を削除")
+	_show_only(_skill_slot_view)
+	_refresh_skill_slot_view()
+
+## 覚醒: 設定済みの覚醒を編集する専用エントリポイント。draft.skillsを
+## 一切経由しない——_skill_slot_skill_id/_skill_slot_editing_slot_idは
+## 常に空のまま（通常スキルのように参照するskill_idを持たない）。
+func _open_skill_slot_for_awakening_edit() -> void:
+	_skill_slot_editing_slot_id = ""
+	_skill_slot_skill_id = ""
+	_skill_slot_is_new_creation = false
+	_skill_slot_editing_awakening = true
+	_skill_slot_has_original_snapshot = false
+	var awakening := draft.awakening
+	_pending_conditions = (awakening.get("conditions", []) as Array).duplicate(true)
+	_pending_condition_logic = str(awakening.get("condition_logic", RBMActionPatternRules.DEFAULT_CONDITION_LOGIC))
+	_pending_max_uses = RBMActionPatternRules.UNLIMITED_USES
+	_form.reparent(_skill_slot_form_slot)
+	_form.open_for_awakening(awakening, tr("覚醒を編集"))
+	_form.set_save_cancel_buttons_visible(false)
+	_skill_slot_form_active = true
+	_condition_uses_block.reparent(_skill_slot_condition_uses_slot)
+	_condition_uses_block.visible = true
+	_set_condition_type_options(RBMActionPatternRules.AWAKENING_UI_CONDITION_TYPES)
+	_set_uses_section_visible(false)
+	_skill_slot_confirm_button.text = tr("保存")
+	_skill_slot_delete_button.visible = true
+	_skill_slot_delete_button.text = tr("覚醒を削除")
 	_show_only(_skill_slot_view)
 	_refresh_skill_slot_view()
 
 func _on_skill_slot_edit_performance_pressed() -> void:
 	_form_context = "skill_slot_edit_performance"
 	_form.reparent(_skill_slot_form_slot)
-	_form.open_for_editing(_skill_slot_skill_id, "攻撃の性能を編集")
+	_form.open_for_editing(_skill_slot_skill_id, tr("攻撃の性能を編集"))
 	_form.set_save_cancel_buttons_visible(true)
 	_skill_slot_form_active = true
 	_refresh_skill_slot_view()
@@ -588,9 +729,41 @@ func _refresh_skill_slot_view() -> void:
 	if not _skill_slot_form_active:
 		var skill := draft.find_skill(_skill_slot_skill_id)
 		_skill_slot_performance_summary_label.text = "%s\n%s" % [str(skill.get("name", "?")), RBMActionPatternSummary.skill_performance_line(skill)]
+	# 不具合修正: 「性能を編集」の内側フォームが自分自身の保存/キャンセルを
+	# 持っている間（_form_context=="skill_slot_edit_performance"）は、外側の
+	# [保存][キャンセル][この攻撃を削除]行を隠す——内側フォームへ入力中の
+	# 未保存の内容を無視したまま外側の「保存」を押せてしまう経路を、ボタン
+	# 自体を隠すことで塞ぐ（新規作成/覚醒編集の文脈では内側フォーム自身の
+	# 保存/キャンセルを表示しないため、この行は引き続き唯一の手段として
+	# 表示したままにする）。
+	_skill_slot_actions_row.visible = not (_skill_slot_form_active and _form_context == "skill_slot_edit_performance")
 	_refresh_condition_uses_block()
 
 func _on_skill_slot_confirm_pressed() -> void:
+	# 覚醒: 新規作成フロー中に種類ドロップダウンで「覚醒」が選ばれている、
+	# または「覚醒を編集」から開かれたセッション——どちらもdraft.awakening
+	# へ保存する（draft.skills/action_sequenceには一切触れない）。
+	if _skill_slot_form_active:
+		var form_data := _form.current_action_data()
+		if str(form_data.get("type", "")) == RBMActionEditorForm.AWAKENING:
+			draft.set_awakening({
+				"conditions": _pending_conditions,
+				"condition_logic": _pending_condition_logic,
+				"buff": form_data.get("buff", {}),
+				"heal": form_data.get("heal", {}),
+			})
+			_close_skill_slot_view()
+			refresh()
+			return
+		# 不具合修正(行動名更新不具合): 通常は_refresh_skill_slot_view()が
+		# 外側の[保存]自体を隠すため、既存skillの「性能を編集」フォームが
+		# まだ開いたままここへ到達することは無いはずだが、念のための防御と
+		# して残す——もし到達した場合、フォームへ入力中の内容(行動名等)を
+		# 無視して古いskillデータのまま閉じてしまわないよう、内側フォーム
+		# 自身の保存(_on_save_pressed())と同じdraft.update_skill()を先に
+		# 適用してから続行する。
+		if not _skill_slot_is_new_creation and not _skill_slot_skill_id.is_empty():
+			draft.update_skill(_skill_slot_skill_id, form_data)
 	var skill_id := _skill_slot_skill_id
 	if _skill_slot_is_new_creation:
 		var data := _form.current_action_data()
@@ -626,6 +799,11 @@ func _on_skill_slot_cancel_pressed() -> void:
 	refresh()
 
 func _on_skill_slot_delete_pressed() -> void:
+	if _skill_slot_editing_awakening:
+		draft.remove_awakening()
+		_close_skill_slot_view()
+		refresh()
+		return
 	var skill_id := _skill_slot_skill_id
 	draft.remove_action_slot(_skill_slot_editing_slot_id)
 	draft.remove_skill_if_unreferenced(skill_id)
@@ -637,6 +815,7 @@ func _on_skill_slot_delete_pressed() -> void:
 func _close_skill_slot_view() -> void:
 	_form.visible = false
 	_skill_slot_form_active = false
+	_skill_slot_editing_awakening = false
 	_form_context = ""
 	_skill_slot_has_original_snapshot = false
 	_show_only(_list_view)
@@ -648,17 +827,17 @@ func _close_skill_slot_view() -> void:
 func _build_random_editor_view() -> VBoxContainer:
 	var view := VBoxContainer.new()
 	view.name = "RandomEditorView"
-	_add_label(view, "ランダム攻撃の設定")
+	_add_label(view, tr("ランダム攻撃の設定"))
 
-	_add_label(view, "■ 使用する攻撃")
+	_add_label(view, tr("■ 使用する攻撃"))
 
 	var mode_row := HBoxContainer.new()
 	view.add_child(mode_row)
-	mode_row.add_child(_new_label("確率設定"))
+	mode_row.add_child(_new_label(tr("確率設定")))
 	_random_mode_option = OptionButton.new()
 	_random_mode_option.name = "RandomModeOption"
 	for mode in RBMActionPatternRules.RANDOM_MODES:
-		_random_mode_option.add_item(str(RBMActionPatternRules.RANDOM_MODE_LABELS.get(mode, mode)))
+		_random_mode_option.add_item(tr(str(RBMActionPatternRules.RANDOM_MODE_LABELS.get(mode, mode))))
 	_random_mode_option.item_selected.connect(_on_random_mode_selected)
 	mode_row.add_child(_random_mode_option)
 
@@ -668,7 +847,7 @@ func _build_random_editor_view() -> VBoxContainer:
 
 	var add_candidate_button := Button.new()
 	add_candidate_button.name = "RandomAddCandidateButton"
-	add_candidate_button.text = "＋ 攻撃を追加する"
+	add_candidate_button.text = tr("＋ 攻撃を追加する")
 	add_candidate_button.pressed.connect(_on_random_add_candidate_pressed)
 	view.add_child(add_candidate_button)
 
@@ -684,13 +863,13 @@ func _build_random_editor_view() -> VBoxContainer:
 	actions_row.add_child(_random_confirm_button)
 	var cancel_button := Button.new()
 	cancel_button.name = "RandomCancelButton"
-	cancel_button.text = "キャンセル"
+	cancel_button.text = tr("キャンセル")
 	cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel_button.pressed.connect(_on_random_cancel_pressed)
 	actions_row.add_child(cancel_button)
 	_random_delete_button = Button.new()
 	_random_delete_button.name = "RandomDeleteButton"
-	_random_delete_button.text = "このランダム攻撃を削除"
+	_random_delete_button.text = tr("このランダム攻撃を削除")
 	_random_delete_button.pressed.connect(_on_random_delete_pressed)
 	actions_row.add_child(_random_delete_button)
 
@@ -705,10 +884,11 @@ func _open_random_editor_for_new() -> void:
 	_pending_max_uses = RBMActionPatternRules.UNLIMITED_USES
 	_random_original_candidate_ids.clear()
 	_random_original_skill_snapshots.clear()
-	_random_confirm_button.text = "ランダム攻撃を追加"
+	_random_confirm_button.text = tr("ランダム攻撃を追加")
 	_random_delete_button.visible = false
 	_condition_uses_block.reparent(_random_condition_uses_slot)
 	_condition_uses_block.visible = true
+	_set_condition_type_options(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES)
 	_show_only(_random_editor_view)
 	_refresh_random_editor_view()
 
@@ -730,10 +910,11 @@ func _open_random_editor_for_edit(slot_id: String) -> void:
 		var s := draft.find_skill(sid)
 		if not s.is_empty():
 			_random_original_skill_snapshots[sid] = s.duplicate(true)
-	_random_confirm_button.text = "保存"
+	_random_confirm_button.text = tr("保存")
 	_random_delete_button.visible = true
 	_condition_uses_block.reparent(_random_condition_uses_slot)
 	_condition_uses_block.visible = true
+	_set_condition_type_options(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES)
 	_show_only(_random_editor_view)
 	_refresh_random_editor_view()
 
@@ -757,7 +938,7 @@ func _rebuild_random_candidate_list() -> void:
 		var row := HBoxContainer.new()
 		row.name = "RandomCandidateRow_%d" % i
 		var label := Label.new()
-		label.text = "%s（%s）" % [str(skill.get("name", "?")), RBMActionPatternSummary.skill_performance_line(skill)]
+		label.text = tr("%s（%s）") % [str(skill.get("name", "?")), RBMActionPatternSummary.skill_performance_line(skill)]
 		row.add_child(label)
 		if is_manual:
 			var weight_spin := SpinBox.new()
@@ -770,12 +951,12 @@ func _rebuild_random_candidate_list() -> void:
 			row.add_child(weight_spin)
 		var edit_button := Button.new()
 		edit_button.name = "EditRandomCandidateButton_%d" % i
-		edit_button.text = "編集"
+		edit_button.text = tr("編集")
 		edit_button.pressed.connect(_edit_random_candidate_performance.bind(i))
 		row.add_child(edit_button)
 		var delete_button := Button.new()
 		delete_button.name = "DeleteRandomCandidateButton_%d" % i
-		delete_button.text = "削除"
+		delete_button.text = tr("削除")
 		delete_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 		delete_button.pressed.connect(_remove_random_candidate.bind(i))
 		row.add_child(delete_button)
@@ -802,7 +983,7 @@ func _edit_random_candidate_performance(index: int) -> void:
 	var skill_id := str((_random_candidates[index] as Dictionary).get("skill_id", ""))
 	_form_context = "random_candidate_edit_performance"
 	_form.reparent(_random_create_new_form_slot)
-	_form.open_for_editing(skill_id, "候補の性能を編集")
+	_form.open_for_editing(skill_id, tr("候補の性能を編集"))
 	_form.set_save_cancel_buttons_visible(true)
 	_show_only(_random_create_new_view)
 
@@ -887,23 +1068,23 @@ func _forget_or_delete_provisional_skill(skill_id: String) -> void:
 func _build_random_add_choice_view() -> VBoxContainer:
 	var view := VBoxContainer.new()
 	view.name = "RandomAddChoiceView"
-	_add_label(view, "候補の追加方法を選んでください")
+	_add_label(view, tr("候補の追加方法を選んでください"))
 
 	var pick_existing := Button.new()
 	pick_existing.name = "RandomAddChoicePickExistingButton"
-	pick_existing.text = "既存の攻撃から選ぶ"
+	pick_existing.text = tr("既存の攻撃から選ぶ")
 	pick_existing.pressed.connect(_on_random_add_choice_pick_existing_pressed)
 	view.add_child(pick_existing)
 
 	var create_new := Button.new()
 	create_new.name = "RandomAddChoiceCreateNewButton"
-	create_new.text = "新しく攻撃を作る"
+	create_new.text = tr("新しく攻撃を作る")
 	create_new.pressed.connect(_on_random_add_choice_create_new_pressed)
 	view.add_child(create_new)
 
 	var cancel := Button.new()
 	cancel.name = "RandomAddChoiceCancelButton"
-	cancel.text = "キャンセル"
+	cancel.text = tr("キャンセル")
 	cancel.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel.pressed.connect(_on_random_add_choice_cancel_pressed)
 	view.add_child(cancel)
@@ -919,7 +1100,7 @@ func _on_random_add_choice_create_new_pressed() -> void:
 		return
 	_form_context = "random_candidate_new"
 	_form.reparent(_random_create_new_form_slot)
-	_form.open_for_new("候補となる攻撃を作る")
+	_form.open_for_new(tr("候補となる攻撃を作る"))
 	_form.set_save_cancel_buttons_visible(true)
 	_show_only(_random_create_new_view)
 
@@ -933,7 +1114,7 @@ func _on_random_add_choice_cancel_pressed() -> void:
 func _build_random_pick_existing_view() -> VBoxContainer:
 	var view := VBoxContainer.new()
 	view.name = "RandomPickExistingView"
-	_add_label(view, "既存の攻撃から選んでください")
+	_add_label(view, tr("既存の攻撃から選んでください"))
 
 	_random_pick_existing_list = VBoxContainer.new()
 	_random_pick_existing_list.name = "RandomPickExistingList"
@@ -941,7 +1122,7 @@ func _build_random_pick_existing_view() -> VBoxContainer:
 
 	var cancel := Button.new()
 	cancel.name = "RandomPickExistingCancelButton"
-	cancel.text = "キャンセル"
+	cancel.text = tr("キャンセル")
 	cancel.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel.pressed.connect(_on_random_pick_existing_cancel_pressed)
 	view.add_child(cancel)
@@ -966,7 +1147,7 @@ func _on_random_pick_existing_cancel_pressed() -> void:
 func _build_random_create_new_view() -> VBoxContainer:
 	var view := VBoxContainer.new()
 	view.name = "RandomCreateNewView"
-	_add_label(view, "新しく攻撃を作る")
+	_add_label(view, tr("新しく攻撃を作る"))
 
 	_random_create_new_form_slot = MarginContainer.new()
 	_random_create_new_form_slot.name = "RandomCreateNewFormSlot"
@@ -1022,7 +1203,7 @@ func _build_condition_uses_block() -> VBoxContainer:
 	var block := VBoxContainer.new()
 	block.name = "ConditionUsesBlock"
 
-	_add_label(block, "■ 発動条件")
+	_add_label(block, tr("■ 発動条件"))
 
 	_condition_list = VBoxContainer.new()
 	_condition_list.name = "ConditionList"
@@ -1031,13 +1212,13 @@ func _build_condition_uses_block() -> VBoxContainer:
 	_condition_logic_option = OptionButton.new()
 	_condition_logic_option.name = "ConditionLogicOption"
 	for logic in RBMActionPatternRules.CONDITION_LOGIC_TYPES:
-		_condition_logic_option.add_item(str(RBMActionPatternRules.CONDITION_LOGIC_LABELS.get(logic, logic)))
+		_condition_logic_option.add_item(tr(str(RBMActionPatternRules.CONDITION_LOGIC_LABELS.get(logic, logic))))
 	_condition_logic_option.item_selected.connect(_on_condition_logic_selected)
 	block.add_child(_condition_logic_option)
 
 	_add_condition_button = Button.new()
 	_add_condition_button.name = "AddConditionButton"
-	_add_condition_button.text = "＋ 条件をつける"
+	_add_condition_button.text = tr("＋ 条件をつける")
 	_add_condition_button.pressed.connect(_on_add_condition_pressed)
 	block.add_child(_add_condition_button)
 
@@ -1047,79 +1228,97 @@ func _build_condition_uses_block() -> VBoxContainer:
 	block.add_child(_condition_editor)
 	_build_condition_editor()
 
-	_add_label(block, "■ 使用回数")
+	_uses_section_heading = _add_label(block, tr("■ 使用回数"))
 
-	var uses_row := HBoxContainer.new()
-	block.add_child(uses_row)
+	_uses_row = HBoxContainer.new()
+	block.add_child(_uses_row)
 	var uses_group := ButtonGroup.new()
 	_uses_unlimited_check = CheckBox.new()
 	_uses_unlimited_check.name = "UsesUnlimitedCheck"
-	_uses_unlimited_check.text = "制限なし"
+	_uses_unlimited_check.text = tr("制限なし")
 	_uses_unlimited_check.button_group = uses_group
 	_uses_unlimited_check.toggled.connect(_on_uses_unlimited_toggled)
-	uses_row.add_child(_uses_unlimited_check)
+	_uses_row.add_child(_uses_unlimited_check)
 	_uses_limited_check = CheckBox.new()
 	_uses_limited_check.name = "UsesLimitedCheck"
-	_uses_limited_check.text = "回数を指定"
+	_uses_limited_check.text = tr("回数を指定")
 	_uses_limited_check.button_group = uses_group
 	_uses_limited_check.toggled.connect(_on_uses_limited_toggled)
-	uses_row.add_child(_uses_limited_check)
+	_uses_row.add_child(_uses_limited_check)
 	_uses_count_spin = SpinBox.new()
 	_uses_count_spin.name = "UsesCountSpin"
 	_uses_count_spin.min_value = 1
 	_uses_count_spin.max_value = 999
 	_uses_count_spin.step = 1
 	_uses_count_spin.value_changed.connect(_on_uses_count_changed)
-	uses_row.add_child(_uses_count_spin)
+	_uses_row.add_child(_uses_count_spin)
 
 	return block
+
+## 覚醒選択中は既存の「使用回数」UIを使わない（1戦闘1回固定のため）——
+## 見出し・行の両方を隠すだけで、_pending_max_usesの値自体には触れない
+## （覚醒のconfirm処理がmax_usesを一切参照しないため、値が残っていても
+## 実害はない）。
+func _set_uses_section_visible(is_visible: bool) -> void:
+	_uses_section_heading.visible = is_visible
+	_uses_row.visible = is_visible
+
+## _form.type_changedのハンドラ——覚醒を選択している間だけ使用回数UIを隠し、
+## 新規作成フロー中なら確定ボタンの文言も合わせて切り替える。
+func _on_form_type_changed(type_id: String) -> void:
+	_set_uses_section_visible(type_id != RBMActionEditorForm.AWAKENING)
+	# 覚醒へ切り替えた瞬間、まだ何も条件を追加していなければ「条件の種類」
+	# ドロップダウンの選択肢も6種類へ差し替える——既に追加済みの条件
+	# (_pending_conditions)には触れない、選択肢一覧だけを切り替える。
+	_set_condition_type_options(RBMActionPatternRules.AWAKENING_UI_CONDITION_TYPES if type_id == RBMActionEditorForm.AWAKENING else RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES)
+	if _skill_slot_is_new_creation:
+		_skill_slot_confirm_button.text = tr("覚醒を追加") if type_id == RBMActionEditorForm.AWAKENING else tr("攻撃を追加")
 
 func _build_condition_editor() -> void:
 	var type_row := HBoxContainer.new()
 	_condition_editor.add_child(type_row)
 	var type_caption := Label.new()
-	type_caption.text = "条件の種類"
+	type_caption.text = tr("条件の種類")
 	type_row.add_child(type_caption)
 	_condition_type_option = OptionButton.new()
 	_condition_type_option.name = "ConditionTypeOption"
-	for condition_type in RBMActionPatternRules.NORMAL_CONDITION_TYPES:
-		_condition_type_option.add_item(str(RBMActionPatternRules.CONDITION_TYPE_LABELS.get(condition_type, condition_type)))
 	_condition_type_option.item_selected.connect(_on_condition_type_selected)
 	type_row.add_child(_condition_type_option)
+	_set_condition_type_options(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES)
 
-	_condition_percent_row = _labeled_spin_row(_condition_editor, "パーセント (%)", 0.0, 100.0, 1.0)
+	_condition_percent_row = _labeled_spin_row(_condition_editor, tr("パーセント (%)"), 0.0, 100.0, 1.0)
 	_condition_percent_spin = _condition_percent_row.get_child(1)
 
 	_condition_percent_range_row = HBoxContainer.new()
 	_condition_editor.add_child(_condition_percent_range_row)
-	_condition_percent_range_row.add_child(_new_label("下限%"))
+	_condition_percent_range_row.add_child(_new_label(tr("下限%")))
 	_condition_percent_min_spin = _new_spin(0.0, 100.0, 1.0)
 	_condition_percent_range_row.add_child(_condition_percent_min_spin)
-	_condition_percent_range_row.add_child(_new_label("上限%"))
+	_condition_percent_range_row.add_child(_new_label(tr("上限%")))
 	_condition_percent_max_spin = _new_spin(0.0, 100.0, 1.0)
 	_condition_percent_range_row.add_child(_condition_percent_max_spin)
 
-	_condition_turn_row = _labeled_spin_row(_condition_editor, "ターン", 1.0, 999999.0, 1.0)
+	_condition_turn_row = _labeled_spin_row(_condition_editor, tr("ターン"), 1.0, 999999.0, 1.0)
 	_condition_turn_spin = _condition_turn_row.get_child(1)
 
 	_condition_turn_range_row = HBoxContainer.new()
 	_condition_editor.add_child(_condition_turn_range_row)
-	_condition_turn_range_row.add_child(_new_label("下限ターン"))
+	_condition_turn_range_row.add_child(_new_label(tr("下限ターン")))
 	_condition_turn_min_spin = _new_spin(1.0, 999999.0, 1.0)
 	_condition_turn_range_row.add_child(_condition_turn_min_spin)
-	_condition_turn_range_row.add_child(_new_label("上限ターン"))
+	_condition_turn_range_row.add_child(_new_label(tr("上限ターン")))
 	_condition_turn_max_spin = _new_spin(1.0, 999999.0, 1.0)
 	_condition_turn_range_row.add_child(_condition_turn_max_spin)
 
-	_condition_n_row = _labeled_spin_row(_condition_editor, "○ターンごと", 1.0, 999999.0, 1.0)
+	_condition_n_row = _labeled_spin_row(_condition_editor, tr("○ターンごと"), 1.0, 999999.0, 1.0)
 	_condition_n_spin = _condition_n_row.get_child(1)
 
-	_condition_count_row = _labeled_spin_row(_condition_editor, "人数", 0.0, 4.0, 1.0)
+	_condition_count_row = _labeled_spin_row(_condition_editor, tr("人数"), 0.0, 4.0, 1.0)
 	_condition_count_spin = _condition_count_row.get_child(1)
 
 	_condition_character_row = HBoxContainer.new()
 	_condition_editor.add_child(_condition_character_row)
-	_condition_character_row.add_child(_new_label("キャラクター"))
+	_condition_character_row.add_child(_new_label(tr("キャラクター")))
 	_condition_character_option = OptionButton.new()
 	_condition_character_option.name = "ConditionCharacterOption"
 	for character_id in RBMDefinitionLoader.KNOWN_ALLY_PATHS.keys():
@@ -1132,14 +1331,14 @@ func _build_condition_editor() -> void:
 	## 全体から選ぶ）。
 	_condition_boss_skill_row = HBoxContainer.new()
 	_condition_editor.add_child(_condition_boss_skill_row)
-	_condition_boss_skill_row.add_child(_new_label("前回使った行動"))
+	_condition_boss_skill_row.add_child(_new_label(tr("前回使った行動")))
 	_condition_boss_skill_option = OptionButton.new()
 	_condition_boss_skill_option.name = "ConditionBossSkillOption"
 	_condition_boss_skill_row.add_child(_condition_boss_skill_option)
 
 	_condition_ally_skill_row = HBoxContainer.new()
 	_condition_editor.add_child(_condition_ally_skill_row)
-	_condition_ally_skill_row.add_child(_new_label("味方の行動"))
+	_condition_ally_skill_row.add_child(_new_label(tr("味方の行動")))
 	_condition_ally_skill_option = OptionButton.new()
 	_condition_ally_skill_option.name = "ConditionAllySkillOption"
 	for skill_id in RBMActionPatternSummary.all_known_ally_skill_ids():
@@ -1148,23 +1347,23 @@ func _build_condition_editor() -> void:
 
 	_condition_attribute_row = HBoxContainer.new()
 	_condition_editor.add_child(_condition_attribute_row)
-	_condition_attribute_row.add_child(_new_label("属性"))
+	_condition_attribute_row.add_child(_new_label(tr("属性")))
 	_condition_attribute_option = OptionButton.new()
 	_condition_attribute_option.name = "ConditionAttributeOption"
 	for attribute in RBMDefinitionLoader.VALID_ATTRIBUTES:
-		_condition_attribute_option.add_item(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute, attribute)))
+		_condition_attribute_option.add_item(tr(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute, attribute))))
 	_condition_attribute_row.add_child(_condition_attribute_option)
 
 	var confirm_row := HBoxContainer.new()
 	_condition_editor.add_child(confirm_row)
 	var confirm_button := Button.new()
 	confirm_button.name = "ConfirmConditionButton"
-	confirm_button.text = "追加する"
+	confirm_button.text = tr("追加する")
 	confirm_button.pressed.connect(_on_confirm_condition_pressed)
 	confirm_row.add_child(confirm_button)
 	var cancel_button := Button.new()
 	cancel_button.name = "CancelConditionButton"
-	cancel_button.text = "キャンセル"
+	cancel_button.text = tr("キャンセル")
 	cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel_button.pressed.connect(func(): _condition_editor.visible = false)
 	confirm_row.add_child(cancel_button)
@@ -1194,7 +1393,7 @@ func _rebuild_condition_list() -> void:
 		row.add_child(label)
 		var delete_button := Button.new()
 		delete_button.name = "RemoveConditionButton_%d" % i
-		delete_button.text = "削除"
+		delete_button.text = tr("削除")
 		delete_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 		delete_button.pressed.connect(_remove_condition.bind(i))
 		row.add_child(delete_button)
@@ -1217,8 +1416,19 @@ func _on_add_condition_pressed() -> void:
 func _on_condition_type_selected(_index: int) -> void:
 	_refresh_condition_editor_visibility()
 
+## 「条件の種類」ドロップダウンの選択肢を差し替える——通常攻撃/ランダム
+## 攻撃を開く時はNORMAL_ACTION_UI_CONDITION_TYPES、覚醒を開く時はAWAKENING_
+## UI_CONDITION_TYPESを渡す。以後_refresh_condition_editor_visibility()/
+## _on_confirm_condition_pressed()はこの配列を通じてselected indexを解決
+## するため、OptionButtonの実際の項目と常に1対1で対応する。
+func _set_condition_type_options(types: Array[String]) -> void:
+	_active_condition_types = types
+	_condition_type_option.clear()
+	for condition_type in types:
+		_condition_type_option.add_item(tr(str(RBMActionPatternRules.CONDITION_TYPE_LABELS.get(condition_type, condition_type))))
+
 func _refresh_condition_editor_visibility() -> void:
-	var condition_type := RBMActionPatternRules.NORMAL_CONDITION_TYPES[_condition_type_option.selected]
+	var condition_type := _active_condition_types[_condition_type_option.selected]
 	_condition_percent_row.visible = condition_type in ["hp_at_most", "hp_at_least"]
 	_condition_percent_range_row.visible = condition_type == "hp_between"
 	_condition_turn_row.visible = condition_type in ["turn_at", "turn_at_least", "turn_at_most"]
@@ -1231,7 +1441,7 @@ func _refresh_condition_editor_visibility() -> void:
 	_condition_attribute_row.visible = condition_type == "last_received_attribute"
 
 func _on_confirm_condition_pressed() -> void:
-	var condition_type := RBMActionPatternRules.NORMAL_CONDITION_TYPES[_condition_type_option.selected]
+	var condition_type := _active_condition_types[_condition_type_option.selected]
 	var condition := {"type": condition_type}
 	match condition_type:
 		"hp_at_most", "hp_at_least":
@@ -1299,5 +1509,5 @@ func is_step_valid() -> bool:
 
 func validation_message() -> String:
 	if not is_step_valid():
-		return "攻撃の設定に不備があります（ランダム攻撃の候補が0件、または「自分で設定」の確率合計が100%%になっていないランダム攻撃があります）"
+		return tr("攻撃の設定に不備があります（ランダム攻撃の候補が0件、または「自分で設定」の確率合計が100%%になっていないランダム攻撃があります）")
 	return ""

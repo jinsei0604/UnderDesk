@@ -21,6 +21,11 @@ var _title_effects: RBMTitleEffects
 var _menu_panel: Control
 var _create_button: Button
 var _challenge_button: Button
+var _locale_button: Button
+var _challenge_text_patch: TextureRect
+var _create_text_patch: TextureRect
+var _challenge_text_texture: TextureRect
+var _create_text_texture: TextureRect
 
 var creator_entry: RBMCreatorEntry
 var challenge_entry: RBMChallengeEntry
@@ -95,6 +100,31 @@ const TITLE_IMAGE_PATH := "res://assets_bossmaker/art/title_screen_makers_and_ch
 const TITLE_IMAGE_SIZE := Vector2(1672.0, 941.0)
 const CHALLENGE_BUTTON_PIXEL_RECT := Rect2(518.0, 775.0, 290.0, 97.0)
 const CREATE_BUTTON_PIXEL_RECT := Rect2(860.0, 775.0, 290.0, 97.0)
+
+## ローカライズ品質修正（ユーザーフィードバック対応、2回目）: 当初はこの
+## パッチを単色ColorRect（#472a17固定塗り）で実装していたが、実際のボタン
+## 絵は上が明るく下が暗い縦方向のグラデーション＋微細なノイズを持つため、
+## 単色パッチがボタン地と馴染まず「薄い四角い背景」として視認できてしまう
+## 問題があった。修正: 完成画像自体には一切触れず（§1の禁止事項どおり、
+## 画像の再加工/再生成/トリミングは行わない）、このパッチ矩形の各行を
+## スキャンし、文字の塗り色（明るいクリーム）と影色（黒）に該当する外れ値
+## ピクセルだけを除外した残りの画素の平均色をその行の色として再構成した
+## 「行ごとのグラデーション再現パッチ」画像（tools/vfx_prototype/
+## _gen_patch_bg.gdで生成、生成後は削除済み）を新規アセットとして用意し、
+## 単色ColorRectの代わりにこれを敷く——ボタン自身の縦グラデーションと
+## 継ぎ目なく馴染む。日本語モードではこのパッチ・差し替えテクスチャとも
+## 非表示にして完成画像の「挑戦」「作成」のドット文字をそのまま見せる
+## （修正前と完全に同じ見た目）。Englishモードの時だけパッチ＋事前生成した
+## ピクセルアート調のCHALLENGE/CREATEテクスチャ（tools/vfx_prototype/
+## _regen_centered_text.gdで、文字＋影の内容バウンディングボックスに対し
+## 四辺均等パディングで再生成——中心が視覚的な中心と一致するよう修正済み、
+## 生成後は削除済み）を重ねる。
+const CHALLENGE_TEXT_PATCH_RECT := Rect2(561.0, 790.0, 212.0, 67.0)
+const CREATE_TEXT_PATCH_RECT := Rect2(903.0, 790.0, 212.0, 67.0)
+const CHALLENGE_TEXT_PATCH_TEXTURE_PATH := "res://assets_bossmaker/art/title_button_patch_challenge.png"
+const CREATE_TEXT_PATCH_TEXTURE_PATH := "res://assets_bossmaker/art/title_button_patch_create.png"
+const CHALLENGE_TEXT_TEXTURE_PATH := "res://assets_bossmaker/art/title_button_text_challenge_en.png"
+const CREATE_TEXT_TEXTURE_PATH := "res://assets_bossmaker/art/title_button_text_create_en.png"
 
 ## pixel_rect（TITLE_IMAGE_SIZE基準のピクセル座標）をTITLE_IMAGE_SIZEに対する
 ## 比率へ変換し、controlのアンカーとして設定する（offsetは全て0——アンカー
@@ -184,7 +214,7 @@ func _build_ui() -> void:
 	# シグナル配線は無改修。
 	_challenge_button = Button.new()
 	_challenge_button.name = "ChallengeModeButton"
-	_challenge_button.text = "挑戦"
+	_challenge_button.text = tr("挑戦")
 	_challenge_button.theme_type_variation = RBMUiTheme.VARIATION_IMAGE_HOTSPOT_BUTTON
 	_challenge_button.focus_mode = Control.FOCUS_ALL
 	apply_image_fraction_rect(_challenge_button, CHALLENGE_BUTTON_PIXEL_RECT)
@@ -193,13 +223,158 @@ func _build_ui() -> void:
 
 	_create_button = Button.new()
 	_create_button.name = "CreateModeButton"
-	_create_button.text = "作成"
+	_create_button.text = tr("作成")
 	_create_button.theme_type_variation = RBMUiTheme.VARIATION_IMAGE_HOTSPOT_BUTTON
 	_create_button.focus_mode = Control.FOCUS_ALL
 	apply_image_fraction_rect(_create_button, CREATE_BUTTON_PIXEL_RECT)
 	_create_button.pressed.connect(_on_create_pressed)
 	_title_screen.add_child(_create_button)
 
+	# ローカライズ品質修正: 完成画像自体には触れず(画像の再加工/再生成/
+	# トリミングは禁止のまま)、Englishモードの時だけ「挑戦」「作成」の文字
+	# 部分をボタン塗り色のパッチで覆い、完成画像と同じ配色・ドット絵技法で
+	# 事前生成したピクセルアート調テクスチャを重ねる。日本語モードではパッチ
+	# ・テクスチャとも非表示にし、完成画像のドット文字をそのまま見せる
+	# （_update_title_button_labels()が言語に応じてvisibleを切り替える）。
+	# ボタンの縁の金属鋲・枠線は覆わない範囲（CHALLENGE_TEXT_PATCH_RECT/
+	# CREATE_TEXT_PATCH_RECTはボタン矩形より一回り小さい内側の矩形）。
+	_challenge_text_patch = TextureRect.new()
+	_challenge_text_patch.name = "ChallengeTextPatch"
+	_challenge_text_patch.texture = load(CHALLENGE_TEXT_PATCH_TEXTURE_PATH)
+	_challenge_text_patch.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_challenge_text_patch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_challenge_text_patch.stretch_mode = TextureRect.STRETCH_SCALE
+	_challenge_text_patch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	apply_image_fraction_rect(_challenge_text_patch, CHALLENGE_TEXT_PATCH_RECT)
+	_title_screen.add_child(_challenge_text_patch)
+
+	# ローカライズ品質修正（3回目、ユーザーフィードバック対応）: それぞれの
+	# TextureRectをSTRETCH_KEEP_ASPECT_CENTEREDで自分のパッチ矩形いっぱいに
+	# 独立して拡大していたため、"CHALLENGE"（9文字、横長）と"CREATE"（6文字）
+	# とで実際の拡大率が異なり、文字の高さ（=見た目のフォントサイズ）が
+	# 語ごとにバラバラになってしまっていた（幅が短いCREATEの方がより大きく
+	# 拡大される）。修正: 幅で制約される方（＝より長い語、CHALLENGE）を基準に
+	# 「パッチ幅いっぱいに収まる倍率」を1つだけ算出し、その同じ倍率を両方の
+	# 語へ適用する——文字列の長さに応じて片方だけ縮小/拡大する処理はしない。
+	# 結果として得られる表示矩形（画像座標系）を、各パッチ矩形の中央へ配置
+	# する。
+	# 中央基準はCHALLENGE_TEXT_PATCH_RECT（JP文字の実測に基づく内側矩形、鋲・
+	# 枠を避けるための「収まる幅」の算出にのみ使う）ではなく、CHALLENGE_
+	# BUTTON_PIXEL_RECT／CREATE_BUTTON_PIXEL_RECT（ボタン絵そのものの外接
+	# 矩形）を中心基準にする——パッチ矩形はJP2文字の実測値でボタン中心から
+	# 数px内側寄りにずれているため、それを基準にすると文字がボタン中心から
+	# わずかにずれて見える（ユーザー指摘）。
+	var challenge_texture: Texture2D = load(CHALLENGE_TEXT_TEXTURE_PATH)
+	var create_texture: Texture2D = load(CREATE_TEXT_TEXTURE_PATH)
+	var shared_text_scale: float = CHALLENGE_TEXT_PATCH_RECT.size.x / challenge_texture.get_size().x
+	var challenge_display_size := challenge_texture.get_size() * shared_text_scale
+	var create_display_size := create_texture.get_size() * shared_text_scale
+	var challenge_display_rect := Rect2(
+		CHALLENGE_BUTTON_PIXEL_RECT.position + (CHALLENGE_BUTTON_PIXEL_RECT.size - challenge_display_size) * 0.5,
+		challenge_display_size)
+	var create_display_rect := Rect2(
+		CREATE_BUTTON_PIXEL_RECT.position + (CREATE_BUTTON_PIXEL_RECT.size - create_display_size) * 0.5,
+		create_display_size)
+
+	_challenge_text_texture = TextureRect.new()
+	_challenge_text_texture.name = "ChallengeTextTexture"
+	_challenge_text_texture.texture = challenge_texture
+	_challenge_text_texture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_challenge_text_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_challenge_text_texture.stretch_mode = TextureRect.STRETCH_SCALE
+	_challenge_text_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	apply_image_fraction_rect(_challenge_text_texture, challenge_display_rect)
+	_title_screen.add_child(_challenge_text_texture)
+
+	_create_text_patch = TextureRect.new()
+	_create_text_patch.name = "CreateTextPatch"
+	_create_text_patch.texture = load(CREATE_TEXT_PATCH_TEXTURE_PATH)
+	_create_text_patch.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_create_text_patch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_create_text_patch.stretch_mode = TextureRect.STRETCH_SCALE
+	_create_text_patch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	apply_image_fraction_rect(_create_text_patch, CREATE_TEXT_PATCH_RECT)
+	_title_screen.add_child(_create_text_patch)
+
+	_create_text_texture = TextureRect.new()
+	_create_text_texture.name = "CreateTextTexture"
+	_create_text_texture.texture = create_texture
+	_create_text_texture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_create_text_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_create_text_texture.stretch_mode = TextureRect.STRETCH_SCALE
+	_create_text_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	apply_image_fraction_rect(_create_text_texture, create_display_rect)
+	_title_screen.add_child(_create_text_texture)
+
+	# 言語切替ボタン——ホーム画面右上、既存の完成アート/ボタン絵とは重ならない
+	# 領域（挑戦/作成ボタン絵はCHALLENGE_BUTTON_PIXEL_RECT/CREATE_BUTTON_
+	# PIXEL_RECTの通り画像下側にあるため右上は空いている）。RBMUiThemeの
+	# SecondaryButton（LOG/戻る等、補助操作と同じ控えめな見た目）をそのまま
+	# 使い、新しいデザイン言語は持ち込まない。表示文字列自体
+	# （「日本語」「English」）は各言語の自称であり、どちらのUI言語でも
+	# 変わらない——tr()は使わない。
+	_locale_button = Button.new()
+	_locale_button.name = "LocaleToggleButton"
+	_locale_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
+	_locale_button.focus_mode = Control.FOCUS_ALL
+	_locale_button.custom_minimum_size = Vector2(112.0, 40.0)
+	_locale_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_locale_button.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_locale_button.offset_left = -112.0 - 16.0
+	_locale_button.offset_right = -16.0
+	_locale_button.offset_top = 16.0
+	_locale_button.offset_bottom = 16.0 + 40.0
+	_locale_button.pressed.connect(_on_locale_button_pressed)
+	_title_screen.add_child(_locale_button)
+	RBMLocale.locale_changed.connect(_on_locale_changed)
+	_update_locale_button_text()
+	_update_title_button_labels()
+
+	_build_creator_entry()
+	_build_challenge_entry()
+
+	_show_menu()
+
+## ローカライズ監査（2026-09-11）で発見: RBMCreatorEntry/RBMCreatorMainは
+## ここで一度だけ生成され、以後はvisibleの切替だけで使い回される（§4/§5の
+## 既存設計どおり）——STEP1〜5・保存/公開/確認ダイアログ等のボタン文言は
+## いずれも「生成時点でのtr()呼び出し結果」がそのまま.textへ書き込まれる
+## ため、Godot自身のauto_translate（NOTIFICATION_TRANSLATION_CHANGED）は
+## 「生成時点のロケールがja（tr()のソース言語）だった場合」に限り以後も
+## 正しく再翻訳される。生成時点のロケールが既にen（前回セッションで
+## Englishのまま終了し、次回起動時にその設定を読み込んだ場合）だと、
+## .textにはtr()適用後の英語文字列そのものが書き込まれ、それはCSVの
+## キー（日本語文字列）と一致しないため、以後どれだけlocale_changedが
+## 発生してもCreator/Challenge側の表示は英語のまま更新されない（実GPU
+## 検証で確認済みの実際の不具合——チェックリスト#3/#9に該当）。
+## 個々のtr()呼び出し箇所すべてを再実行可能にする改修はCreator/Challenge
+## 内部の広範囲な変更になるため今回は行わず、既存の「1つだけ生成して使い
+## 回す」設計をそのまま活かした形で対処する: ロケール切替ボタン
+## （_locale_button）は_title_screenの子であり、CreatorEntry/
+## ChallengeEntryが表示されている間は決して押せない（_show_only()により
+## 排他表示、かつCreator側は未保存変更があれば既存のpress_exit_creator()
+## 確認フローを経てからしかタイトルへ戻れない）——つまりlocale_changedが
+## 発生し得るのは常に「CreatorEntry/ChallengeEntryがどちらも非表示かつ
+## 内部に保持すべき進行中の状態が無い」瞬間だけ、という既存のナビゲーション
+## 制約を利用し、その瞬間にだけ両Entryを安全に作り直す（＝生成時のtr()を
+## 新しいロケールで再実行させる）。Creator/Challenge自身の仕様・ロジックは
+## 無改修——生成コードそのものを1回多く実行させるだけ。
+func _on_locale_changed(_locale: String) -> void:
+	_update_locale_button_text()
+	_update_title_button_labels()
+	_rebuild_creator_and_challenge_entries_for_current_locale()
+
+func _rebuild_creator_and_challenge_entries_for_current_locale() -> void:
+	if is_instance_valid(creator_entry):
+		creator_entry.queue_free()
+	if is_instance_valid(challenge_entry):
+		challenge_entry.queue_free()
+	_build_creator_entry()
+	_build_challenge_entry()
+	creator_entry.visible = false
+	challenge_entry.visible = false
+
+func _build_creator_entry() -> void:
 	creator_entry = RBMCreatorEntry.new()
 	creator_entry.name = "CreatorEntry"
 	creator_entry.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -207,14 +382,13 @@ func _build_ui() -> void:
 	creator_entry.exit_requested.connect(_on_creator_exit_requested)
 	add_child(creator_entry)
 
+func _build_challenge_entry() -> void:
 	challenge_entry = RBMChallengeEntry.new()
 	challenge_entry.name = "ChallengeEntry"
 	challenge_entry.set_anchors_preset(Control.PRESET_FULL_RECT)
 	challenge_entry.visible = false
 	challenge_entry.exit_requested.connect(_on_challenge_exit_requested)
 	add_child(challenge_entry)
-
-	_show_menu()
 
 func _on_create_pressed() -> void:
 	creator_entry.enter_create()
@@ -223,6 +397,27 @@ func _on_create_pressed() -> void:
 func _on_challenge_pressed() -> void:
 	challenge_entry.enter_challenge()
 	_show_only(challenge_entry)
+
+## 押すたびに日本語⇔Englishを切り替える。切替そのものはRBMLocale側の
+## 責務（TranslationServer.set_locale()＋user://への永続化）——ここでは
+## 呼び出しとボタン自身のラベル更新のみ行う。バトルロジック・セーブ・
+## Clear Check・battle_hashには一切触れない（表示設定のみ）。
+func _on_locale_button_pressed() -> void:
+	RBMLocale.toggle_locale()
+
+func _update_locale_button_text() -> void:
+	_locale_button.text = "English" if RBMLocale.current_locale() == "ja" else "日本語"
+
+## 日本語モードでは完成画像のドット文字「挑戦」「作成」をそのまま見せる
+## （パッチ・差し替えテクスチャとも非表示＝修正前と完全に同じ見た目）。
+## Englishモードの時だけパッチで覆い、同品質のピクセルアート調テクスチャ
+## （CHALLENGE/CREATE）を重ねる。
+func _update_title_button_labels() -> void:
+	var is_en := RBMLocale.current_locale() == "en"
+	_challenge_text_patch.visible = is_en
+	_challenge_text_texture.visible = is_en
+	_create_text_patch.visible = is_en
+	_create_text_texture.visible = is_en
 
 func _on_creator_exit_requested() -> void:
 	_show_menu()

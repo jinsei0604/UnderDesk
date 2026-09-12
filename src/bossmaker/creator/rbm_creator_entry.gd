@@ -66,6 +66,9 @@ var _delete_confirm_panel: VBoxContainer
 var _delete_confirm_label: Label
 var _delete_target_stage_id: String = ""
 
+## 値はすべて表示用文字列——STATUS_LABELS自体のキー("draft"/"playable"/
+## "clear_checked")はボス戦の内部ステータスIDであり翻訳対象ではない
+## (呼び出し側_add_stage_row()でtr()を適用、キー自体は不変)。
 const STATUS_LABELS := {
 	"draft": "下書き",
 	"playable": "挑戦可能",
@@ -200,7 +203,7 @@ func _build_top_panel() -> void:
 
 	var title := Label.new()
 	title.name = "EntryTitleLabel"
-	title.text = "ボス戦を作成"
+	title.text = tr("ボス戦を作成")
 	title.theme_type_variation = RBMUiTheme.VARIATION_TITLE_LABEL
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -225,7 +228,7 @@ func _build_top_panel() -> void:
 
 	var description := Label.new()
 	description.name = "EntryDescriptionLabel"
-	description.text = "新しいボス戦を作るか、保存したボス戦を編集してください。"
+	description.text = tr("新しいボス戦を作るか、保存したボス戦を編集してください。")
 	description.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
 	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	description.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -252,13 +255,13 @@ func _build_top_panel() -> void:
 
 	var new_button := Button.new()
 	new_button.name = "NewBossButton"
-	_configure_top_main_button(new_button, "新しいボス戦を作る")
+	_configure_top_main_button(new_button, tr("新しいボス戦を作る"))
 	new_button.pressed.connect(_on_new_pressed)
 	button_row.add_child(new_button)
 
 	var edit_button := Button.new()
 	edit_button.name = "EditSavedBossButton"
-	_configure_top_main_button(edit_button, "保存したボス戦を編集")
+	_configure_top_main_button(edit_button, tr("保存したボス戦を編集"))
 	edit_button.pressed.connect(_on_edit_saved_pressed)
 	button_row.add_child(edit_button)
 
@@ -267,7 +270,7 @@ func _build_top_panel() -> void:
 	## （_configure_entry_back_button、無改修）のまま左下へ小さく配置する。
 	var back_to_root_button := Button.new()
 	back_to_root_button.name = "BackToRootButton"
-	back_to_root_button.text = "← 戻る"
+	back_to_root_button.text = tr("← 戻る")
 	_configure_entry_back_button(back_to_root_button)
 	back_to_root_button.pressed.connect(_on_back_to_root_pressed)
 	back_to_root_button.anchor_top = 1.0
@@ -498,7 +501,7 @@ func _build_list_panel() -> void:
 
 	var title := Label.new()
 	title.name = "EntryListTitleLabel"
-	title.text = "保存したボス戦を編集"
+	title.text = tr("保存したボス戦を編集")
 	_list_panel.add_child(title)
 
 	var search_row := HBoxContainer.new()
@@ -506,13 +509,13 @@ func _build_list_panel() -> void:
 	_name_search_field = LineEdit.new()
 	_name_search_field.name = "NameSearchField"
 	_name_search_field.custom_minimum_size = SEARCH_FIELD_MIN_SIZE
-	_name_search_field.placeholder_text = "ボス名で検索"
+	_name_search_field.placeholder_text = tr("ボス名で検索")
 	_name_search_field.text_changed.connect(func(_new_text: String): _refresh_list())
 	search_row.add_child(_name_search_field)
 	_id_search_field = LineEdit.new()
 	_id_search_field.name = "IdSearchField"
 	_id_search_field.custom_minimum_size = SEARCH_FIELD_MIN_SIZE
-	_id_search_field.placeholder_text = "ステージIDで検索"
+	_id_search_field.placeholder_text = tr("ステージIDで検索")
 	_id_search_field.text_changed.connect(func(_new_text: String): _refresh_list())
 	search_row.add_child(_id_search_field)
 
@@ -524,7 +527,7 @@ func _build_list_panel() -> void:
 
 	var list_back_button := Button.new()
 	list_back_button.name = "ListBackButton"
-	list_back_button.text = "戻る"
+	list_back_button.text = tr("戻る")
 	list_back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	list_back_button.pressed.connect(_on_list_back_pressed)
 	_list_panel.add_child(list_back_button)
@@ -545,12 +548,12 @@ func _build_delete_confirm_panel() -> void:
 	_delete_confirm_panel.add_child(delete_row)
 	var delete_confirm_button := Button.new()
 	delete_confirm_button.name = "DeleteConfirmButton"
-	delete_confirm_button.text = "削除する"
+	delete_confirm_button.text = tr("削除する")
 	delete_confirm_button.pressed.connect(_on_delete_confirmed)
 	delete_row.add_child(delete_confirm_button)
 	var delete_cancel_button := Button.new()
 	delete_cancel_button.name = "DeleteCancelButton"
-	delete_cancel_button.text = "キャンセル"
+	delete_cancel_button.text = tr("キャンセル")
 	delete_cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	delete_cancel_button.pressed.connect(_on_delete_cancelled)
 	delete_row.add_child(delete_cancel_button)
@@ -613,24 +616,24 @@ func _add_stage_row(entry: Dictionary) -> void:
 	_list_rows.add_child(row)
 
 	var status_key := str(entry.get("status", "draft"))
-	var status_text: String = STATUS_LABELS.get(status_key, status_key)
+	var status_text: String = tr(String(STATUS_LABELS.get(status_key, status_key)))
 	var appearance_id := str(entry.get("appearance_id", ""))
-	var appearance_text := RBMCreatorAppearanceCatalog.display_name(appearance_id) if not appearance_id.is_empty() else "（未選択）"
+	var appearance_text := RBMCreatorAppearanceCatalog.display_name(appearance_id) if not appearance_id.is_empty() else tr("（未選択）")
 
 	var label := Label.new()
 	label.name = "StageRowLabel"
-	label.text = "%s  [%s]  外見:%s  ID:%s" % [str(entry.get("boss_name", "")), status_text, appearance_text, stage_id]
+	label.text = tr("%s  [%s]  外見:%s  ID:%s") % [str(entry.get("boss_name", "")), status_text, appearance_text, stage_id]
 	row.add_child(label)
 
 	var open_button := Button.new()
 	open_button.name = "OpenButton"
-	open_button.text = "編集"
+	open_button.text = tr("編集")
 	open_button.pressed.connect(_on_open_stage_pressed.bind(stage_id))
 	row.add_child(open_button)
 
 	var delete_button := Button.new()
 	delete_button.name = "DeleteButton"
-	delete_button.text = "削除"
+	delete_button.text = tr("削除")
 	delete_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	delete_button.pressed.connect(_on_delete_stage_pressed.bind(stage_id, str(entry.get("boss_name", ""))))
 	row.add_child(delete_button)
@@ -648,7 +651,7 @@ func _on_open_stage_pressed(stage_id: String) -> void:
 
 func _on_delete_stage_pressed(stage_id: String, boss_name: String) -> void:
 	_delete_target_stage_id = stage_id
-	_delete_confirm_label.text = "「%s」を削除しますか？\nステージID：%s\n\nこの操作は取り消せません。" % [boss_name, stage_id]
+	_delete_confirm_label.text = tr("「%s」を削除しますか？\nステージID：%s\n\nこの操作は取り消せません。") % [boss_name, stage_id]
 	_delete_confirm_panel.visible = true
 
 func _on_delete_confirmed() -> void:

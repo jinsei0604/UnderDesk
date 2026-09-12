@@ -17,6 +17,15 @@
 			"sp_cost": 0
 		},
 		{
+			"id": "tank_hammer_smash",
+			"display_name": "渾身の一撃",
+			"effect": "damage",
+			"target": "boss",
+			"attribute": "NEUTRAL",
+			"atk_multiplier": 3.0,
+			"sp_cost": 50
+		},
+		{
 			"id": "tank_guard_swap",
 			"display_name": "かばう",
 			"effect": "guard_redirect",

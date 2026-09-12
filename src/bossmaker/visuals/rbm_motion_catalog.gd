@@ -1,5 +1,6 @@
 class_name RBMMotionCatalog
 extends RefCounted
+const AttributePalette = preload("res://src/bossmaker/visuals/rbm_attribute_vfx_palette.gd")
 
 ## A fixed visual vocabulary for the existing 20 skills. This catalog does not
 ## resolve targets, calculate damage, spend SP, or consume the battle RNG.
@@ -24,13 +25,13 @@ const SKILLS := {
 	"samurai_iai": ["iai", "WIND", 6, 7, 7, 0.32, 0.23, 0.20, 0.0],
 	"samurai_counter": ["counter_stance", "WIND", 8, 8, 8, 0.22, 0.21, 0.17, 0.0],
 	"tank_smash": ["hammer", "NEUTRAL", 4, 5, 3, 0.30, 0.17, 0.25, 20.0],
+	"tank_hammer_smash": ["hammer_smash", "NEUTRAL", 4, 5, 3, 0.30, 0.17, 0.25, 20.0],
 	"tank_guard_swap": ["protect", "GUARD", 1, 10, 10, 0.20, 0.20, 0.20, 10.0],
 	"tank_guard_boost": ["guard_boost", "GUARD", 6, 7, 7, 0.28, 0.26, 0.22, 0.0],
 	"tank_iron_wall": ["iron_wall", "GUARD", 8, 9, 9, 0.36, 0.30, 0.24, 0.0],
 }
 const COLORS := {
-	"FIRE": Color("ed8741"), "ICE": Color("88c5dc"), "LIGHTNING": Color("e4c76b"),
-	"WIND": Color("aac68e"), "NEUTRAL": Color("c5b496"), "HP": Color("91b978"),
+	"HP": Color("91b978"),
 	"SP": Color("ac91cf"), "GUARD": Color("ccb779"),
 }
 
@@ -56,7 +57,7 @@ static func profile(entry: Dictionary, skill: Dictionary = {}) -> Dictionary:
 		5 if is_all else 2, 3, 0.32 if is_all else 0.24, 0.24 if is_all else 0.18, 0.22, 10.0])
 
 static func color_for(attribute: String) -> Color:
-	return COLORS.get(attribute, COLORS["NEUTRAL"])
+	return COLORS.get(attribute, AttributePalette.color_for(attribute))
 
 static func _from_row(row: Array) -> Dictionary:
 	return {"kind": str(row[0]), "attribute": str(row[1]), "windup_pose": int(row[2]),

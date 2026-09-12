@@ -426,6 +426,12 @@ static func _resolve_author_boss(boss_entry: Dictionary, errors: Array[String]) 
 	var action_sequence: Array = boss_entry.get("action_sequence", [])
 	var resolved_action_sequence := _resolve_action_sequence(action_sequence, known_boss_skill_ids, errors)
 
+	# 覚醒（Awakening）: 通常actionsとは独立したトップレベルの特別イベント。
+	# キー自体が無い（覚醒未設定、または覚醒実装以前の旧ボスデータ）なら
+	# resolved_awakeningは常に空Dictionary——RBMBattle側は
+	# "boss_def["awakening"]が空かどうか"だけで機構の有無を判定する。
+	var resolved_awakening := _resolve_awakening(boss_entry, known_boss_skill_ids, errors)
+
 	return {
 		"id": boss_id,
 		"display_name": str(boss_entry.get("boss_name", boss_id)),
@@ -445,6 +451,7 @@ static func _resolve_author_boss(boss_entry: Dictionary, errors: Array[String]) 
 		"normal_action_candidates": resolved_candidates,
 		"scripted_actions": resolved_scripted,
 		"action_sequence": resolved_action_sequence,
+		"awakening": resolved_awakening,
 	}
 
 # ---------------------------------------------------------------------------
@@ -675,6 +682,80 @@ static func _resolve_random_candidates(slot_id: String, raw_candidates: Array, k
 		errors.append("action_sequence %s random candidates total weight must be greater than 0 (got %f)" % [slot_id, total_weight])
 		return null
 	return resolved_candidates
+
+# ---------------------------------------------------------------------------
+# 覚醒（Awakening）の検証・解決
+# ---------------------------------------------------------------------------
+##
+## 通常のaction_sequenceとは独立したトップレベルの特別イベント（ボス1体に
+## つき最大1つ、1戦闘につき1回だけ発動、通常行動ループには含まれない——
+## RBMBattle._maybe_trigger_awakening()参照）。条件の語彙・検証は
+## action_sequenceスロットと完全に同一のため_resolve_conditions()をそのまま
+## 再利用し、覚醒専用の別条件システムは持たない。buff/healも既存の
+## atk_self_buff/self_heal skillと同じ形・同じ検証方針（buff_multiplier>=0・
+## duration_turns>0・heal_amount>=0）を踏襲する。
+##
+## boss_entryに"awakening"キー自体が無ければ（覚醒未設定、または覚醒実装
+## 以前の旧ボスデータ）常に空Dictionaryを返す——他の全フィールドと同じ
+## 「フィールド欠落は安全なデフォルト」の慣習。
+static func _resolve_awakening(boss_entry: Dictionary, known_boss_skill_ids: Dictionary, errors: Array[String]) -> Dictionary:
+	if not boss_entry.has("awakening"):
+		return {}
+	if not (boss_entry["awakening"] is Dictionary):
+		errors.append("awakening is not an object")
+		return {}
+	var awakening: Dictionary = boss_entry["awakening"]
+	if awakening.is_empty():
+		return {}
+
+	var conditions: Array = awakening.get("conditions", [])
+	if not (conditions is Array):
+		errors.append("awakening has a non-array conditions")
+		return {}
+	if conditions.size() > 1:
+		var logic := str(awakening.get("condition_logic", RBMActionPatternRules.DEFAULT_CONDITION_LOGIC))
+		if not RBMActionPatternRules.CONDITION_LOGIC_TYPES.has(logic):
+			errors.append("awakening has an unknown condition_logic: %s" % logic)
+			return {}
+	var known_ally_skill_ids := _known_ally_skill_ids()
+	var resolved_conditions: Variant = _resolve_conditions("awakening", conditions, known_boss_skill_ids, known_ally_skill_ids, errors)
+	if resolved_conditions == null:
+		return {}
+
+	var resolved := {
+		"conditions": resolved_conditions,
+		"condition_logic": str(awakening.get("condition_logic", RBMActionPatternRules.DEFAULT_CONDITION_LOGIC)),
+	}
+
+	# 自己強化(buff)・HP回復(heal)はどちらも省略可能——「変身だけの覚醒」を
+	# 許可するため、どちらのキーも無くて構わない（他の全フィールドと同じ
+	# 「省略時は無効」慣習、"最低1つ設定必須"というvalidationは追加しない）。
+	if awakening.has("buff") and awakening["buff"] is Dictionary and not (awakening["buff"] as Dictionary).is_empty():
+		var buff: Dictionary = awakening["buff"]
+		if not buff.has("buff_multiplier"):
+			errors.append("awakening buff requires buff_multiplier")
+			return {}
+		if not buff.has("duration_turns"):
+			errors.append("awakening buff requires duration_turns")
+			return {}
+		var buff_multiplier := float(buff["buff_multiplier"])
+		if buff_multiplier < 0.0:
+			errors.append("awakening buff buff_multiplier must not be negative: %f" % buff_multiplier)
+			return {}
+		var duration_turns := int(buff["duration_turns"])
+		if duration_turns <= 0:
+			errors.append("awakening buff duration_turns must be positive: %d" % duration_turns)
+			return {}
+		resolved["buff"] = {"buff_multiplier": buff_multiplier, "duration_turns": duration_turns}
+
+	if awakening.has("heal_amount"):
+		var heal_amount := float(awakening["heal_amount"])
+		if heal_amount < 0.0:
+			errors.append("awakening heal_amount must not be negative: %f" % heal_amount)
+			return {}
+		if heal_amount > 0.0:
+			resolved["heal_amount"] = heal_amount
+	return resolved
 
 static func _validate_ranged_stat(entry: Dictionary, key: String, min_value: int, max_value: int, errors: Array[String]) -> int:
 	if not entry.has(key):

@@ -116,7 +116,7 @@ func _build_confirm_panel(parent: Control) -> void:
 
 	var title := Label.new()
 	title.name = "ConfirmTitleLabel"
-	title.text = "クリアチェック"
+	title.text = tr("クリアチェック")
 	title.theme_type_variation = RBMUiTheme.VARIATION_SECTION_LABEL
 	_confirm_panel.add_child(title)
 
@@ -129,15 +129,15 @@ func _build_confirm_panel(parent: Control) -> void:
 	## doc comment参照）。open()のたびdraftから最新の状態を読んで更新する。
 	_confirm_random_notice_label = Label.new()
 	_confirm_random_notice_label.name = "ConfirmRandomActionNoticeLabel"
-	_confirm_random_notice_label.text = "このボスにはランダム行動が設定されています。挑戦ごとに行動が変化する場合があります。"
+	_confirm_random_notice_label.text = tr("このボスにはランダム行動が設定されています。挑戦ごとに行動が変化する場合があります。")
 	_confirm_panel.add_child(_confirm_random_notice_label)
 
 	var info1 := Label.new()
-	info1.text = "この設定で攻略可能か確認します"
+	info1.text = tr("この設定で攻略可能か確認します")
 	_confirm_panel.add_child(info1)
 
 	var info2 := Label.new()
-	info2.text = "クリアチェック中はREWINDを使用できます"
+	info2.text = tr("クリアチェック中はREWINDを使用できます")
 	_confirm_panel.add_child(info2)
 
 	_confirm_error_label = Label.new()
@@ -148,13 +148,13 @@ func _build_confirm_panel(parent: Control) -> void:
 	_confirm_panel.add_child(button_row)
 	var back_button := Button.new()
 	back_button.name = "ConfirmBackButton"
-	back_button.text = "戻る"
+	back_button.text = tr("戻る")
 	back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	back_button.pressed.connect(_on_confirm_back_pressed)
 	button_row.add_child(back_button)
 	var start_button := Button.new()
 	start_button.name = "ConfirmStartButton"
-	start_button.text = "開始"
+	start_button.text = tr("開始")
 	start_button.pressed.connect(_on_confirm_start_pressed)
 	button_row.add_child(start_button)
 
@@ -176,7 +176,7 @@ func _on_confirm_back_pressed() -> void:
 func _on_confirm_start_pressed() -> void:
 	var result: Dictionary = main.press_clear_check_start()
 	if not bool(result.get("ok", false)):
-		_confirm_error_label.text = "クリアチェックを開始できません（設定を確認してください）"
+		_confirm_error_label.text = tr("クリアチェックを開始できません（設定を確認してください）")
 
 ## §5「開始」: called by RBMCreatorMain.press_clear_check_start() only after
 ## RBMDefinitionLoader.resolve() has already validated the Definition — never
@@ -217,7 +217,7 @@ func _build_battle_panel(parent: Control) -> void:
 	# 複製方針どおり）。
 	_mode_label = Label.new()
 	_mode_label.name = "ModeLabel"
-	_mode_label.text = "クリアチェック"
+	_mode_label.text = tr("クリアチェック")
 	_mode_label.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
 	_battle_panel.add_child(_mode_label)
 
@@ -238,12 +238,12 @@ func _build_battle_panel(parent: Control) -> void:
 	_outcome_area.add_child(_outcome_label)
 	_retry_button = Button.new()
 	_retry_button.name = "RetryButton"
-	_retry_button.text = "もう一度挑戦"
+	_retry_button.text = tr("もう一度挑戦")
 	_retry_button.pressed.connect(_on_retry_pressed)
 	_outcome_area.add_child(_retry_button)
 	_return_button = Button.new()
 	_return_button.name = "ReturnToCreatorButton"
-	_return_button.text = "Creatorに戻る"
+	_return_button.text = tr("Creatorに戻る")
 	_return_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	_return_button.pressed.connect(_on_return_pressed)
 	_outcome_area.add_child(_return_button)
@@ -266,14 +266,14 @@ func _build_battle_panel(parent: Control) -> void:
 	_battle_panel.add_child(action_row)
 	_restart_button = Button.new()
 	_restart_button.name = "RestartButton"
-	_restart_button.text = "最初からやり直す"
+	_restart_button.text = tr("最初からやり直す")
 	_restart_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	_restart_button.pressed.connect(_on_restart_pressed)
 	action_row.add_child(_restart_button)
 
 	_quit_button = Button.new()
 	_quit_button.name = "QuitButton"
-	_quit_button.text = "Creatorに戻る"
+	_quit_button.text = tr("Creatorに戻る")
 	_quit_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	_quit_button.pressed.connect(_on_return_pressed)
 	action_row.add_child(_quit_button)
@@ -286,17 +286,17 @@ func _build_battle_panel(parent: Control) -> void:
 	_restart_confirm.visible = false
 	_battle_panel.add_child(_restart_confirm)
 	var restart_confirm_label := Label.new()
-	restart_confirm_label.text = "現在の戦闘履歴は失われます。最初からやり直しますか？"
+	restart_confirm_label.text = tr("現在の戦闘履歴は失われます。最初からやり直しますか？")
 	_restart_confirm.add_child(restart_confirm_label)
 	var restart_cancel_button := Button.new()
 	restart_cancel_button.name = "RestartCancelButton"
-	restart_cancel_button.text = "キャンセル"
+	restart_cancel_button.text = tr("キャンセル")
 	restart_cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	restart_cancel_button.pressed.connect(_on_restart_cancel_pressed)
 	_restart_confirm.add_child(restart_cancel_button)
 	var restart_confirm_button := Button.new()
 	restart_confirm_button.name = "RestartConfirmButton"
-	restart_confirm_button.text = "やり直す"
+	restart_confirm_button.text = tr("やり直す")
 	restart_confirm_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	restart_confirm_button.pressed.connect(_on_restart_confirmed)
 	_restart_confirm.add_child(restart_confirm_button)
@@ -400,7 +400,7 @@ func _build_bottom_row(parent: Control) -> void:
 
 func _build_log_window() -> void:
 	_log_window_overlay = RBMBattleUiKit.build_detail_overlay(self, "LogWindow")
-	(_log_window_overlay["title_label"] as Label).text = "戦闘ログ"
+	(_log_window_overlay["title_label"] as Label).text = tr("戦闘ログ")
 	var scroll := ScrollContainer.new()
 	scroll.name = "LogWindowScroll"
 	RBMBattleUiKit.fit_log_window(_log_window_overlay, scroll)
@@ -424,7 +424,7 @@ func open_ally_detail(unit_id: int) -> void:
 	var unit := _unit_by_id(unit_id)
 	if unit == null:
 		return
-	(_ally_detail_overlay["title_label"] as Label).text = unit.display_name
+	(_ally_detail_overlay["title_label"] as Label).text = tr(unit.display_name)
 	RBMBattleUiKit.refresh_ally_detail_content(_ally_detail_overlay["content"], unit, session.battle)
 	(_ally_detail_overlay["overlay"] as Control).visible = true
 
@@ -505,12 +505,12 @@ func _open_target_picker(unit_id: int, skill_id: String) -> void:
 		if not session.battle.is_valid_skill_target(unit_id, skill_id, unit.id):
 			continue
 		var button := Button.new()
-		button.text = unit.display_name
+		button.text = tr(unit.display_name)
 		button.pressed.connect(act_skill_with_target.bind(unit_id, skill_id, unit.id))
 		_target_picker.add_child(button)
 	var back_button := Button.new()
 	back_button.name = "TargetPickerBackButton"
-	back_button.text = "← 戻る"
+	back_button.text = tr("← 戻る")
 	back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	back_button.pressed.connect(_on_target_picker_back_pressed)
 	_target_picker.add_child(back_button)
@@ -622,7 +622,7 @@ func _refresh_rewind_list() -> void:
 	for turn in session.reachable_turns():
 		var button := Button.new()
 		button.name = "RewindTurnButton_%d" % turn
-		button.text = "ターン%d へ REWIND" % turn
+		button.text = tr("ターン%d へ REWIND") % turn
 		button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 		button.pressed.connect(rewind_to.bind(turn))
 		_rewind_list.add_child(button)
@@ -638,7 +638,7 @@ func refresh() -> void:
 	if session == null or session.battle == null:
 		return
 	var battle := session.battle
-	_boss_label.text = "%s　（ターン%d）" % [battle.boss.display_name, battle.current_turn]
+	_boss_label.text = tr("%s　（ターン%d）") % [battle.boss.display_name, battle.current_turn]
 
 	RBMBattleUiKit.clear_children_safely(_party_rows)
 	for unit in battle.party:
@@ -660,7 +660,7 @@ func refresh() -> void:
 		var won := battle.winner == "ally"
 		# §14: success screen shows ONLY Creatorに戻る. §15: failure screen
 		# shows もう一度挑戦 + Creatorに戻る.
-		_outcome_label.text = "クリアチェック成功" if won else "クリアチェック失敗"
+		_outcome_label.text = tr("クリアチェック成功") if won else tr("クリアチェック失敗")
 		_retry_button.visible = not won
 
 ## 実機プレイ改善①§1/§13/Phase 3.5 Step 4 §14/§15: SPD順で入力待ちの味方
@@ -684,20 +684,20 @@ func _refresh_command_area() -> void:
 
 	var attack_button := Button.new()
 	attack_button.name = "AttackButton"
-	attack_button.text = "通常攻撃"
+	attack_button.text = tr("通常攻撃")
 	attack_button.pressed.connect(act_attack.bind(unit.id))
 	_main_command_row.add_child(attack_button)
 
 	var skill_open_button := Button.new()
 	skill_open_button.name = "OpenSkillListButton"
-	skill_open_button.text = "スキル"
+	skill_open_button.text = tr("スキル")
 	skill_open_button.disabled = unit.skills.is_empty()
 	skill_open_button.pressed.connect(_open_skill_list)
 	_main_command_row.add_child(skill_open_button)
 
 	var defend_button := Button.new()
 	defend_button.name = "DefendButton"
-	defend_button.text = "防御"
+	defend_button.text = tr("防御")
 	defend_button.pressed.connect(act_defend.bind(unit.id))
 	_main_command_row.add_child(defend_button)
 
@@ -706,7 +706,7 @@ func _refresh_command_area() -> void:
 func _build_skill_list(unit: RBMUnit) -> void:
 	var back_button := Button.new()
 	back_button.name = "SkillListBackButton"
-	back_button.text = "← 戻る"
+	back_button.text = tr("← 戻る")
 	back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	back_button.pressed.connect(_close_skill_list)
 	_skill_list_panel.add_child(back_button)
@@ -734,7 +734,7 @@ func _build_skill_list(unit: RBMUnit) -> void:
 func _show_skill_detail(skill: Dictionary) -> void:
 	if _skill_detail_label == null:
 		return
-	var display_name := str(skill.get("display_name", skill.get("id", "")))
+	var display_name := tr(str(skill.get("display_name", skill.get("id", ""))))
 	var lines: Array[String] = [display_name]
 	lines.append_array(RBMBattleUiKit.skill_detail_lines(skill, true))
 	_skill_detail_label.text = "\n".join(lines)

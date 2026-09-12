@@ -23,59 +23,59 @@ static func condition_line(condition: Dictionary, draft: RBMCreatorDraft) -> Str
 	var condition_type := str(condition.get("type", ""))
 	match condition_type:
 		"hp_at_most":
-			return "ボスHPが%d%%以下" % int(condition.get("percent", 0))
+			return TranslationServer.translate("ボスHPが%d%%以下") % int(condition.get("percent", 0))
 		"hp_at_least":
-			return "ボスHPが%d%%以上" % int(condition.get("percent", 0))
+			return TranslationServer.translate("ボスHPが%d%%以上") % int(condition.get("percent", 0))
 		"hp_between":
-			return "ボスHPが%d%%〜%d%%のあいだ" % [int(condition.get("percent_min", 0)), int(condition.get("percent_max", 0))]
+			return TranslationServer.translate("ボスHPが%d%%〜%d%%のあいだ") % [int(condition.get("percent_min", 0)), int(condition.get("percent_max", 0))]
 		"turn_at":
-			return "%dターン目" % int(condition.get("turn", 0))
+			return TranslationServer.translate("%dターン目") % int(condition.get("turn", 0))
 		"turn_at_least":
-			return "%dターン目以降" % int(condition.get("turn", 0))
+			return TranslationServer.translate("%dターン目以降") % int(condition.get("turn", 0))
 		"turn_at_most":
-			return "%dターン目まで" % int(condition.get("turn", 0))
+			return TranslationServer.translate("%dターン目まで") % int(condition.get("turn", 0))
 		"turn_every_n":
-			return "%dターンごと" % int(condition.get("n", 0))
+			return TranslationServer.translate("%dターンごと") % int(condition.get("n", 0))
 		"turn_between":
-			return "%d〜%dターン目のあいだ" % [int(condition.get("turn_min", 0)), int(condition.get("turn_max", 0))]
+			return TranslationServer.translate("%d〜%dターン目のあいだ") % [int(condition.get("turn_min", 0)), int(condition.get("turn_max", 0))]
 		"allies_at_most":
-			return "攻略側の生存人数が%d人以下" % int(condition.get("count", 0))
+			return TranslationServer.translate("攻略側の生存人数が%d人以下") % int(condition.get("count", 0))
 		"allies_at_least":
-			return "攻略側の生存人数が%d人以上" % int(condition.get("count", 0))
+			return TranslationServer.translate("攻略側の生存人数が%d人以上") % int(condition.get("count", 0))
 		"allies_exactly":
-			return "攻略側の生存人数がちょうど%d人" % int(condition.get("count", 0))
+			return TranslationServer.translate("攻略側の生存人数がちょうど%d人") % int(condition.get("count", 0))
 		"character_alive":
-			return "%sが生存している" % character_display_name(str(condition.get("character_id", "")), draft)
+			return TranslationServer.translate("%sが生存している") % character_display_name(str(condition.get("character_id", "")), draft)
 		"character_downed":
-			return "%sが戦闘不能になっている" % character_display_name(str(condition.get("character_id", "")), draft)
+			return TranslationServer.translate("%sが戦闘不能になっている") % character_display_name(str(condition.get("character_id", "")), draft)
 		"last_boss_skill":
-			return "前回使った行動が「%s」" % str(draft.find_skill(str(condition.get("skill_id", ""))).get("name", "?"))
+			return TranslationServer.translate("前回使った行動が「%s」") % str(draft.find_skill(str(condition.get("skill_id", ""))).get("name", "?"))
 		"last_received_skill":
-			return "前回受けた行動が「%s」" % ally_skill_display_name(str(condition.get("skill_id", "")))
+			return TranslationServer.translate("前回受けた行動が「%s」") % ally_skill_display_name(str(condition.get("skill_id", "")))
 		"last_received_attribute":
-			return "前回受けた攻撃の属性が%s" % attribute_label(str(condition.get("attribute", "")))
+			return TranslationServer.translate("前回受けた攻撃の属性が%s") % attribute_label(str(condition.get("attribute", "")))
 		"weak_hit":
-			return "前回受けた攻撃が弱点だった"
+			return TranslationServer.translate("前回受けた攻撃が弱点だった")
 		_:
-			return str(RBMActionPatternRules.CONDITION_TYPE_LABELS.get(condition_type, condition_type))
+			return TranslationServer.translate(str(RBMActionPatternRules.CONDITION_TYPE_LABELS.get(condition_type, condition_type)))
 
 ## 条件要約の1行。条件が無ければ「条件：なし」を明示的に返す（§3/§27
 ## モックアップの一覧行は常に「条件：〜」を持つ仕様——旧実装は空文字＝
 ## 行自体を作らないだったが、新STEP3の一覧表示に合わせて既定文言化した）。
 static func when_line(conditions: Array, condition_logic: String, draft: RBMCreatorDraft) -> String:
 	if conditions.is_empty():
-		return "条件：なし"
+		return TranslationServer.translate("条件：なし")
 	var parts: Array = []
 	for condition in conditions:
 		parts.append(condition_line(condition, draft))
-	var joiner := " または " if condition_logic == "OR" else " かつ "
-	return "条件：%s" % joiner.join(parts)
+	var joiner: String = TranslationServer.translate(" または ") if condition_logic == "OR" else TranslationServer.translate(" かつ ")
+	return TranslationServer.translate("条件：%s") % joiner.join(parts)
 
 ## 使用回数の1行（§3/§27モックアップの「使用回数：〜」表示）。
 static func uses_line(max_uses: int) -> String:
 	if max_uses == RBMActionPatternRules.UNLIMITED_USES:
-		return "使用回数：制限なし"
-	return "使用回数：%d回" % max_uses
+		return TranslationServer.translate("使用回数：制限なし")
+	return TranslationServer.translate("使用回数：%d回") % max_uses
 
 ## §6の攻撃性能表示（"攻撃 / 単体 / 火 / 威力120"のような1行）。
 ## rbm_creator_step4_actions.gd（SIMPLE専用、§24により無改修対象）の
@@ -85,17 +85,17 @@ static func skill_performance_line(skill: Dictionary) -> String:
 	var type := str(skill.get("type", ""))
 	match type:
 		"attack":
-			var target_label := "単体" if str(skill.get("target", "single")) == "single" else "全体"
+			var target_label: String = TranslationServer.translate("単体") if str(skill.get("target", "single")) == "single" else TranslationServer.translate("全体")
 			var attribute_id := str(skill.get("attribute", "NEUTRAL"))
 			var power := int(round(float(skill.get("atk_multiplier", 1.0)) * 100.0))
-			return "攻撃 / %s / %s / 威力%d" % [str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute_id, attribute_id)), target_label, power]
+			return TranslationServer.translate("攻撃 / %s / %s / 威力%d") % [TranslationServer.translate(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute_id, attribute_id))), target_label, power]
 		"self_heal":
-			var mode_label := "最大HP割合" if str(skill.get("heal_mode", "fixed")) == "percent" else "固定値"
+			var mode_label: String = TranslationServer.translate("最大HP割合") if str(skill.get("heal_mode", "fixed")) == "percent" else TranslationServer.translate("固定値")
 			if str(skill.get("heal_mode", "fixed")) == "percent":
-				return "自己回復 / %s / 最大HPの%.1f%%" % [mode_label, float(skill.get("heal_percent", 0.0))]
-			return "自己回復 / %s / HP%d" % [mode_label, int(skill.get("heal_fixed_amount", 0))]
+				return TranslationServer.translate("自己回復 / %s / 最大HPの%.1f%%") % [mode_label, float(skill.get("heal_percent", 0.0))]
+			return TranslationServer.translate("自己回復 / %s / HP%d") % [mode_label, int(skill.get("heal_fixed_amount", 0))]
 		"atk_self_buff":
-			return "ATK自己強化 / ATK×%.2f / %dターン" % [float(skill.get("buff_multiplier", 1.0)), int(skill.get("duration_turns", 1))]
+			return TranslationServer.translate("ATK自己強化 / ATK×%.2f / %dターン") % [float(skill.get("buff_multiplier", 1.0)), int(skill.get("duration_turns", 1))]
 		_:
 			return type
 
@@ -108,7 +108,7 @@ static func slot_action_name(slot: Dictionary, draft: RBMCreatorDraft) -> String
 		var names: Array = []
 		for candidate in candidates:
 			names.append(str(draft.find_skill(str(candidate.get("skill_id", ""))).get("name", "?")))
-		return "ランダム攻撃（%s）" % (", ".join(names) if not names.is_empty() else "候補なし")
+		return TranslationServer.translate("ランダム攻撃（%s）") % (", ".join(names) if not names.is_empty() else TranslationServer.translate("候補なし"))
 	return str(draft.find_skill(str(slot.get("skill_id", ""))).get("name", "?"))
 
 ## §3/§27の一覧行そのものを組み立てる材料を1つの辞書として返す（実際の
@@ -120,12 +120,12 @@ static func slot_summary(slot: Dictionary, draft: RBMCreatorDraft, index: int) -
 	var name_line: String
 	var performance_line: String
 	if str(slot.get("kind", "")) == RBMActionPatternRules.SLOT_KIND_RANDOM:
-		name_line = "ランダム攻撃"
+		name_line = TranslationServer.translate("ランダム攻撃")
 		var candidates: Array = slot.get("candidates", [])
 		var names: Array = []
 		for candidate in candidates:
 			names.append(str(draft.find_skill(str(candidate.get("skill_id", ""))).get("name", "?")))
-		performance_line = "候補：%s" % (", ".join(names) if not names.is_empty() else "なし")
+		performance_line = TranslationServer.translate("候補：%s") % (", ".join(names) if not names.is_empty() else TranslationServer.translate("なし"))
 	else:
 		var skill := draft.find_skill(str(slot.get("skill_id", "")))
 		name_line = str(skill.get("name", "?"))
@@ -158,12 +158,12 @@ static func ally_skill_display_name(skill_id: String) -> String:
 		var master := RBMDataLoader.load_dict(str(RBMDefinitionLoader.KNOWN_ALLY_PATHS[character_id]))
 		for skill in master.get("skills", []):
 			if str(skill.get("id", "")) == skill_id:
-				return "%s（%s）" % [str(skill.get("display_name", skill_id)), str(master.get("display_name", character_id))]
+				return TranslationServer.translate("%s（%s）") % [TranslationServer.translate(str(skill.get("display_name", skill_id))), TranslationServer.translate(str(master.get("display_name", character_id)))]
 	return skill_id
 
 static func character_display_name(character_id: String, draft: RBMCreatorDraft) -> String:
 	var master := draft.master_character_def(character_id)
-	return str(master.get("display_name", character_id)) if not master.is_empty() else character_id
+	return TranslationServer.translate(str(master.get("display_name", character_id))) if not master.is_empty() else character_id
 
 static func attribute_label(attribute_id: String) -> String:
 	return str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute_id, attribute_id))

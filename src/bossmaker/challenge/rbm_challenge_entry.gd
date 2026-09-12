@@ -188,7 +188,7 @@ func _build_list_panel() -> void:
 
 	var back_to_hub_button := Button.new()
 	back_to_hub_button.name = "BackToHubButton"
-	back_to_hub_button.text = "← 挑戦ハブ"
+	back_to_hub_button.text = tr("← 挑戦ハブ")
 	back_to_hub_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	back_to_hub_button.pressed.connect(_on_back_to_hub_pressed)
 	header_row.add_child(back_to_hub_button)
@@ -199,7 +199,7 @@ func _build_list_panel() -> void:
 
 	_category_title_label = Label.new()
 	_category_title_label.name = "CategoryTitleLabel"
-	_category_title_label.text = "検索"
+	_category_title_label.text = tr("検索")
 	_category_title_label.theme_type_variation = RBMUiTheme.VARIATION_SECTION_LABEL
 	header_row.add_child(_category_title_label)
 
@@ -208,13 +208,13 @@ func _build_list_panel() -> void:
 	_name_search_field = LineEdit.new()
 	_name_search_field.name = "NameSearchField"
 	_name_search_field.custom_minimum_size = SEARCH_FIELD_MIN_SIZE
-	_name_search_field.placeholder_text = "ボス名で検索"
+	_name_search_field.placeholder_text = tr("ボス名で検索")
 	_name_search_field.text_changed.connect(func(_new_text: String): _refresh_list())
 	search_row.add_child(_name_search_field)
 	_id_search_field = LineEdit.new()
 	_id_search_field.name = "IdSearchField"
 	_id_search_field.custom_minimum_size = SEARCH_FIELD_MIN_SIZE
-	_id_search_field.placeholder_text = "ステージIDで検索"
+	_id_search_field.placeholder_text = tr("ステージIDで検索")
 	_id_search_field.text_changed.connect(func(_new_text: String): _refresh_list())
 	search_row.add_child(_id_search_field)
 
@@ -269,7 +269,7 @@ func _on_hub_category_selected(category: String) -> void:
 
 func _on_hub_search_requested() -> void:
 	_current_category = ""
-	_category_title_label.text = "検索"
+	_category_title_label.text = tr("検索")
 	_selected_stage_id = ""
 	_confirm_view.clear_selection()
 	_name_search_field.text = ""
@@ -288,7 +288,7 @@ func _on_hub_random_requested() -> void:
 	rng.randomize()
 	var picked := RBMChallengeUiKit.pick_random(candidates, rng)
 	_current_category = ""
-	_category_title_label.text = "ランダム抽選"
+	_category_title_label.text = tr("ランダム抽選")
 	_name_search_field.text = ""
 	_id_search_field.text = ""
 	_refresh_list()
@@ -302,17 +302,17 @@ func _category_display_title(category: String) -> String:
 		RBMChallengeHubView.CATEGORY_HARDCORE:
 			return "HARDCORE"
 		RBMChallengeHubView.CATEGORY_FEATURED:
-			return "注目"
+			return tr("注目")
 		RBMChallengeHubView.CATEGORY_NEW:
-			return "新着"
+			return tr("新着")
 		RBMChallengeHubView.CATEGORY_UNCHALLENGED:
-			return "未挑戦"
+			return tr("未挑戦")
 		RBMChallengeHubView.CATEGORY_POPULAR:
-			return "人気"
+			return tr("人気")
 		RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY:
-			return "高難度"
+			return tr("高難度")
 		_:
-			return "検索"
+			return tr("検索")
 
 func _on_back_to_hub_pressed() -> void:
 	_show_hub()

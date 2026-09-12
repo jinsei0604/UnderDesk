@@ -121,7 +121,7 @@ static func apply_status_snapshot(view: Control, state: Dictionary) -> void:
 		var max_sp := int(unit.get("max_sp", RBMConstants.NO_SP))
 		var name_label := view.find_child("PartyRowName_%d" % unit_id, true, false) as Label
 		if name_label != null:
-			name_label.text = "%s%s" % [str(unit.get("display_name", "")), "（戦闘不能）" if hp <= 0 else ""]
+			name_label.text = "%s%s" % [TranslationServer.translate(str(unit.get("display_name", ""))), TranslationServer.translate("（戦闘不能）") if hp <= 0 else ""]
 		var hp_label := view.find_child("PartyRowHP_%d" % unit_id, true, false) as Label
 		if hp_label != null:
 			hp_label.text = "HP %d / %d" % [hp, max_hp]
@@ -142,4 +142,4 @@ static func apply_status_snapshot(view: Control, state: Dictionary) -> void:
 	var boss_label := view.find_child("BossLabel", true, false) as Label
 	if boss_label != null:
 		var boss: Dictionary = state.get("boss", {})
-		boss_label.text = "%s　（ターン%d）" % [str(boss.get("display_name", "")), int(state.get("turn", 1))]
+		boss_label.text = TranslationServer.translate("%s　（ターン%d）") % [str(boss.get("display_name", "")), int(state.get("turn", 1))]

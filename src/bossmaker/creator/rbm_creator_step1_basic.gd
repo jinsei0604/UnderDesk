@@ -90,7 +90,7 @@ func _build_name_card(parent: Control) -> void:
 	## Creator本体UI刷新（2026-09-04）§6: セクション見出しは本文より一段
 	## 大きく、左に小さな銀アクセント（RBMCreatorUiKit.build_section_title()、
 	## 今後の他STEPでも再利用する共通ヘルパー）。
-	card_column.add_child(RBMCreatorUiKit.build_section_title("ボス名"))
+	card_column.add_child(RBMCreatorUiKit.build_section_title(tr("ボス名")))
 
 	## §7: 左に現在の名前、右に操作ボタン、という横方向の構成。
 	## _name_display_labelをSIZE_EXPAND_FILLにして残り幅を占有させることで、
@@ -124,12 +124,12 @@ func _build_name_card(parent: Control) -> void:
 	_name_edit_row.add_child(_char_count_label)
 	var confirm_button := Button.new()
 	confirm_button.name = "ConfirmNameButton"
-	confirm_button.text = "決定"
+	confirm_button.text = tr("決定")
 	confirm_button.pressed.connect(_on_confirm_name_pressed)
 	_name_edit_row.add_child(confirm_button)
 	var cancel_button := Button.new()
 	cancel_button.name = "CancelNameButton"
-	cancel_button.text = "キャンセル"
+	cancel_button.text = tr("キャンセル")
 	cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel_button.pressed.connect(_on_cancel_name_pressed)
 	_name_edit_row.add_child(cancel_button)
@@ -151,7 +151,7 @@ func _build_appearance_card(parent: Control) -> void:
 	card_column.add_theme_constant_override("separation", 12)
 	card.add_child(card_column)
 
-	card_column.add_child(RBMCreatorUiKit.build_section_title("外見"))
+	card_column.add_child(RBMCreatorUiKit.build_section_title(tr("外見")))
 
 	var preview_row := HBoxContainer.new()
 	preview_row.name = "AppearancePreviewRow"
@@ -187,7 +187,7 @@ func _build_appearance_card(parent: Control) -> void:
 	_appearance_preview_surface.add_child(placeholder_center)
 	var placeholder_label := Label.new()
 	placeholder_label.name = "AppearancePreviewPlaceholderLabel"
-	placeholder_label.text = "ボスイラスト表示領域"
+	placeholder_label.text = tr("ボスイラスト表示領域")
 	placeholder_center.add_child(placeholder_label)
 
 	var info_column := VBoxContainer.new()
@@ -202,7 +202,7 @@ func _build_appearance_card(parent: Control) -> void:
 
 	_appearance_button = Button.new()
 	_appearance_button.name = "AppearanceButton"
-	_appearance_button.text = "外見を変更"
+	_appearance_button.text = tr("外見を変更")
 	_appearance_button.pressed.connect(_on_appearance_button_pressed)
 	info_column.add_child(_appearance_button)
 
@@ -240,20 +240,20 @@ func refresh() -> void:
 	_name_normal_row.visible = not _editing_name
 	_name_edit_row.visible = _editing_name
 	if draft.boss_name.is_empty():
-		_name_display_label.text = "まだ設定されていません"
-		_edit_name_button.text = "名前を決める"
+		_name_display_label.text = tr("まだ設定されていません")
+		_edit_name_button.text = tr("名前を決める")
 	else:
 		_name_display_label.text = draft.boss_name
-		_edit_name_button.text = "編集"
+		_edit_name_button.text = tr("編集")
 	if not _editing_name:
 		_name_edit.text = draft.boss_name
 		_char_count_label.text = "%d / %d" % [draft.boss_name.length(), RBMCreatorDraft.MAX_BOSS_NAME_LENGTH]
 
 	if draft.appearance_id.is_empty():
-		_appearance_preview_label.text = "（未選択）"
+		_appearance_preview_label.text = tr("（未選択）")
 		_appearance_preview_swatch.texture = null
 	else:
-		_appearance_preview_label.text = "現在の外見：%s" % RBMCreatorAppearanceCatalog.display_name(draft.appearance_id)
+		_appearance_preview_label.text = tr("現在の外見：%s") % RBMCreatorAppearanceCatalog.display_name(draft.appearance_id)
 		_appearance_preview_swatch.texture = VisualAssets.texture(VisualAssets.boss_asset(draft.appearance_id), 0)
 	_appearance_preview_surface.get_node("AppearancePreviewPlaceholderCenter").visible = _appearance_preview_swatch.texture == null
 
@@ -272,5 +272,5 @@ func is_step_valid() -> bool:
 func validation_message() -> String:
 	if draft.boss_name.is_empty():
 		return ""
-	return "ボス名は%d文字以内にしてください" % RBMCreatorDraft.MAX_BOSS_NAME_LENGTH
+	return tr("ボス名は%d文字以内にしてください") % RBMCreatorDraft.MAX_BOSS_NAME_LENGTH
 

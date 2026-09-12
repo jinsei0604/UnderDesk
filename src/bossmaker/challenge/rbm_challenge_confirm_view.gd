@@ -105,7 +105,7 @@ func _build_ui() -> void:
 	## と排他的にvisibleを切り替える（両方をContentへ直接の子として持つ）。
 	_empty_state_label = Label.new()
 	_empty_state_label.name = "ConfirmEmptyStateLabel"
-	_empty_state_label.text = "左の一覧からボスを選択してください"
+	_empty_state_label.text = tr("左の一覧からボスを選択してください")
 	_empty_state_label.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
 	_content.add_child(_empty_state_label)
 
@@ -142,7 +142,7 @@ func _build_ui() -> void:
 	# 間に挿む「追加専用」の変更のみ（§36で確認済み: 既存テストはこの画面の
 	# 内容をfind_child/get_children()の全走査か件数比較でしか読まないため、
 	# 兄弟の増加そのものは何も壊さない）。
-	_add_confirm_section_header("ボス情報")
+	_add_confirm_section_header(tr("ボス情報"))
 	_appearance_label = _add_label("")
 	_stage_id_label = _add_label("")
 	_clear_check_label = _add_label("")
@@ -152,10 +152,10 @@ func _build_ui() -> void:
 	## §25: Clear Check側(RBMCreatorClearCheckView)と同じ表示条件
 	## （RBMCreatorDraft.has_random_action_variance()）で、CHALLENGE挑戦確認
 	## 画面にも同じ通知文を表示する。
-	_random_notice_label = _add_label("このボスにはランダム行動が設定されています。挑戦ごとに行動が変化する場合があります。")
+	_random_notice_label = _add_label(tr("このボスにはランダム行動が設定されています。挑戦ごとに行動が変化する場合があります。"))
 	_random_notice_label.name = "RandomActionNoticeLabel"
 
-	_add_confirm_section_header("ボス性能")
+	_add_confirm_section_header(tr("ボス性能"))
 	_stats_label = _add_label("")
 	_weak_label = _add_label("")
 	_resist_label = _add_label("")
@@ -172,7 +172,7 @@ func _build_ui() -> void:
 	## 廃止したため、旧「戻る」ボタン(ConfirmBackButton)は無くなった。
 	_challenge_button = Button.new()
 	_challenge_button.name = "ChallengeStartButton"
-	_challenge_button.text = "このボスに挑戦"
+	_challenge_button.text = tr("このボスに挑戦")
 	_challenge_button.pressed.connect(_on_challenge_pressed)
 	outer.add_child(_challenge_button)
 
@@ -250,17 +250,17 @@ func _refresh() -> void:
 	_boss_name_label.text = _draft.boss_name
 	# §10: 作者名は「ボスごとに公開時入力」——空欄は他の未入力フィールドと
 	# 同じ語彙「（未設定）」で表示する。
-	_author_label.text = "by %s" % (_draft.author_name if not _draft.author_name.is_empty() else "（未設定）")
+	_author_label.text = tr("by %s") % (_draft.author_name if not _draft.author_name.is_empty() else tr("（未設定）"))
 	_mode_label.text = RBMChallengeUiKit.mode_display_text(_draft.creator_mode)
 	if _draft.appearance_id.is_empty():
 		_preview_swatch.texture = null
 	else:
 		_preview_swatch.texture = RBMVisualAssets.texture(RBMVisualAssets.boss_asset(_draft.appearance_id))
-	_appearance_label.text = "外見: %s" % (RBMCreatorAppearanceCatalog.display_name(_draft.appearance_id) if not _draft.appearance_id.is_empty() else "（未選択）")
-	_stage_id_label.text = "ステージID: %s" % stage_id
+	_appearance_label.text = tr("外見: %s") % (RBMCreatorAppearanceCatalog.display_name(_draft.appearance_id) if not _draft.appearance_id.is_empty() else tr("（未選択）"))
+	_stage_id_label.text = tr("ステージID: %s") % stage_id
 
 	# §8: 未クリアであることを危険・非推奨のニュアンスなしにそのまま伝える。
-	_clear_check_label.text = STATUS_LABELS["clear_checked"] if _draft.is_clear_check_currently_valid() else "このボス戦はクリアチェックされていません"
+	_clear_check_label.text = tr(STATUS_LABELS["clear_checked"]) if _draft.is_clear_check_currently_valid() else tr("このボス戦はクリアチェックされていません")
 
 	# 実機プレイ改善③ item1/3: 勝利条件・特殊条件も他の6項目と同じ公開設定
 	# パターンで作者が非公開にできる——あえて情報を隠し、作者メッセージ側で
@@ -270,13 +270,13 @@ func _refresh() -> void:
 	# _special_condition_text()（下記）はどちらも今も固定文字列を返すだけ
 	# （将来特殊条件システムが追加された際にこの関数の中身だけ差し替えれば
 	# 反映できる構造も無改修のまま維持）。
-	_win_condition_label.text = "勝利条件: %s" % (_win_condition_text() if _draft.is_challenge_info_visible("win_condition") else "非公開")
-	_special_condition_label.text = "特殊条件: %s" % (_special_condition_text() if _draft.is_challenge_info_visible("special_condition") else "非公開")
+	_win_condition_label.text = tr("勝利条件: %s") % (_win_condition_text() if _draft.is_challenge_info_visible("win_condition") else tr("非公開"))
+	_special_condition_label.text = tr("特殊条件: %s") % (_special_condition_text() if _draft.is_challenge_info_visible("special_condition") else tr("非公開"))
 
 	# §16: 作者メッセージは常に表示（空なら「なし」）。
 	# 実機プレイ改善② item1: 表示名を「作者備考」→「作者メッセージ」へ変更
 	# （内部フィールド名author_notesは既存セーブ互換のため無改修）。
-	_author_notes_label.text = "作者メッセージ: %s" % (_draft.author_notes if not _draft.author_notes.is_empty() else "（なし）")
+	_author_notes_label.text = tr("作者メッセージ: %s") % (_draft.author_notes if not _draft.author_notes.is_empty() else tr("（なし）"))
 	_random_notice_label.visible = _draft.has_random_action_variance()
 
 	_refresh_stat_lines()
@@ -286,38 +286,38 @@ func _refresh() -> void:
 ## §9: 現在のRBMBattle唯一の勝利条件（boss.hp<=0、RBMBattle._check_battle_over()
 ## 参照）をそのまま説明するだけの固定文字列。
 func _win_condition_text() -> String:
-	return "ボスのHPを0にする"
+	return tr("ボスのHPを0にする")
 
 ## §10: 現在のDefinition/RBMBattleに特殊条件の概念が無いため常に「なし」。
 ## 将来特殊条件システムが追加された際、この関数の中身だけを差し替えれば
 ## 確認画面へ反映できる構造にしてある（CHALLENGE側の他のコードは変更不要）。
 func _special_condition_text() -> String:
-	return "なし"
+	return tr("なし")
 
 ## §14/§18: HP/ATK/SPD/弱点/耐性を、公開設定に応じて実値か「？？？」で表示。
 func _refresh_stat_lines() -> void:
-	var hp_text := str(_draft.hp) if _draft.is_challenge_info_visible("hp") else "？？？"
-	var atk_text := str(_draft.atk) if _draft.is_challenge_info_visible("atk") else "？？？"
-	var spd_text := str(_draft.spd) if _draft.is_challenge_info_visible("spd") else "？？？"
-	_stats_label.text = "HP %s / ATK %s / SPD %s" % [hp_text, atk_text, spd_text]
+	var hp_text := str(_draft.hp) if _draft.is_challenge_info_visible("hp") else tr("？？？")
+	var atk_text := str(_draft.atk) if _draft.is_challenge_info_visible("atk") else tr("？？？")
+	var spd_text := str(_draft.spd) if _draft.is_challenge_info_visible("spd") else tr("？？？")
+	_stats_label.text = tr("HP %s / ATK %s / SPD %s") % [hp_text, atk_text, spd_text]
 
 	# 実機プレイ改善③ item8/11: 属性名はRBMDefinitionLoader.ATTRIBUTE_LABELS
 	# 経由の日本語ラベルで表示する（STEP2/STEP3/STEP7と同じ1つの対応表）。
 	if _draft.is_challenge_info_visible("weak_attributes"):
-		_weak_label.text = "弱点: %s" % (", ".join(_attribute_labels(_draft.weak_attributes)) if not _draft.weak_attributes.is_empty() else "なし")
+		_weak_label.text = tr("弱点: %s") % (", ".join(_attribute_labels(_draft.weak_attributes)) if not _draft.weak_attributes.is_empty() else tr("なし"))
 	else:
-		_weak_label.text = "弱点: ？？？"
+		_weak_label.text = tr("弱点: ？？？")
 
 	if _draft.is_challenge_info_visible("resist_attributes"):
-		_resist_label.text = "耐性: %s" % (", ".join(_attribute_labels(_draft.resist_attributes)) if not _draft.resist_attributes.is_empty() else "なし")
+		_resist_label.text = tr("耐性: %s") % (", ".join(_attribute_labels(_draft.resist_attributes)) if not _draft.resist_attributes.is_empty() else tr("なし"))
 	else:
-		_resist_label.text = "耐性: ？？？"
+		_resist_label.text = tr("耐性: ？？？")
 
 func _attribute_labels(attributes: Array) -> Array:
 	var labels: Array = []
 	for attribute in attributes:
 		var attribute_id := str(attribute)
-		labels.append(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute_id, attribute_id)))
+		labels.append(tr(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute_id, attribute_id))))
 	return labels
 
 ## §14/§18: ボススキル詳細は個別項目ごとではなく、公開/非公開の単位で
@@ -326,17 +326,17 @@ func _attribute_labels(attributes: Array) -> Array:
 func _refresh_boss_skills_section() -> void:
 	for child in _boss_skills_section.get_children():
 		child.queue_free()
-	var header := _wrapped_label("ボススキル")
+	var header := _wrapped_label(tr("ボススキル"))
 	header.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
 	_boss_skills_section.add_child(header)
 	if not _draft.is_challenge_info_visible("boss_skills"):
-		_boss_skills_section.add_child(_wrapped_label("非公開"))
+		_boss_skills_section.add_child(_wrapped_label(tr("非公開")))
 		return
 	if _draft.skills.is_empty():
-		_boss_skills_section.add_child(_wrapped_label("（なし）"))
+		_boss_skills_section.add_child(_wrapped_label(tr("（なし）")))
 		return
 	for skill in _draft.skills:
-		_boss_skills_section.add_child(_wrapped_label("・%s" % str(skill.get("name", ""))))
+		_boss_skills_section.add_child(_wrapped_label(tr("・%s") % str(skill.get("name", ""))))
 		_boss_skills_section.add_child(_wrapped_label("  %s" % _skill_detail_text(skill)))
 
 ## §14「ボススキル詳細」: 公開時はRBMCreatorStep7Summary._add_skill_summary()
@@ -349,16 +349,16 @@ func _skill_detail_text(skill: Dictionary) -> String:
 	var type := str(skill.get("type", ""))
 	match type:
 		"attack":
-			var target_label := "単体" if str(skill.get("target", "single")) == "single" else "全体"
+			var target_label := tr("単体") if str(skill.get("target", "single")) == "single" else tr("全体")
 			var attribute_id := str(skill.get("attribute", "NEUTRAL"))
-			return "攻撃 / %s / %s / ATK ×%.2f" % [target_label, str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute_id, attribute_id)), float(skill.get("atk_multiplier", 0.0))]
+			return tr("攻撃 / %s / %s / ATK ×%.2f") % [target_label, tr(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute_id, attribute_id))), float(skill.get("atk_multiplier", 0.0))]
 		"self_heal":
 			var mode := str(skill.get("heal_mode", "fixed"))
 			if mode == "percent":
-				return "回復 / 最大HPの%.1f%%（HP %d回復相当）" % [float(skill.get("heal_percent", 0.0)), _draft.resolved_heal_amount(skill)]
-			return "回復 / HP %d回復" % int(skill.get("heal_fixed_amount", 0))
+				return tr("回復 / 最大HPの%.1f%%（HP %d回復相当）") % [float(skill.get("heal_percent", 0.0)), _draft.resolved_heal_amount(skill)]
+			return tr("回復 / HP %d回復") % int(skill.get("heal_fixed_amount", 0))
 		"atk_self_buff":
-			return "自己強化 / ATK ×%.2f / %dターン" % [float(skill.get("buff_multiplier", 1.0)), int(skill.get("duration_turns", 1))]
+			return tr("自己強化 / ATK ×%.2f / %dターン") % [float(skill.get("buff_multiplier", 1.0)), int(skill.get("duration_turns", 1))]
 		_:
 			return type
 
@@ -370,12 +370,12 @@ func _skill_detail_text(skill: Dictionary) -> String:
 func _refresh_party_section() -> void:
 	for child in _party_section.get_children():
 		child.queue_free()
-	var header := _wrapped_label("挑戦者が使用するパーティ・使用可能スキル")
+	var header := _wrapped_label(tr("挑戦者が使用するパーティ・使用可能スキル"))
 	header.name = "PartySectionHeader"
 	header.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
 	_party_section.add_child(header)
 	if _draft.party_character_ids.is_empty():
-		_party_section.add_child(_wrapped_label("（なし）"))
+		_party_section.add_child(_wrapped_label(tr("（なし）")))
 		return
 	for character_id in _draft.party_character_ids:
 		var master := _draft.master_character_def(character_id)
@@ -383,8 +383,8 @@ func _refresh_party_section() -> void:
 		var names: Array = []
 		for skill in master.get("skills", []):
 			if allowed.has(str(skill.get("id", ""))):
-				names.append(str(skill.get("display_name", "")))
-		var row := _wrapped_label("・%s: %s" % [str(master.get("display_name", character_id)), (", ".join(names) if not names.is_empty() else "（なし）")])
+				names.append(tr(str(skill.get("display_name", ""))))
+		var row := _wrapped_label(tr("・%s: %s") % [tr(str(master.get("display_name", character_id))), (", ".join(names) if not names.is_empty() else tr("（なし）"))])
 		row.name = "PartyMemberRow_%s" % character_id
 		_party_section.add_child(row)
 		if _draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED:
@@ -413,16 +413,18 @@ func _add_hardcore_party_performance(character_id: String, master: Dictionary, a
 		var effective_skill: Dictionary = effective_skills.get(skill_id, master_skill)
 		var parts: Array[String] = []
 		for field in RBMDefinitionLoader.ally_skill_override_fields(master_skill):
-			var field_label: String = str({
+			# 辞書のキー(atk_multiplier等)はDefinitionの内部フィールド名で
+			# 翻訳対象ではない。値のみ表示用文字列——tr()を適用する。
+			var field_label: String = tr(str({
 				"atk_multiplier": "倍率", "heal_amount": "回復量", "sp_amount": "SP回復量",
 				"sp_cost": "SP消費", "buff_multiplier": "強化倍率", "duration_turns": "効果時間",
 				"new_rate": "防御軽減率", "reduction_rate": "被ダメージ軽減率",
-			}.get(field, field))
+			}.get(field, field)))
 			if ["atk_multiplier", "buff_multiplier", "new_rate", "reduction_rate"].has(field):
 				parts.append("%s %.2f" % [field_label, float(effective_skill[field])])
 			else:
 				parts.append("%s %d" % [field_label, int(effective_skill[field])])
-		var skill_line := _wrapped_label("    %s: %s" % [str(master_skill.get("display_name", skill_id)), " / ".join(parts)])
+		var skill_line := _wrapped_label("    %s: %s" % [tr(str(master_skill.get("display_name", skill_id))), " / ".join(parts)])
 		skill_line.name = "PartyPerformanceSkill_%s_%s" % [character_id, skill_id]
 		_party_section.add_child(skill_line)
 
