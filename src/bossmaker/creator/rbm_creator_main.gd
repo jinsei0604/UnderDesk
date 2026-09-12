@@ -157,7 +157,10 @@ func _build_ui() -> void:
 
 	_step_nav_column = RBMCreatorUiKit.StepNavColumn.new()
 	_step_frame.add_child(_step_nav_column)
-	_step_nav_column.setup(STEP_NAMES.slice(0, 4), go_to_step)
+	var translated_step_names: Array = []
+	for step_name in STEP_NAMES.slice(0, 4):
+		translated_step_names.append(tr(step_name))
+	_step_nav_column.setup(translated_step_names, go_to_step)
 
 	_step_content_area = Control.new()
 	_step_content_area.name = "StepContentArea"
@@ -201,19 +204,19 @@ func _build_ui() -> void:
 	root_column.add_child(_nav_row)
 	_back_button = Button.new()
 	_back_button.name = "BackButton"
-	_back_button.text = "戻る"
+	_back_button.text = tr("戻る")
 	RBMCreatorUiKit.style_secondary_button(_back_button)
 	_back_button.pressed.connect(press_back)
 	_nav_row.add_child(_back_button)
 	_return_to_summary_button = Button.new()
 	_return_to_summary_button.name = "ReturnToSummaryButton"
-	_return_to_summary_button.text = "最終確認へ戻る"
+	_return_to_summary_button.text = tr("最終確認へ戻る")
 	RBMCreatorUiKit.style_secondary_button(_return_to_summary_button)
 	_return_to_summary_button.pressed.connect(press_return_to_summary)
 	_nav_row.add_child(_return_to_summary_button)
 	_next_button = Button.new()
 	_next_button.name = "NextButton"
-	_next_button.text = "次へ"
+	_next_button.text = tr("次へ")
 	RBMCreatorUiKit.style_primary_nav_button(_next_button)
 	_next_button.pressed.connect(press_next)
 	_nav_row.add_child(_next_button)
@@ -233,7 +236,7 @@ func _build_ui() -> void:
 	root_column.add_child(exit_row)
 	_exit_button = Button.new()
 	_exit_button.name = "ExitCreatorButton"
-	_exit_button.text = "Creator一覧へ戻る"
+	_exit_button.text = tr("Creator一覧へ戻る")
 	RBMCreatorUiKit.style_secondary_button(_exit_button)
 	_exit_button.pressed.connect(press_exit_creator)
 	exit_row.add_child(_exit_button)
@@ -255,7 +258,7 @@ func _build_ui() -> void:
 	_exit_confirm_panel.add_child(exit_confirm_column)
 	var exit_confirm_label := Label.new()
 	exit_confirm_label.name = "ExitConfirmLabel"
-	exit_confirm_label.text = "変更内容が保存されていません。\n保存せず終了すると変更内容は失われます。"
+	exit_confirm_label.text = tr("変更内容が保存されていません。\n保存せず終了すると変更内容は失われます。")
 	exit_confirm_label.add_theme_color_override("font_color", RBMCreatorUiKit.COLOR_TEXT_PRIMARY)
 	exit_confirm_column.add_child(exit_confirm_label)
 	var exit_confirm_row := HBoxContainer.new()
@@ -263,19 +266,19 @@ func _build_ui() -> void:
 	exit_confirm_column.add_child(exit_confirm_row)
 	var exit_confirm_save_button := Button.new()
 	exit_confirm_save_button.name = "ExitConfirmSaveButton"
-	exit_confirm_save_button.text = "保存する"
+	exit_confirm_save_button.text = tr("保存する")
 	RBMCreatorUiKit.style_primary_nav_button(exit_confirm_save_button)
 	exit_confirm_save_button.pressed.connect(_on_exit_confirm_save_pressed)
 	exit_confirm_row.add_child(exit_confirm_save_button)
 	var exit_confirm_discard_button := Button.new()
 	exit_confirm_discard_button.name = "ExitConfirmDiscardButton"
-	exit_confirm_discard_button.text = "保存せず終了"
+	exit_confirm_discard_button.text = tr("保存せず終了")
 	RBMCreatorUiKit.style_secondary_button(exit_confirm_discard_button)
 	exit_confirm_discard_button.pressed.connect(_on_exit_confirm_discard_pressed)
 	exit_confirm_row.add_child(exit_confirm_discard_button)
 	var exit_confirm_cancel_button := Button.new()
 	exit_confirm_cancel_button.name = "ExitConfirmCancelButton"
-	exit_confirm_cancel_button.text = "キャンセル"
+	exit_confirm_cancel_button.text = tr("キャンセル")
 	RBMCreatorUiKit.style_secondary_button(exit_confirm_cancel_button)
 	exit_confirm_cancel_button.pressed.connect(_on_exit_confirm_cancel_pressed)
 	exit_confirm_row.add_child(exit_confirm_cancel_button)
@@ -404,7 +407,7 @@ func press_test_battle() -> Dictionary:
 	if not bool(resolved.get("ok", false)):
 		# 実機プレイ改善③ item8/11: "TEST BATTLE"混在表記を統一して日本語化
 		# （STEP7の「テストバトル」ボタンと表記を揃える）。
-		_status_label.text = "テストバトルを開始できません（設定を確認してください）"
+		_status_label.text = tr("テストバトルを開始できません（設定を確認してください）")
 		return resolved
 	_test_battle_view.start(definition)
 	_show_only(_test_battle_view)
@@ -550,6 +553,18 @@ func start_new() -> void:
 	current_step = 1
 	has_reached_summary = false
 	_reference_authoring_snapshot = draft.full_authoring_snapshot()
+	# 状態遷移不具合修正: RBMCreatorMainはRBMCreatorEntryが1つだけ保持し続け、
+	# 破棄・再構築されない（同ファイルのクラス冒頭コメント参照）——つまり
+	# _show_only()で切り替わる内部サブビュー(_steps_root/_appearance_picker/
+	# _test_battle_view/_clear_check_view/_save_view)の「今どれが表示中か」
+	# という一時的なUI状態は、前回のセッションを終えた時点のまま次回まで
+	# 残り続ける。特に保存成功画面からの「クリエイター一覧に戻る」
+	# (_on_save_return_to_creator_list())はCreator自体を非表示にするだけで
+	# 内部を_steps_rootへ戻していなかったため、次にこの関数(=新しい編集
+	# セッションの開始点)が呼ばれた時に保存成功画面が残留表示されていた。
+	# 「新しい編集セッションを開始する」ことの一部として、内部サブビューを
+	# 必ず_steps_rootへ戻す——draft自体（永続データ）には一切触れない。
+	_show_only(_steps_root)
 	_refresh()
 
 ## §31/§34/§43: 保存済みstageを開く。RBMLocalStageRepository.load_stage()が
@@ -580,6 +595,11 @@ func start_loaded(stage_id: String) -> Dictionary:
 	# そのままfull_authoring_snapshot()した結果を使うことで、ロード直後は
 	# 必ず未保存変更なしになる（§34末尾の要件）。
 	_reference_authoring_snapshot = draft.full_authoring_snapshot()
+	# 状態遷移不具合修正: start_new()と同じ理由——このRBMCreatorMainインスタンス
+	# は使い回されるため、前回セッションで表示していたサブビュー(特に保存
+	# 成功画面)が残ったままになりうる。新しい編集セッションの開始点として、
+	# 必ず_steps_rootへ戻す。
+	_show_only(_steps_root)
 	_refresh()
 	return {"ok": true}
 
@@ -676,7 +696,7 @@ func _refresh() -> void:
 	## Creator本体UI刷新（2026-09-04）§3: 現在の工程名とSTEP n / 総数は、
 	## 実際の工程数・現在位置から都度算出する（デザイン例の固定文言を
 	## 埋め込まない）。
-	_header.title_label.text = "ボス作成 ｜ %s" % STEP_NAMES[current_step - 1]
+	_header.title_label.text = tr("ボス作成 ｜ %s") % tr(STEP_NAMES[current_step - 1])
 	_header.step_label.text = "STEP %d / %d" % [current_step, STEP_COUNT]
 	_refresh_world_ui.call_deferred()
 
