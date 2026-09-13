@@ -11,7 +11,11 @@ var _tree_override: SceneTree = null
 func _tree() -> SceneTree:
 	return _tree_override if _tree_override != null else self
 
-func run_gpu_verification(tree: SceneTree) -> void:
+## 正式GPU runner成功判定contract(2026-09-13制定)。詳細はtools/gpu_runner.gd
+## 冒頭コメント参照。falseのままならrunnerはexit code 0を返さない。
+var _gpu_verification_completed := false
+
+func run_gpu_verification(tree: SceneTree) -> int:
 	_tree_override = tree
 	RBMLocalStageRepository.set_stages_dir_for_testing(TEST_STAGES_DIR)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
@@ -32,3 +36,5 @@ func run_gpu_verification(tree: SceneTree) -> void:
 	var img := _tree().root.get_texture().get_image()
 	img.save_png(ProjectSettings.globalize_path(OUT_DIR + "14_creator_mode_choice_art.png"))
 	print("saved 14_creator_mode_choice_art.png")
+	_gpu_verification_completed = true
+	return 0

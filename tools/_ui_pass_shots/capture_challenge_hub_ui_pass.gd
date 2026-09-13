@@ -34,7 +34,11 @@ var _tree_override: SceneTree = null
 func _tree() -> SceneTree:
 	return _tree_override if _tree_override != null else self
 
-func run_gpu_verification(tree: SceneTree) -> void:
+## 正式GPU runner成功判定contract(2026-09-13制定)。詳細はtools/gpu_runner.gd
+## 冒頭コメント参照。falseのままならrunnerはexit code 0を返さない。
+var _gpu_verification_completed := false
+
+func run_gpu_verification(tree: SceneTree) -> int:
 	_tree_override = tree
 	print("CHALLENGE hub UI capture starting...")
 	RBMLocalStageRepository.set_stages_dir_for_testing(TEST_STAGES_DIR)
@@ -178,6 +182,8 @@ func run_gpu_verification(tree: SceneTree) -> void:
 	await _shot("19_battle_started")
 
 	print("CHALLENGE hub UI capture done")
+	_gpu_verification_completed = true
+	return 0
 
 func _seed_stages() -> void:
 	# 02/03/06/07用: SIMPLE/HARDCORE、挑戦者数/クリア率にばらつきを持たせる。

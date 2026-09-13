@@ -3,6 +3,15 @@ extends "res://tools/verify_battle_visuals_gpu.gd"
 var game: RBMGameRoot
 var evidence: Dictionary = {"screens":[],"checks":[],"errors":[]}
 
+## 正式GPU runner成功判定contract(2026-09-13制定): run_gpu_verification()が
+## 実行時エラーで途中終了しても戻り値だけでは検知できない(int宣言の
+## 関数がエラーで中断した場合、Godotはnullではなくその型のゼロ値=0を
+## 暗黙に返すため、"0"だけでは成功か失敗か区別できないことをPoCで確認
+## 済み)。そのため、最後まで本当に到達したことを示すこのフラグを
+## tools/gpu_runner.gdが確認する。falseのままなら戻り値が0であっても
+## 必ずexit code 1として扱われる。
+var _gpu_verification_completed := false
+
 func check(ok: bool, label_text: String) -> void:
 	evidence.checks.append({"label":label_text,"passed":ok})
 	if not ok: evidence.errors.append(label_text)
@@ -222,6 +231,7 @@ func run_gpu_verification(tree: SceneTree, output_dir_override: String = "", rec
 	evidence.checks_count = evidence.checks.size()
 	FileAccess.open(output_dir.path_join("render-report.json"),FileAccess.WRITE).store_string(JSON.stringify(evidence,"\t"))
 	print("WORLD_UI_INSTALL_DONE checks=%d errors=%d" % [evidence.checks.size(),evidence.errors.size()])
+	_gpu_verification_completed = true
 	return 0 if evidence.errors.is_empty() else 1
 
 ## 旧来の直接`-s`起動との後方互換用の薄い入口(正式サポート対象外。

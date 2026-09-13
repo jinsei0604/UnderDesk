@@ -16,11 +16,15 @@ var _tree_override: SceneTree = null
 func _tree() -> SceneTree:
 	return _tree_override if _tree_override != null else self
 
+## 正式GPU runner成功判定contract(2026-09-13制定)。詳細はtools/gpu_runner.gd
+## 冒頭コメント参照。falseのままならrunnerはexit code 0を返さない。
+var _gpu_verification_completed := false
+
 ## GPU Runner移行(2026-09-13)用の明示的entry point。tools/gpu_runner.gd
 ## から`load()`で動的ロードされた後、生きているSceneTreeを引数で受け取って
 ## 1回だけ呼び出される想定(newもset_scriptも不要、_init()の二重実行なし)。
 ## 検証内容自体は変更していない。
-func run_gpu_verification(tree: SceneTree) -> void:
+func run_gpu_verification(tree: SceneTree) -> int:
 	_tree_override = tree
 	print("mode choice screen capture starting...")
 	RBMLocalStageRepository.set_stages_dir_for_testing(TEST_STAGES_DIR)
@@ -64,6 +68,8 @@ func run_gpu_verification(tree: SceneTree) -> void:
 
 	# 巻き戻して再度開き、HARDCOREとBACKも確認する。
 	await _root2_reset()
+	_gpu_verification_completed = true
+	return 0
 
 func _root2_reset() -> void:
 	var creator_entry: RBMCreatorEntry = _root.creator_entry

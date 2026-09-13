@@ -19,7 +19,11 @@ var _tree_override: SceneTree = null
 func _tree() -> SceneTree:
 	return _tree_override if _tree_override != null else self
 
-func run_gpu_verification(tree: SceneTree) -> void:
+## 正式GPU runner成功判定contract(2026-09-13制定)。詳細はtools/gpu_runner.gd
+## 冒頭コメント参照。falseのままならrunnerはexit code 0を返さない。
+var _gpu_verification_completed := false
+
+func run_gpu_verification(tree: SceneTree) -> int:
 	_tree_override = tree
 	print("STEP3 new UI capture starting...")
 	RBMLocalStageRepository.set_stages_dir_for_testing(TEST_STAGES_DIR)
@@ -266,6 +270,8 @@ func run_gpu_verification(tree: SceneTree) -> void:
 		await _shot("25_test_battle_turn_%d" % turn)
 
 	print("STEP3 new UI capture done")
+	_gpu_verification_completed = true
+	return 0
 
 func _click(node: Node, button_name: String) -> void:
 	var btn: Button = node.find_child(button_name, true, false)

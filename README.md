@@ -27,7 +27,9 @@ Godot 4.7製のボス作成・挑戦ゲーム。現在のプロジェクトは�
   [--record-all]
 ```
 
-旧来の`godot --path . -s res://tools/xxx.gd`直接起動は、これらの`RBMGameRoot`利用ツールでは**非推奨・非対応**（autoload登録前にスクリプトがコンパイルされ、Compile Errorになる）。対象スクリプトは`func run_gpu_verification(tree: SceneTree, ...) -> ...`という明示的entry pointを公開すること。
+旧来の`godot --path . -s res://tools/xxx.gd`直接起動は、これらの`RBMGameRoot`利用ツールでは**非推奨・非対応**（autoload登録前にスクリプトがコンパイルされ、Compile Errorになる）。対象スクリプトは`func run_gpu_verification(tree: SceneTree, ...) -> int`という明示的entry pointを公開すること。
+
+**成功判定契約（2026-09-13制定）**: 正式runner対応toolは、戻り値`int`に加えて`var _gpu_verification_completed := false`を公開し、処理を最後まで完走した場合にのみこれを`true`にしてから`return`する。runnerはこのフラグと戻り値の両方を確認し、`exit code 0`＝検証が最後まで正常完了したことを保証する。フラグ未対応のtool・フラグが`true`にならなかった場合・戻り値が`int`でない場合は、いずれも`exit code 0`を返さない（安全側）。**runnerの`exit code 0`は検証正常完了、非0は途中失敗または検証失敗を意味する**——`exit code`だけを見て成否を判断してよい。
 
 `RBMGameRoot`を経由しないVFX単体検証ツール（`tools/verify_healer_lightning_gpu.gd`等、`tools/verify_battle_visuals_gpu.gd`直系）はこの制約を受けないため、従来通り`-s`直接起動のままで良い。
 
