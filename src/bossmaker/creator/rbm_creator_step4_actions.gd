@@ -339,9 +339,9 @@ func _on_scripted_when_next_pressed() -> void:
 	_form_context = "scripted"
 	if _pending_scripted_editing_index >= 0:
 		var entry: Dictionary = draft.scripted_actions[_pending_scripted_editing_index]
-		_form.open_for_editing(str(entry.get("skill_id", "")), "指定行動を編集")
+		_form.open_for_editing(str(entry.get("skill_id", "")), tr("指定行動を編集"))
 	else:
-		_form.open_for_new("指定行動を作る")
+		_form.open_for_new(tr("指定行動を作る"))
 
 func move_scripted_action(index: int, direction: int) -> void:
 	draft.move_scripted_action(index, direction)
