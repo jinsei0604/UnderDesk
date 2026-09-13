@@ -340,7 +340,7 @@ func test_condition_logic_option_hidden_until_a_second_condition_exists() -> voi
 	assert_false(advanced._condition_logic_option.visible, "条件1件のままではAND/ORを出さない")
 
 	_btn(advanced, "AddConditionButton").pressed.emit()
-	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_CONDITION_TYPES.find("turn_at"))
+	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES.find("turn_at"))
 	advanced._on_condition_type_selected(advanced._condition_type_option.selected)
 	_btn(advanced, "ConfirmConditionButton").pressed.emit()
 	assert_eq(advanced._pending_conditions.size(), 2)
@@ -395,7 +395,7 @@ func test_last_boss_skill_condition_is_labeled_as_previous_action_not_existing_s
 	var label: Label = advanced._condition_boss_skill_row.get_child(0)
 	assert_eq(label.text, "前回使った行動", "「既存スキルを選択」という文言は使わない")
 
-	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_CONDITION_TYPES.find("last_boss_skill"))
+	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES.find("last_boss_skill"))
 	advanced._on_condition_type_selected(advanced._condition_type_option.selected)
 	assert_true(advanced._condition_boss_skill_row.visible)
 	assert_eq(advanced._condition_boss_skill_option.item_count, creator.draft.skills.size())

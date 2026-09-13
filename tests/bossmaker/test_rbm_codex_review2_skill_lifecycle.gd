@@ -117,7 +117,7 @@ func _create_skill_slot_at_turn(advanced: RBMCreatorStep4ActionPatterns, name: S
 	advanced._form._name_edit.text = name
 	advanced._form._attack_multiplier_spin.value = atk_multiplier
 	_btn(advanced, "AddConditionButton").pressed.emit()
-	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_CONDITION_TYPES.find("turn_at"))
+	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES.find("turn_at"))
 	advanced._on_condition_type_selected(advanced._condition_type_option.selected)
 	advanced._condition_turn_spin.value = float(turn)
 	_btn(advanced, "ConfirmConditionButton").pressed.emit()
@@ -797,7 +797,7 @@ func test_last_boss_skill_e2e_ui_select_save_load_and_battle_condition_fires() -
 	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
 	advanced._form._name_edit.text = "追撃"
 	_btn(advanced, "AddConditionButton").pressed.emit()
-	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_CONDITION_TYPES.find("last_boss_skill"))
+	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES.find("last_boss_skill"))
 	advanced._on_condition_type_selected(advanced._condition_type_option.selected)
 	var opener_index := -1
 	for i in range(creator.draft.skills.size()):
