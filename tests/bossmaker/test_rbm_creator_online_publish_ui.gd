@@ -15,12 +15,31 @@ extends GutTest
 
 const TEST_DIR := "user://bossmaker_test_online_publish_ui/stages"
 
+## Steam App ID環境分離（2026-09-13）: test_rbm_steam_auth.gdと同じ確立済み
+## パターン。修正前は_ready_steam_auth()がRBMFakeSteamAdapter.configure_
+## available()でfakeを「利用可能」に設定していても、RBMSteamAuth.
+## initialize()が先にRBMSteamConfig.is_configured()を確認するため、開発者
+## PCのGit管理外ローカルファイル(steam_dev_appid.local.txt)の有無に
+## テスト結果が左右されていた（そのファイルが無いfresh checkout/CIでは
+## 全13件のOnline公開系テストがsteam_unavailableで失敗する一方、たまたま
+## そのファイルが存在する環境ではPASSしてしまう、という再現性のない状態
+## だった）。他のテストへ絶対に影響しないよう、テスト専用の一時パスへ
+## 差し替え、after_each()で必ず元に戻す。
+var _tmp_steam_appid_path := "user://test_steam_dev_appid_online_publish_ui.local.txt"
+
 func before_each() -> void:
 	RBMLocalStageRepository.set_stages_dir_for_testing(TEST_DIR)
+	RBMSteamConfig.set_local_dev_app_id_path_for_testing(_tmp_steam_appid_path)
+	var file := FileAccess.open(_tmp_steam_appid_path, FileAccess.WRITE)
+	file.store_string("480")
+	file.close()
 
 func after_each() -> void:
 	_remove_recursive(TEST_DIR)
 	RBMLocalStageRepository.set_stages_dir_for_testing("")
+	RBMSteamConfig.set_local_dev_app_id_path_for_testing("")
+	if FileAccess.file_exists(_tmp_steam_appid_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(_tmp_steam_appid_path))
 
 func _remove_recursive(path: String) -> void:
 	var dir := DirAccess.open(path)

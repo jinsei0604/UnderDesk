@@ -10,6 +10,29 @@ extends GutTest
 ## 状態を検証したい場合は、call_deferred()でcallback発火を1フレーム後へ
 ## 予約してからawaitする(publish()は自分のawait _steam_auth.state_changed
 ## で一旦中断するため、その中断中にdeferred呼び出しが実行される)。
+##
+## Steam App ID環境分離（2026-09-13）: test_rbm_steam_auth.gdと同じ確立済み
+## パターン。修正前は_ready_steam_auth()がRBMFakeSteamAdapter.configure_
+## available()でfakeを「利用可能」に設定していても、RBMSteamAuth.
+## initialize()が先にRBMSteamConfig.is_configured()を確認するため、開発者
+## PCのGit管理外ローカルファイル(steam_dev_appid.local.txt)の有無に
+## テスト結果が左右されていた（そのファイルが無いfresh checkout/CIでは
+## このファイルの公開/取り下げ系テストがsteam_unavailableで失敗する一方、
+## たまたまそのファイルが存在する環境ではPASSしてしまう、という再現性の
+## ない状態だった）。他のテストへ絶対に影響しないよう、テスト専用の
+## 一時パスへ差し替え、after_each()で必ず元に戻す。
+var _tmp_steam_appid_path := "user://test_steam_dev_appid_boss_publisher.local.txt"
+
+func before_each() -> void:
+	RBMSteamConfig.set_local_dev_app_id_path_for_testing(_tmp_steam_appid_path)
+	var file := FileAccess.open(_tmp_steam_appid_path, FileAccess.WRITE)
+	file.store_string("480")
+	file.close()
+
+func after_each() -> void:
+	RBMSteamConfig.set_local_dev_app_id_path_for_testing("")
+	if FileAccess.file_exists(_tmp_steam_appid_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(_tmp_steam_appid_path))
 
 func _playable_draft(boss_name: String = "公開E2Eボス") -> RBMCreatorDraft:
 	var draft := RBMCreatorDraft.new()
