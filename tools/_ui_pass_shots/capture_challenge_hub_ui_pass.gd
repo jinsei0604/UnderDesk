@@ -28,76 +28,83 @@ const TEST_STAGES_DIR := "user://bossmaker_ui_pass_screenshot/challenge_hub_ui"
 
 var _root: RBMGameRoot
 
-func _init() -> void:
+## GPU Runner移行(2026-09-13)用: 詳細はcapture_mode_choice_screen.gd参照。
+var _tree_override: SceneTree = null
+
+func _tree() -> SceneTree:
+	return _tree_override if _tree_override != null else self
+
+func run_gpu_verification(tree: SceneTree) -> void:
+	_tree_override = tree
 	print("CHALLENGE hub UI capture starting...")
 	RBMLocalStageRepository.set_stages_dir_for_testing(TEST_STAGES_DIR)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 
 	_root = RBMGameRoot.new()
-	root.add_child(_root)
-	await process_frame
-	await process_frame
+	_tree().root.add_child(_root)
+	await _tree().process_frame
+	await _tree().process_frame
 
 	_seed_stages()
 
 	_click(_root, "ChallengeModeButton")
-	await process_frame
-	await process_frame
+	await _tree().process_frame
+	await _tree().process_frame
 	print("hub visible: %s" % _root.challenge_entry._hub_view.visible)
 	await _shot("01_hub")
 
 	_click(_root.challenge_entry._hub_view, "SimpleCategoryButton")
-	await process_frame
+	await _tree().process_frame
 	print("SIMPLE category rows: %d" % _root.challenge_entry._list_rows.get_child_count())
 	await _shot("02_simple_list")
 
 	_click(_root.challenge_entry._list_panel, "BackToHubButton")
-	await process_frame
+	await _tree().process_frame
 	_click(_root.challenge_entry._hub_view, "HardcoreCategoryButton")
-	await process_frame
+	await _tree().process_frame
 	print("HARDCORE category rows: %d" % _root.challenge_entry._list_rows.get_child_count())
 	await _shot("03_hardcore_list")
 
 	_click(_root.challenge_entry._list_panel, "BackToHubButton")
-	await process_frame
+	await _tree().process_frame
 	_click(_root.challenge_entry._hub_view, "NewCategoryButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("04_new_list")
 
 	_click(_root.challenge_entry._list_panel, "BackToHubButton")
-	await process_frame
+	await _tree().process_frame
 	_click(_root.challenge_entry._hub_view, "UnchallengedCategoryButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("05_unchallenged_list")
 
 	_click(_root.challenge_entry._list_panel, "BackToHubButton")
-	await process_frame
+	await _tree().process_frame
 	_click(_root.challenge_entry._hub_view, "PopularCategoryButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("06_popular_list")
 
 	_click(_root.challenge_entry._list_panel, "BackToHubButton")
-	await process_frame
+	await _tree().process_frame
 	_click(_root.challenge_entry._hub_view, "HighDifficultyCategoryButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("07_high_difficulty_list")
 
 	_click(_root.challenge_entry._list_panel, "BackToHubButton")
-	await process_frame
+	await _tree().process_frame
 	_click(_root.challenge_entry._hub_view, "SearchBossButton")
-	await process_frame
+	await _tree().process_frame
 	print("search (unfiltered) rows: %d" % _root.challenge_entry._list_rows.get_child_count())
 	await _shot("08_search")
 
 	_root.challenge_entry._name_search_field.text = "注目の火竜"
 	_root.challenge_entry._refresh_list()
-	await process_frame
+	await _tree().process_frame
 	print("search (narrowed to 1) rows: %d" % _root.challenge_entry._list_rows.get_child_count())
 	await _shot("09_one_result")
 
 	_root.challenge_entry._name_search_field.text = ""
 	_root.challenge_entry._refresh_list()
-	await process_frame
+	await _tree().process_frame
 	print("search (cleared, multiple) rows: %d" % _root.challenge_entry._list_rows.get_child_count())
 	await _shot("10_multiple_results")
 
@@ -105,73 +112,72 @@ func _init() -> void:
 	for i in range(20):
 		_publish_stage("大量ボス%02d" % i, RBMCreatorDraft.CREATOR_MODE_SIMPLE, "量産作者")
 	_root.challenge_entry._refresh_list()
-	await process_frame
+	await _tree().process_frame
 	print("total rows after seeding 20 more: %d" % _root.challenge_entry._list_rows.get_child_count())
 	var list_scroll: ScrollContainer = _root.challenge_entry._list_panel.find_child("ChallengeListScroll", true, false)
 	var v_bar := list_scroll.get_v_scroll_bar()
 	print("list scroll max_value=%s" % v_bar.max_value)
 	list_scroll.scroll_vertical = int(v_bar.max_value)
-	await process_frame
+	await _tree().process_frame
 	await _shot("11_scrolled_many_bosses")
 	list_scroll.scroll_vertical = 0
 
 	# --- 12/13: 左カード選択→右詳細更新。
 	var first_card: PanelContainer = _root.challenge_entry._list_rows.get_child(0)
 	_click_card(first_card)
-	await process_frame
+	await _tree().process_frame
 	print("selected stage_id: %s" % _root.challenge_entry._selected_stage_id)
 	await _shot("12_card_selected")
 
 	var second_card: PanelContainer = _root.challenge_entry._list_rows.get_child(1)
 	_click_card(second_card)
-	await process_frame
+	await _tree().process_frame
 	print("selection changed to: %s" % _root.challenge_entry._selected_stage_id)
 	await _shot("13_detail_updated_after_second_selection")
 
 	# --- 14/15: 公開情報あり/非公開情報あり。
 	_root.challenge_entry._name_search_field.text = "公開情報確認ボス"
 	_root.challenge_entry._refresh_list()
-	await process_frame
+	await _tree().process_frame
 	_click_card(_root.challenge_entry._list_rows.get_child(0))
-	await process_frame
+	await _tree().process_frame
 	await _shot("14_visible_info")
 
 	_root.challenge_entry._name_search_field.text = "非公開情報確認ボス"
 	_root.challenge_entry._refresh_list()
-	await process_frame
+	await _tree().process_frame
 	_click_card(_root.challenge_entry._list_rows.get_child(0))
-	await process_frame
+	await _tree().process_frame
 	await _shot("15_hidden_info")
 
 	# --- 16/17: 攻略パーティ・作者メッセージ表示（既にconfirm viewに含まれる
 	# ため、直近のスクリーンショットの下部を確認できるようスクロールする）。
 	var confirm_scroll: ScrollContainer = _root.challenge_entry._confirm_view.find_child("ChallengeConfirmContent", true, false).get_parent()
 	confirm_scroll.scroll_vertical = int(confirm_scroll.get_v_scroll_bar().max_value)
-	await process_frame
+	await _tree().process_frame
 	print("author message: %s" % _root.challenge_entry._confirm_view._author_notes_label.text)
 	await _shot("16_17_party_and_author_message_scrolled")
 	confirm_scroll.scroll_vertical = 0
 
 	_root.challenge_entry._name_search_field.text = ""
 	_root.challenge_entry._refresh_list()
-	await process_frame
+	await _tree().process_frame
 
 	# --- 18: ランダム抽選。
 	_click(_root.challenge_entry._list_panel, "BackToHubButton")
-	await process_frame
+	await _tree().process_frame
 	_click(_root.challenge_entry._hub_view, "RandomChallengeButton")
-	await process_frame
+	await _tree().process_frame
 	print("random picked: %s" % _root.challenge_entry._selected_stage_id)
 	await _shot("18_random_pick")
 
 	# --- 19: このボスに挑戦→戦闘。
 	_click(_root.challenge_entry._confirm_view, "ChallengeStartButton")
-	await process_frame
+	await _tree().process_frame
 	print("battle started: %s" % _root.challenge_entry._battle_view.visible)
 	await _shot("19_battle_started")
 
-	print("CHALLENGE hub UI capture done, quitting")
-	quit()
+	print("CHALLENGE hub UI capture done")
 
 func _seed_stages() -> void:
 	# 02/03/06/07用: SIMPLE/HARDCORE、挑戦者数/クリア率にばらつきを持たせる。
@@ -235,7 +241,7 @@ func _click_card(card: Control) -> void:
 
 func _shot(name: String) -> void:
 	await RenderingServer.frame_post_draw
-	var img := root.get_texture().get_image()
+	var img := _tree().root.get_texture().get_image()
 	var path := "%s%s.png" % [OUT_DIR, name]
 	img.save_png(path)
 	print("saved %s" % path)

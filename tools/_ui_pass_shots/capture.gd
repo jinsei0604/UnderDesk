@@ -13,15 +13,27 @@ const TEST_STAGES_DIR := "user://bossmaker_ui_pass_screenshot/stages"
 var _root: RBMGameRoot
 var _shot_index := 0
 
-func _init() -> void:
+## GPU Runner移行(2026-09-13)用: `.new()`で生成された場合、このインスタンス
+## 自身は生きているSceneTreeではないため、runnerが注入する_tree_overrideを
+## 使う。未設定(旧`-s`直接起動)ならselfを返し、挙動は変わらない。
+var _tree_override: SceneTree = null
+
+func _tree() -> SceneTree:
+	return _tree_override if _tree_override != null else self
+
+## GPU Runner移行(2026-09-13)用の明示的entry point。tools/gpu_runner.gd
+## から`load()`で動的ロードされた後、生きているSceneTreeを引数で受け取って
+## 1回だけ呼び出される想定(newもset_scriptも不要)。検証内容は変更していない。
+func run_gpu_verification(tree: SceneTree) -> void:
+	_tree_override = tree
 	print("UI pass screenshot capture starting...")
 	RBMLocalStageRepository.set_stages_dir_for_testing(TEST_STAGES_DIR)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 
 	_root = RBMGameRoot.new()
-	root.add_child(_root)
-	await process_frame
-	await process_frame
+	_tree().root.add_child(_root)
+	await _tree().process_frame
+	await _tree().process_frame
 
 	await _shot("01_title")
 
@@ -29,7 +41,7 @@ func _init() -> void:
 	var stage_id := _prepare_clear_checked_stage("撮影用ボス")
 
 	_click(_root, "ChallengeModeButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("02_challenge_list")
 
 	var challenge_entry: RBMChallengeEntry = _root.challenge_entry
@@ -38,88 +50,88 @@ func _init() -> void:
 		print("ERROR: challenge stage row not found")
 	else:
 		_click(row, "ChallengeOpenButton")
-		await process_frame
+		await _tree().process_frame
 		await _shot("03_challenge_confirm")
 
 		_click(challenge_entry._confirm_view, "ChallengeStartButton")
-		await process_frame
+		await _tree().process_frame
 		await _shot("04_challenge_battle")
 
 		var battle_view: RBMChallengeBattleView = challenge_entry._battle_view
 		# ボス詳細
 		battle_view.open_boss_detail()
-		await process_frame
+		await _tree().process_frame
 		await _shot("05_boss_detail")
 		battle_view._close_all_overlays()
-		await process_frame
+		await _tree().process_frame
 
 		# 味方詳細（先頭の1人）
 		if not battle_view.session.battle.party.is_empty():
 			battle_view.open_ally_detail(battle_view.session.battle.party[0].id)
-			await process_frame
+			await _tree().process_frame
 			await _shot("06_ally_detail")
 			battle_view._close_all_overlays()
-			await process_frame
+			await _tree().process_frame
 
 		# スキル一覧＋詳細
 		var skill_btn: Button = battle_view.find_child("OpenSkillListButton", true, false)
 		if skill_btn != null and not skill_btn.disabled:
 			skill_btn.pressed.emit()
-			await process_frame
+			await _tree().process_frame
 			await _shot("07_skill_list_and_detail")
 			var back_btn: Button = battle_view.find_child("SkillListBackButton", true, false)
 			if back_btn != null:
 				back_btn.pressed.emit()
-				await process_frame
+				await _tree().process_frame
 
 		# LOG
 		battle_view.open_log_window()
-		await process_frame
+		await _tree().process_frame
 		await _shot("08_log_window")
 		battle_view._close_all_overlays()
-		await process_frame
+		await _tree().process_frame
 
 		# 一旦Challengeから抜ける
 		_click(battle_view, "QuitChallengeButton")
-		await process_frame
+		await _tree().process_frame
 		_click(battle_view, "QuitConfirmButton")
-		await process_frame
+		await _tree().process_frame
 
 	# --- CHALLENGEの勝敗結果画面（§33バグ修正の確認、HP1のボスへ差し替え） ---
 	var win_stage_id := _prepare_clear_checked_stage("撮影用ボス（撃破用）", 1)
 	challenge_entry._refresh_list()
-	await process_frame
+	await _tree().process_frame
 	var win_row: Control = challenge_entry._list_rows.find_child("ChallengeStageRow_%s" % win_stage_id, true, false)
 	if win_row == null:
 		print("ERROR: challenge win stage row not found")
 	else:
 		_click(win_row, "ChallengeOpenButton")
-		await process_frame
+		await _tree().process_frame
 		_click(challenge_entry._confirm_view, "ChallengeStartButton")
-		await process_frame
+		await _tree().process_frame
 		var win_battle_view: RBMChallengeBattleView = challenge_entry._battle_view
 		var win_attack_btn: Button = win_battle_view.find_child("AttackButton", true, false)
 		if win_attack_btn != null and not win_attack_btn.disabled:
 			win_attack_btn.pressed.emit()
-			await process_frame
+			await _tree().process_frame
 			await _shot("04b_challenge_results_screen")
 		_click(win_battle_view, "QuitChallengeButton")
-		await process_frame
+		await _tree().process_frame
 		_click(win_battle_view, "QuitConfirmButton")
-		await process_frame
+		await _tree().process_frame
 
 	_click(challenge_entry, "BackToRootButton")
-	await process_frame
+	await _tree().process_frame
 
 	# --- Creatorへ: TEST BATTLEでREWINDを試す ---
 	_click(_root, "CreateModeButton")
-	await process_frame
+	await _tree().process_frame
 
 	var creator_entry: RBMCreatorEntry = _root.creator_entry
 	_click(creator_entry, "NewBossButton")
-	await process_frame
+	await _tree().process_frame
 	_click(creator_entry, "ChooseSimpleModeButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("10_creator_step1")
 
 	var main: RBMCreatorMain = creator_entry.main
@@ -132,18 +144,18 @@ func _init() -> void:
 	var result := main.press_test_battle()
 	if bool(result.get("ok", false)):
 		var test_view := main._test_battle_view
-		await process_frame
+		await _tree().process_frame
 		await _shot("09_test_battle_with_rewind_list")
 		# 1手進めてREWINDリストに要素を作る
 		var attack_btn: Button = test_view.find_child("AttackButton", true, false)
 		if attack_btn != null:
 			attack_btn.pressed.emit()
-			await process_frame
+			await _tree().process_frame
 			await _shot("09b_test_battle_after_one_turn_rewind_available")
 		_click(test_view, "QuitTestButton")
-		await process_frame
+		await _tree().process_frame
 		_click(test_view, "QuitConfirmButton")
-		await process_frame
+		await _tree().process_frame
 	else:
 		print("ERROR: press_test_battle() failed: %s" % [result])
 
@@ -182,20 +194,20 @@ func _init() -> void:
 	# ADVANCEDモードでは内部の_advanced_view=RBMCreatorStep4ActionPatternsを
 	# 表示する——Creator §34項目11「情報量の多い画面」の撮影対象）。
 	main.go_to_step(3)
-	await process_frame
+	await _tree().process_frame
 	await _shot("11_creator_advanced_step4_dense")
 
 	# --- 保存画面 ---
 	main.go_to_step(RBMCreatorMain.STEP_COUNT)
-	await process_frame
+	await _tree().process_frame
 	main.press_save()
-	await process_frame
+	await _tree().process_frame
 	await _shot("12_creator_save_view")
 	var save_view := main._save_view
 	var save_new_btn: Button = save_view.find_child("SaveNewButton", true, false)
 	if save_new_btn != null:
 		save_new_btn.pressed.emit()
-		await process_frame
+		await _tree().process_frame
 		await _shot("12b_creator_save_success")
 	else:
 		print("WARN: SaveNewButton not found, dumping save_view children for diagnosis")
@@ -207,19 +219,18 @@ func _init() -> void:
 	var win_result := main.press_test_battle()
 	if bool(win_result.get("ok", false)):
 		var win_view := main._test_battle_view
-		await process_frame
+		await _tree().process_frame
 		var win_attack_btn: Button = win_view.find_child("AttackButton", true, false)
 		if win_attack_btn != null and not win_attack_btn.disabled:
 			win_attack_btn.pressed.emit()
-			await process_frame
+			await _tree().process_frame
 			await _shot("13_results_screen")
 		else:
 			print("WARN: AttackButton missing/disabled on results-screen attempt")
 	else:
 		print("ERROR: press_test_battle() (results screenshot) failed: %s" % [win_result])
 
-	print("first batch of screenshots captured, quitting")
-	quit()
+	print("first batch of screenshots captured")
 
 func _click(node: Node, button_name: String) -> void:
 	var btn: Button = node.find_child(button_name, true, false)
@@ -230,7 +241,7 @@ func _click(node: Node, button_name: String) -> void:
 
 func _shot(name: String) -> void:
 	await RenderingServer.frame_post_draw
-	var img := root.get_texture().get_image()
+	var img := _tree().root.get_texture().get_image()
 	var path := "%s%s.png" % [OUT_DIR, name]
 	img.save_png(path)
 	print("saved %s" % path)

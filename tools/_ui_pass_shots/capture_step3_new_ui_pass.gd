@@ -13,23 +13,30 @@ const TEST_STAGES_DIR := "user://bossmaker_ui_pass_screenshot/step3_new_ui"
 
 var _root: RBMGameRoot
 
-func _init() -> void:
+## GPU Runner移行(2026-09-13)用: 詳細はcapture_mode_choice_screen.gd参照。
+var _tree_override: SceneTree = null
+
+func _tree() -> SceneTree:
+	return _tree_override if _tree_override != null else self
+
+func run_gpu_verification(tree: SceneTree) -> void:
+	_tree_override = tree
 	print("STEP3 new UI capture starting...")
 	RBMLocalStageRepository.set_stages_dir_for_testing(TEST_STAGES_DIR)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 
 	_root = RBMGameRoot.new()
-	root.add_child(_root)
-	await process_frame
-	await process_frame
+	_tree().root.add_child(_root)
+	await _tree().process_frame
+	await _tree().process_frame
 
 	_click(_root, "CreateModeButton")
-	await process_frame
+	await _tree().process_frame
 	_click(_root.creator_entry, "NewBossButton")
-	await process_frame
+	await _tree().process_frame
 	_click(_root.creator_entry, "ChooseAdvancedModeButton")
-	await process_frame
-	await process_frame
+	await _tree().process_frame
+	await _tree().process_frame
 
 	var main: RBMCreatorMain = _root.creator_entry.main
 	print("mode is advanced: %s" % (main.draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED))
@@ -40,7 +47,7 @@ func _init() -> void:
 	main.draft.add_party_character("hero")
 
 	main.go_to_step(3)
-	await process_frame
+	await _tree().process_frame
 	var step4: RBMCreatorStep4 = main._step_views[2]
 	var advanced: RBMCreatorStep4ActionPatterns = step4._advanced_view
 	print("advanced view visible: %s" % advanced.visible)
@@ -50,109 +57,109 @@ func _init() -> void:
 
 	# §31-2: 通常攻撃1件（新しく攻撃を作る）。
 	_click(advanced, "AddSlotButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "AddChoiceCreateNewButton")
-	await process_frame
+	await _tree().process_frame
 	print("skill_slot_view form_active: %s" % advanced._skill_slot_form_active)
 	await _shot("01_new_attack_form_open")
 	advanced._form._name_edit.text = "斬撃A"
 	advanced._form._attack_multiplier_spin.value = 1.0
 	_click(advanced, "SkillSlotConfirmButton")
-	await process_frame
+	await _tree().process_frame
 	print("slot count after first attack: %d" % main.draft.action_sequence.size())
 	await _shot("02_one_normal_attack")
 
 	# §31-3: 複数件。
 	_click(advanced, "AddSlotButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "AddChoiceCreateNewButton")
-	await process_frame
+	await _tree().process_frame
 	advanced._form._name_edit.text = "斬撃B"
 	_click(advanced, "SkillSlotConfirmButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("03_multiple_attacks")
 
 	# §31-4: 再利用（既存の攻撃から選ぶ）——「斬撃A」を別スロットとしても配置する。
 	_click(advanced, "AddSlotButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "AddChoicePickExistingButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("04_pick_existing_list")
 	_click(advanced, "PickExistingSkillButton_0")
-	await process_frame
+	await _tree().process_frame
 	print("skill_slot performance summary visible: %s" % advanced._skill_slot_performance_summary_row.visible)
 	await _shot("05_pick_existing_summary")
 	var skills_before_reuse: int = main.draft.skills.size()
 	_click(advanced, "SkillSlotConfirmButton")
-	await process_frame
+	await _tree().process_frame
 	print("skills.size before/after reuse (must be unchanged, no new skill created): %d -> %d" % [skills_before_reuse, main.draft.skills.size()])
 	await _shot("06_reused_attack_added")
 
 	# §31-5: 条件付き。
 	_click(advanced, "AddSlotButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "AddChoiceCreateNewButton")
-	await process_frame
+	await _tree().process_frame
 	advanced._form._name_edit.text = "条件付き攻撃"
 	_click(advanced, "AddConditionButton")
-	await process_frame
+	await _tree().process_frame
 	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_CONDITION_TYPES.find("hp_at_most"))
 	advanced._on_condition_type_selected(advanced._condition_type_option.selected)
 	advanced._condition_percent_spin.value = 30.0
 	await _shot("07_condition_editor_open")
 	_click(advanced, "ConfirmConditionButton")
-	await process_frame
+	await _tree().process_frame
 	print("pending_conditions after confirm: %d" % advanced._pending_conditions.size())
 	_click(advanced, "SkillSlotConfirmButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("08_conditional_attack_added")
 
 	# §31-6: 使用回数制限。
 	_click(advanced, "AddSlotButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "AddChoiceCreateNewButton")
-	await process_frame
+	await _tree().process_frame
 	advanced._form._name_edit.text = "限定攻撃"
 	advanced._uses_limited_check.button_pressed = true
 	advanced._on_uses_limited_toggled(true)
 	advanced._uses_count_spin.value = 2.0
 	await _shot("09_uses_limited_editor")
 	_click(advanced, "SkillSlotConfirmButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("10_uses_limited_attack_added")
 
 	# §31-7: ランダム攻撃。
 	_click(advanced, "AddSlotButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "AddChoiceCreateRandomButton")
-	await process_frame
+	await _tree().process_frame
 	print("random editor visible: %s" % advanced._random_editor_view.visible)
 	await _shot("11_random_editor_empty")
 
 	# §31-8: ランダム内で既存を追加。
 	_click(advanced, "RandomAddCandidateButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "RandomAddChoicePickExistingButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("12_random_pick_existing_list")
 	_click(advanced, "RandomPickExistingSkillButton_0")
-	await process_frame
+	await _tree().process_frame
 	print("random candidates after pick-existing: %d" % advanced._random_candidates.size())
 	await _shot("13_random_with_existing_candidate")
 
 	# §31-9: ランダム内で新規作成。
 	_click(advanced, "RandomAddCandidateButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "RandomAddChoiceCreateNewButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("14_random_create_new_form")
 	advanced._form._name_edit.text = "ランダム候補新規"
 	_click(advanced._form, "SaveActionButton")
-	await process_frame
+	await _tree().process_frame
 	print("random candidates after create-new: %d, skills.size=%d" % [advanced._random_candidates.size(), main.draft.skills.size()])
 	await _shot("15_random_with_two_candidates")
 	_click(advanced, "RandomConfirmButton")
-	await process_frame
+	await _tree().process_frame
 	print("slot count after random confirm: %d" % main.draft.action_sequence.size())
 	await _shot("16_random_attack_added_to_list")
 
@@ -160,32 +167,32 @@ func _init() -> void:
 	var scroll: ScrollContainer = advanced._scroll_container
 	var v_bar := scroll.get_v_scroll_bar()
 	scroll.scroll_vertical = int(v_bar.max_value)
-	await process_frame
-	await process_frame
+	await _tree().process_frame
+	await _tree().process_frame
 	print("scroll_vertical=%d max=%d" % [scroll.scroll_vertical, int(v_bar.max_value)])
 	await _shot("17_scrolled_list")
 	scroll.scroll_vertical = 0
-	await process_frame
+	await _tree().process_frame
 
 	# §31-11: 編集。
 	_click(advanced, "EditSlotButton_0")
-	await process_frame
+	await _tree().process_frame
 	print("edit view: performance_summary_visible=%s" % advanced._skill_slot_performance_summary_row.visible)
 	await _shot("18_edit_existing_slot")
 	_click(advanced, "SkillSlotEditPerformanceButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("19_edit_performance_form_open")
 	advanced._form._name_edit.text = "斬撃A改"
 	_click(advanced._form, "SaveActionButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "SkillSlotConfirmButton")
-	await process_frame
+	await _tree().process_frame
 	await _shot("20_after_edit_saved")
 
 	# §31-12: 削除。
 	var count_before_delete: int = main.draft.action_sequence.size()
 	_click(advanced, "DeleteSlotButton_0")
-	await process_frame
+	await _tree().process_frame
 	print("slot count before/after delete: %d -> %d" % [count_before_delete, main.draft.action_sequence.size()])
 	await _shot("21_after_delete")
 
@@ -194,7 +201,7 @@ func _init() -> void:
 	for slot in main.draft.action_sequence:
 		order_before.append(str(slot.get("slot_id", "")))
 	_click(advanced, "MoveSlotUpButton_1")
-	await process_frame
+	await _tree().process_frame
 	var order_after: Array = []
 	for slot in main.draft.action_sequence:
 		order_after.append(str(slot.get("slot_id", "")))
@@ -211,36 +218,36 @@ func _init() -> void:
 	main.draft.action_sequence.clear()
 	advanced.refresh()
 	_click(advanced, "AddSlotButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "AddChoiceCreateNewButton")
-	await process_frame
+	await _tree().process_frame
 	advanced._form._name_edit.text = "A"
 	_click(advanced, "SkillSlotConfirmButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "AddSlotButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "AddChoiceCreateNewButton")
-	await process_frame
+	await _tree().process_frame
 	advanced._form._name_edit.text = "B"
 	_click(advanced, "SkillSlotConfirmButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "AddSlotButton")
-	await process_frame
+	await _tree().process_frame
 	_click(advanced, "AddChoiceCreateNewButton")
-	await process_frame
+	await _tree().process_frame
 	advanced._form._name_edit.text = "C"
 	_click(advanced, "SkillSlotConfirmButton")
-	await process_frame
+	await _tree().process_frame
 	print("A/B/C sequence built: %d slots" % main.draft.action_sequence.size())
 
 	main.go_to_step(6)
-	await process_frame
+	await _tree().process_frame
 	await _shot("23_step6_summary_abc")
 
 	var test_result: Dictionary = main.press_test_battle()
 	print("press_test_battle ok=%s errors=%s" % [test_result.get("ok", false), test_result.get("errors", [])])
-	await process_frame
-	await process_frame
+	await _tree().process_frame
+	await _tree().process_frame
 	await _shot("24_test_battle_opened")
 
 	var test_view = main._test_battle_view
@@ -255,11 +262,10 @@ func _init() -> void:
 			if str(entry.get("actor", "")) == "boss":
 				boss_entries.append(entry)
 		print("turn %d boss_entries=%s cursor=%d" % [turn, str(boss_entries), battle.hardcore_action_cursor()])
-		await process_frame
+		await _tree().process_frame
 		await _shot("25_test_battle_turn_%d" % turn)
 
-	print("STEP3 new UI capture done, quitting")
-	quit()
+	print("STEP3 new UI capture done")
 
 func _click(node: Node, button_name: String) -> void:
 	var btn: Button = node.find_child(button_name, true, false)
@@ -270,7 +276,7 @@ func _click(node: Node, button_name: String) -> void:
 
 func _shot(name: String) -> void:
 	await RenderingServer.frame_post_draw
-	var img := root.get_texture().get_image()
+	var img := _tree().root.get_texture().get_image()
 	var path := "%s%s.png" % [OUT_DIR, name]
 	img.save_png(path)
 	print("saved %s" % path)

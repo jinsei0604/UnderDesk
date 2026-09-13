@@ -13,18 +13,18 @@ func click(node: Node, button_name: String) -> void:
 	if button != null: button.pressed.emit()
 
 func shot(id: String, _target: Control) -> void:
-	for i in range(8): await process_frame
+	for i in range(8): await _tree().process_frame
 	await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png(output_dir.path_join(id+".png"))
+	_tree().root.get_texture().get_image().save_png(output_dir.path_join(id+".png"))
 	evidence.screens.append(id)
 	print("SHOT "+id)
 
 func settle() -> void:
-	for i in range(10): await process_frame
+	for i in range(10): await _tree().process_frame
 	if is_instance_valid(view) and view.session != null:
 		var ticks := 0
 		while view._presenter.is_playing() and ticks < 900:
-			await process_frame
+			await _tree().process_frame
 			ticks += 1
 		check(ticks < 900,"presentation completes")
 
@@ -108,14 +108,22 @@ func verify_mode(mode: String) -> void:
 			view._quit_confirm.hide()
 	await settle()
 
-func _run() -> void:
-	root.size = Vector2i(1280,720)
-	root.content_scale_size = Vector2i(1280,720)
-	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+## GPU Runner移行(2026-09-13)用の明示的entry point。tools/gpu_runner.gd
+## から`load()`で動的ロードされた後、生きているSceneTreeを引数で受け取って
+## 1回だけ呼び出される想定(newもset_scriptも不要)。既存CLI引数
+## (--output/--record-all)の意味は変えていない。戻り値は旧来のquit()
+## 引数と同じ意味の終了コード。
+func run_gpu_verification(tree: SceneTree, output_dir_override: String = "", record_all_override: bool = false) -> int:
+	_tree_override = tree
+	if output_dir_override != "": output_dir = output_dir_override
+	if record_all_override: record_all = true
+	_tree().root.size = Vector2i(1280,720)
+	_tree().root.content_scale_size = Vector2i(1280,720)
+	_tree().root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	DirAccess.make_dir_recursive_absolute(output_dir)
 	RBMLocalStageRepository.set_stages_dir_for_testing("user://world_ui_install/empty_stages")
 	game = RBMGameRoot.new()
-	root.add_child(game)
+	_tree().root.add_child(game)
 	await settle()
 	click(game,"CreateModeButton")
 	click(game.creator_entry,"NewBossButton")
@@ -138,7 +146,7 @@ func _run() -> void:
 	check(stats.find_child("ConfirmStatsButton",true,false)==null,"no stats confirm button")
 	stats._hp_spin.get_line_edit().text = "3800"
 	stats._hp_spin.get_line_edit().text_changed.emit("3800")
-	await process_frame
+	await _tree().process_frame
 	check(main.draft.hp==3800,"typing applies HP without Enter or confirmation")
 	stats._atk_slider.value = 120
 	check(main.draft.atk==120,"slider applies ATK immediately")
@@ -202,16 +210,21 @@ func _run() -> void:
 			within(view._return_button,mode+" result return "+winner)
 			await shot(mode+"-result-"+winner,view)
 			# Window resize changes physical size, retaining the 1280x720 logical canvas.
-			root.size = Vector2i(960,540)
+			_tree().root.size = Vector2i(960,540)
 			await settle()
 			within(view._return_button,mode+" result return at 960x540")
-			root.size = Vector2i(1600,900)
+			_tree().root.size = Vector2i(1600,900)
 			await settle()
 			within(view._return_button,mode+" result return at 1600x900")
-			root.size = Vector2i(1280,720)
+			_tree().root.size = Vector2i(1280,720)
 			await _close_view()
 	game.queue_free()
 	evidence.checks_count = evidence.checks.size()
 	FileAccess.open(output_dir.path_join("render-report.json"),FileAccess.WRITE).store_string(JSON.stringify(evidence,"\t"))
 	print("WORLD_UI_INSTALL_DONE checks=%d errors=%d" % [evidence.checks.size(),evidence.errors.size()])
-	quit(0 if evidence.errors.is_empty() else 1)
+	return 0 if evidence.errors.is_empty() else 1
+
+## 旧来の直接`-s`起動との後方互換用の薄い入口(正式サポート対象外。
+## selfが生きているtreeの場合のみ機能する)。
+func _run() -> void:
+	quit(await run_gpu_verification(self, output_dir, record_all))

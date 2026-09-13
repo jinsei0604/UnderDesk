@@ -14,6 +14,16 @@ var current_case: Dictionary = {}
 var impact_pending := false
 var event_counter := 0
 
+## GPU Runner移行(2026-09-13)用: 新runner経由でdynamic loadされ`.new()`で
+## 生成された場合、このインスタンス自身は生きているSceneTreeではない
+## (root等が未初期化)。その場合はrunnerが注入する_tree_overrideを使う。
+## 旧来通り`-s`で直接起動された場合は従来通りself(=生きているtree)を返す
+## ため、既存の動作中GPUツール(Healer Lightning等)への影響はない。
+var _tree_override: SceneTree = null
+
+func _tree() -> SceneTree:
+	return _tree_override if _tree_override != null else self
+
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
 	for i in range(args.size()):
@@ -98,21 +108,21 @@ func _open_view(mode: String, definition: Dictionary, appearance_id: String) -> 
 		"test": view = RBMCreatorTestBattleView.new()
 		"clear_check": view = RBMCreatorClearCheckView.new()
 		_: view = RBMChallengeBattleView.new()
-	root.add_child(view)
+	_tree().root.add_child(view)
 	view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	if mode != "challenge": view.setup(null)
 	view.set_boss_appearance(appearance_id)
 	if mode == "test": view.start(definition, 20260906)
 	elif mode == "clear_check": view.start_battle(definition, 20260906)
 	else: view.start_battle(definition, RBMBattleUiKit.ALL_VISIBLE, appearance_id)
-	for i in range(8): await process_frame
+	for i in range(8): await _tree().process_frame
 	stage = view._battlefield_ally_row.get_meta("visual_stage", null)
 	if stage == null or not stage.has_method("get_visual_audit"):
 		_fail("Production View has no auditable visual stage: " + mode)
 		return false
 	var ticks := 0
 	while view._presenter.is_playing() and ticks < 600:
-		await process_frame
+		await _tree().process_frame
 		ticks += 1
 	stage.set_state(view.session.battle.presentation_state())
 	stage.impact.connect(_on_impact)
@@ -123,7 +133,7 @@ func _close_view() -> void:
 	if is_instance_valid(view): view.queue_free()
 	view = null
 	stage = null
-	await process_frame
+	await _tree().process_frame
 
 func _actor_id(character_id: String) -> int:
 	for unit in view.session.battle.party:

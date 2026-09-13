@@ -11,21 +11,28 @@ var _root: RBMGameRoot
 var _entry: RBMCreatorEntry
 var _char: RBMCreatorGuideCharacter
 
-func _init() -> void:
+## GPU Runner移行(2026-09-13)用: 詳細はcapture_mode_choice_screen.gd参照。
+var _tree_override: SceneTree = null
+
+func _tree() -> SceneTree:
+	return _tree_override if _tree_override != null else self
+
+func run_gpu_verification(tree: SceneTree) -> void:
+	_tree_override = tree
 	RBMLocalStageRepository.set_stages_dir_for_testing(TEST_STAGES_DIR)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 
 	_root = RBMGameRoot.new()
-	root.add_child(_root)
-	await process_frame
-	await process_frame
+	_tree().root.add_child(_root)
+	await _tree().process_frame
+	await _tree().process_frame
 
 	_root.find_child("CreateModeButton", true, false).pressed.emit()
-	await process_frame
+	await _tree().process_frame
 	_entry = _root.creator_entry
 	_entry.find_child("NewBossButton", true, false).pressed.emit()
-	await process_frame
-	await process_frame
+	await _tree().process_frame
+	await _tree().process_frame
 
 	_char = _entry.find_child("GuideCharacter", true, false)
 	_char.set_process(false)
@@ -53,7 +60,7 @@ func _init() -> void:
 	_char._idle_stage_index = -1
 	while _char._special_active == RBMCreatorGuideCharacter.SpecialIdle.NONE:
 		_char._process(0.01)
-	await process_frame
+	await _tree().process_frame
 	await _shot("16_idle_d_posture")
 
 	# Dが終わりAへ戻るまで進める。
@@ -69,20 +76,19 @@ func _init() -> void:
 		_char._process(0.01)
 		if _char._special_active == RBMCreatorGuideCharacter.SpecialIdle.HAND:
 			break
-	await process_frame
+	await _tree().process_frame
 	await _shot("16_idle_e_hand")
 
 	print("idle A/B/C/D/E screenshots captured")
-	quit()
 
 func _advance_to(target_elapsed: float) -> void:
 	while _char._elapsed < target_elapsed:
 		var step: float = minf(0.01, target_elapsed - _char._elapsed)
 		_char._process(step)
-	await process_frame
+	await _tree().process_frame
 
 func _shot(shot_name: String) -> void:
 	await RenderingServer.frame_post_draw
-	var img := root.get_texture().get_image()
+	var img := _tree().root.get_texture().get_image()
 	img.save_png(ProjectSettings.globalize_path("%s%s.png" % [OUT_DIR, shot_name]))
 	print("saved %s (char elapsed=%.3f, stage=%d, special=%d)" % [shot_name, _char._elapsed, _char._idle_stage_index, _char._special_active])

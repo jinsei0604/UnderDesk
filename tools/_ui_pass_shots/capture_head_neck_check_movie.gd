@@ -14,21 +14,28 @@ var _entry: RBMCreatorEntry
 var _char: RBMCreatorGuideCharacter
 var _elapsed := 0.0
 
-func _init() -> void:
+## GPU Runner移行(2026-09-13)用: 詳細はcapture_mode_choice_screen.gd参照。
+var _tree_override: SceneTree = null
+
+func _tree() -> SceneTree:
+	return _tree_override if _tree_override != null else self
+
+func run_gpu_verification(tree: SceneTree) -> void:
+	_tree_override = tree
 	print("head/neck check movie starting...")
 	RBMLocalStageRepository.set_stages_dir_for_testing(TEST_STAGES_DIR)
 
 	_root = RBMGameRoot.new()
-	root.add_child(_root)
-	await process_frame
-	await process_frame
+	_tree().root.add_child(_root)
+	await _tree().process_frame
+	await _tree().process_frame
 
 	_click(_root, "CreateModeButton")
-	await process_frame
+	await _tree().process_frame
 	_entry = _root.creator_entry
 	_click(_entry, "NewBossButton")
-	await process_frame
-	await process_frame
+	await _tree().process_frame
+	await _tree().process_frame
 
 	_char = _entry.find_child("GuideCharacter", true, false)
 	if _char != null:
@@ -40,11 +47,10 @@ func _init() -> void:
 
 	print("recording begins (breathing x2-3 cycles, then D fires once)")
 	while _elapsed < 9.5:
-		await process_frame
+		await _tree().process_frame
 		_elapsed += 1.0 / 60.0
 
-	print("head/neck check movie done at t=%.2f, quitting" % _elapsed)
-	quit()
+	print("head/neck check movie done at t=%.2f" % _elapsed)
 
 func _click(node: Node, button_name: String) -> void:
 	var btn: Button = node.find_child(button_name, true, false)

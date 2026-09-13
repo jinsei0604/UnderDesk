@@ -14,21 +14,28 @@ var _root: RBMGameRoot
 var _entry: RBMCreatorEntry
 var _char: RBMCreatorGuideCharacter
 
-func _init() -> void:
+## GPU Runner移行(2026-09-13)用: 詳細はcapture_mode_choice_screen.gd参照。
+var _tree_override: SceneTree = null
+
+func _tree() -> SceneTree:
+	return _tree_override if _tree_override != null else self
+
+func run_gpu_verification(tree: SceneTree) -> void:
+	_tree_override = tree
 	RBMLocalStageRepository.set_stages_dir_for_testing(TEST_STAGES_DIR)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 
 	_root = RBMGameRoot.new()
-	root.add_child(_root)
-	await process_frame
-	await process_frame
+	_tree().root.add_child(_root)
+	await _tree().process_frame
+	await _tree().process_frame
 
 	_root.find_child("CreateModeButton", true, false).pressed.emit()
-	await process_frame
+	await _tree().process_frame
 	_entry = _root.creator_entry
 	_entry.find_child("NewBossButton", true, false).pressed.emit()
-	await process_frame
-	await process_frame
+	await _tree().process_frame
+	await _tree().process_frame
 
 	_char = _entry.find_child("GuideCharacter", true, false)
 	_char.set_process(false)
@@ -75,7 +82,6 @@ func _init() -> void:
 	await _shot("e_after_a_return")
 
 	print("transition pair screenshots captured")
-	quit()
 
 func _reset_to_normal_breathing() -> void:
 	_char._special_active = RBMCreatorGuideCharacter.SpecialIdle.NONE
@@ -106,8 +112,8 @@ func _advance_stage_boundary(stage_index_before: int, tag: String, wraps: bool =
 	await _shot("%s_after" % tag)
 
 func _shot(shot_name: String) -> void:
-	await process_frame
+	await _tree().process_frame
 	await RenderingServer.frame_post_draw
-	var img := root.get_texture().get_image()
+	var img := _tree().root.get_texture().get_image()
 	img.save_png(ProjectSettings.globalize_path("%s%s.png" % [OUT_DIR, shot_name]))
 	print("saved %s (elapsed=%.3f stage=%d special=%d)" % [shot_name, _char._elapsed, _char._idle_stage_index, _char._special_active])
