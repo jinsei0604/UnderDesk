@@ -88,3 +88,72 @@ func test_back_requested_signal_fires_on_back_button_press() -> void:
 	assert_not_null(back_button, "OnlineListBackButton must exist once the view has entered the tree")
 	back_button.pressed.emit()
 	assert_true(state["back_fired"])
+
+# ---------------------------------------------------------------------------
+# 挑戦ハブ SIMPLE/HARDCORE/新着連携(2026-09) — current mode/category、
+# およびlist-bossesへの受け渡し。
+# ---------------------------------------------------------------------------
+
+func test_default_state_is_online_category_with_no_mode_filter() -> void:
+	var api := _fake_api()
+	var view := _view_with(api)
+	assert_eq(view.current_mode(), "")
+	assert_eq(view.current_category(), RBMOnlineBossListView.CATEGORY_ONLINE)
+
+func test_refresh_with_passes_mode_through_to_the_api_adapter() -> void:
+	var api := _fake_api()
+	api.configure_list_response({"ok": true, "bosses": []})
+	var view := _view_with(api)
+
+	await view.refresh_with(RBMCreatorDraft.CREATOR_MODE_SIMPLE, RBMOnlineBossListView.CATEGORY_ONLINE, "SIMPLE")
+	assert_eq(api.list_calls.size(), 1)
+	assert_eq(str(api.list_calls[0].get("mode", "")), RBMCreatorDraft.CREATOR_MODE_SIMPLE)
+	assert_eq(view.current_mode(), RBMCreatorDraft.CREATOR_MODE_SIMPLE)
+
+	await view.refresh_with(RBMCreatorDraft.CREATOR_MODE_ADVANCED, RBMOnlineBossListView.CATEGORY_ONLINE, "HARDCORE")
+	assert_eq(api.list_calls.size(), 2)
+	assert_eq(str(api.list_calls[1].get("mode", "")), RBMCreatorDraft.CREATOR_MODE_ADVANCED)
+	assert_eq(view.current_mode(), RBMCreatorDraft.CREATOR_MODE_ADVANCED)
+
+func test_refresh_with_updates_current_category_and_title() -> void:
+	var api := _fake_api()
+	api.configure_list_response({"ok": true, "bosses": []})
+	var view := _view_with(api)
+
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_NEW, "新着")
+	assert_eq(view.current_category(), RBMOnlineBossListView.CATEGORY_NEW)
+	var title_label: Label = view.find_child("OnlineListTitleLabel", true, false)
+	assert_eq(title_label.text, "新着")
+
+## 「モードを切り替えたら、現在選択しているカテゴリを維持したまま
+## 一覧を再取得/再表示する」——素のrefresh()(例: 「更新」ボタン)は
+## 直前にrefresh_with()で設定したmode/categoryをそのまま使い続ける。
+func test_plain_refresh_reuses_the_last_mode_and_category() -> void:
+	var api := _fake_api()
+	api.configure_list_response({"ok": true, "bosses": []})
+	var view := _view_with(api)
+
+	await view.refresh_with(RBMCreatorDraft.CREATOR_MODE_ADVANCED, RBMOnlineBossListView.CATEGORY_NEW, "HARDCORE・新着")
+	await view.refresh()
+
+	assert_eq(api.list_calls.size(), 2)
+	assert_eq(str(api.list_calls[1].get("mode", "")), RBMCreatorDraft.CREATOR_MODE_ADVANCED)
+	assert_eq(view.current_category(), RBMOnlineBossListView.CATEGORY_NEW)
+
+## サーバー側(list-bosses)が既にpublished_at降順で返す前提——クライアントは
+## 受け取った順のままカードを並べる(再ソートしない)。
+func test_rows_render_in_the_order_the_server_returned_them() -> void:
+	var api := _fake_api()
+	api.configure_list_response({
+		"ok": true,
+		"bosses": [
+			{"id": "newer", "boss_name": "後で公開", "author_name": "A", "creator_mode": "simple"},
+			{"id": "older", "boss_name": "先に公開", "author_name": "B", "creator_mode": "simple"},
+		],
+	})
+	var view := _view_with(api)
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_NEW, "新着")
+
+	assert_eq(view._rows_container.get_child_count(), 2)
+	var first_row: Button = view._rows_container.get_child(0)
+	assert_eq(first_row.name, "OnlineBossRow_newer")

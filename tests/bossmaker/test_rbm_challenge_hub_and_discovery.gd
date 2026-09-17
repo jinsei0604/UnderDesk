@@ -102,6 +102,16 @@ func test_hub_shows_all_9_navigation_entries_and_no_icons() -> void:
 	assert_eq(featured_button.text, "オンライン")
 	assert_eq(featured_button.find_children("*", "TextureRect", true, false).size(), 0, "「注目」も他ボタンと同じ文字のみ、アイコンは追加しない")
 
+	var new_button: Button = entry._hub_view.find_child("NewCategoryButton", true, false)
+	assert_false(new_button.disabled, "「新着」はオンライン一覧へ接続済みのため無効化されていてはいけない")
+
+	# 挑戦ハブ オンライン移行(2026-09): 未挑戦/人気/高難度はオンライン側の
+	# 正式な統計データが未確定のため今回は未実装——「注目」がランキング
+	# アルゴリズム未確定の間そうしていたのと同じdisabled=true「準備中」表示。
+	for button_name in ["UnchallengedCategoryButton", "PopularCategoryButton", "HighDifficultyCategoryButton"]:
+		var button: Button = entry._hub_view.find_child(button_name, true, false)
+		assert_true(button.disabled, "%s は今回未実装のため無効化されていること" % button_name)
+
 func test_hub_back_to_root_returns_to_common_route() -> void:
 	var entry := _new_entry()
 	entry.enter_challenge()
@@ -120,23 +130,19 @@ func _notify_exit_requested() -> void:
 # ■ 公開状態
 # ---------------------------------------------------------------------------
 
-func test_unpublished_stage_never_appears_in_any_category_search_or_random() -> void:
+## 挑戦ハブ オンライン移行(2026-09): SIMPLE/HARDCORE/オンライン/新着は
+## Supabase上の公開ボスへ接続され、ローカルの_list_rowsには一切触れなく
+## なった(専用テストtest_online_categories_open_the_online_list_not_the_local_list()
+## で別途検証済み)。未挑戦/人気/高難度は今回未実装で、押しても_list_rowsへは
+## 到達しない(test_disabled_categories_do_nothing_and_never_reach_any_list()
+## で検証)。ローカルの一覧が「未公開ボスを一切含まない」という保証は、
+## 今回もローカルを使い続ける検索・ランダムの2経路についてのみ意味を持つ。
+func test_unpublished_stage_never_appears_in_search_or_random() -> void:
 	_save_unpublished("未公開のみボス")
 	_publish("公開済みボス")
 
 	var entry := _new_entry()
 	entry.enter_challenge()
-
-	# CATEGORY_FEATURED（注目）はこのループから除外する——Phase 4D-1以降、
-	# 選択するとローカル一覧(_list_rows)ではなく別のオンライン一覧パネルが
-	# 開くため（専用テストtest_featured_button_opens_the_online_list_not_the_local_list()
-	# で別途検証済み）、ここに含めても_list_rowsの中身を何もテストしないまま
-	# 意味を誤解させるだけになる。
-	for category in [RBMChallengeHubView.CATEGORY_SIMPLE, RBMChallengeHubView.CATEGORY_HARDCORE, RBMChallengeHubView.CATEGORY_NEW, RBMChallengeHubView.CATEGORY_UNCHALLENGED, RBMChallengeHubView.CATEGORY_POPULAR, RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY]:
-		entry._on_hub_category_selected(category)
-		for i in range(entry._list_rows.get_child_count()):
-			var card: PanelContainer = entry._list_rows.get_child(i)
-			assert_false(card.name.contains("未公開"), "category %s must never include an unpublished stage" % category)
 
 	entry._on_hub_search_requested()
 	assert_eq(entry._list_rows.get_child_count(), 1, "search (no filter) must show only the published stage")
@@ -155,135 +161,186 @@ func test_search_excludes_unpublished_stages_by_name() -> void:
 	assert_eq(entry._list_rows.get_child_count(), 0, "search must never surface an unpublished stage even when the name matches")
 
 # ---------------------------------------------------------------------------
-# ■ SIMPLE / HARDCORE
+# ■ SIMPLE / HARDCORE / オンライン / 新着（挑戦ハブ オンライン移行、2026-09）
+#
+# ユーザー確定仕様: この4カテゴリは全てSupabase上の公開ボス一覧
+# (RBMOnlineBossListView)へ接続する。ローカルの_list_rows/
+# RBMLocalStageRepositoryには一切触れない——RBMFakeBossApiAdapterへ
+# 差し替えて、実HTTPへは出ずに検証する。
 # ---------------------------------------------------------------------------
 
-func test_simple_and_hardcore_categories_extract_only_their_own_mode() -> void:
-	_publish("SIMPLEボス", RBMCreatorDraft.CREATOR_MODE_SIMPLE)
-	_publish("HARDCOREボス", RBMCreatorDraft.CREATOR_MODE_ADVANCED)
+func _fake_online_api() -> RBMFakeBossApiAdapter:
+	var api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(api)
+	return api
 
-	var entry := _new_entry()
+func _entry_with_online_api(api: RBMFakeBossApiAdapter) -> RBMChallengeEntry:
+	var entry := RBMChallengeEntry.new()
+	entry.set_online_api_adapter_for_testing(api)
+	add_child_autofree(entry)
+	return entry
+
+func test_online_categories_open_the_online_list_not_the_local_list() -> void:
+	_publish("ローカル公開ボスA")
+	_publish("ローカル公開ボスB")
+
+	for category in [RBMChallengeHubView.CATEGORY_FEATURED, RBMChallengeHubView.CATEGORY_NEW, RBMChallengeHubView.CATEGORY_SIMPLE, RBMChallengeHubView.CATEGORY_HARDCORE]:
+		var api := _fake_online_api()
+		api.configure_list_response({"ok": true, "bosses": []})
+		var entry := _entry_with_online_api(api)
+		entry.enter_challenge()
+
+		entry._on_hub_category_selected(category)
+		assert_false(entry._hub_view.visible, "category %s must navigate away from the hub" % category)
+		assert_false(entry._list_panel.visible, "category %s must never open the local list panel" % category)
+		assert_true(entry._online_list_view.visible, "category %s must open the online list panel" % category)
+
+func test_online_category_requests_no_mode_filter() -> void:
+	var api := _fake_online_api()
+	api.configure_list_response({"ok": true, "bosses": []})
+	var entry := _entry_with_online_api(api)
+	entry.enter_challenge()
+
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_FEATURED)
+	assert_eq(api.list_calls.size(), 1)
+	assert_eq(str(api.list_calls[0].get("mode", "")), "", "「オンライン」は絞り込みなしの全件取得であること")
+	assert_eq(entry._online_list_view.current_category(), RBMOnlineBossListView.CATEGORY_ONLINE)
+
+func test_new_category_requests_no_mode_filter_and_uses_the_new_category() -> void:
+	var api := _fake_online_api()
+	api.configure_list_response({"ok": true, "bosses": []})
+	var entry := _entry_with_online_api(api)
+	entry.enter_challenge()
+
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_NEW)
+	assert_eq(api.list_calls.size(), 1)
+	assert_eq(str(api.list_calls[0].get("mode", "")), "")
+	assert_eq(entry._online_list_view.current_category(), RBMOnlineBossListView.CATEGORY_NEW)
+
+func test_simple_category_requests_the_simple_mode_filter() -> void:
+	var api := _fake_online_api()
+	api.configure_list_response({"ok": true, "bosses": []})
+	var entry := _entry_with_online_api(api)
 	entry.enter_challenge()
 
 	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_SIMPLE)
-	assert_eq(entry._list_rows.get_child_count(), 1)
-	var simple_card: PanelContainer = entry._list_rows.get_child(0)
-	assert_not_null(simple_card.find_child("BossCardNameLabel_%s" % simple_card.name.trim_prefix("BossCard_"), true, false))
-	var simple_mode_label: Label = simple_card.find_children("*", "Label", true, false).filter(func(l): return str(l.name).begins_with("BossCardModeLabel_"))[0]
-	assert_eq(simple_mode_label.text, "SIMPLE")
+	assert_eq(api.list_calls.size(), 1)
+	assert_eq(str(api.list_calls[0].get("mode", "")), RBMCreatorDraft.CREATOR_MODE_SIMPLE)
+	assert_eq(entry._online_list_view.current_mode(), RBMCreatorDraft.CREATOR_MODE_SIMPLE)
+
+func test_hardcore_category_requests_the_advanced_mode_filter() -> void:
+	var api := _fake_online_api()
+	api.configure_list_response({"ok": true, "bosses": []})
+	var entry := _entry_with_online_api(api)
+	entry.enter_challenge()
 
 	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_HARDCORE)
-	assert_eq(entry._list_rows.get_child_count(), 1)
-	var hardcore_card: PanelContainer = entry._list_rows.get_child(0)
-	var hardcore_mode_label: Label = hardcore_card.find_children("*", "Label", true, false).filter(func(l): return str(l.name).begins_with("BossCardModeLabel_"))[0]
-	assert_eq(hardcore_mode_label.text, "HARDCORE")
+	assert_eq(api.list_calls.size(), 1)
+	assert_eq(str(api.list_calls[0].get("mode", "")), RBMCreatorDraft.CREATOR_MODE_ADVANCED)
+	assert_eq(entry._online_list_view.current_mode(), RBMCreatorDraft.CREATOR_MODE_ADVANCED)
 
-# ---------------------------------------------------------------------------
-# ■ 新着
-# ---------------------------------------------------------------------------
-
-## published_at_unix_timeはTime.get_unix_time_from_system()（秒単位）に
-## 依存するため、同一テスト内で2回publish()すると同じ秒に収まり順序が
-## 不定になりうる——保存後のraw dictのpublished_at_unix_timeキーを直接
-## 上書きしてから読み直し、実時間に依存しない決定論的なテストにする。
-func test_new_category_sorts_by_published_at_descending() -> void:
-	var stage_id_a := _publish("先に公開")
-	var stage_id_b := _publish("後で公開")
-	_force_published_at(stage_id_a, 1000)
-	_force_published_at(stage_id_b, 2000)
-
-	var entry := _new_entry()
+## 「モードを切り替えたら、現在選択しているカテゴリを維持したまま
+## 一覧を再取得/再表示する」の統合確認——挑戦ハブ経由でSIMPLE→HARDCOREと
+## 切り替えても、選んでいたのが「新着」カテゴリならcategoryはNEWのまま
+## 維持されること。
+func test_switching_mode_keeps_the_previously_selected_category() -> void:
+	var api := _fake_online_api()
+	api.configure_list_response({"ok": true, "bosses": []})
+	var entry := _entry_with_online_api(api)
 	entry.enter_challenge()
+
 	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_NEW)
-	assert_eq(entry._list_rows.get_child_count(), 2)
-	var first_card: PanelContainer = entry._list_rows.get_child(0)
-	assert_eq(first_card.name, "BossCard_%s" % stage_id_b, "新着は公開日時の新しい順——後で公開した方が先頭に来ること")
+	assert_eq(entry._online_list_view.current_category(), RBMOnlineBossListView.CATEGORY_NEW)
 
-## テスト専用ヘルパー: 保存済みJSONのdraft.published_at_unix_timeを直接
-## 上書きする——実行中のsave_new()/publish()呼び出し順に依存させず、
-## 「新着」の並び替え条件だけを確定的に制御するため。
-## CHALLENGE discovery 最終調整で発見・修正: この関数はdocコメントどおり
-## 「published_at_unix_timeを直接上書きするだけ」のはずが、以前の版では
-## 末尾に別テスト（test_new_category_sorts_by_published_at_descending）の
-## アサーションがそのまま紛れ込んでいた——ボス名を「後で公開」に固定で
-## 期待するため、この共有ヘルパーを別のボス名で呼ぶ新規テストが軒並み
-## 失敗する潜在バグだった（このヘルパー自身に本来含まれるべきではない
-## 検証だったため、含めていた側が誤りと判断し削除した）。
-func _force_published_at(stage_id: String, unix_time: int) -> void:
-	var result := RBMLocalStageRepository.load_stage(stage_id)
-	var draft := RBMCreatorDraft.new()
-	draft.restore_from_saved_dict(result.get("draft_data", {}))
-	draft.restore_clear_check_snapshot(result.get("clear_check_data", {}))
-	var dict := draft.to_saved_dict()
-	dict["published_at_unix_time"] = unix_time
-	draft.restore_from_saved_dict(dict)
-	RBMLocalStageRepository.overwrite(stage_id, draft)
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_HARDCORE)
+	assert_eq(entry._online_list_view.current_mode(), RBMCreatorDraft.CREATOR_MODE_ADVANCED)
+	# HARDCOREボタン自体は「新着」ではなく「オンライン」カテゴリとして
+	# 扱う仕様(モードとカテゴリは独立)——ここではモード切替がカテゴリ状態を
+	# 壊さず正しく更新されることのみを確認する。
+	assert_eq(entry._online_list_view.current_category(), RBMOnlineBossListView.CATEGORY_ONLINE)
 
-# ---------------------------------------------------------------------------
-# ■ 未挑戦
-# ---------------------------------------------------------------------------
-
-func test_unchallenged_category_shows_only_zero_challenger_stages() -> void:
-	var challenged_id := _publish("挑戦済みボス")
-	_publish("未挑戦ボス")
-	RBMLocalStageRepository.record_challenge_attempt(challenged_id)
-
-	var entry := _new_entry()
+func test_online_list_shows_published_bosses_returned_by_the_adapter() -> void:
+	var api := _fake_online_api()
+	api.configure_list_response({
+		"ok": true,
+		"bosses": [
+			{"id": "b1", "boss_name": "公開ボスA", "author_name": "作者A", "creator_mode": "simple"},
+			{"id": "b2", "boss_name": "公開ボスB", "author_name": "作者B", "creator_mode": "advanced"},
+		],
+	})
+	var entry := _entry_with_online_api(api)
 	entry.enter_challenge()
-	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_UNCHALLENGED)
-	assert_eq(entry._list_rows.get_child_count(), 1)
-	var card: PanelContainer = entry._list_rows.get_child(0)
-	assert_eq(card.name, "BossCard_%s" % _find_stage_id_by_name("未挑戦ボス"))
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_FEATURED)
+	assert_eq(entry._online_list_view._rows_container.get_child_count(), 2)
 
-func _find_stage_id_by_name(boss_name: String) -> String:
-	for entry in RBMLocalStageRepository.list():
-		if str(entry.get("boss_name", "")) == boss_name:
-			return str(entry.get("stage_id", ""))
-	return ""
-
-# ---------------------------------------------------------------------------
-# ■ 人気
-# ---------------------------------------------------------------------------
-
-func test_popular_category_sorts_by_challenge_count_descending() -> void:
-	var low_id := _publish("低人気ボス")
-	var high_id := _publish("高人気ボス")
-	RBMLocalStageRepository.record_challenge_attempt(low_id)
-	for i in range(5):
-		RBMLocalStageRepository.record_challenge_attempt(high_id)
-
-	var entry := _new_entry()
+func test_online_list_shows_empty_state_with_zero_published_bosses() -> void:
+	var api := _fake_online_api()
+	api.configure_list_response({"ok": true, "bosses": []})
+	var entry := _entry_with_online_api(api)
 	entry.enter_challenge()
-	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_POPULAR)
-	assert_eq(entry._list_rows.get_child_count(), 2)
-	var first_card: PanelContainer = entry._list_rows.get_child(0)
-	assert_eq(first_card.name, "BossCard_%s" % high_id, "the stage with more challengers must sort first")
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_FEATURED)
+	assert_eq(entry._online_list_view._rows_container.get_child_count(), 0)
+	assert_true(entry._online_list_view._status_label.text.length() > 0)
 
-# ---------------------------------------------------------------------------
-# ■ 高難度
-# ---------------------------------------------------------------------------
-
-func test_high_difficulty_uses_corrected_clear_rate_for_ranking_but_shows_real_clear_rate() -> void:
-	# "挑戦者1人・クリア0人"が即座に最難関1位になることを防ぐための補正式
-	# (clear+1)/(challenger+2)。
-	var few_attempts_id := _publish("挑戦少数ボス") # 1挑戦・0クリア → 補正=1/3≈0.333、実クリア率0%
-	RBMLocalStageRepository.record_challenge_attempt(few_attempts_id)
-
-	var many_attempts_low_clear_id := _publish("多数挑戦低クリア率ボス") # 20挑戦・1クリア → 補正=2/22≈0.0909、実クリア率5%
-	for i in range(20):
-		RBMLocalStageRepository.record_challenge_attempt(many_attempts_low_clear_id)
-	RBMLocalStageRepository.record_challenge_clear(many_attempts_low_clear_id)
-
-	var entry := _new_entry()
+func test_online_list_shows_an_error_state_on_supabase_failure_without_crashing() -> void:
+	var api := _fake_online_api()
+	api.configure_list_response({"ok": false, "error_kind": "network_error", "message": "timeout"})
+	var entry := _entry_with_online_api(api)
 	entry.enter_challenge()
-	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY)
-	assert_eq(entry._list_rows.get_child_count(), 2)
-	var first_card: PanelContainer = entry._list_rows.get_child(0)
-	assert_eq(first_card.name, "BossCard_%s" % many_attempts_low_clear_id, "corrected clear rate must rank the many-attempts/low-clear stage as harder, not the 1-attempt/0-clear stage")
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_FEATURED)
+	assert_eq(entry._online_list_view._rows_container.get_child_count(), 0)
+	assert_true(entry._online_list_view._status_label.text.length() > 0, "communication failure must show a status message, not crash")
+	assert_true(entry._online_list_view.visible, "the game must keep running -- the online panel itself must stay usable")
 
-	# 表示は通常のクリア率——補正値をそのままユーザーへ見せない。
-	var displayed_rate: Label = first_card.find_children("*", "Label", true, false).filter(func(l): return str(l.name).begins_with("BossCardClearRateLabel_"))[0]
-	assert_true(displayed_rate.text.contains("5.0%"), "displayed clear rate must be the real uncorrected rate (1/20=5%%), not the internal ranking value")
+# ---------------------------------------------------------------------------
+# ■ 未挑戦 / 人気 / 高難度（今回は未実装）
+#
+# ユーザー確定仕様: オンライン側の正式な挑戦履歴・統計データの算出方法は
+# 別途決定するため、今回はボタンを残したまま「準備中」として無効化する
+# だけ——ローカル一覧・オンライン一覧いずれにも誤って遷移してはならない。
+# ---------------------------------------------------------------------------
+
+func test_disabled_categories_do_nothing_and_never_reach_any_list() -> void:
+	_publish("誤遷移確認用ローカルボス")
+	for category in [RBMChallengeHubView.CATEGORY_UNCHALLENGED, RBMChallengeHubView.CATEGORY_POPULAR, RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY]:
+		var api := _fake_online_api()
+		var entry := _entry_with_online_api(api)
+		entry.enter_challenge()
+
+		entry._on_hub_category_selected(category)
+		assert_true(entry._hub_view.visible, "category %s must leave the hub visible (safe no-op)" % category)
+		assert_false(entry._list_panel.visible, "category %s must never fall back to the local list" % category)
+		assert_false(entry._online_list_view.visible, "category %s must never open the online list either" % category)
+		assert_eq(api.list_calls.size(), 0, "category %s must never call the online API" % category)
+
+## RBMChallengeUiKitのローカル用フィルタ/ソート関数自体は削除していない
+## （将来オンライン側の正式仕様が決まった際に転用できるよう保持する、
+## ユーザー確定仕様）——挑戦ハブからは到達しなくなったため、純粋関数として
+## 直接呼び出す形でカバレッジを維持する。
+func test_filter_unchallenged_still_works_as_a_pure_function() -> void:
+	var entries: Array[Dictionary] = [
+		{"stage_id": "a", "challenge_count": 0},
+		{"stage_id": "b", "challenge_count": 3},
+	]
+	var result := RBMChallengeUiKit.filter_unchallenged(entries)
+	assert_eq(result.size(), 1)
+	assert_eq(str(result[0].get("stage_id", "")), "a")
+
+func test_sort_by_challenge_count_desc_still_works_as_a_pure_function() -> void:
+	var entries: Array[Dictionary] = [
+		{"stage_id": "low", "challenge_count": 1},
+		{"stage_id": "high", "challenge_count": 5},
+	]
+	var result := RBMChallengeUiKit.sort_by_challenge_count_desc(entries)
+	assert_eq(str(result[0].get("stage_id", "")), "high")
+
+func test_sort_by_corrected_clear_rate_asc_still_works_as_a_pure_function() -> void:
+	var entries: Array[Dictionary] = [
+		{"stage_id": "few_attempts", "challenge_count": 1, "clear_count": 0},
+		{"stage_id": "many_low_clear", "challenge_count": 20, "clear_count": 1},
+	]
+	var result := RBMChallengeUiKit.sort_by_corrected_clear_rate_asc(entries)
+	assert_eq(str(result[0].get("stage_id", "")), "many_low_clear", "corrected clear rate must still rank the many-attempts/low-clear entry as harder")
 
 func test_corrected_clear_rate_formula_matches_the_spec_exactly() -> void:
 	var entry_dict := {"challenge_count": 4, "clear_count": 1}
@@ -496,7 +553,7 @@ func test_challenge_clear_is_recorded_exactly_once_on_win() -> void:
 func test_losing_a_battle_does_not_increment_clear_count() -> void:
 	var draft := RBMCreatorDraft.new()
 	draft.boss_name = "敗北記録確認ボス"
-	draft.hp = 1000000
+	draft.hp = 99999
 	draft.atk = 9999
 	draft.spd = 500
 	var atk_id := draft.add_skill({"name": "即死級攻撃", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 50.0})
@@ -585,48 +642,18 @@ func test_republishing_does_not_change_the_published_at_timestamp() -> void:
 	assert_true(draft.publish(), "sanity: re-publish must succeed (Clear Check state is untouched by unpublish)")
 	assert_eq(draft.published_at_unix_time(), first_timestamp, "re-publishing must keep the original first-publish timestamp, not refresh it")
 
-## §5 item11: 新着カテゴリの並び順も、取り下げ→再公開で変動しない
-## （初回公開日時に基づくため）。
-func test_new_category_ranking_does_not_change_when_a_stage_is_unpublished_and_republished() -> void:
-	var stage_id_a := _publish("先に公開済み")
-	var stage_id_b := _publish("後で公開済み")
-	_force_published_at(stage_id_a, 1000)
-	_force_published_at(stage_id_b, 2000)
-
-	var result := RBMLocalStageRepository.load_stage(stage_id_a)
-	var draft := RBMCreatorDraft.new()
-	draft.restore_from_saved_dict(result.get("draft_data", {}))
-	draft.restore_clear_check_snapshot(result.get("clear_check_data", {}))
-	draft.unpublish()
-	RBMLocalStageRepository.overwrite(stage_id_a, draft)
-	assert_true(draft.publish(), "sanity: re-publish must succeed")
-	RBMLocalStageRepository.overwrite(stage_id_a, draft)
-
-	var entry := _new_entry()
-	entry.enter_challenge()
-	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_NEW)
-	assert_eq(entry._list_rows.get_child_count(), 2)
-	var first_card: PanelContainer = entry._list_rows.get_child(0)
-	assert_eq(first_card.name, "BossCard_%s" % stage_id_b, "unpublish+republish of the older stage must not move it back to the top of 新着")
+## §5 item11: 公開日時は取り下げ→再公開で変動しない（初回公開日時に
+## 基づくため）——ドラフト自体の挙動としては上のtest_unpublishing_does_not_clear_the_published_at_timestamp()/
+## test_republishing_does_not_change_the_published_at_timestamp()で既に
+## 検証済み。「新着」カテゴリ自体の並び替えは、挑戦ハブ オンライン移行
+## (2026-09)によりサーバー側(list-bosses、published_at.desc)の責務になった
+## ——クライアント側の対応する検証はsupabase/functions/list-bosses/index.test.ts
+## と、test_rbm_online_boss_list_view.gd::test_rows_render_in_the_order_the_server_returned_them()
+## に移した。
 
 # ---------------------------------------------------------------------------
-# ■ 注目（オンライン一覧の入口、Phase 4D-1）
-# ---------------------------------------------------------------------------
-
-## Phase 4D-1: 「注目」はオンライン公開ボス一覧の入口として有効化された。
-## ローカルの公開済みボス(_publish())には一切影響しない——選択すると
-## ローカル共通一覧(_list_panel)ではなく、別のオンライン一覧パネルが開く。
-func test_featured_button_opens_the_online_list_not_the_local_list() -> void:
-	_publish("ローカル公開ボスA")
-	_publish("ローカル公開ボスB")
-	var entry := _new_entry()
-	entry.enter_challenge()
-
-	var featured_button: Button = entry._hub_view.find_child("FeaturedCategoryButton", true, false)
-	assert_not_null(featured_button)
-	assert_false(featured_button.disabled, "オンライン一覧の入口として有効化された「注目」ボタンは無効化されていてはいけない")
-
-	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_FEATURED)
-	assert_false(entry._hub_view.visible, "選択するとハブから遷移する")
-	assert_false(entry._list_panel.visible, "ローカル共通一覧(_list_panel)は開かない——別のオンライン一覧を使う")
-	assert_true(entry._online_list_view.visible, "オンライン一覧パネルが開く")
+# ■ オンライン / 新着 / SIMPLE / HARDCORE（挑戦ハブの入口としての検証）
+#
+# 実際のAPI呼び出し・パネル遷移の検証は上の「SIMPLE / HARDCORE / オンライン
+# / 新着」節(test_online_categories_open_the_online_list_not_the_local_list()
+# 等)へ統合済み——ここには重複するテストを追加しない。

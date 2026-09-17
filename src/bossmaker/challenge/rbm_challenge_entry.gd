@@ -65,6 +65,12 @@ const SEARCH_FIELD_MIN_SIZE := Vector2(170.0, 32.0)
 var _hub_view: RBMChallengeHubView
 var _online_list_view: RBMOnlineBossListView
 var _last_browse_was_online := false
+
+## テスト専用: _online_list_view自身は_ready()内で初めて生成されるため、
+## 生成前(.new()直後、add_child_autofree()より前)にこのフィールドへ
+## fake adapterを設定しておくと、_build_online_list_view()がそれを
+## _online_list_view.set_api_adapter_for_testing()へ渡す。
+var _injected_online_api_adapter_for_testing: RBMBossApiAdapter = null
 var _list_panel: VBoxContainer
 var _category_title_label: Label
 var _name_search_field: LineEdit
@@ -136,12 +142,21 @@ func _build_hub_view() -> void:
 	_hub_view.back_to_root_requested.connect(_on_back_to_root_pressed)
 	add_child(_hub_view)
 
+## テスト専用: _build_online_list_view()より前に呼ぶこと
+## （.new()直後、add_child_autofree()より前）。
+func set_online_api_adapter_for_testing(adapter: RBMBossApiAdapter) -> void:
+	_injected_online_api_adapter_for_testing = adapter
+
 ## Phase 4D-1: 「オンライン」カテゴリ専用の別パネル。既存のローカル一覧
 ## (_list_panel)とは独立させ、ローカルChallenge既存動作を一切変更しない。
+## 挑戦ハブ オンライン移行(2026-09): SIMPLE/HARDCORE/オンライン/新着の
+## 4カテゴリ全てがこの同じパネルを共有する(_on_hub_category_selected()参照)。
 func _build_online_list_view() -> void:
 	_online_list_view = RBMOnlineBossListView.new()
 	_online_list_view.name = "OnlineBossListView"
 	_online_list_view.visible = false
+	if _injected_online_api_adapter_for_testing != null:
+		_online_list_view.set_api_adapter_for_testing(_injected_online_api_adapter_for_testing)
 	_online_list_view.boss_selected.connect(_on_online_boss_selected)
 	_online_list_view.back_requested.connect(_on_back_to_hub_pressed)
 	add_child(_online_list_view)
@@ -251,21 +266,41 @@ func _build_list_panel() -> void:
 # §2〜§6 — 挑戦ハブからの遷移
 # ---------------------------------------------------------------------------
 
+## 挑戦ハブ オンライン移行(2026-09、ユーザー確定仕様): SIMPLE/HARDCORE/
+## オンライン/新着はSupabase上の公開ボス一覧(_online_list_view)へ接続する。
+## ローカルの共通一覧(_list_panel/_refresh_list()/RBMLocalStageRepository)
+## には一切触れない——それらの関数・データ自体は削除せず維持するが、この
+## 4カテゴリからは到達しなくなる（検索・ランダムは今回変更していないため
+## 引き続きローカルを使う、下の_on_hub_search_requested()/
+## _on_hub_random_requested()参照）。
+##
+## 未挑戦/人気/高難度は、オンライン側の正式な挑戦履歴・統計データがまだ
+## 存在しないため今回は未実装（ユーザー確定仕様「算出方法については別途
+## こちらで決めます」）。ハブ側では既にdisabled=trueで「準備中」表示
+## にしているが、直接このメソッドが呼ばれた場合（テスト等）に備えて、
+## ここでも安全に何もしない（ローカル一覧・オンライン一覧いずれへも
+## 誤って遷移しない）。
 func _on_hub_category_selected(category: String) -> void:
-	# Phase 4D-1: 「注目」ボタンはランキングアルゴリズム(Phase 5)とは別に、
-	# オンライン公開ボス一覧の入口として有効化した——ローカルの一覧
-	# (_list_panel/_refresh_list())には一切触れず、別パネルを開くだけ。
-	if category == RBMChallengeHubView.CATEGORY_FEATURED:
-		_confirm_view.clear_selection()
-		_show_online_browse()
-		_online_list_view.refresh()
-		return
-	_current_category = category
-	_category_title_label.text = _category_display_title(category)
-	_selected_stage_id = ""
+	match category:
+		RBMChallengeHubView.CATEGORY_FEATURED:
+			_open_online_category("", RBMOnlineBossListView.CATEGORY_ONLINE, category)
+			return
+		RBMChallengeHubView.CATEGORY_NEW:
+			_open_online_category("", RBMOnlineBossListView.CATEGORY_NEW, category)
+			return
+		RBMChallengeHubView.CATEGORY_SIMPLE:
+			_open_online_category(RBMCreatorDraft.CREATOR_MODE_SIMPLE, RBMOnlineBossListView.CATEGORY_ONLINE, category)
+			return
+		RBMChallengeHubView.CATEGORY_HARDCORE:
+			_open_online_category(RBMCreatorDraft.CREATOR_MODE_ADVANCED, RBMOnlineBossListView.CATEGORY_ONLINE, category)
+			return
+		RBMChallengeHubView.CATEGORY_UNCHALLENGED, RBMChallengeHubView.CATEGORY_POPULAR, RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY:
+			return # 今回未実装。何もしない(現在の画面のまま)。
+
+func _open_online_category(mode: String, online_category: String, hub_category: String) -> void:
 	_confirm_view.clear_selection()
-	_refresh_list()
-	_show_browse()
+	_show_online_browse()
+	_online_list_view.refresh_with(mode, online_category, _category_display_title(hub_category))
 
 func _on_hub_search_requested() -> void:
 	_current_category = ""
@@ -302,7 +337,7 @@ func _category_display_title(category: String) -> String:
 		RBMChallengeHubView.CATEGORY_HARDCORE:
 			return "HARDCORE"
 		RBMChallengeHubView.CATEGORY_FEATURED:
-			return tr("注目")
+			return tr("オンライン")
 		RBMChallengeHubView.CATEGORY_NEW:
 			return tr("新着")
 		RBMChallengeHubView.CATEGORY_UNCHALLENGED:

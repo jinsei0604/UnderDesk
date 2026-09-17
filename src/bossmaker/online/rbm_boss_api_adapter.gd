@@ -32,9 +32,9 @@ func _ensure_ready() -> void:
 ## 行っている前提——ここでは未設定時のエラーだけ返す。
 func _config_error() -> Dictionary:
 	if RBMSupabaseConfig.url().is_empty():
-		return RBMSupabaseResponse.network_error("SUPABASE_URLが設定されていません。")
+		return RBMSupabaseResponse.network_error(tr("SUPABASE_URLが設定されていません。"))
 	if RBMSupabaseConfig.publishable_key().is_empty():
-		return RBMSupabaseResponse.network_error("SUPABASE_PUBLISHABLE_KEYが設定されていません。")
+		return RBMSupabaseResponse.network_error(tr("SUPABASE_PUBLISHABLE_KEYが設定されていません。"))
 	return {}
 
 func _headers() -> PackedStringArray:
@@ -84,8 +84,16 @@ func unpublish(ticket_hex: String, boss_id: String) -> Dictionary:
 	var body := {"ticket": ticket_hex, "boss_id": boss_id}
 	return await _request(_function_url("unpublish-boss"), HTTPClient.METHOD_POST, JSON.stringify(body))
 
-func list_bosses(limit: int = 20) -> Dictionary:
-	return await _request(_function_url("list-bosses") + "?limit=%d" % limit, HTTPClient.METHOD_GET)
+## mode: ""(絞り込みなし) / RBMCreatorDraft.CREATOR_MODE_SIMPLE / CREATOR_MODE_ADVANCED。
+## 挑戦ハブ SIMPLE/HARDCORE連携(2026-09) — list-bossesは
+## payload.draft_fields.creator_modeをサーバー側で抽出済みのcreator_mode
+## フィールドを返す。フィルタ自体もサーバー側(list-bosses)で行う——
+## クライアントは受け取った結果をそのまま表示するだけでよい。
+func list_bosses(limit: int = 20, mode: String = "") -> Dictionary:
+	var url := _function_url("list-bosses") + "?limit=%d" % limit
+	if not mode.is_empty():
+		url += "&mode=%s" % mode.uri_encode()
+	return await _request(url, HTTPClient.METHOD_GET)
 
 func get_boss(id: String) -> Dictionary:
 	return await _request(_function_url("get-boss") + "?id=%s" % id.uri_encode(), HTTPClient.METHOD_GET)

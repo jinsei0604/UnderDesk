@@ -9,16 +9,40 @@ extends Control
 ##
 ## 一覧はboss_name/author_name/published_atの概要のみ(§4D-2)、選択した
 ## 1件だけ詳細payloadを取得する(§4D-3)。
+##
+## 挑戦ハブ SIMPLE/HARDCORE/新着連携(2026-09) — 挑戦ハブの複数カテゴリ
+## ボタンがこの同じ画面を共有するようになったため、現在のmode/categoryを
+## この画面自身が保持する(§「オンライン一覧側に必要最小限の状態として、
+## current mode / current category を保持できるようにしてください」)。
+## 実際の絞り込み・並び替えはlist-bosses(Edge Function)側で行う——この
+## クラス自身はmode/categoryをAPI呼び出しへ渡して結果をそのまま表示する
+## だけで、クライアント側で再フィルタ・再ソートはしない。
 
 signal boss_selected(boss_id: String, draft: RBMCreatorDraft, boss_name: String, author_name: String)
 signal back_requested()
 
+## 現時点で必要な2カテゴリのみ(未挑戦/人気/高難度は今回未実装のため
+## この画面へは到達しない、RBMChallengeEntry._on_hub_category_selected()
+## 側で防御済み)。
+const CATEGORY_ONLINE := "online"
+const CATEGORY_NEW := "new"
+
 var _api_adapter: RBMBossApiAdapter
 var _rows_container: VBoxContainer
 var _status_label: Label
+var _title_label: Label
+
+var _current_mode: String = ""
+var _current_category: String = CATEGORY_ONLINE
 
 func set_api_adapter_for_testing(adapter: RBMBossApiAdapter) -> void:
 	_api_adapter = adapter
+
+func current_mode() -> String:
+	return _current_mode
+
+func current_category() -> String:
+	return _current_category
 
 func _ready() -> void:
 	if _api_adapter == null:
@@ -50,11 +74,11 @@ func _build_ui() -> void:
 	back_button.pressed.connect(func(): back_requested.emit())
 	header_row.add_child(back_button)
 
-	var title := Label.new()
-	title.name = "OnlineListTitleLabel"
-	title.text = tr("オンライン")
-	title.theme_type_variation = RBMUiTheme.VARIATION_SECTION_LABEL
-	header_row.add_child(title)
+	_title_label = Label.new()
+	_title_label.name = "OnlineListTitleLabel"
+	_title_label.text = tr("オンライン")
+	_title_label.theme_type_variation = RBMUiTheme.VARIATION_SECTION_LABEL
+	header_row.add_child(_title_label)
 
 	var refresh_button := Button.new()
 	refresh_button.name = "OnlineListRefreshButton"
@@ -78,12 +102,22 @@ func _build_ui() -> void:
 	_rows_container.add_theme_constant_override("separation", 8)
 	scroll.add_child(_rows_container)
 
+## 挑戦ハブの各カテゴリボタンから呼ぶ入口。mode/categoryを保持したうえで
+## refresh()する——「モードを切り替えたら現在のカテゴリを維持したまま
+## 再取得」は、呼び出し側(RBMChallengeEntry)が現在のcategoryをそのまま
+## 渡し直すことで実現する。
+func refresh_with(mode: String, category: String, title_text: String) -> void:
+	_current_mode = mode
+	_current_category = category
+	_title_label.text = title_text
+	await refresh()
+
 func refresh() -> void:
 	_status_label.text = tr("読み込み中...")
 	for child in _rows_container.get_children():
 		child.queue_free()
 
-	var response: Dictionary = await _api_adapter.list_bosses()
+	var response: Dictionary = await _api_adapter.list_bosses(20, _current_mode)
 	if not bool(response.get("ok", false)):
 		_status_label.text = tr("取得できませんでした（%s）。しばらくしてから「更新」を押してください。") % str(response.get("error_kind", response.get("message", "unknown")))
 		return

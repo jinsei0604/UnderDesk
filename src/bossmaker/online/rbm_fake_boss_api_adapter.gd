@@ -12,7 +12,7 @@ var _get_response: Dictionary = {"ok": true, "boss": {}}
 
 var publish_calls: Array[Dictionary] = []
 var unpublish_calls: Array[Dictionary] = []
-var list_calls: Array[int] = []
+var list_calls: Array[Dictionary] = []
 var get_calls: Array[String] = []
 
 func _ready() -> void:
@@ -38,8 +38,8 @@ func unpublish(ticket_hex: String, boss_id: String) -> Dictionary:
 	unpublish_calls.append({"ticket": ticket_hex, "boss_id": boss_id})
 	return _unpublish_response.duplicate(true)
 
-func list_bosses(limit: int = 20) -> Dictionary:
-	list_calls.append(limit)
+func list_bosses(limit: int = 20, mode: String = "") -> Dictionary:
+	list_calls.append({"limit": limit, "mode": mode})
 	return _list_response.duplicate(true)
 
 func get_boss(id: String) -> Dictionary:
