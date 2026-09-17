@@ -116,3 +116,18 @@ func list_unchallenged_bosses(ticket_hex: String, mode: String = "", limit: int 
 	if not mode.is_empty():
 		body["mode"] = mode
 	return await _request(_function_url("list-unchallenged-bosses"), HTTPClient.METHOD_POST, JSON.stringify(body))
+
+## Phase 6 — 「人気」/「高難度」。ランキング自体は特定のSteamユーザーに
+## 紐づかない集計値のため、list_bosses()と同じ匿名GETでよい(ticket不要)
+## ——challenge履歴の読み取り自体はサーバー側(service_role)でのみ行う。
+func list_popular_bosses(limit: int = 20, mode: String = "") -> Dictionary:
+	var url := _function_url("list-popular-bosses") + "?limit=%d" % limit
+	if not mode.is_empty():
+		url += "&mode=%s" % mode.uri_encode()
+	return await _request(url, HTTPClient.METHOD_GET)
+
+func list_hard_bosses(limit: int = 20, mode: String = "") -> Dictionary:
+	var url := _function_url("list-hard-bosses") + "?limit=%d" % limit
+	if not mode.is_empty():
+		url += "&mode=%s" % mode.uri_encode()
+	return await _request(url, HTTPClient.METHOD_GET)

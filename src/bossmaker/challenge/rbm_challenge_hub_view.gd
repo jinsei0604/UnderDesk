@@ -13,12 +13,13 @@ extends Control
 ## ステージの共通一覧、この画面の外側で構築・保持される）を使う。
 ##
 ## 挑戦ハブ オンライン移行(2026-09) — SIMPLE/HARDCORE/オンライン/新着/
-## 未挑戦は、Supabase上の公開ボス一覧(RBMOnlineBossListView)へ接続される
-## (RBMChallengeEntry._on_hub_category_selected()参照)。人気/高難度だけは
-## オンライン側の正式な統計算出方法がまだ決まっていないため今回も未実装
-## ——ボタン自体は残すが、「注目」がランキング未確定の間そうしていたのと
-## 同じdisabled=true「準備中」表示のまま。このクラス自身はどの経路でも
-## 一覧を一切構築しない、純粋にカテゴリ選択の入口だけを担う。
+## 未挑戦/人気/高難度の全7ボタンが、Supabase上の公開ボス一覧
+## (RBMOnlineBossListView)へ接続される(RBMChallengeEntry.
+## _on_hub_category_selected()参照)。人気=ユニーク挑戦者数ベース、
+## 高難度=補正クリア率ベースの正式な算出方法が確定したため、いずれも
+## disabled=trueの「準備中」表示から通常のボタンへ切り替えた。このクラス
+## 自身はどの経路でも一覧を一切構築しない、純粋にカテゴリ選択の入口だけを
+## 担う。
 
 signal category_selected(category: String)
 signal random_requested
@@ -97,8 +98,11 @@ func _build_ui() -> void:
 	var discover_row_2 := HBoxContainer.new()
 	discover_row_2.name = "DiscoverRow2"
 	column.add_child(discover_row_2)
-	discover_row_2.add_child(RBMChallengeUiKit.build_category_button(tr("人気"), "PopularCategoryButton", func(): category_selected.emit(CATEGORY_POPULAR), true))
-	discover_row_2.add_child(RBMChallengeUiKit.build_category_button(tr("高難度"), "HighDifficultyCategoryButton", func(): category_selected.emit(CATEGORY_HIGH_DIFFICULTY), true))
+	# オンライン版「人気」/「高難度」(2026-09)正式実装: 正式な算出方法
+	# (ユニーク挑戦者数ベースの人気順、補正クリア率ベースの高難度順)が
+	# 確定したため有効化した——「未挑戦」と同じ経緯。
+	discover_row_2.add_child(RBMChallengeUiKit.build_category_button(tr("人気"), "PopularCategoryButton", func(): category_selected.emit(CATEGORY_POPULAR)))
+	discover_row_2.add_child(RBMChallengeUiKit.build_category_button(tr("高難度"), "HighDifficultyCategoryButton", func(): category_selected.emit(CATEGORY_HIGH_DIFFICULTY)))
 
 	column.add_child(HSeparator.new())
 	var utility_row := HBoxContainer.new()

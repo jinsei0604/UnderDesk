@@ -257,3 +257,63 @@ func test_rows_render_in_the_order_the_server_returned_them() -> void:
 	assert_eq(view._rows_container.get_child_count(), 2)
 	var first_row: Button = view._rows_container.get_child(0)
 	assert_eq(first_row.name, "OnlineBossRow_newer")
+
+# ---------------------------------------------------------------------------
+# オンライン版「人気」/「高難度」(2026-09) — CATEGORY_POPULAR/
+# CATEGORY_HIGH_DIFFICULTYの配線。ランキング自体はlist-popular-bosses/
+# list-hard-bosses(Edge Function)側で計算する——クライアントは結果を
+# そのまま表示するだけで再ソートしない。
+# ---------------------------------------------------------------------------
+
+func test_popular_category_calls_list_popular_bosses_not_the_plain_list_api() -> void:
+	var api := _fake_api()
+	api.configure_list_popular_response({"ok": true, "bosses": []})
+	var view := _view_with(api)
+
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_POPULAR, "人気")
+	assert_eq(api.list_popular_calls.size(), 1)
+	assert_eq(api.list_calls.size(), 0, "人気はlist-bossesではなくlist-popular-bosses経由でなければならない")
+
+func test_high_difficulty_category_calls_list_hard_bosses_not_the_plain_list_api() -> void:
+	var api := _fake_api()
+	api.configure_list_hard_response({"ok": true, "bosses": []})
+	var view := _view_with(api)
+
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_HIGH_DIFFICULTY, "高難度")
+	assert_eq(api.list_hard_calls.size(), 1)
+	assert_eq(api.list_calls.size(), 0, "高難度はlist-bossesではなくlist-hard-bosses経由でなければならない")
+
+func test_popular_category_forwards_the_current_mode() -> void:
+	var api := _fake_api()
+	api.configure_list_popular_response({"ok": true, "bosses": []})
+	var view := _view_with(api)
+
+	await view.refresh_with(RBMCreatorDraft.CREATOR_MODE_ADVANCED, RBMOnlineBossListView.CATEGORY_POPULAR, "人気")
+	assert_eq(str(api.list_popular_calls[0].get("mode", "")), RBMCreatorDraft.CREATOR_MODE_ADVANCED)
+	assert_eq(view.current_mode(), RBMCreatorDraft.CREATOR_MODE_ADVANCED)
+	assert_eq(view.current_category(), RBMOnlineBossListView.CATEGORY_POPULAR)
+
+func test_high_difficulty_category_forwards_the_current_mode() -> void:
+	var api := _fake_api()
+	api.configure_list_hard_response({"ok": true, "bosses": []})
+	var view := _view_with(api)
+
+	await view.refresh_with(RBMCreatorDraft.CREATOR_MODE_SIMPLE, RBMOnlineBossListView.CATEGORY_HIGH_DIFFICULTY, "高難度")
+	assert_eq(str(api.list_hard_calls[0].get("mode", "")), RBMCreatorDraft.CREATOR_MODE_SIMPLE)
+	assert_eq(view.current_category(), RBMOnlineBossListView.CATEGORY_HIGH_DIFFICULTY)
+
+func test_popular_category_renders_bosses_the_adapter_returns_in_server_order() -> void:
+	var api := _fake_api()
+	api.configure_list_popular_response({
+		"ok": true,
+		"bosses": [
+			{"id": "most-popular", "boss_name": "最人気ボス", "author_name": "A"},
+			{"id": "least-popular", "boss_name": "低人気ボス", "author_name": "B"},
+		],
+	})
+	var view := _view_with(api)
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_POPULAR, "人気")
+
+	assert_eq(view._rows_container.get_child_count(), 2)
+	var first_row: Button = view._rows_container.get_child(0)
+	assert_eq(first_row.name, "OnlineBossRow_most-popular")

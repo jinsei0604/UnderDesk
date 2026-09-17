@@ -291,27 +291,20 @@ func _build_list_panel() -> void:
 # ---------------------------------------------------------------------------
 
 ## 挑戦ハブ オンライン移行(2026-09、ユーザー確定仕様): SIMPLE/HARDCORE/
-## オンライン/新着/未挑戦はSupabase上の公開ボス一覧(_online_list_view)へ
-## 接続する。ローカルの共通一覧(_list_panel/_refresh_list()/
-## RBMLocalStageRepository)には一切触れない——それらの関数・データ自体は
-## 削除せず維持するが、この5カテゴリからは到達しなくなる（検索・ランダムは
-## 今回変更していないため引き続きローカルを使う、下の
-## _on_hub_search_requested()/_on_hub_random_requested()参照）。
+## オンライン/新着/未挑戦/人気/高難度はSupabase上の公開ボス一覧
+## (_online_list_view)へ接続する。ローカルの共通一覧(_list_panel/
+## _refresh_list()/RBMLocalStageRepository)には一切触れない——それらの
+## 関数・データ自体は削除せず維持するが、この7カテゴリからは到達しなく
+## なる（検索・ランダムは今回変更していないため引き続きローカルを使う、
+## 下の_on_hub_search_requested()/_on_hub_random_requested()参照）。
 ##
 ## §11(ユーザー確定仕様)「SIMPLE + 未挑戦 → 未挑戦SIMPLEだけ」: モードと
 ## カテゴリは独立した状態として扱う——SIMPLE/HARDCOREボタンは現在選択中の
 ## カテゴリ(_online_list_view.current_category())を維持したままmodeだけを
-## 変更し、オンライン/新着/未挑戦ボタンは現在選択中のmode
+## 変更し、オンライン/新着/未挑戦/人気/高難度ボタンは現在選択中のmode
 ## (_online_list_view.current_mode())を維持したままcategoryだけを変更する。
 ## 「オンライン」ボタンだけは例外的にcategoryを明示的にONLINE(絞り込み
 ## なしの全件)へ戻す(それが「オンライン」ボタン自体の意味のため)。
-##
-## 人気/高難度は、オンライン側の正式な統計データ・算出方法がまだ決まって
-## いないため今回も未実装（ユーザー確定仕様「算出方法については別途
-## こちらで決めます」）。ハブ側では既にdisabled=trueで「準備中」表示に
-## しているが、直接このメソッドが呼ばれた場合（テスト等）に備えて、ここ
-## でも安全に何もしない（ローカル一覧・オンライン一覧いずれへも誤って
-## 遷移しない）。
 func _on_hub_category_selected(category: String) -> void:
 	match category:
 		RBMChallengeHubView.CATEGORY_FEATURED:
@@ -323,14 +316,18 @@ func _on_hub_category_selected(category: String) -> void:
 		RBMChallengeHubView.CATEGORY_UNCHALLENGED:
 			_open_online_category(_online_list_view.current_mode(), RBMOnlineBossListView.CATEGORY_UNCHALLENGED, category)
 			return
+		RBMChallengeHubView.CATEGORY_POPULAR:
+			_open_online_category(_online_list_view.current_mode(), RBMOnlineBossListView.CATEGORY_POPULAR, category)
+			return
+		RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY:
+			_open_online_category(_online_list_view.current_mode(), RBMOnlineBossListView.CATEGORY_HIGH_DIFFICULTY, category)
+			return
 		RBMChallengeHubView.CATEGORY_SIMPLE:
 			_open_online_category(RBMCreatorDraft.CREATOR_MODE_SIMPLE, _online_list_view.current_category(), category)
 			return
 		RBMChallengeHubView.CATEGORY_HARDCORE:
 			_open_online_category(RBMCreatorDraft.CREATOR_MODE_ADVANCED, _online_list_view.current_category(), category)
 			return
-		RBMChallengeHubView.CATEGORY_POPULAR, RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY:
-			return # 今回未実装。何もしない(現在の画面のまま)。
 
 func _open_online_category(mode: String, online_category: String, hub_category: String) -> void:
 	_confirm_view.clear_selection()

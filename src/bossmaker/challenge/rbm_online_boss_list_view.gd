@@ -21,13 +21,15 @@ extends Control
 signal boss_selected(boss_id: String, draft: RBMCreatorDraft, boss_name: String, author_name: String)
 signal back_requested()
 
-## 挑戦ハブ オンライン版「未挑戦」連携(2026-09) — 人気/高難度は今回も
-## 未実装のためこの画面へは到達しない(RBMChallengeEntry.
-## _on_hub_category_selected()側で防御済み)、CATEGORY_UNCHALLENGEDのみ
-## 今回追加する。
+## 挑戦ハブ オンライン版「人気」/「高難度」連携(2026-09) — 5カテゴリ全て
+## がこの画面を共有する。人気/高難度はSteam ticket不要(特定ユーザーに
+## 紐づかない集計ランキングのため)、list_bosses()と同じ匿名GETの
+## list_popular_bosses()/list_hard_bosses()を使う。
 const CATEGORY_ONLINE := "online"
 const CATEGORY_NEW := "new"
 const CATEGORY_UNCHALLENGED := "unchallenged"
+const CATEGORY_POPULAR := "popular"
+const CATEGORY_HIGH_DIFFICULTY := "high_difficulty"
 
 var _api_adapter: RBMBossApiAdapter
 var _recorder: RBMOnlineChallengeRecorder
@@ -130,10 +132,15 @@ func refresh() -> void:
 		child.queue_free()
 
 	var response: Dictionary
-	if _current_category == CATEGORY_UNCHALLENGED:
-		response = await _recorder.list_unchallenged_bosses(_current_mode, 20)
-	else:
-		response = await _api_adapter.list_bosses(20, _current_mode)
+	match _current_category:
+		CATEGORY_UNCHALLENGED:
+			response = await _recorder.list_unchallenged_bosses(_current_mode, 20)
+		CATEGORY_POPULAR:
+			response = await _api_adapter.list_popular_bosses(20, _current_mode)
+		CATEGORY_HIGH_DIFFICULTY:
+			response = await _api_adapter.list_hard_bosses(20, _current_mode)
+		_:
+			response = await _api_adapter.list_bosses(20, _current_mode)
 	if not bool(response.get("ok", false)):
 		_status_label.text = tr("取得できませんでした（%s）。しばらくしてから「更新」を押してください。") % str(response.get("error_kind", response.get("message", "unknown")))
 		return

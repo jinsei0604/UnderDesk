@@ -108,17 +108,11 @@ func test_hub_shows_all_9_navigation_entries_and_no_icons() -> void:
 	var new_button: Button = entry._hub_view.find_child("NewCategoryButton", true, false)
 	assert_false(new_button.disabled, "「新着」はオンライン一覧へ接続済みのため無効化されていてはいけない")
 
-	# オンライン版「未挑戦」(2026-09)正式実装: 「オンライン」「新着」と同じく
-	# 有効化されている。
-	var unchallenged_button: Button = entry._hub_view.find_child("UnchallengedCategoryButton", true, false)
-	assert_false(unchallenged_button.disabled, "オンライン版「未挑戦」実装済みのため無効化されていてはいけない")
-
-	# 人気/高難度は、オンライン側の正式な統計算出方法がまだ決まっていない
-	# ため今回も未実装——「注目」がランキングアルゴリズム未確定の間そう
-	# していたのと同じdisabled=true「準備中」表示。
-	for button_name in ["PopularCategoryButton", "HighDifficultyCategoryButton"]:
+	# オンライン版「未挑戦」/「人気」/「高難度」(2026-09)正式実装:
+	# 「オンライン」「新着」と同じく全て有効化されている。
+	for button_name in ["UnchallengedCategoryButton", "PopularCategoryButton", "HighDifficultyCategoryButton"]:
 		var button: Button = entry._hub_view.find_child(button_name, true, false)
-		assert_true(button.disabled, "%s は今回未実装のため無効化されていること" % button_name)
+		assert_false(button.disabled, "%s はオンライン実装済みのため無効化されていてはいけない" % button_name)
 
 func test_hub_back_to_root_returns_to_common_route() -> void:
 	var entry := _new_entry()
@@ -236,7 +230,7 @@ func test_online_categories_open_the_online_list_not_the_local_list() -> void:
 	_publish("ローカル公開ボスA")
 	_publish("ローカル公開ボスB")
 
-	for category in [RBMChallengeHubView.CATEGORY_FEATURED, RBMChallengeHubView.CATEGORY_NEW, RBMChallengeHubView.CATEGORY_SIMPLE, RBMChallengeHubView.CATEGORY_HARDCORE, RBMChallengeHubView.CATEGORY_UNCHALLENGED]:
+	for category in [RBMChallengeHubView.CATEGORY_FEATURED, RBMChallengeHubView.CATEGORY_NEW, RBMChallengeHubView.CATEGORY_SIMPLE, RBMChallengeHubView.CATEGORY_HARDCORE, RBMChallengeHubView.CATEGORY_UNCHALLENGED, RBMChallengeHubView.CATEGORY_POPULAR, RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY]:
 		var api := _fake_online_api()
 		api.configure_list_response({"ok": true, "bosses": []})
 		var entry := _entry_with_online_api(api)
@@ -362,30 +356,86 @@ func test_online_list_shows_an_error_state_on_supabase_failure_without_crashing(
 	assert_true(entry._online_list_view.visible, "the game must keep running -- the online panel itself must stay usable")
 
 # ---------------------------------------------------------------------------
-# ■ 人気 / 高難度（今回は未実装）
+# ■ 人気 / 高難度（オンライン版、2026-09正式実装）
 #
-# ユーザー確定仕様: オンライン側の正式な統計データの算出方法は別途決定
-# するため、今回はボタンを残したまま「準備中」として無効化するだけ——
-# ローカル一覧・オンライン一覧いずれにも誤って遷移してはならない。
+# ランキング自体はSupabase側(list-popular-bosses/list-hard-bosses)で計算
+# する——クライアント側は結果をそのまま表示するだけで再計算・再ソートは
+# しない(list-bosses/list-unchallenged-bossesと同じ設計方針)。
 # ---------------------------------------------------------------------------
 
-func test_disabled_categories_do_nothing_and_never_reach_any_list() -> void:
-	_publish("誤遷移確認用ローカルボス")
-	for category in [RBMChallengeHubView.CATEGORY_POPULAR, RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY]:
-		var api := _fake_online_api()
-		var entry := _entry_with_online_api(api)
-		entry.enter_challenge()
+func test_popular_category_requests_no_mode_filter_and_uses_the_popular_category() -> void:
+	var api := _fake_online_api()
+	api.configure_list_popular_response({"ok": true, "bosses": []})
+	var entry := _entry_with_online_api(api)
+	entry.enter_challenge()
 
-		entry._on_hub_category_selected(category)
-		assert_true(entry._hub_view.visible, "category %s must leave the hub visible (safe no-op)" % category)
-		assert_false(entry._list_panel.visible, "category %s must never fall back to the local list" % category)
-		assert_false(entry._online_list_view.visible, "category %s must never open the online list either" % category)
-		assert_eq(api.list_calls.size(), 0, "category %s must never call the online API" % category)
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_POPULAR)
+	assert_eq(api.list_popular_calls.size(), 1)
+	assert_eq(str(api.list_popular_calls[0].get("mode", "")), "")
+	assert_eq(entry._online_list_view.current_category(), RBMOnlineBossListView.CATEGORY_POPULAR)
+	assert_false(entry._list_panel.visible, "人気はローカル一覧を使わない")
+	assert_true(entry._online_list_view.visible)
+
+func test_high_difficulty_category_requests_no_mode_filter_and_uses_the_high_difficulty_category() -> void:
+	var api := _fake_online_api()
+	api.configure_list_hard_response({"ok": true, "bosses": []})
+	var entry := _entry_with_online_api(api)
+	entry.enter_challenge()
+
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY)
+	assert_eq(api.list_hard_calls.size(), 1)
+	assert_eq(str(api.list_hard_calls[0].get("mode", "")), "")
+	assert_eq(entry._online_list_view.current_category(), RBMOnlineBossListView.CATEGORY_HIGH_DIFFICULTY)
+	assert_false(entry._list_panel.visible, "高難度はローカル一覧を使わない")
+	assert_true(entry._online_list_view.visible)
+
+## §11と同じ「SIMPLE/HARDCORE + カテゴリ」の組み合わせ仕様が人気/高難度でも
+## 成立すること。
+func test_simple_or_hardcore_combined_with_popular_composes_both_filters() -> void:
+	var api := _fake_online_api()
+	api.configure_list_popular_response({"ok": true, "bosses": []})
+	var entry := _entry_with_online_api(api)
+	entry.enter_challenge()
+
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_SIMPLE)
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_POPULAR)
+	assert_eq(entry._online_list_view.current_mode(), RBMCreatorDraft.CREATOR_MODE_SIMPLE)
+	assert_eq(entry._online_list_view.current_category(), RBMOnlineBossListView.CATEGORY_POPULAR)
+	assert_eq(str(api.list_popular_calls[api.list_popular_calls.size() - 1].get("mode", "")), RBMCreatorDraft.CREATOR_MODE_SIMPLE)
+
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_HARDCORE)
+	assert_eq(entry._online_list_view.current_mode(), RBMCreatorDraft.CREATOR_MODE_ADVANCED)
+	assert_eq(entry._online_list_view.current_category(), RBMOnlineBossListView.CATEGORY_POPULAR, "人気は維持したままモードだけHARDCOREへ切り替わること")
+
+func test_online_list_shows_popular_bosses_returned_by_the_adapter() -> void:
+	var api := _fake_online_api()
+	api.configure_list_popular_response({
+		"ok": true,
+		"bosses": [
+			{"id": "p1", "boss_name": "人気ボスA", "author_name": "作者A"},
+			{"id": "p2", "boss_name": "人気ボスB", "author_name": "作者B"},
+		],
+	})
+	var entry := _entry_with_online_api(api)
+	entry.enter_challenge()
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_POPULAR)
+	assert_eq(entry._online_list_view._rows_container.get_child_count(), 2)
+
+func test_online_list_shows_hard_bosses_returned_by_the_adapter() -> void:
+	var api := _fake_online_api()
+	api.configure_list_hard_response({
+		"ok": true,
+		"bosses": [{"id": "h1", "boss_name": "高難度ボスA", "author_name": "作者A"}],
+	})
+	var entry := _entry_with_online_api(api)
+	entry.enter_challenge()
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY)
+	assert_eq(entry._online_list_view._rows_container.get_child_count(), 1)
 
 ## RBMChallengeUiKitのローカル用フィルタ/ソート関数自体は削除していない
-## （将来オンライン側の正式仕様が決まった際に転用できるよう保持する、
-## ユーザー確定仕様）——挑戦ハブからは到達しなくなったため、純粋関数として
-## 直接呼び出す形でカバレッジを維持する。
+## （ローカル公開ステージ一覧は今回の対象外のまま維持する、ユーザー確定
+## 仕様）——挑戦ハブからは到達しないため、純粋関数として直接呼び出す形で
+## カバレッジを維持する。
 func test_filter_unchallenged_still_works_as_a_pure_function() -> void:
 	var entries: Array[Dictionary] = [
 		{"stage_id": "a", "challenge_count": 0},

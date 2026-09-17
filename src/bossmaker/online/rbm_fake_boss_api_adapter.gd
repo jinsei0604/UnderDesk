@@ -12,6 +12,8 @@ var _get_response: Dictionary = {"ok": true, "boss": {}}
 var _record_attempt_response: Dictionary = {"ok": true, "challenge_count": 1}
 var _record_clear_response: Dictionary = {"ok": true, "clear_count": 1}
 var _list_unchallenged_response: Dictionary = {"ok": true, "bosses": []}
+var _list_popular_response: Dictionary = {"ok": true, "bosses": []}
+var _list_hard_response: Dictionary = {"ok": true, "bosses": []}
 
 var publish_calls: Array[Dictionary] = []
 var unpublish_calls: Array[Dictionary] = []
@@ -20,6 +22,8 @@ var get_calls: Array[String] = []
 var record_attempt_calls: Array[Dictionary] = []
 var record_clear_calls: Array[Dictionary] = []
 var list_unchallenged_calls: Array[Dictionary] = []
+var list_popular_calls: Array[Dictionary] = []
+var list_hard_calls: Array[Dictionary] = []
 
 func _ready() -> void:
 	pass # 実HTTPRequestは作らない。
@@ -44,6 +48,12 @@ func configure_record_clear_response(response: Dictionary) -> void:
 
 func configure_list_unchallenged_response(response: Dictionary) -> void:
 	_list_unchallenged_response = response
+
+func configure_list_popular_response(response: Dictionary) -> void:
+	_list_popular_response = response
+
+func configure_list_hard_response(response: Dictionary) -> void:
+	_list_hard_response = response
 
 func publish(ticket_hex: String, payload: Dictionary, boss_id: String = "") -> Dictionary:
 	publish_calls.append({"ticket": ticket_hex, "payload": payload, "boss_id": boss_id})
@@ -72,3 +82,11 @@ func record_challenge_clear(ticket_hex: String, boss_id: String) -> Dictionary:
 func list_unchallenged_bosses(ticket_hex: String, mode: String = "", limit: int = 20) -> Dictionary:
 	list_unchallenged_calls.append({"ticket": ticket_hex, "mode": mode, "limit": limit})
 	return _list_unchallenged_response.duplicate(true)
+
+func list_popular_bosses(limit: int = 20, mode: String = "") -> Dictionary:
+	list_popular_calls.append({"limit": limit, "mode": mode})
+	return _list_popular_response.duplicate(true)
+
+func list_hard_bosses(limit: int = 20, mode: String = "") -> Dictionary:
+	list_hard_calls.append({"limit": limit, "mode": mode})
+	return _list_hard_response.duplicate(true)
