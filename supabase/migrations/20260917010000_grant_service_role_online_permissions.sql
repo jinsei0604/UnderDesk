@@ -1,0 +1,36 @@
+-- Phase 5 追補 — service_roleへの不足分テーブル権限付与のみ。
+--
+-- 発見した問題: 20260909010000_create_bosses.sqlはanon/authenticatedへの
+-- SELECT権限を明示的にgrantしていたが、service_roleへは一切grantして
+-- いなかった。RLSのBYPASSRLS(service_roleが持つ属性)は行レベル
+-- セキュリティのチェックを迂回するだけで、SQLのGRANT/REVOKEによる
+-- テーブルレベルの権限とは別物のため、service_roleキーを使う全Edge
+-- Function(publish-boss/unpublish-boss/get-boss/list-bosses/
+-- record-challenge-attempt/list-unchallenged-bosses)がbossesテーブルへ
+-- アクセスできず"permission denied for table bosses"で失敗していた
+-- (実環境での疎通確認で判明、ユーザー確定仕様に基づき最小限のGRANTのみ
+-- を追加する)。
+--
+-- このmigrationが行うのはGRANTのみ。以下は一切変更しない:
+--   - anon/authenticatedの権限(変更なし)
+--   - RLS有効化状態(変更なし)
+--   - 既存policy(変更・追加・削除なし)
+--   - SECURITY DEFINER関数(変更なし、record_boss_challenge_attempt/
+--     record_boss_challenge_clearのEXECUTE権限はservice_role限定のまま)
+--
+-- public.bosses: Edge Functionが直接行うCRUDに必要な最小限。
+--   - SELECT: get-boss/list-bosses/record-challenge-attempt/
+--     list-unchallenged-bosses
+--   - INSERT: publish-boss(新規公開)
+--   - UPDATE: publish-boss(再公開でrevision更新)/unpublish-boss
+--   DELETEは付与しない(どのEdge FunctionもDELETEを行わない、
+--   ソフト削除=is_published falseへのUPDATEのみ)。
+grant select, insert, update on public.bosses to service_role;
+
+-- public.boss_challenge_records: 書き込みはrecord_boss_challenge_attempt/
+-- record_boss_challenge_clear(SECURITY DEFINER RPC、関数所有者の権限で
+-- 実行される)経由のみで行う設計のため、service_roleへ直接INSERT/UPDATEを
+-- 追加する必要はない(ユーザー確定仕様「将来使うかもしれないという理由で
+-- 権限を広げない」)。list-unchallenged-bossesが自分自身の挑戦履歴を
+-- 読み取るためのSELECTのみ付与する。
+grant select on public.boss_challenge_records to service_role;
