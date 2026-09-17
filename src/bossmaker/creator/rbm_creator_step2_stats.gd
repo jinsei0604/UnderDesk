@@ -17,7 +17,8 @@ const CREATOR_SLIDER_MIN_SIZE := Vector2(320.0, 28.0)
 
 ## 実機プレイ改善①§12: RBMCreatorStep1Basicと同じ理由・同じ技法。
 const CONTENT_SIDE_MARGIN_PX := 80.0
-const CONTENT_TOP_MARGIN_PX := 40.0
+## UI再配色パス: 左STEPナビ/右BOSS PROFILEと上端を揃えるため40→0に変更。
+const CONTENT_TOP_MARGIN_PX := 0.0
 
 ## 実機プレイ改善② item4: SpinBoxもHSliderと全く同じ理由（上記
 ## CREATOR_SLIDER_MIN_SIZEのコメント参照）でcustom_minimum_sizeを持たない
@@ -84,7 +85,7 @@ func _build_ui() -> void:
 	card.name = "StatsCard"
 	column.add_child(card)
 	var card_column := VBoxContainer.new()
-	card_column.add_theme_constant_override("separation", 10)
+	card_column.add_theme_constant_override("separation", 14)
 	card.add_child(card_column)
 
 	## §6: STEP1と同じCreator共通UI Kitのセクション見出し（本文より一段
@@ -96,8 +97,8 @@ func _build_ui() -> void:
 	_edit_panel.name = "StatsEditPanel"
 	_edit_panel.visible = true
 	## §6「項目同士が詰まりすぎない」: HP/ATK/SPDの各グループ・弱点/耐性・
-	## 決定行の間に明確な間隔を持たせる。
-	_edit_panel.add_theme_constant_override("separation", 18)
+	## 決定行の間に明確な間隔を持たせる。UI再配色パス: 18→20へ統一。
+	_edit_panel.add_theme_constant_override("separation", 20)
 	card_column.add_child(_edit_panel)
 
 	var hp_row := _build_synced_row(_edit_panel, "HP", RBMDefinitionLoader.BOSS_HP_MIN, RBMDefinitionLoader.BOSS_HP_MAX, STAT_SPIN_MIN_SIZE_HP)
@@ -118,6 +119,15 @@ func _build_ui() -> void:
 	_spd_slider.value_changed.connect(_on_spd_control_changed)
 	_spd_spin.value_changed.connect(_on_spd_control_changed)
 
+	## UI再配色パス: スライダーとSpinBoxの縦位置を揃える——両者とも既定の
+	## SIZE_FILLのまま行の高さいっぱいに引き伸ばされていたのを、各自の
+	## 自然な高さで中央揃えに変える(値・範囲・シグナル配線・操作方法は
+	## 無改修)。
+	for slider in [_hp_slider, _atk_slider, _spd_slider]:
+		slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	for spin in [_hp_spin, _atk_spin, _spd_spin]:
+		spin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
 	## §6: 弱点/耐性も、HP/ATK/SPDと同じ「小さな見出し→内容」の縦積みへ
 	## 統一する（旧実装は見出しとボタン列が横1行に詰め込まれていた）。
 	var weak_group := VBoxContainer.new()
@@ -131,7 +141,7 @@ func _build_ui() -> void:
 	weak_group.add_child(weak_caption)
 	var weak_row := HBoxContainer.new()
 	weak_row.name = "WeakRow"
-	weak_row.add_theme_constant_override("separation", 8)
+	weak_row.add_theme_constant_override("separation", 10)
 	weak_group.add_child(weak_row)
 	# 実機プレイ改善③ item8: ボタン自体のname/内部値(attribute)は引き続き
 	# 英語ID（"FIRE"等）のまま——表示テキストだけRBMDefinitionLoader.
@@ -156,7 +166,7 @@ func _build_ui() -> void:
 	resist_group.add_child(resist_caption)
 	var resist_row := HBoxContainer.new()
 	resist_row.name = "ResistRow"
-	resist_row.add_theme_constant_override("separation", 8)
+	resist_row.add_theme_constant_override("separation", 10)
 	resist_group.add_child(resist_row)
 	for attribute in RBMDefinitionLoader.VALID_ATTRIBUTES:
 		var button := Button.new()
@@ -172,6 +182,15 @@ func _build_ui() -> void:
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.add_theme_font_size_override("font_size",14)
 	_edit_panel.add_child(note)
+
+	## UI再配色パス: 下部説明文がパネル枠に近すぎないよう、末尾に小さな
+	## 余白を追加する(パネル全体を下げるのではなく、パネル内の最後の要素
+	## としてだけ追加——高さ・位置・他の要素の配置には影響しない)。
+	var bottom_spacer := Control.new()
+	bottom_spacer.name = "BottomSpacer"
+	bottom_spacer.custom_minimum_size = Vector2(0.0, 6.0)
+	bottom_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_edit_panel.add_child(bottom_spacer)
 
 ## §5/§6: 「HP」のような見出しを上段に、[HSlider][現在値SpinBox]を下段に
 ## 並べる——添付の基本構造どおり「項目名 → 現在値とスライダー」という

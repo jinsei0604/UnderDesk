@@ -37,7 +37,8 @@ var _editing_name := false
 ## 応じた自然な値のまま（STEP画面のcontent_bottom<nav_top判定など、既存の
 ## 縦方向レイアウト前提には一切影響しない）。
 const CONTENT_SIDE_MARGIN_PX := 80.0
-const CONTENT_TOP_MARGIN_PX := 40.0
+## UI再配色パス: 左STEPナビ/右BOSS PROFILEと上端を揃えるため40→0に変更。
+const CONTENT_TOP_MARGIN_PX := 0.0
 
 ## 実機プレイ改善② item3: LineEditはHSliderと同じ理由（RBMCreatorStep2Stats
 ## のCREATOR_SLIDER_MIN_SIZEのコメント参照）でcustom_minimum_sizeを持たない
@@ -193,11 +194,16 @@ func _build_appearance_card(parent: Control) -> void:
 	var info_column := VBoxContainer.new()
 	info_column.name = "AppearanceInfoColumn"
 	info_column.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	## UI再配色パス: 左右STEPナビ/BOSS PROFILE幅の底上げで中央エリアが
+	## 少し狭くなった分、外見名が長い場合にカード外へはみ出さないよう、
+	## 残り幅いっぱいへ広げてから折り返す(SIZE_EXPAND_FILL+autowrap)。
+	info_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info_column.add_theme_constant_override("separation", 12)
 	preview_row.add_child(info_column)
 
 	_appearance_preview_label = Label.new()
 	_appearance_preview_label.name = "AppearancePreviewLabel"
+	_appearance_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_column.add_child(_appearance_preview_label)
 
 	_appearance_button = Button.new()

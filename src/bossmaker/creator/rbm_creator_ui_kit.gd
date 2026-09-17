@@ -37,41 +37,54 @@ extends RefCounted
 # パレット（最小限、固定。金は使用しない）
 # =============================================================================
 
-const COLOR_PANEL := Color("#161c27")           # STEP画面のパネル/カード背景
-const COLOR_PANEL_BORDER := Color("#3a4351")     # パネル/枠線（青灰色）
-const COLOR_BAR_BACKGROUND := Color("#0b0e14")   # 入力欄などの最も暗い地色
+## UI再配色パス(承認済みプレビュー基準): 金/銀パレットから、ほぼ黒に近い
+## 濃紺+青緑〜シアンへ全面差し替え。定数名(COLOR_SILVER*)は既存呼び出し
+## 側を一切変更せずに済むようそのまま維持し、値だけを置き換えている。
+##
+## 重要: このThemeが生成するStyleBoxFlatは、実行時にsrc/bossmaker/
+## rbm_world_ui.gd(全画面共通の「採用されたドット絵世界観」レイヤー、
+## RBMCreatorMain._refresh_world_ui()経由で毎回自動適用される)の
+## convert_style()によってStyleBoxTexture(ピクセルアート調9-sliceフレーム)
+## へ丸ごと変換される——角丸(CORNER_RADIUS)・グロー(shadow)はその変換で
+## 破棄されるため、ここでは色の値だけを変える。実際の枠の「形」や
+## Creator専用ボタンの金→シアン差し替えはrbm_world_ui.gd側
+## (creator_layout()/creator_selection())で行う。
+const COLOR_PANEL := Color("#0b0f14")           # STEP画面のパネル/カード背景
+const COLOR_PANEL_BORDER := Color("#2f5b61")     # パネル/枠線（青緑〜シアン）
+const COLOR_BAR_BACKGROUND := Color("#05070a")   # 入力欄などの最も暗い地色
 
-const COLOR_TEXT_PRIMARY := Color("#e9edf3")     # アイボリー寄りの白
-const COLOR_TEXT_SECONDARY := Color("#93a0b1")   # 補助文字（青灰色）
+const COLOR_TEXT_PRIMARY := Color("#eef5f6")     # 白〜薄い青灰色
+const COLOR_TEXT_SECONDARY := Color("#93a7ac")   # 補助文字（青緑がかった灰色）
 const COLOR_TEXT_DISABLED := Color("#5a6270")
 
-## アクセント（銀／青銀。低彩度・青み・グロー無し、§2）。
-const COLOR_SILVER := Color("#8b98aa")
-const COLOR_SILVER_BRIGHT := Color("#bac6d6")
-const COLOR_SILVER_DIM := Color("#454e5c")
+## アクセント（旧: 銀／青銀 → 新: 青緑〜シアン。選択中/主要操作だけが
+## COLOR_SILVER_BRIGHTの明るいシアンになる）。
+const COLOR_SILVER := Color("#3e747b")
+const COLOR_SILVER_BRIGHT := Color("#43efff")
+const COLOR_SILVER_DIM := Color("#2a4d52")
 
 ## 通常ボタン（Button既定、§9）。
-const COLOR_BUTTON_BASE := Color("#1b2230")
-const COLOR_BUTTON_BASE_HOVER := Color("#232c3d")
-const COLOR_BUTTON_BASE_PRESSED := Color("#12161f")
-const COLOR_BUTTON_BASE_DISABLED := Color("#12151b")
+const COLOR_BUTTON_BASE := Color("#0e161a")
+const COLOR_BUTTON_BASE_HOVER := Color("#132227")
+const COLOR_BUTTON_BASE_PRESSED := Color("#0a1215")
+const COLOR_BUTTON_BASE_DISABLED := Color("#0a0d10")
 
 ## 副系統（戻る等、控えめ、§10「副操作なので控えめにします」）。
-const COLOR_SECONDARY := Color("#161c27")
-const COLOR_SECONDARY_HOVER := Color("#1d2532")
-const COLOR_SECONDARY_PRESSED := Color("#0e131a")
+const COLOR_SECONDARY := Color("#0b0f14")
+const COLOR_SECONDARY_HOVER := Color("#121c20")
+const COLOR_SECONDARY_PRESSED := Color("#070a0d")
 
 ## 主要ナビゲーション（次へ、§10「通常ボタンよりわずかに強い銀/青銀」）。
-const COLOR_PRIMARY_NAV := Color("#202b3d")
-const COLOR_PRIMARY_NAV_HOVER := Color("#293650")
-const COLOR_PRIMARY_NAV_PRESSED := Color("#151c29")
+const COLOR_PRIMARY_NAV := Color("#0d2226")
+const COLOR_PRIMARY_NAV_HOVER := Color("#123035")
+const COLOR_PRIMARY_NAV_PRESSED := Color("#081619")
 
 const CORNER_RADIUS := 4
 const BORDER_WIDTH := 1
 
-const FONT_SIZE_SECTION := 19
-const FONT_SIZE_BODY := 15
-const FONT_SIZE_SMALL := 12
+const FONT_SIZE_SECTION := 21
+const FONT_SIZE_BODY := 16
+const FONT_SIZE_SMALL := 13
 
 const VARIATION_SECONDARY_BUTTON := "SecondaryButton"
 const VARIATION_SECTION_LABEL := "SectionLabel"
@@ -79,7 +92,7 @@ const VARIATION_SMALL_LABEL := "SmallLabel"
 
 const BUTTON_CONTENT_MARGIN_H := 16.0
 const BUTTON_CONTENT_MARGIN_V := 8.0
-const PANEL_CONTENT_MARGIN := 16.0
+const PANEL_CONTENT_MARGIN := 22.0
 
 ## build_theme()自体は呼び出しのたび新規Theme resourceを構築する純関数
 ## （RBMUiTheme.build_theme()と同じ方針）。RBMCreatorMainが_steps_rootへ
@@ -493,7 +506,11 @@ class HeaderBar:
 
 	const DIVIDER_COLOR := Color("#3a4351")
 	const DIAMOND_COLOR := Color("#8b98aa")
-	const HEADER_HEIGHT_PX := 44.0
+	## UI再配色パス: rbm_world_ui.gd creator_layout()がheader.custom_minimum_
+	## size.yを52pxへ明示的に上書きするため、実際の見た目はそちらが決める
+	## (この定数はworld_layout適用前の一瞬・および将来world_ui側の値と
+	## 揃える際の参照用に残す)。
+	const HEADER_HEIGHT_PX := 60.0
 	const DIVIDER_MARGIN_PX := 8.0
 	## 実機確認（2026-09-05）: 左右マージン無しだと「STEP n / 総数」が画面
 	## 右端ぎりぎりに接し、文字が窮屈/一部切れて見える——他STEP画面が使う
@@ -557,9 +574,12 @@ class HeaderBar:
 class StepNavColumn:
 	extends Control
 
-	const WIDTH_PX := 150.0
-	const ITEM_HEIGHT_PX := 40.0
-	const ACCENT_WIDTH_PX := 3.0
+	## UI再配色パス: サイズ感を承認済みプレビュー基準へ底上げ。world_ui.gdの
+	## creator_selection()はicon/font_color/accent.colorの再配色のみを行い、
+	## サイズには触れないため、ここでの変更がそのまま反映される。
+	const WIDTH_PX := 196.0
+	const ITEM_HEIGHT_PX := 64.0
+	const ACCENT_WIDTH_PX := 5.0
 
 	var _rows: Array = []  # [{"button":Button,"accent":ColorRect}]
 	var _on_select: Callable
@@ -590,6 +610,7 @@ class StepNavColumn:
 			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 			button.add_theme_color_override("font_color", RBMCreatorUiKit.COLOR_TEXT_SECONDARY)
+			button.add_theme_font_size_override("font_size", 17)
 			button.pressed.connect(_on_select.bind(i + 1))
 			row.add_child(button)
 			_rows.append({"button": button, "accent": accent})
@@ -613,12 +634,14 @@ class BossProfilePanel:
 	extends Control
 
 	const VisualAssets = preload("res://src/bossmaker/visuals/rbm_visual_assets.gd")
-	const WIDTH_PX := 240.0
-	const PREVIEW_MIN_SIZE := Vector2(0.0, 120.0)
+	## UI再配色パス: サイズ感を承認済みプレビュー基準へ底上げ。
+	const WIDTH_PX := 304.0
+	const PREVIEW_MIN_SIZE := Vector2(0.0, 260.0)
 
 	var _preview_surface: Control
 	var _preview_swatch: TextureRect
 	var _name_label: Label
+	var _awakening_label: Label
 	var _hp_label: Label
 	var _atk_label: Label
 	var _spd_label: Label
@@ -638,7 +661,7 @@ class BossProfilePanel:
 		var column := VBoxContainer.new()
 		column.name = "BossProfileColumn"
 		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		column.add_theme_constant_override("separation", 10)
+		column.add_theme_constant_override("separation", 14)
 		scroll.add_child(column)
 
 		column.add_child(RBMCreatorUiKit.build_section_title("BOSS PROFILE"))
@@ -656,8 +679,27 @@ class BossProfilePanel:
 		_preview_swatch.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		_preview_surface.add_child(_preview_swatch)
 
+		## UI再配色パス: ボス表示エリアに円形リング+スキャン線+短い目盛り+
+		## 中心のクロス線を追加する——AppearancePreviewFrame自身(矩形の枠+
+		## 四隅コーナーライン、rbm_world_ui.gdのwalk()による色変換の対象外
+		## ではないが、ここでは新規の子Controlとして重ねるだけ)は無改修。
+		var ring := ProfileRingOverlay.new()
+		ring.name = "BossProfileRing"
+		ring.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ring.ring_color = RBMCreatorUiKit.COLOR_SILVER_BRIGHT
+		_preview_surface.add_child(ring)
+
 		_name_label = _stat_label(column, "BossProfileNameLabel")
 		_name_label.theme_type_variation = RBMCreatorUiKit.VARIATION_SECTION_LABEL
+
+		## UI再配色パス(ユーザー確定仕様): 「TYPE/ELEMENT」はDraftに対応する
+		## 実データが存在しないため追加しない(§8の既存原則「架空ステータスは
+		## 追加しない」を厳守)。「AWAKENING」はdraft.awakeningという実
+		## フィールドが既にあるため、その有無だけを表示する——将来awakeningが
+		## 実仕様化された際に内容表示へ拡張できる余地として、この1行だけ残す。
+		_awakening_label = _stat_label(column, "BossProfileAwakeningLabel")
+
 		_hp_label = _stat_label(column, "BossProfileHpLabel")
 		_atk_label = _stat_label(column, "BossProfileAtkLabel")
 		_spd_label = _stat_label(column, "BossProfileSpdLabel")
@@ -676,6 +718,31 @@ class BossProfilePanel:
 		column.add_child(_sub_heading("PARTY"))
 		_party_label = _stat_label(column, "BossProfilePartyLabel")
 
+	## ボス表示エリアに重ねる円環+スキャンリング+短い目盛り+中心のクロス線。
+	## 低透明度の輪を数枚重ねるだけの簡易表現(シェーダー・パーティクルは
+	## 使わない)。
+	class ProfileRingOverlay:
+		extends Control
+		var ring_color := Color(0, 0, 0, 0)
+
+		func _draw() -> void:
+			var center := size * 0.5
+			var r: float = minf(size.x, size.y) * 0.42
+			for i in range(3):
+				var inflate := float(i + 1) * 2.0
+				var alpha := 0.07 - float(i) * 0.02
+				if alpha > 0.0:
+					draw_arc(center, r + inflate, 0.0, TAU, 48, Color(ring_color.r, ring_color.g, ring_color.b, alpha), 1.0, true)
+			draw_arc(center, r, 0.0, TAU, 48, Color(ring_color.r, ring_color.g, ring_color.b, 0.48), 1.1, true)
+			draw_arc(center, r * 0.86, 0.0, TAU, 40, Color(ring_color.r, ring_color.g, ring_color.b, 0.22), 1.0, true)
+			for i in range(12):
+				var angle := float(i) / 12.0 * TAU
+				var dir := Vector2(cos(angle), sin(angle))
+				var outer: float = r + (8.0 if i % 3 == 0 else 4.0)
+				draw_line(center + dir * (r + 1.0), center + dir * outer, Color(ring_color.r, ring_color.g, ring_color.b, 0.42), 1.0, false)
+			draw_line(center + Vector2(-9.0, 0.0), center + Vector2(9.0, 0.0), Color(ring_color.r, ring_color.g, ring_color.b, 0.42), 1.0, false)
+			draw_line(center + Vector2(0.0, -9.0), center + Vector2(0.0, 9.0), Color(ring_color.r, ring_color.g, ring_color.b, 0.42), 1.0, false)
+
 	func _sub_heading(text: String) -> Label:
 		var label := Label.new()
 		label.text = text
@@ -690,17 +757,25 @@ class BossProfilePanel:
 		return label
 
 	## §8: 実在するDraftデータのみ——レベル/DEF等は一切参照しない。
-	func update(draft: RBMCreatorDraft) -> void:
+	## UI再配色パス: hide_core_statsは「今まさに中央STEP2でHP/ATK/SPD/弱点/
+	## 耐性そのものを編集中」の場合だけtrueにして、この5行の重複表示を
+	## 一時的に隠すためのもの(STEP1/STEP3/STEP4表示中はfalseのまま、
+	## これらの情報を見られる唯一の場所としてこれまで通り表示する)——
+	## Label自体の生成・text更新ロジックは無改修、表示可否だけを追加した。
+	func update(draft: RBMCreatorDraft, hide_core_stats: bool = false) -> void:
 		if draft.appearance_id.is_empty():
 			_preview_swatch.texture = null
 		else:
 			_preview_swatch.texture = VisualAssets.texture(VisualAssets.boss_asset(draft.appearance_id), 0)
 		_name_label.text = draft.boss_name if not draft.boss_name.is_empty() else tr("（未設定）")
+		_awakening_label.text = tr("覚醒：%s") % (tr("設定済み") if not draft.awakening.is_empty() else tr("未設定"))
 		_hp_label.text = tr("HP：%d") % draft.hp
 		_atk_label.text = tr("ATK：%d") % draft.atk
 		_spd_label.text = tr("SPD：%d") % draft.spd
 		_weak_label.text = tr("弱点：%s") % (", ".join(_attribute_labels(draft.weak_attributes)) if not draft.weak_attributes.is_empty() else tr("なし"))
 		_resist_label.text = tr("耐性：%s") % (", ".join(_attribute_labels(draft.resist_attributes)) if not draft.resist_attributes.is_empty() else tr("なし"))
+		for stat_label in [_hp_label, _atk_label, _spd_label, _weak_label, _resist_label]:
+			stat_label.visible = not hide_core_stats
 
 		if draft.skills.is_empty():
 			_skills_label.text = tr("（未設定）")

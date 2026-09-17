@@ -205,7 +205,9 @@ func _build_ui() -> void:
 	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	margin.add_theme_constant_override("margin_left", 80)
 	margin.add_theme_constant_override("margin_right", 80)
-	margin.add_theme_constant_override("margin_top", 40)
+	# UI再配色パス: 左STEPナビ/右BOSS PROFILEと上端を揃えるため上余白のみ
+	# 0へ変更(下余白はスクロール終端の呼吸代として40を維持)。
+	margin.add_theme_constant_override("margin_top", 0)
 	margin.add_theme_constant_override("margin_bottom", 40)
 	_scroll_container.add_child(margin)
 
@@ -547,6 +549,11 @@ func _rebuild_skill_pick_list(list_container: VBoxContainer, button_name_format:
 		row.name = "SkillPickRow_%d" % i
 		var label := Label.new()
 		label.text = tr("%s（%s）") % [str(skill.get("name", "?")), RBMActionPatternSummary.skill_performance_line(skill)]
+		## UI再配色パス: 左STEPナビ/右BOSS PROFILE幅の底上げで中央幅が狭く
+		## なった分、性能サマリーの長い文言が横スクロール依存にならないよう、
+		## 残り幅いっぱいへ広げてから折り返す(内容・算出ロジックは無改修)。
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		row.add_child(label)
 		var select_button := Button.new()
 		select_button.name = button_name_format % i
@@ -939,6 +946,11 @@ func _rebuild_random_candidate_list() -> void:
 		row.name = "RandomCandidateRow_%d" % i
 		var label := Label.new()
 		label.text = tr("%s（%s）") % [str(skill.get("name", "?")), RBMActionPatternSummary.skill_performance_line(skill)]
+		## UI再配色パス: 左STEPナビ/右BOSS PROFILE幅の底上げで中央幅が狭く
+		## なった分、性能サマリーの長い文言が横スクロール依存にならないよう、
+		## 残り幅いっぱいへ広げてから折り返す(内容・算出ロジックは無改修)。
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		row.add_child(label)
 		if is_manual:
 			var weight_spin := SpinBox.new()

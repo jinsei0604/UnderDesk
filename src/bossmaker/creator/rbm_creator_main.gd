@@ -288,6 +288,10 @@ func _build_ui() -> void:
 	_appearance_picker.visible = false
 	_appearance_picker.confirmed.connect(_on_appearance_confirmed)
 	_appearance_picker.cancelled.connect(_on_appearance_cancelled)
+	## UI再配色パス: この画面はSTEP1〜5のシアン再配色の対象外——既存の金/
+	## アイボリー世界観のまま維持する(RBMWorldUI.walk()がこのメタを見て
+	## 配下だけcreator_modeを強制的にfalseへ戻す)。
+	_appearance_picker.set_meta("world_gold_zone", true)
 	root_column.add_child(_appearance_picker)
 
 	_test_battle_view = RBMCreatorTestBattleView.new()
@@ -295,6 +299,7 @@ func _build_ui() -> void:
 	_test_battle_view.visible = false
 	_test_battle_view.setup(self)
 	_test_battle_view.return_to_creator_requested.connect(_on_test_battle_return_to_creator)
+	_test_battle_view.set_meta("world_gold_zone", true)
 	root_column.add_child(_test_battle_view)
 
 	_clear_check_view = RBMCreatorClearCheckView.new()
@@ -302,6 +307,7 @@ func _build_ui() -> void:
 	_clear_check_view.visible = false
 	_clear_check_view.setup(self)
 	_clear_check_view.return_to_creator_requested.connect(_on_clear_check_return_to_creator)
+	_clear_check_view.set_meta("world_gold_zone", true)
 	root_column.add_child(_clear_check_view)
 
 	_save_view = RBMCreatorSaveView.new()
@@ -310,6 +316,7 @@ func _build_ui() -> void:
 	_save_view.setup(self)
 	_save_view.return_to_creator_requested.connect(_on_save_return_to_creator)
 	_save_view.return_to_creator_list_requested.connect(_on_save_return_to_creator_list)
+	_save_view.set_meta("world_gold_zone", true)
 	root_column.add_child(_save_view)
 
 # ---------------------------------------------------------------------------
@@ -690,7 +697,10 @@ func _refresh() -> void:
 	_nav_row.visible = not on_summary
 	if not on_summary:
 		_step_nav_column.set_current_step(current_step)
-		_boss_profile_panel.update(draft)
+		## UI再配色パス: STEP2(能力)表示中だけ、中央スライダーと重複する
+		## HP/ATK/SPD/弱点/耐性をBOSS PROFILE側で一時的に隠す——他のSTEPでは
+		## 引き続き表示する(この5項目を確認できる唯一の場所のため)。
+		_boss_profile_panel.update(draft, current_step == 2)
 	var view = _current_view()
 	_status_label.text = "" if view.is_step_valid() else view.validation_message()
 	## Creator本体UI刷新（2026-09-04）§3: 現在の工程名とSTEP n / 総数は、
@@ -704,7 +714,10 @@ func _refresh() -> void:
 func _refresh_world_ui() -> void:
 	_world_ui.creator_layout(self)
 	_world_ui.creator_selection(self)
-	_world_ui.walk(self)
+	## UI再配色パス: Creator画面(STEP1〜5)だけシアン再配色を適用する。
+	## TEST BATTLE/Clear Check/保存/外見選択ピッカーはworld_gold_zoneメタ
+	## (_build_ui()で付与済み)によりwalk()内部で自動的に除外される。
+	_world_ui.walk(self, true)
 	for battle_view in [_test_battle_view, _clear_check_view]:
 		if battle_view.get_parent() != self:
 			battle_view.reparent(self)

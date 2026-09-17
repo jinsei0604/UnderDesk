@@ -12,6 +12,18 @@ const DANGER := Color("a96658")
 var style_cache: Dictionary = {}
 var theme_cache: Dictionary = {}
 
+## UI再配色パス(ユーザー確定仕様): 「制作ツール」感の濃紺+シアンを、
+## Creator画面(creator_layout()/creator_selection()、およびCreator専用
+## ボタン)だけに適用するための専用パレット。GOLD/IVORY/EDGE等の上の定数
+## 自体は変更しない——Title/Challenge/TEST BATTLE/ModeChoice等、他画面は
+## 引き続きこれまで通りの金/アイボリーの世界観のまま。
+const CREATOR_INK := Color("06090d")
+const CREATOR_PANEL := Color("0b1015")
+const CREATOR_EDGE := Color("2f5b61")
+const CREATOR_ACCENT := Color("43efff")
+const CREATOR_TEXT := Color("eef5f6")
+const CREATOR_MUTED := Color("93a7ac")
+
 func recolor(c: Color) -> Color:
 	var colors := {
 		"14171d": "101720", "1d2129": "16202c", "383e49": "514a3d",
@@ -152,7 +164,39 @@ func button_style(b: Button, primary := false, destructive := false) -> void:
 	b.add_theme_color_override("font_disabled_color", DIM)
 	b.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
-func walk(node: Node) -> void:
+## button_style()のCreator専用版——同じframe()9-sliceの仕組みをそのまま
+## 使い、GOLD/EDGE/PANELの代わりにCREATOR_ACCENT/CREATOR_EDGE/CREATOR_PANEL
+## を使うだけ。他画面のbutton_style()呼び出しには一切影響しない。
+func creator_button_style(b: Button, primary := false, destructive := false) -> void:
+	var rim := DANGER if destructive else (CREATOR_ACCENT if primary else CREATOR_EDGE)
+	b.add_theme_stylebox_override("normal", frame(Color("102a2e") if primary else CREATOR_PANEL, rim))
+	b.add_theme_stylebox_override("hover", frame(Color("123338"), DANGER if destructive else CREATOR_ACCENT))
+	b.add_theme_stylebox_override("pressed", frame(CREATOR_INK, CREATOR_ACCENT))
+	b.add_theme_stylebox_override("hover_pressed", frame(CREATOR_INK, CREATOR_ACCENT))
+	b.add_theme_stylebox_override("disabled", frame(Color("0a0d10"), Color("2a3336")))
+	var focus := frame(Color.TRANSPARENT, CREATOR_ACCENT, Vector4(16,8,16,8), true).duplicate() as StyleBoxTexture
+	focus.draw_center = false
+	b.add_theme_stylebox_override("focus", focus)
+	for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		b.add_theme_color_override(key, Color("deb2a4") if destructive else CREATOR_TEXT)
+	b.add_theme_color_override("font_disabled_color", DIM)
+	b.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
+## UI再配色パス: creator_mode=trueの時だけ、Confirm/Save/Remove/Delete/
+## Discard等の汎用パターンマッチによる自動ボタン再配色をbutton_style()
+## ではなくcreator_button_style()(Creator専用シアン)で行う——既定値
+## falseのため、他画面(Title/Challenge/ModeChoice)からの既存呼び出しは
+## すべて無改修のまま従来のGOLD配色を維持する。RBMCreatorMain._refresh_
+## world_ui()だけがtrueを渡す。
+func walk(node: Node, creator_mode: bool = false) -> void:
+	## UI再配色パス: TEST BATTLE/Clear Check/保存/外見選択ピッカーは
+	## RBMCreatorMainの子として一時的にreparentされる(既存仕様)ため、単純に
+	## 「RBMCreatorMain配下=creator_mode」にすると巻き込んでしまう——
+	## ユーザー指示「TEST BATTLE等まで意図せず金→シアンへ変えない」に従い、
+	## これらのルートに付けたworld_gold_zoneメタを見つけたら、その配下
+	## だけ強制的に既存の金配色(creator_mode=false)へ戻す。
+	if node.has_meta("world_gold_zone"):
+		creator_mode = false
 	if node is Control:
 		var c: Control = node
 		c.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -183,21 +227,21 @@ func walk(node: Node) -> void:
 			var key := str(b.name)
 			if key in ["SkillListBackButton","TargetPickerBackButton"]:
 				b.text = tr("戻る")
-				b.icon = icon("left")
+				b.icon = icon("left", CREATOR_ACCENT if creator_mode else GOLD)
 				b.custom_minimum_size = Vector2(150,44)
 				b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 				b.add_theme_font_size_override("font_size",16)
-				button_style(b)
+				creator_button_style(b) if creator_mode else button_style(b)
 				b.get_parent().move_child(b,b.get_parent().get_child_count()-1)
 			if key.begins_with("Remove") or key.begins_with("Delete") or "Discard" in key:
-				button_style(b, false, true)
+				creator_button_style(b, false, true) if creator_mode else button_style(b, false, true)
 			elif key.begins_with("Confirm") or key.begins_with("Save"):
-				button_style(b, true)
+				creator_button_style(b, true) if creator_mode else button_style(b, true)
 			if b.toggle_mode and b.button_pressed:
-				b.add_theme_stylebox_override("pressed", frame(Color("253348"), GOLD))
+				b.add_theme_stylebox_override("pressed", frame(Color("102a2e"), CREATOR_ACCENT) if creator_mode else frame(Color("253348"), GOLD))
 			c.set_meta("world_semantic", true)
 		if c is HBoxContainer: order_confirmation(c)
-	for child in node.get_children(): walk(child)
+	for child in node.get_children(): walk(child, creator_mode)
 
 func order_confirmation(row: HBoxContainer) -> void:
 	if row.has_meta("world_ordered"): return
@@ -319,7 +363,8 @@ func creator_layout(main: RBMCreatorMain) -> void:
 		column.offset_right = -24
 		column.offset_top = 18
 		column.offset_bottom = -24
-		main._header.custom_minimum_size.y = 52
+		## UI再配色パス: 承認済みプレビュー基準のヘッダー高さへ底上げ。
+		main._header.custom_minimum_size.y = 60
 		var progress := ProgressStrip.new()
 		progress.name = "WorldProgressStrip"
 		progress.creator = main
@@ -330,7 +375,7 @@ func creator_layout(main: RBMCreatorMain) -> void:
 		exit.reparent(main._nav_row)
 		exit_row.hide()
 		exit.text = tr("作成を終了")
-		button_style(exit)
+		creator_button_style(exit)
 		var spacer := Control.new()
 		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		main._nav_row.add_child(spacer)
@@ -340,33 +385,33 @@ func creator_layout(main: RBMCreatorMain) -> void:
 		main._nav_row.move_child(main._next_button, main._nav_row.get_child_count()-1)
 		main._nav_row.add_theme_constant_override("separation", 12)
 		main._back_button.text = tr("戻る")
-		main._back_button.icon = icon("left")
+		main._back_button.icon = icon("left", CREATOR_ACCENT)
 		main._back_button.custom_minimum_size = Vector2(150, 44)
 		main._next_button.text = tr("次へ")
-		main._next_button.icon = icon("right")
+		main._next_button.icon = icon("right", CREATOR_TEXT)
 		main._next_button.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		main._next_button.custom_minimum_size = Vector2(150, 44)
-		button_style(main._back_button)
-		button_style(main._next_button, true)
+		creator_button_style(main._back_button)
+		creator_button_style(main._next_button, true)
 		# The existing top STEP label remains the sole progress count.
 		# Keep left step navigation and right live profile, as in the adopted layout.
 		center_exit_dialog(main)
 		var summary: Control = main._step_views[4]
 		var summary_back: Button = summary.find_child("BackButton",true,false)
 		summary_back.text = tr("戻る")
-		summary_back.icon = icon("left")
+		summary_back.icon = icon("left", CREATOR_ACCENT)
 		summary_back.custom_minimum_size = Vector2(150,44)
 		summary_back.add_theme_font_size_override("font_size",16)
-		button_style(summary_back)
+		creator_button_style(summary_back)
 		var summary_back_to_list: Button = summary.find_child("BackToCreatorListButton",true,false)
-		summary_back_to_list.icon = icon("left")
+		summary_back_to_list.icon = icon("left", CREATOR_ACCENT)
 		summary_back_to_list.custom_minimum_size = Vector2(150,44)
 		summary_back_to_list.add_theme_font_size_override("font_size",16)
-		button_style(summary_back_to_list)
+		creator_button_style(summary_back_to_list)
 		for key in ["SaveButton","PublishOnlineButton"]:
 			var b: Button = summary.find_child(key,true,false)
 			b.custom_minimum_size = Vector2(120,44)
-			button_style(b,true)
+			creator_button_style(b,true)
 		# Reserve a visible gap above the global footer while retaining the existing scroll.
 		main._nav_row.add_theme_constant_override("separation",12)
 		var party_column: VBoxContainer = main._step_views[3].get_child(0)
@@ -394,14 +439,16 @@ func summary_layout(summary: RBMCreatorStep7Summary) -> void:
 	left.custom_minimum_size.x = 360
 	left.add_theme_constant_override("separation",22)
 	columns.add_child(left)
+	## UI再配色パス: STEP5(最終確認)もCreator画面の一部のため、他のSTEPと
+	## 同じCreator専用シアンで統一する。
 	for key in ["CreationContentSection","TestBattleSection","ClearCheckSection"]:
 		var box := PanelContainer.new()
-		box.add_theme_stylebox_override("panel",frame(PANEL,EDGE,Vector4(16,16,16,16)))
+		box.add_theme_stylebox_override("panel",frame(CREATOR_PANEL,CREATOR_EDGE,Vector4(16,16,16,16)))
 		left.add_child(box)
 		parts[key].reparent(box)
 	var right := PanelContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right.add_theme_stylebox_override("panel",frame(PANEL,EDGE,Vector4(20,16,20,16)))
+	right.add_theme_stylebox_override("panel",frame(CREATOR_PANEL,CREATOR_EDGE,Vector4(20,16,20,16)))
 	columns.add_child(right)
 	var settings: Control = parts["ChallengeSettingsSection"]
 	settings.reparent(right)
@@ -415,25 +462,29 @@ func summary_layout(summary: RBMCreatorStep7Summary) -> void:
 			c.reparent(grid)
 			c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
+## UI再配色パス: Creatorヘッダー内の進捗ドットもCreator専用シアンで統一。
 class ProgressStrip:
 	extends Control
 	var creator: RBMCreatorMain
 	func _ready() -> void: mouse_filter = Control.MOUSE_FILTER_IGNORE
 	func _draw() -> void:
-		draw_rect(Rect2(0,size.y-2,size.x,2),Color("514a3d"))
+		draw_rect(Rect2(0,size.y-2,size.x,2),Color("1c3236"))
 		for i in range(creator.STEP_COUNT):
 			var at := Vector2(size.x-260+i*20,12)
-			draw_rect(Rect2(at,Vector2(12,12)),Color("b99b60") if i+1 == creator.current_step else Color("64583f"))
-			if i+1 != creator.current_step: draw_rect(Rect2(at+Vector2(2,2),Vector2(8,8)),Color("101720"))
+			draw_rect(Rect2(at,Vector2(12,12)),Color("43efff") if i+1 == creator.current_step else Color("2f5b61"))
+			if i+1 != creator.current_step: draw_rect(Rect2(at+Vector2(2,2),Vector2(8,8)),Color("06090d"))
 
+## UI再配色パス: Creator画面の左STEPナビだけGOLD/IVORY/MUTEDではなく
+## CREATOR_ACCENT/CREATOR_TEXT/CREATOR_MUTEDを使う——Challenge等、他の
+## icon()/font_color呼び出しには一切触れない。
 func creator_selection(main: RBMCreatorMain) -> void:
 	for i in range(main._step_nav_column._rows.size()):
 		var item: Dictionary = main._step_nav_column._rows[i]
 		var b: Button = item.button
 		var current := i+1 == main.current_step
-		b.icon = icon("right") if current else null
-		b.add_theme_color_override("font_color",IVORY if current else MUTED)
-		(item.accent as ColorRect).color = GOLD if current else Color.TRANSPARENT
+		b.icon = icon("right", CREATOR_ACCENT) if current else null
+		b.add_theme_color_override("font_color",CREATOR_TEXT if current else CREATOR_MUTED)
+		(item.accent as ColorRect).color = CREATOR_ACCENT if current else Color.TRANSPARENT
 
 func center_exit_dialog(main: RBMCreatorMain) -> void:
 	var p: PanelContainer = main._exit_confirm_panel
@@ -451,7 +502,9 @@ func center_exit_dialog(main: RBMCreatorMain) -> void:
 	p.offset_top = -122
 	p.offset_right = 300
 	p.offset_bottom = 122
-	p.add_theme_stylebox_override("panel", menu_frame(INK, GOLD, Vector4(28,24,28,24)))
+	## UI再配色パス: このダイアログはCreator画面からしか開けないため、
+	## Creator専用のシアンで統一する。
+	p.add_theme_stylebox_override("panel", menu_frame(CREATOR_INK, CREATOR_ACCENT, Vector4(28,24,28,24)))
 	var col: VBoxContainer = p.find_child("ExitConfirmColumn", true, false)
 	col.add_theme_constant_override("separation", 24)
 	var title := Label.new()

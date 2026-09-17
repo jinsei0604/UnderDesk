@@ -23,7 +23,11 @@ const TIMING_ORDER := ["replace", "turn_start_interrupt", "turn_end_interrupt"]
 
 const PERCENT_SLIDER_MIN_SIZE := Vector2(320.0, 28.0)
 const CONTENT_SIDE_MARGIN_PX := 80.0
-const CONTENT_TOP_MARGIN_PX := 40.0
+## UI再配色パス: 左STEPナビ/右BOSS PROFILEと上端を揃えるため上余白のみ
+## 0へ変更。下余白は既存どおり40を維持する(スクロール終端の呼吸代)ため、
+## 上下で別の定数に分けた。
+const CONTENT_TOP_MARGIN_PX := 0.0
+const CONTENT_BOTTOM_MARGIN_PX := 40.0
 
 var draft: RBMCreatorDraft
 var main: Node
@@ -67,7 +71,7 @@ func _build_ui() -> void:
 	margin.add_theme_constant_override("margin_left", int(CONTENT_SIDE_MARGIN_PX))
 	margin.add_theme_constant_override("margin_right", int(CONTENT_SIDE_MARGIN_PX))
 	margin.add_theme_constant_override("margin_top", int(CONTENT_TOP_MARGIN_PX))
-	margin.add_theme_constant_override("margin_bottom", int(CONTENT_TOP_MARGIN_PX))
+	margin.add_theme_constant_override("margin_bottom", int(CONTENT_BOTTOM_MARGIN_PX))
 	_scroll_container.add_child(margin)
 
 	_scroll_content = VBoxContainer.new()
