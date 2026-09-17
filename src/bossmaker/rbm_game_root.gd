@@ -26,6 +26,7 @@ var _challenge_text_patch: TextureRect
 var _create_text_patch: TextureRect
 var _challenge_text_texture: TextureRect
 var _create_text_texture: TextureRect
+var _title_boot_launcher: RBMTitleBootLauncher
 
 var creator_entry: RBMCreatorEntry
 var challenge_entry: RBMChallengeEntry
@@ -305,6 +306,17 @@ func _build_ui() -> void:
 	_create_text_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	apply_image_fraction_rect(_create_text_texture, create_display_rect)
 	_title_screen.add_child(_create_text_texture)
+
+	# 起動導線(承認済みプレビュー反映版): タイトル→START→時計SYSTEM CORE
+	# 加速演出→SYSTEM BOOT/ONLINE→既存の挑戦/作成選択、という流れを、
+	# 画面全体を覆う独立レイヤーとして追加する(詳細はRBMTitleBootLauncher
+	# 冒頭コメント参照)。ChallengeModeButton/CreateModeButton自身やその
+	# シグナル配線には一切触れない——この演出が完了すると自身を隠すだけで、
+	# 既存のボタンがそのまま露出する。
+	_title_boot_launcher = RBMTitleBootLauncher.new()
+	_title_boot_launcher.name = "TitleBootLauncher"
+	_title_boot_launcher.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_title_screen.add_child(_title_boot_launcher)
 
 	# 言語切替ボタン——ホーム画面右上、既存の完成アート/ボタン絵とは重ならない
 	# 領域（挑戦/作成ボタン絵はCHALLENGE_BUTTON_PIXEL_RECT/CREATE_BUTTON_
