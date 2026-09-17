@@ -19,6 +19,12 @@ extends Node
 
 enum PublishState { IDLE, REQUESTING_TICKET, UPLOADING, SUCCEEDED, FAILED }
 
+## Phase 7 共通ロード表示(ロジックのみ) — RBMLoadingState参照。ticket取得
+## 〜HTTP応答までを1つの通信として扱う(検証(Clear Check再チェック等)は
+## ネットワークを伴わないため対象外)。
+const LOADING_OP_PUBLISH := "publish_boss"
+const LOADING_OP_UNPUBLISH := "unpublish_boss"
+
 signal state_changed(new_state: PublishState)
 signal publish_succeeded(boss_id: String, revision: int)
 signal publish_failed(error_kind: String, message: String)
@@ -114,13 +120,17 @@ func publish(draft: RBMCreatorDraft, boss_id: String = "") -> bool:
 		return false
 	var payload: Dictionary = built["payload"]
 
+	RBMLoadingState.begin(LOADING_OP_PUBLISH)
+
 	var ticket_result := await _acquire_ticket()
 	if not bool(ticket_result.get("ok", false)):
+		RBMLoadingState.end(LOADING_OP_PUBLISH)
 		return false
 
 	_set_state(PublishState.UPLOADING)
 	var response: Dictionary = await _api_adapter.publish(str(ticket_result.get("hex", "")), payload, boss_id)
 	_steam_auth.complete_ticket()
+	RBMLoadingState.end(LOADING_OP_PUBLISH)
 
 	if bool(response.get("ok", false)):
 		_last_boss_id = str(response.get("boss_id", boss_id))
@@ -144,13 +154,17 @@ func unpublish(boss_id: String) -> bool:
 		_fail("no_boss_id", "boss_id is empty")
 		return false
 
+	RBMLoadingState.begin(LOADING_OP_UNPUBLISH)
+
 	var ticket_result := await _acquire_ticket()
 	if not bool(ticket_result.get("ok", false)):
+		RBMLoadingState.end(LOADING_OP_UNPUBLISH)
 		return false
 
 	_set_state(PublishState.UPLOADING)
 	var response: Dictionary = await _api_adapter.unpublish(str(ticket_result.get("hex", "")), boss_id)
 	_steam_auth.complete_ticket()
+	RBMLoadingState.end(LOADING_OP_UNPUBLISH)
 
 	if bool(response.get("ok", false)):
 		_set_state(PublishState.SUCCEEDED)

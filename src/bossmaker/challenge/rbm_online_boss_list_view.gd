@@ -31,6 +31,12 @@ const CATEGORY_UNCHALLENGED := "unchallenged"
 const CATEGORY_POPULAR := "popular"
 const CATEGORY_HIGH_DIFFICULTY := "high_difficulty"
 
+## Phase 7 共通ロード表示(ロジックのみ) — オンライン/新着/未挑戦/人気/
+## 高難度は全てこの画面のrefresh()を経由する1本の通信なので、まとめて
+## 1つのoperation_idで管理する(RBMLoadingState参照)。
+const LOADING_OP_LIST := "online_boss_list"
+const LOADING_OP_DETAIL := "online_boss_detail"
+
 var _api_adapter: RBMBossApiAdapter
 var _recorder: RBMOnlineChallengeRecorder
 var _rows_container: VBoxContainer
@@ -132,6 +138,7 @@ func refresh() -> void:
 		child.queue_free()
 
 	var response: Dictionary
+	RBMLoadingState.begin(LOADING_OP_LIST)
 	match _current_category:
 		CATEGORY_UNCHALLENGED:
 			response = await _recorder.list_unchallenged_bosses(_current_mode, 20)
@@ -141,6 +148,7 @@ func refresh() -> void:
 			response = await _api_adapter.list_hard_bosses(20, _current_mode)
 		_:
 			response = await _api_adapter.list_bosses(20, _current_mode)
+	RBMLoadingState.end(LOADING_OP_LIST)
 	if not bool(response.get("ok", false)):
 		_status_label.text = tr("取得できませんでした（%s）。しばらくしてから「更新」を押してください。") % str(response.get("error_kind", response.get("message", "unknown")))
 		return
@@ -167,7 +175,9 @@ func _build_row(boss: Dictionary) -> Button:
 
 func _on_row_pressed(boss_id: String) -> void:
 	_status_label.text = tr("取得中...")
+	RBMLoadingState.begin(LOADING_OP_DETAIL)
 	var result: Dictionary = await RBMOnlineChallengeLoader.load_boss_for_challenge(_api_adapter, boss_id)
+	RBMLoadingState.end(LOADING_OP_DETAIL)
 	if not bool(result.get("ok", false)):
 		_status_label.text = tr("このボスは取得できませんでした（%s）。") % str(result.get("error", "unknown"))
 		return
