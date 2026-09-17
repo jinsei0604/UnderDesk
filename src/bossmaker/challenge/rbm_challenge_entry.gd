@@ -71,6 +71,13 @@ var _last_browse_was_online := false
 ## fake adapterを設定しておくと、_build_online_list_view()がそれを
 ## _online_list_view.set_api_adapter_for_testing()へ渡す。
 var _injected_online_api_adapter_for_testing: RBMBossApiAdapter = null
+
+## テスト専用: オンライン版「未挑戦」(2026-09)——_online_list_view用の
+## fake recorder、および挑戦開始/クリア記録(_on_challenge_requested()/
+## _on_challenge_won())用のfake recorderの両方をこの1つのインスタンスで
+## 兼ねる(実運用でも同じインスタンスを共有する、下記_online_recorder()参照)。
+var _injected_online_recorder_for_testing: RBMOnlineChallengeRecorder = null
+var _online_recorder_instance: RBMOnlineChallengeRecorder = null
 var _list_panel: VBoxContainer
 var _category_title_label: Label
 var _name_search_field: LineEdit
@@ -147,28 +154,45 @@ func _build_hub_view() -> void:
 func set_online_api_adapter_for_testing(adapter: RBMBossApiAdapter) -> void:
 	_injected_online_api_adapter_for_testing = adapter
 
+## テスト専用: 同じく_build_online_list_view()より前に呼ぶこと。
+func set_online_recorder_for_testing(recorder: RBMOnlineChallengeRecorder) -> void:
+	_injected_online_recorder_for_testing = recorder
+
+## _on_challenge_requested()/_on_challenge_won()と_online_list_viewが
+## 同じrecorderインスタンス(=同じRBMSteamAuth/RBMBossApiAdapter)を共有する
+## ——Steam ticket取得の仕組みを画面ごとに複数持たない。
+func _online_recorder() -> RBMOnlineChallengeRecorder:
+	if _online_recorder_instance == null:
+		if _injected_online_recorder_for_testing != null:
+			_online_recorder_instance = _injected_online_recorder_for_testing
+		else:
+			_online_recorder_instance = RBMOnlineChallengeRecorder.new()
+			add_child(_online_recorder_instance)
+	return _online_recorder_instance
+
 ## Phase 4D-1: 「オンライン」カテゴリ専用の別パネル。既存のローカル一覧
 ## (_list_panel)とは独立させ、ローカルChallenge既存動作を一切変更しない。
-## 挑戦ハブ オンライン移行(2026-09): SIMPLE/HARDCORE/オンライン/新着の
-## 4カテゴリ全てがこの同じパネルを共有する(_on_hub_category_selected()参照)。
+## 挑戦ハブ オンライン移行(2026-09): SIMPLE/HARDCORE/オンライン/新着/未挑戦の
+## 5カテゴリ全てがこの同じパネルを共有する(_on_hub_category_selected()参照)。
 func _build_online_list_view() -> void:
 	_online_list_view = RBMOnlineBossListView.new()
 	_online_list_view.name = "OnlineBossListView"
 	_online_list_view.visible = false
 	if _injected_online_api_adapter_for_testing != null:
 		_online_list_view.set_api_adapter_for_testing(_injected_online_api_adapter_for_testing)
+	_online_list_view.set_recorder_for_testing(_online_recorder())
 	_online_list_view.boss_selected.connect(_on_online_boss_selected)
 	_online_list_view.back_requested.connect(_on_back_to_hub_pressed)
 	add_child(_online_list_view)
 
+## オンライン版「未挑戦」(2026-09)実装に伴い、以後この画面で選択された
+## boss_idはオンラインboss(UUID)——_last_browse_was_onlineが挑戦開始/
+## クリア時までtrueのまま保たれるため、_on_challenge_requested()/
+## _on_challenge_won()はこのフラグでローカル/オンラインを判定できる
+## (UUID形式かどうかの推測判定はしない、既存の明示的なフラグを再利用)。
 func _on_online_boss_selected(boss_id: String, draft: RBMCreatorDraft, _boss_name: String, _author_name: String) -> void:
 	# ローカルの_on_stage_row_pressed()と同じ着地点(_confirm_view.open())へ
 	# 接続する——新しい別Battle経路は作らない(ユーザー確定仕様)。
-	# stage_idの形式(10桁の数字)とオンラインboss_id(UUID)は一致しないため、
-	# RBMLocalStageRepository.record_challenge_attempt/clear()はこの
-	# boss_idに対しては安全にno-op(_is_valid_stage_id()が弾く)——オンライン
-	# のClear記録自体は今回のスコープ外(将来Phase 5用に接続しやすい構造の
-	# 考慮のみ、ユーザー確定仕様)。
 	_selected_stage_id = ""
 	_confirm_view.open(boss_id, draft)
 	_show_online_browse()
@@ -267,34 +291,45 @@ func _build_list_panel() -> void:
 # ---------------------------------------------------------------------------
 
 ## 挑戦ハブ オンライン移行(2026-09、ユーザー確定仕様): SIMPLE/HARDCORE/
-## オンライン/新着はSupabase上の公開ボス一覧(_online_list_view)へ接続する。
-## ローカルの共通一覧(_list_panel/_refresh_list()/RBMLocalStageRepository)
-## には一切触れない——それらの関数・データ自体は削除せず維持するが、この
-## 4カテゴリからは到達しなくなる（検索・ランダムは今回変更していないため
-## 引き続きローカルを使う、下の_on_hub_search_requested()/
-## _on_hub_random_requested()参照）。
+## オンライン/新着/未挑戦はSupabase上の公開ボス一覧(_online_list_view)へ
+## 接続する。ローカルの共通一覧(_list_panel/_refresh_list()/
+## RBMLocalStageRepository)には一切触れない——それらの関数・データ自体は
+## 削除せず維持するが、この5カテゴリからは到達しなくなる（検索・ランダムは
+## 今回変更していないため引き続きローカルを使う、下の
+## _on_hub_search_requested()/_on_hub_random_requested()参照）。
 ##
-## 未挑戦/人気/高難度は、オンライン側の正式な挑戦履歴・統計データがまだ
-## 存在しないため今回は未実装（ユーザー確定仕様「算出方法については別途
-## こちらで決めます」）。ハブ側では既にdisabled=trueで「準備中」表示
-## にしているが、直接このメソッドが呼ばれた場合（テスト等）に備えて、
-## ここでも安全に何もしない（ローカル一覧・オンライン一覧いずれへも
-## 誤って遷移しない）。
+## §11(ユーザー確定仕様)「SIMPLE + 未挑戦 → 未挑戦SIMPLEだけ」: モードと
+## カテゴリは独立した状態として扱う——SIMPLE/HARDCOREボタンは現在選択中の
+## カテゴリ(_online_list_view.current_category())を維持したままmodeだけを
+## 変更し、オンライン/新着/未挑戦ボタンは現在選択中のmode
+## (_online_list_view.current_mode())を維持したままcategoryだけを変更する。
+## 「オンライン」ボタンだけは例外的にcategoryを明示的にONLINE(絞り込み
+## なしの全件)へ戻す(それが「オンライン」ボタン自体の意味のため)。
+##
+## 人気/高難度は、オンライン側の正式な統計データ・算出方法がまだ決まって
+## いないため今回も未実装（ユーザー確定仕様「算出方法については別途
+## こちらで決めます」）。ハブ側では既にdisabled=trueで「準備中」表示に
+## しているが、直接このメソッドが呼ばれた場合（テスト等）に備えて、ここ
+## でも安全に何もしない（ローカル一覧・オンライン一覧いずれへも誤って
+## 遷移しない）。
 func _on_hub_category_selected(category: String) -> void:
 	match category:
 		RBMChallengeHubView.CATEGORY_FEATURED:
-			_open_online_category("", RBMOnlineBossListView.CATEGORY_ONLINE, category)
+			_open_online_category(_online_list_view.current_mode(), RBMOnlineBossListView.CATEGORY_ONLINE, category)
 			return
 		RBMChallengeHubView.CATEGORY_NEW:
-			_open_online_category("", RBMOnlineBossListView.CATEGORY_NEW, category)
+			_open_online_category(_online_list_view.current_mode(), RBMOnlineBossListView.CATEGORY_NEW, category)
+			return
+		RBMChallengeHubView.CATEGORY_UNCHALLENGED:
+			_open_online_category(_online_list_view.current_mode(), RBMOnlineBossListView.CATEGORY_UNCHALLENGED, category)
 			return
 		RBMChallengeHubView.CATEGORY_SIMPLE:
-			_open_online_category(RBMCreatorDraft.CREATOR_MODE_SIMPLE, RBMOnlineBossListView.CATEGORY_ONLINE, category)
+			_open_online_category(RBMCreatorDraft.CREATOR_MODE_SIMPLE, _online_list_view.current_category(), category)
 			return
 		RBMChallengeHubView.CATEGORY_HARDCORE:
-			_open_online_category(RBMCreatorDraft.CREATOR_MODE_ADVANCED, RBMOnlineBossListView.CATEGORY_ONLINE, category)
+			_open_online_category(RBMCreatorDraft.CREATOR_MODE_ADVANCED, _online_list_view.current_category(), category)
 			return
-		RBMChallengeHubView.CATEGORY_UNCHALLENGED, RBMChallengeHubView.CATEGORY_POPULAR, RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY:
+		RBMChallengeHubView.CATEGORY_POPULAR, RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY:
 			return # 今回未実装。何もしない(現在の画面のまま)。
 
 func _open_online_category(mode: String, online_category: String, hub_category: String) -> void:
@@ -472,17 +507,32 @@ func _on_challenge_requested(definition: Dictionary) -> void:
 	# CHALLENGE UI再設計 §4-F/§10: 「挑戦者数」記録——実際に戦闘が開始される
 	# この瞬間にのみ1回加算する（「最初からやり直す」「もう一度挑戦」は
 	# 新たな挑戦者としては数えない、判断——完了報告で開示）。
+	#
+	# オンライン版「未挑戦」(2026-09、ユーザー確定仕様§9): オンライン/
+	# ローカルの判定は_last_browse_was_online(既存の明示的なフラグ、
+	# UUID形式かどうかの推測判定はしない)で行う。オンラインの場合は
+	# RBMOnlineChallengeRecorder経由でSupabaseへ記録するが、これは
+	# ベストエフォート(§7)——awaitせずに投げるだけで、記録の成否に
+	# 関わらず戦闘は必ず開始する(通信失敗でゲームが止まらないようにする)。
 	if not _confirm_view.stage_id.is_empty():
-		RBMLocalStageRepository.record_challenge_attempt(_confirm_view.stage_id)
+		if _last_browse_was_online:
+			_online_recorder().record_challenge_attempt(_confirm_view.stage_id)
+		else:
+			RBMLocalStageRepository.record_challenge_attempt(_confirm_view.stage_id)
 	_battle_view.battle_background = _confirm_view._draft.battle_background if _confirm_view._draft != null else "night"
 	_battle_view.start_battle(definition, visibility, appearance_id)
 	_show_battle()
 
 ## CHALLENGE UI再設計 §4-F/§10: 「クリア者数」記録——RBMChallengeBattleView
 ## 自身の勝敗判定ロジックには一切触れず、その一回性シグナルを観測するだけ。
+## オンライン版「未挑戦」(2026-09): 挑戦開始時と同じ判定・同じベスト
+## エフォート方針(§7)——記録API失敗でも勝利処理自体は正常に完了する。
 func _on_challenge_won() -> void:
 	if not _confirm_view.stage_id.is_empty():
-		RBMLocalStageRepository.record_challenge_clear(_confirm_view.stage_id)
+		if _last_browse_was_online:
+			_online_recorder().record_challenge_clear(_confirm_view.stage_id)
+		else:
+			RBMLocalStageRepository.record_challenge_clear(_confirm_view.stage_id)
 
 func _on_battle_returned_to_list() -> void:
 	# Phase 4D-1: オンライン一覧経由で挑戦した場合は、戦闘終了後もオンライン

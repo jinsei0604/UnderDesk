@@ -12,13 +12,13 @@ extends Control
 ## §7: 検索/ランダムは、RBMChallengeEntry既存の_list_panel（ローカル公開
 ## ステージの共通一覧、この画面の外側で構築・保持される）を使う。
 ##
-## 挑戦ハブ オンライン移行(2026-09) — SIMPLE/HARDCORE/オンライン/新着は
-## Supabase上の公開ボス一覧(RBMOnlineBossListView)へ接続される
-## (RBMChallengeEntry._on_hub_category_selected()参照)。未挑戦/人気/
-## 高難度はオンライン側の正式な統計データがまだ無いため今回は未実装
+## 挑戦ハブ オンライン移行(2026-09) — SIMPLE/HARDCORE/オンライン/新着/
+## 未挑戦は、Supabase上の公開ボス一覧(RBMOnlineBossListView)へ接続される
+## (RBMChallengeEntry._on_hub_category_selected()参照)。人気/高難度だけは
+## オンライン側の正式な統計算出方法がまだ決まっていないため今回も未実装
 ## ——ボタン自体は残すが、「注目」がランキング未確定の間そうしていたのと
-## 同じdisabled=true「準備中」表示のまま。このクラス自身はどちらの経路
-## でも一覧を一切構築しない、純粋にカテゴリ選択の入口だけを担う。
+## 同じdisabled=true「準備中」表示のまま。このクラス自身はどの経路でも
+## 一覧を一切構築しない、純粋にカテゴリ選択の入口だけを担う。
 
 signal category_selected(category: String)
 signal random_requested
@@ -89,13 +89,10 @@ func _build_ui() -> void:
 	# ここは単に公開済みオンラインボスの一覧を開くだけ)。
 	discover_row_1.add_child(RBMChallengeUiKit.build_category_button(tr("オンライン"), "FeaturedCategoryButton", func(): category_selected.emit(CATEGORY_FEATURED)))
 	discover_row_1.add_child(RBMChallengeUiKit.build_category_button(tr("新着"), "NewCategoryButton", func(): category_selected.emit(CATEGORY_NEW)))
-	# 挑戦ハブ オンライン移行(2026-09) §未挑戦/人気/高難度: オンライン側の
-	# 正式な挑戦履歴/統計データが未設計のため、今回は実装しない
-	# (ユーザー確定仕様「算出方法については別途こちらで決めます」)。
-	# 「注目」がランキングアルゴリズム未確定の間disabled=trueで
-	# 「準備中」を示していた既存パターンをそのまま再利用する——新しい
-	# 見た目は作らない。
-	discover_row_1.add_child(RBMChallengeUiKit.build_category_button(tr("未挑戦"), "UnchallengedCategoryButton", func(): category_selected.emit(CATEGORY_UNCHALLENGED), true))
+	# オンライン版「未挑戦」(2026-09)正式実装: Steamユーザー×オンラインboss
+	# の挑戦履歴(boss_challenge_records)をサーバー側で確認できるようになった
+	# ため有効化した——「オンライン」がPhase 4D-1で有効化されたのと同じ経緯。
+	discover_row_1.add_child(RBMChallengeUiKit.build_category_button(tr("未挑戦"), "UnchallengedCategoryButton", func(): category_selected.emit(CATEGORY_UNCHALLENGED)))
 
 	var discover_row_2 := HBoxContainer.new()
 	discover_row_2.name = "DiscoverRow2"

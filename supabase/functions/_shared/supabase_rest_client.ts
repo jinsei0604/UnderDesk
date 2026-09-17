@@ -27,6 +27,13 @@ export interface SupabaseRestClient {
     filterQuery: string,
     patch: Record<string, unknown>,
   ): Promise<RestResult<T>>;
+  // PostgRESTのrpc/<function>エンドポイント経由でDB関数を呼ぶ。
+  // 挑戦回数/クリア回数のatomic increment(INSERT ... ON CONFLICT DO UPDATE
+  // ... = ... + 1)のような、SELECT→+1→UPDATEの非atomicな
+  // read-modify-writeでは競合に弱くなる処理のためだけに追加した
+  // (boss_challenge_records、record_boss_challenge_attempt/
+  // record_boss_challenge_clear migration参照)。
+  rpc<T>(functionName: string, params: Record<string, unknown>): Promise<RestResult<T>>;
 }
 
 export class RealSupabaseRestClient implements SupabaseRestClient {
@@ -68,6 +75,15 @@ export class RealSupabaseRestClient implements SupabaseRestClient {
       method: "PATCH",
       headers: this.headers({ Prefer: "return=representation" }),
       body: JSON.stringify(patch),
+    });
+  }
+
+  async rpc<T>(functionName: string, params: Record<string, unknown>): Promise<RestResult<T>> {
+    const url = `${this.supabaseUrl}/rest/v1/rpc/${functionName}`;
+    return await this.request<T>(url, {
+      method: "POST",
+      headers: this.headers({ Prefer: "return=representation" }),
+      body: JSON.stringify(params),
     });
   }
 

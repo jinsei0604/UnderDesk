@@ -162,36 +162,19 @@ func unpublish(boss_id: String) -> bool:
 ## publish()/unpublish()共通のSteamチケット取得手順（可用性/ログイン確認
 ## →チケット要求→callback待ち）。呼び出し元がREQUESTING_TICKET/FAILED等の
 ## 状態遷移・エラー報告を担う——ここは結果のDictionaryを返すだけ。
+##
+## Phase 5: 実際の取得手順自体はRBMSteamTicketProvider.acquire_ticket()へ
+## 集約した(オンライン挑戦記録/未挑戦一覧取得のRBMOnlineChallengeRecorder
+## と共有する、単純コピーを増やさないため)——このメソッドは
+## PublishState遷移・last_error_kind/message設定というpublisher固有の
+## 責務だけを残す。
 func _acquire_ticket() -> Dictionary:
-	if not _steam_auth.is_available():
-		_fail("steam_unavailable", "Steamが利用できません。Steamを起動してログインしてください。")
-		return {"ok": false}
-	if not _steam_auth.is_logged_on():
-		_fail("steam_not_logged_on", "Steamにログインしていません。")
-		return {"ok": false}
-
 	_set_state(PublishState.REQUESTING_TICKET)
-	if not _steam_auth.request_web_api_ticket():
-		_fail("steam_ticket_request_failed", _steam_auth.failure_reason())
+	var result := await RBMSteamTicketProvider.acquire_ticket(_steam_auth)
+	if not bool(result.get("ok", false)):
+		_fail(str(result.get("error_kind", "unknown")), str(result.get("message", "")))
 		return {"ok": false}
-
-	var ticket_result := await _await_ticket_result()
-	if not bool(ticket_result.get("ok", false)):
-		_fail("steam_ticket_failed", str(ticket_result.get("reason", "")))
-		return {"ok": false}
-	return {"ok": true, "hex": str(ticket_result.get("hex", ""))}
-
-func _await_ticket_result() -> Dictionary:
-	# `while true` never falls through on its own (no break), but GDScript's
-	# static analyzer still wants an explicit return after the loop.
-	while true:
-		var state: RBMSteamAuth.AuthState = _steam_auth.current_auth_state()
-		if state == RBMSteamAuth.AuthState.READY:
-			return {"ok": true, "hex": _steam_auth.consume_ticket_hex()}
-		if state == RBMSteamAuth.AuthState.FAILED or state == RBMSteamAuth.AuthState.CANCELLED:
-			return {"ok": false, "reason": _steam_auth.failure_reason()}
-		await _steam_auth.state_changed
-	return {"ok": false, "reason": "unreachable"}
+	return {"ok": true, "hex": str(result.get("hex", ""))}
 
 func _fail(error_kind: String, message: String) -> void:
 	_last_error_kind = error_kind

@@ -97,3 +97,22 @@ func list_bosses(limit: int = 20, mode: String = "") -> Dictionary:
 
 func get_boss(id: String) -> Dictionary:
 	return await _request(_function_url("get-boss") + "?id=%s" % id.uri_encode(), HTTPClient.METHOD_GET)
+
+## Phase 5 — オンライン版「未挑戦」。ticket_hex取得済み(RBMSteamTicketProvider
+## 経由)であることが前提——SteamIDはこのクラス自身ではなくサーバー側の
+## SteamTicketVerifierが確定する(クライアントは一切自己申告しない)。
+func record_challenge_attempt(ticket_hex: String, boss_id: String) -> Dictionary:
+	var body := {"ticket": ticket_hex, "boss_id": boss_id}
+	return await _request(_function_url("record-challenge-attempt"), HTTPClient.METHOD_POST, JSON.stringify(body))
+
+func record_challenge_clear(ticket_hex: String, boss_id: String) -> Dictionary:
+	var body := {"ticket": ticket_hex, "boss_id": boss_id}
+	return await _request(_function_url("record-challenge-clear"), HTTPClient.METHOD_POST, JSON.stringify(body))
+
+## list_bosses()と違い匿名GETではない——「誰にとっての未挑戦か」をサーバー
+## 側でSteam ticketから確定させるため、ticketを渡すPOSTにする。
+func list_unchallenged_bosses(ticket_hex: String, mode: String = "", limit: int = 20) -> Dictionary:
+	var body := {"ticket": ticket_hex, "limit": limit}
+	if not mode.is_empty():
+		body["mode"] = mode
+	return await _request(_function_url("list-unchallenged-bosses"), HTTPClient.METHOD_POST, JSON.stringify(body))

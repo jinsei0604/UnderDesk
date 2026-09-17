@@ -122,4 +122,64 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
     }
     return Promise.resolve({ ok: true, rows: updated as T[], status: 200 });
   }
+
+  // record_boss_challenge_attempt/record_boss_challenge_clear
+  // (boss_challenge_records migration参照)専用の最小限のRPCシミュレーション。
+  // 本物のPostgres関数と同じ「INSERT ... ON CONFLICT (boss_id,
+  // challenger_steam_id) DO UPDATE ... = ... + 1」のatomic increment挙動を
+  // インメモリで再現する——実SQLは実行しないため、この2関数の意味論だけを
+  // 明示的にハードコードする(汎用的なSQL実行エンジンにはしない、この
+  // プロジェクトが実際に呼ぶ範囲だけをサポートする既存方針を踏襲)。
+  async rpc<T>(functionName: string, params: Record<string, unknown>): Promise<RestResult<T>> {
+    if (functionName === "record_boss_challenge_attempt") {
+      return this.upsertChallengeRecord(params, "attempt") as Promise<RestResult<T>>;
+    }
+    if (functionName === "record_boss_challenge_clear") {
+      return this.upsertChallengeRecord(params, "clear") as Promise<RestResult<T>>;
+    }
+    return Promise.resolve({
+      ok: false,
+      rows: [],
+      status: 404,
+      errorMessage: `FakeSupabaseRestClient.rpc(): unknown function '${functionName}'`,
+    });
+  }
+
+  private upsertChallengeRecord(
+    params: Record<string, unknown>,
+    kind: "attempt" | "clear",
+  ): Promise<RestResult<Record<string, unknown>>> {
+    const bossId = String(params.p_boss_id ?? "");
+    const steamId = String(params.p_steam_id ?? "");
+    const rows = this.rowsOf("boss_challenge_records");
+    const now = new Date().toISOString();
+    let row = rows.find((r) => r.boss_id === bossId && r.challenger_steam_id === steamId);
+    if (!row) {
+      row = {
+        id: `fake-id-${this.nextId++}`,
+        boss_id: bossId,
+        challenger_steam_id: steamId,
+        challenge_count: 0,
+        clear_count: 0,
+        first_challenged_at: null,
+        last_challenged_at: null,
+        first_cleared_at: null,
+        last_cleared_at: null,
+        created_at: now,
+      };
+      rows.push(row);
+      this.tables.set("boss_challenge_records", rows);
+    }
+    if (kind === "attempt") {
+      row.challenge_count = Number(row.challenge_count ?? 0) + 1;
+      if (!row.first_challenged_at) row.first_challenged_at = now;
+      row.last_challenged_at = now;
+    } else {
+      row.clear_count = Number(row.clear_count ?? 0) + 1;
+      if (!row.first_cleared_at) row.first_cleared_at = now;
+      row.last_cleared_at = now;
+    }
+    row.updated_at = now;
+    return Promise.resolve({ ok: true, rows: [row], status: 200 });
+  }
 }

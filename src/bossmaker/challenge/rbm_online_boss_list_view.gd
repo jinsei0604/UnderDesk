@@ -21,13 +21,16 @@ extends Control
 signal boss_selected(boss_id: String, draft: RBMCreatorDraft, boss_name: String, author_name: String)
 signal back_requested()
 
-## 現時点で必要な2カテゴリのみ(未挑戦/人気/高難度は今回未実装のため
-## この画面へは到達しない、RBMChallengeEntry._on_hub_category_selected()
-## 側で防御済み)。
+## 挑戦ハブ オンライン版「未挑戦」連携(2026-09) — 人気/高難度は今回も
+## 未実装のためこの画面へは到達しない(RBMChallengeEntry.
+## _on_hub_category_selected()側で防御済み)、CATEGORY_UNCHALLENGEDのみ
+## 今回追加する。
 const CATEGORY_ONLINE := "online"
 const CATEGORY_NEW := "new"
+const CATEGORY_UNCHALLENGED := "unchallenged"
 
 var _api_adapter: RBMBossApiAdapter
+var _recorder: RBMOnlineChallengeRecorder
 var _rows_container: VBoxContainer
 var _status_label: Label
 var _title_label: Label
@@ -37,6 +40,12 @@ var _current_category: String = CATEGORY_ONLINE
 
 func set_api_adapter_for_testing(adapter: RBMBossApiAdapter) -> void:
 	_api_adapter = adapter
+
+## 「未挑戦」はSteam ticketによる本人確認が必要なため、list_bosses()とは
+## 別のRBMOnlineChallengeRecorder(RBMSteamTicketProvider経由でticketを
+## 取得してからlist-unchallenged-bossesを呼ぶ)を使う。
+func set_recorder_for_testing(recorder: RBMOnlineChallengeRecorder) -> void:
+	_recorder = recorder
 
 func current_mode() -> String:
 	return _current_mode
@@ -48,6 +57,9 @@ func _ready() -> void:
 	if _api_adapter == null:
 		_api_adapter = RBMBossApiAdapter.new()
 		add_child(_api_adapter)
+	if _recorder == null:
+		_recorder = RBMOnlineChallengeRecorder.new()
+		add_child(_recorder)
 	_build_ui()
 
 func _build_ui() -> void:
@@ -117,7 +129,11 @@ func refresh() -> void:
 	for child in _rows_container.get_children():
 		child.queue_free()
 
-	var response: Dictionary = await _api_adapter.list_bosses(20, _current_mode)
+	var response: Dictionary
+	if _current_category == CATEGORY_UNCHALLENGED:
+		response = await _recorder.list_unchallenged_bosses(_current_mode, 20)
+	else:
+		response = await _api_adapter.list_bosses(20, _current_mode)
 	if not bool(response.get("ok", false)):
 		_status_label.text = tr("取得できませんでした（%s）。しばらくしてから「更新」を押してください。") % str(response.get("error_kind", response.get("message", "unknown")))
 		return

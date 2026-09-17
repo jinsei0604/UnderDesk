@@ -13,6 +13,9 @@ func before_each() -> void:
 func after_each() -> void:
 	_remove_recursive(TEST_DIR)
 	RBMLocalStageRepository.set_stages_dir_for_testing("")
+	RBMSteamConfig.set_local_dev_app_id_path_for_testing("")
+	if FileAccess.file_exists(_tmp_recorder_steam_appid_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(_tmp_recorder_steam_appid_path))
 
 func _remove_recursive(path: String) -> void:
 	var dir := DirAccess.open(path)
@@ -105,10 +108,15 @@ func test_hub_shows_all_9_navigation_entries_and_no_icons() -> void:
 	var new_button: Button = entry._hub_view.find_child("NewCategoryButton", true, false)
 	assert_false(new_button.disabled, "「新着」はオンライン一覧へ接続済みのため無効化されていてはいけない")
 
-	# 挑戦ハブ オンライン移行(2026-09): 未挑戦/人気/高難度はオンライン側の
-	# 正式な統計データが未確定のため今回は未実装——「注目」がランキング
-	# アルゴリズム未確定の間そうしていたのと同じdisabled=true「準備中」表示。
-	for button_name in ["UnchallengedCategoryButton", "PopularCategoryButton", "HighDifficultyCategoryButton"]:
+	# オンライン版「未挑戦」(2026-09)正式実装: 「オンライン」「新着」と同じく
+	# 有効化されている。
+	var unchallenged_button: Button = entry._hub_view.find_child("UnchallengedCategoryButton", true, false)
+	assert_false(unchallenged_button.disabled, "オンライン版「未挑戦」実装済みのため無効化されていてはいけない")
+
+	# 人気/高難度は、オンライン側の正式な統計算出方法がまだ決まっていない
+	# ため今回も未実装——「注目」がランキングアルゴリズム未確定の間そう
+	# していたのと同じdisabled=true「準備中」表示。
+	for button_name in ["PopularCategoryButton", "HighDifficultyCategoryButton"]:
 		var button: Button = entry._hub_view.find_child(button_name, true, false)
 		assert_true(button.disabled, "%s は今回未実装のため無効化されていること" % button_name)
 
@@ -130,10 +138,10 @@ func _notify_exit_requested() -> void:
 # ■ 公開状態
 # ---------------------------------------------------------------------------
 
-## 挑戦ハブ オンライン移行(2026-09): SIMPLE/HARDCORE/オンライン/新着は
+## 挑戦ハブ オンライン移行(2026-09): SIMPLE/HARDCORE/オンライン/新着/未挑戦は
 ## Supabase上の公開ボスへ接続され、ローカルの_list_rowsには一切触れなく
 ## なった(専用テストtest_online_categories_open_the_online_list_not_the_local_list()
-## で別途検証済み)。未挑戦/人気/高難度は今回未実装で、押しても_list_rowsへは
+## で別途検証済み)。人気/高難度は今回未実装で、押しても_list_rowsへは
 ## 到達しない(test_disabled_categories_do_nothing_and_never_reach_any_list()
 ## で検証)。ローカルの一覧が「未公開ボスを一切含まない」という保証は、
 ## 今回もローカルを使い続ける検索・ランダムの2経路についてのみ意味を持つ。
@@ -161,9 +169,9 @@ func test_search_excludes_unpublished_stages_by_name() -> void:
 	assert_eq(entry._list_rows.get_child_count(), 0, "search must never surface an unpublished stage even when the name matches")
 
 # ---------------------------------------------------------------------------
-# ■ SIMPLE / HARDCORE / オンライン / 新着（挑戦ハブ オンライン移行、2026-09）
+# ■ SIMPLE / HARDCORE / オンライン / 新着 / 未挑戦（挑戦ハブ オンライン移行、2026-09）
 #
-# ユーザー確定仕様: この4カテゴリは全てSupabase上の公開ボス一覧
+# ユーザー確定仕様: この5カテゴリは全てSupabase上の公開ボス一覧
 # (RBMOnlineBossListView)へ接続する。ローカルの_list_rows/
 # RBMLocalStageRepositoryには一切触れない——RBMFakeBossApiAdapterへ
 # 差し替えて、実HTTPへは出ずに検証する。
@@ -180,11 +188,55 @@ func _entry_with_online_api(api: RBMFakeBossApiAdapter) -> RBMChallengeEntry:
 	add_child_autofree(entry)
 	return entry
 
+## Steam App ID環境分離——他のSteam関連テストと同じ確立済みパターン
+## (test_rbm_steam_auth.gd/test_rbm_boss_publisher.gd参照)。
+var _tmp_recorder_steam_appid_path := "user://test_steam_dev_appid_hub_discovery.local.txt"
+
+func _ready_steam_auth_for_recorder(available := true, logged_on := true) -> RBMSteamAuth:
+	RBMSteamConfig.set_local_dev_app_id_path_for_testing(_tmp_recorder_steam_appid_path)
+	var file := FileAccess.open(_tmp_recorder_steam_appid_path, FileAccess.WRITE)
+	file.store_string("480")
+	file.close()
+	var fake := RBMFakeSteamAdapter.new()
+	if available:
+		fake.configure_available()
+	else:
+		fake.configure_unavailable()
+	fake.configure_logged_on(logged_on, 76561198000000001, "Tester")
+	var auth := RBMSteamAuth.new()
+	auth.set_adapter_for_testing(fake)
+	add_child_autoqfree(auth)
+	auth.initialize()
+	return auth
+
+func _schedule_recorder_ticket_success(auth: RBMSteamAuth) -> void:
+	_fire_recorder_ticket_success.call_deferred(auth)
+
+func _fire_recorder_ticket_success(auth: RBMSteamAuth) -> void:
+	var fake := auth.adapter_for_testing() as RBMFakeSteamAdapter
+	fake.fire_ticket_response(fake.last_issued_handle(), RBMFakeSteamAdapter.RESULT_OK, 3, PackedByteArray([1, 2, 3]))
+
+func _entry_with_online_api_and_recorder(api: RBMFakeBossApiAdapter, recorder: RBMOnlineChallengeRecorder) -> RBMChallengeEntry:
+	var entry := RBMChallengeEntry.new()
+	entry.set_online_api_adapter_for_testing(api)
+	entry.set_online_recorder_for_testing(recorder)
+	add_child_autofree(entry)
+	return entry
+
+func _minimal_online_draft(boss_name: String = "オンライン挑戦テストボス") -> RBMCreatorDraft:
+	var draft := RBMCreatorDraft.new()
+	draft.boss_name = boss_name
+	draft.hp = 1
+	draft.atk = 1
+	draft.spd = 1
+	draft.add_party_character("hero")
+	return draft
+
 func test_online_categories_open_the_online_list_not_the_local_list() -> void:
 	_publish("ローカル公開ボスA")
 	_publish("ローカル公開ボスB")
 
-	for category in [RBMChallengeHubView.CATEGORY_FEATURED, RBMChallengeHubView.CATEGORY_NEW, RBMChallengeHubView.CATEGORY_SIMPLE, RBMChallengeHubView.CATEGORY_HARDCORE]:
+	for category in [RBMChallengeHubView.CATEGORY_FEATURED, RBMChallengeHubView.CATEGORY_NEW, RBMChallengeHubView.CATEGORY_SIMPLE, RBMChallengeHubView.CATEGORY_HARDCORE, RBMChallengeHubView.CATEGORY_UNCHALLENGED]:
 		var api := _fake_online_api()
 		api.configure_list_response({"ok": true, "bosses": []})
 		var entry := _entry_with_online_api(api)
@@ -254,10 +306,27 @@ func test_switching_mode_keeps_the_previously_selected_category() -> void:
 
 	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_HARDCORE)
 	assert_eq(entry._online_list_view.current_mode(), RBMCreatorDraft.CREATOR_MODE_ADVANCED)
-	# HARDCOREボタン自体は「新着」ではなく「オンライン」カテゴリとして
-	# 扱う仕様(モードとカテゴリは独立)——ここではモード切替がカテゴリ状態を
-	# 壊さず正しく更新されることのみを確認する。
-	assert_eq(entry._online_list_view.current_category(), RBMOnlineBossListView.CATEGORY_ONLINE)
+	# モードとカテゴリは独立した状態(§11「SIMPLE + 未挑戦 → 未挑戦SIMPLE
+	# だけ」と同じ設計)——HARDCOREボタンはmodeだけを変更し、選択中だった
+	# 「新着」カテゴリは維持されたままであること。
+	assert_eq(entry._online_list_view.current_category(), RBMOnlineBossListView.CATEGORY_NEW, "モード切替は現在選択中のカテゴリ(新着)を維持したまま反映されること")
+
+## §11(ユーザー確定仕様)の具体例そのもの: 「SIMPLE + 未挑戦 → 未挑戦SIMPLE
+## だけ」「HARDCORE + 未挑戦 → 未挑戦HARDCOREだけ」。
+func test_simple_or_hardcore_combined_with_unchallenged_composes_both_filters() -> void:
+	var api := _fake_online_api()
+	api.configure_list_response({"ok": true, "bosses": []})
+	var entry := _entry_with_online_api(api)
+	entry.enter_challenge()
+
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_SIMPLE)
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_UNCHALLENGED)
+	assert_eq(entry._online_list_view.current_mode(), RBMCreatorDraft.CREATOR_MODE_SIMPLE)
+	assert_eq(entry._online_list_view.current_category(), RBMOnlineBossListView.CATEGORY_UNCHALLENGED)
+
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_HARDCORE)
+	assert_eq(entry._online_list_view.current_mode(), RBMCreatorDraft.CREATOR_MODE_ADVANCED)
+	assert_eq(entry._online_list_view.current_category(), RBMOnlineBossListView.CATEGORY_UNCHALLENGED, "未挑戦は維持したままモードだけHARDCOREへ切り替わること")
 
 func test_online_list_shows_published_bosses_returned_by_the_adapter() -> void:
 	var api := _fake_online_api()
@@ -293,16 +362,16 @@ func test_online_list_shows_an_error_state_on_supabase_failure_without_crashing(
 	assert_true(entry._online_list_view.visible, "the game must keep running -- the online panel itself must stay usable")
 
 # ---------------------------------------------------------------------------
-# ■ 未挑戦 / 人気 / 高難度（今回は未実装）
+# ■ 人気 / 高難度（今回は未実装）
 #
-# ユーザー確定仕様: オンライン側の正式な挑戦履歴・統計データの算出方法は
-# 別途決定するため、今回はボタンを残したまま「準備中」として無効化する
-# だけ——ローカル一覧・オンライン一覧いずれにも誤って遷移してはならない。
+# ユーザー確定仕様: オンライン側の正式な統計データの算出方法は別途決定
+# するため、今回はボタンを残したまま「準備中」として無効化するだけ——
+# ローカル一覧・オンライン一覧いずれにも誤って遷移してはならない。
 # ---------------------------------------------------------------------------
 
 func test_disabled_categories_do_nothing_and_never_reach_any_list() -> void:
 	_publish("誤遷移確認用ローカルボス")
-	for category in [RBMChallengeHubView.CATEGORY_UNCHALLENGED, RBMChallengeHubView.CATEGORY_POPULAR, RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY]:
+	for category in [RBMChallengeHubView.CATEGORY_POPULAR, RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY]:
 		var api := _fake_online_api()
 		var entry := _entry_with_online_api(api)
 		entry.enter_challenge()
@@ -592,6 +661,178 @@ func test_card_challenge_count_reads_as_a_count_of_times_not_a_headcount() -> vo
 	assert_true(challenge_count_label.text.contains("回"), "must read as a count of attempts (回), not a headcount")
 	assert_false(challenge_count_label.text.contains("者"), "must not use 挑戦者 (implies a headcount of people)")
 	assert_false(challenge_count_label.text.contains("人"), "must not use a headcount word like 人")
+
+# ---------------------------------------------------------------------------
+# ■ オンライン版「未挑戦」— 挑戦開始/クリアのオンライン記録(2026-09)
+#
+# ユーザー確定仕様§9: オンライン/ローカルの判定は既存の明示的な
+# _last_browse_was_onlineフラグで行う(UUID形式かどうかの推測判定はしない)。
+# §7: 記録はベストエフォート——Steam ticket取得/Edge Function呼び出しが
+# 失敗しても、戦闘開始・勝利処理そのものは必ず正常に進む。
+# ---------------------------------------------------------------------------
+
+func test_starting_an_online_challenge_calls_record_challenge_attempt_with_the_boss_id() -> void:
+	var auth := _ready_steam_auth_for_recorder()
+	var recorder_api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(recorder_api)
+	var recorder := RBMOnlineChallengeRecorder.new()
+	add_child_autofree(recorder)
+	recorder.set_steam_auth_for_testing(auth)
+	recorder.set_api_adapter_for_testing(recorder_api)
+
+	var browse_api := _fake_online_api()
+	var entry := _entry_with_online_api_and_recorder(browse_api, recorder)
+	entry.enter_challenge()
+	entry._on_online_boss_selected("online-boss-1", _minimal_online_draft(), "オンライン挑戦テストボス", "")
+
+	_schedule_recorder_ticket_success(auth)
+	entry._confirm_view._on_challenge_pressed()
+	await wait_process_frames(3)
+
+	assert_true(entry._battle_view.visible, "sanity: challenge must still start")
+	assert_eq(recorder_api.record_attempt_calls.size(), 1)
+	assert_eq(recorder_api.record_attempt_calls[0]["boss_id"], "online-boss-1")
+	await get_tree().process_frame # drain queued UI-rebuild frees, matching the existing local equivalents in this file
+
+func test_starting_a_local_challenge_never_calls_the_online_record_attempt_api() -> void:
+	var recorder_api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(recorder_api)
+	var recorder := RBMOnlineChallengeRecorder.new()
+	add_child_autofree(recorder)
+	recorder.set_api_adapter_for_testing(recorder_api)
+
+	var stage_id := _publish("ローカル挑戦記録確認ボス")
+	var browse_api := _fake_online_api()
+	var entry := _entry_with_online_api_and_recorder(browse_api, recorder)
+	entry.enter_challenge()
+	entry._on_hub_search_requested()
+	_click_card(entry._list_rows.get_child(0))
+	entry._confirm_view._on_challenge_pressed()
+	await wait_process_frames(2)
+
+	assert_eq(recorder_api.record_attempt_calls.size(), 0, "a local challenge must never reach the online record-challenge-attempt endpoint")
+	assert_eq(int(RBMLocalStageRepository.read_stage_stats(stage_id).get("challenge_count", 0)), 1, "sanity: the local counter must still be used")
+	await get_tree().process_frame
+
+func test_online_challenge_attempt_recording_failure_never_blocks_battle_start() -> void:
+	# Steamが利用不可(recorderがticket取得に失敗する)状況を想定——記録は
+	# 諦めるが、戦闘は必ず開始する(§7、通信失敗でゲームを止めない)。
+	var auth := _ready_steam_auth_for_recorder(false, false)
+	var recorder_api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(recorder_api)
+	var recorder := RBMOnlineChallengeRecorder.new()
+	add_child_autofree(recorder)
+	recorder.set_steam_auth_for_testing(auth)
+	recorder.set_api_adapter_for_testing(recorder_api)
+
+	var browse_api := _fake_online_api()
+	var entry := _entry_with_online_api_and_recorder(browse_api, recorder)
+	entry.enter_challenge()
+	entry._on_online_boss_selected("online-boss-2", _minimal_online_draft(), "オンライン挑戦テストボス", "")
+
+	entry._confirm_view._on_challenge_pressed()
+	await wait_process_frames(2)
+
+	assert_true(entry._battle_view.visible, "battle must start even though the recording call could never even acquire a ticket")
+	assert_not_null(entry._battle_view.session)
+	assert_true(entry._battle_view.session.start_ok())
+	assert_eq(recorder_api.record_attempt_calls.size(), 0, "sanity: the call never reached the API because ticket acquisition failed first")
+	await get_tree().process_frame
+
+func test_winning_an_online_challenge_calls_record_challenge_clear_with_the_boss_id() -> void:
+	var auth := _ready_steam_auth_for_recorder()
+	var recorder_api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(recorder_api)
+	var recorder := RBMOnlineChallengeRecorder.new()
+	add_child_autofree(recorder)
+	recorder.set_steam_auth_for_testing(auth)
+	recorder.set_api_adapter_for_testing(recorder_api)
+
+	var browse_api := _fake_online_api()
+	var entry := _entry_with_online_api_and_recorder(browse_api, recorder)
+	entry.enter_challenge()
+	entry._on_online_boss_selected("online-boss-3", _minimal_online_draft(), "オンライン挑戦テストボス", "")
+
+	_schedule_recorder_ticket_success(auth)
+	entry._confirm_view._on_challenge_pressed()
+	await wait_process_frames(3)
+	entry._battle_view.act_attack(0)
+	assert_true(entry._battle_view.session.battle.battle_over, "sanity")
+	assert_eq(entry._battle_view.session.battle.winner, "ally", "sanity")
+
+	_schedule_recorder_ticket_success(auth)
+	await wait_process_frames(3)
+
+	assert_eq(recorder_api.record_clear_calls.size(), 1)
+	assert_eq(recorder_api.record_clear_calls[0]["boss_id"], "online-boss-3")
+	assert_eq(recorder_api.record_attempt_calls.size(), 1, "sanity: the earlier attempt call must also have gone through")
+	await get_tree().process_frame
+
+func test_online_clear_recording_failure_never_blocks_the_win_flow() -> void:
+	var auth := _ready_steam_auth_for_recorder()
+	var recorder_api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(recorder_api)
+	recorder_api.configure_record_clear_response({"ok": false, "error_kind": "db_error", "message": "boom"})
+	var recorder := RBMOnlineChallengeRecorder.new()
+	add_child_autofree(recorder)
+	recorder.set_steam_auth_for_testing(auth)
+	recorder.set_api_adapter_for_testing(recorder_api)
+
+	var browse_api := _fake_online_api()
+	var entry := _entry_with_online_api_and_recorder(browse_api, recorder)
+	entry.enter_challenge()
+	entry._on_online_boss_selected("online-boss-4", _minimal_online_draft(), "オンライン挑戦テストボス", "")
+
+	_schedule_recorder_ticket_success(auth)
+	entry._confirm_view._on_challenge_pressed()
+	await wait_process_frames(3)
+	entry._battle_view.act_attack(0)
+
+	assert_true(entry._battle_view.session.battle.battle_over, "the win flow itself must complete regardless of the recording server error")
+	assert_eq(entry._battle_view.session.battle.winner, "ally")
+	_schedule_recorder_ticket_success(auth)
+	await wait_process_frames(3)
+	assert_eq(recorder_api.record_clear_calls.size(), 1, "sanity: the call was made even though it reported failure")
+	await get_tree().process_frame
+
+## §12(ユーザー確定仕様)「一度挑戦したbossが次回未挑戦から消える」——
+## 実際に「消える」ことを保証する除外ロジックはサーバー側
+## (list-unchallenged-bosses、challenge_count>0を除外)にあり、
+## supabase/functions/list-unchallenged-bosses/index.test.ts::
+## "returns only bosses this Steam user has never challenged"で既に
+## 検証済み。このテストではクライアント側の配線——挑戦記録
+## (record_challenge_attempt)と未挑戦一覧取得(list_unchallenged_bosses)が
+## 同じrecorder(同じSteam ticket経路・同じAPIアダプター)を通ることだけを
+## 確認する(fakeアダプターは実DB状態を保持しないため、「本当に消える」
+## こと自体はサーバー側テストの責務)。
+func test_attempt_recording_and_unchallenged_fetch_go_through_the_same_recorder() -> void:
+	var auth := _ready_steam_auth_for_recorder()
+	var recorder_api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(recorder_api)
+	var recorder := RBMOnlineChallengeRecorder.new()
+	add_child_autofree(recorder)
+	recorder.set_steam_auth_for_testing(auth)
+	recorder.set_api_adapter_for_testing(recorder_api)
+
+	var browse_api := _fake_online_api()
+	browse_api.configure_list_response({"ok": true, "bosses": [{"id": "online-boss-5", "boss_name": "未挑戦確認ボス", "author_name": ""}]})
+	var entry := _entry_with_online_api_and_recorder(browse_api, recorder)
+	entry.enter_challenge()
+	entry._on_online_boss_selected("online-boss-5", _minimal_online_draft(), "未挑戦確認ボス", "")
+
+	_schedule_recorder_ticket_success(auth)
+	entry._confirm_view._on_challenge_pressed()
+	await wait_process_frames(3)
+	assert_eq(recorder_api.record_attempt_calls.size(), 1)
+	assert_eq(recorder_api.record_attempt_calls[0]["boss_id"], "online-boss-5")
+
+	entry._on_battle_returned_to_list()
+	_schedule_recorder_ticket_success(auth)
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_UNCHALLENGED)
+	await wait_process_frames(3)
+
+	assert_eq(recorder_api.list_unchallenged_calls.size(), 1, "未挑戦一覧の取得も同じrecorder(同じAPIアダプター)を経由すること")
+	await get_tree().process_frame
 
 # ---------------------------------------------------------------------------
 # ■ 公開日時（初回公開日時として固定、CHALLENGE discovery 最終調整 §2）
