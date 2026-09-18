@@ -150,10 +150,17 @@ func _build_sfx(p_side: String) -> Dictionary:
 	d["settle"] = _player(_tone(300.0, settle_end, 0.06, 0.005, 0.05, 0.08))
 	return d
 
+## ユーザーフィードバック対応: 単音の正弦波は、ゲーム全体の標準UI音量
+## (RBMAudio.play_sound()の既定 -9.0dB)より低いピーク振幅で作っていても、
+## 単純な音色ゆえに実際には大きく/耳に付くように聞こえていた。素材の
+## 相対バランス(各音量パラメータ)は変えず、再生音量を一律で追加減衰する。
+const SFX_TRIM_DB := -6.0
+
 func _player(stream: AudioStreamWAV) -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()
 	p.stream = stream
 	p.bus = "Master"
+	p.volume_db = SFX_TRIM_DB
 	return p
 
 func _tone(freq0: float, freq1: float, duration: float, attack: float, release: float, volume: float, harmonic2_amt: float = 0.0) -> AudioStreamWAV:

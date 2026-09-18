@@ -45,6 +45,14 @@ signal boot_completed
 
 const SFX_DIR := "res://assets_bossmaker/audio/title_boot/"
 
+## ユーザーフィードバック対応: タイトル起動SFXがゲーム全体の標準UI音量
+## (RBMAudio.play_sound()の既定 -9.0dB、ボタンhover/click等で使用)より
+## 明確に大きく聞こえていた。最大音量だった0.85(linear_to_db(0.85)≒
+## -1.41dB)をちょうど-9.0dBへ揃えるための一律トリム量——相対バランス
+## (tick/tock・boot・chime・gauge類の大小関係)は変えず、全体を同じだけ
+## 下げるだけ。
+const VOLUME_TRIM_DB := -7.6
+
 ## 一定角度(rad)ごとに1回tick/tockを発火する。HAND_STEADY_SPEED
 ## (4.5rad/s)のときに約2.5Hz(0.4秒間隔)になるよう校正した値——「通常時は
 ## 現在の自然なtick/tock感を維持する」という承認済み基準に合わせるための
@@ -123,7 +131,7 @@ func _make_player(path: String) -> AudioStreamPlayer:
 	return p
 
 func _on_start_pressed() -> void:
-	_player_start.volume_db = linear_to_db(0.8)
+	_player_start.volume_db = linear_to_db(0.8) + VOLUME_TRIM_DB
 	_player_start.play()
 
 func _process(delta: float) -> void:
@@ -172,10 +180,10 @@ func _poll_audio(delta: float) -> void:
 		_update_angle_locked_ticks(spin_offset, hand_alpha)
 		if phase == RBMTitleBootPreview._Phase.CORE_TRANSFORM:
 			_ensure_boot_playing()
-			_player_boot.volume_db = linear_to_db(clampf(1.0 - hand_alpha, 0.0, 0.85))
+			_player_boot.volume_db = linear_to_db(clampf(1.0 - hand_alpha, 0.0, 0.85)) + VOLUME_TRIM_DB
 	elif phase == RBMTitleBootPreview._Phase.BOOT or phase == RBMTitleBootPreview._Phase.ONLINE_HOLD or phase == RBMTitleBootPreview._Phase.FLASH:
 		_ensure_boot_playing()
-		_player_boot.volume_db = linear_to_db(0.85)
+		_player_boot.volume_db = linear_to_db(0.85) + VOLUME_TRIM_DB
 
 	if phase == RBMTitleBootPreview._Phase.BOOT:
 		_update_gauge_sfx(lit_count)
@@ -185,7 +193,7 @@ func _poll_audio(delta: float) -> void:
 
 	if _prev_phase != phase:
 		if phase == RBMTitleBootPreview._Phase.ONLINE_HOLD:
-			_player_chime.volume_db = linear_to_db(0.85)
+			_player_chime.volume_db = linear_to_db(0.85) + VOLUME_TRIM_DB
 			_player_chime.play()
 		_prev_phase = phase
 
@@ -214,7 +222,7 @@ func _fire_tick(gate: float) -> void:
 		var idx := _tick_idx if _next_is_tick else _tock_idx
 		var p: AudioStreamPlayer = pool[idx % pool.size()]
 		p.pitch_scale = 1.0
-		p.volume_db = linear_to_db(clampf(0.55 * gate, 0.0, 1.0))
+		p.volume_db = linear_to_db(clampf(0.55 * gate, 0.0, 1.0)) + VOLUME_TRIM_DB
 		p.play()
 	if _next_is_tick:
 		_tick_idx += 1
@@ -230,10 +238,10 @@ func _update_gauge_sfx(lit_count: int) -> void:
 		for i in range(_prev_lit_count, lit_count):
 			var p := _gauge_step_pool[_gauge_step_idx % _gauge_step_pool.size()]
 			_gauge_step_idx += 1
-			p.volume_db = linear_to_db(0.5)
+			p.volume_db = linear_to_db(0.5) + VOLUME_TRIM_DB
 			p.play()
 		_prev_lit_count = lit_count
 	if lit_count >= RBMTitleBootPreview.GAUGE_SEGMENTS and not _gauge_completed:
 		_gauge_completed = true
-		_player_gauge_complete.volume_db = linear_to_db(0.6)
+		_player_gauge_complete.volume_db = linear_to_db(0.6) + VOLUME_TRIM_DB
 		_player_gauge_complete.play()
