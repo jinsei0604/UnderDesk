@@ -92,6 +92,18 @@ func test_party_is_fixed_to_hero_butler_samurai_healer_without_tank() -> void:
 	assert_eq(ids, expected, "party must be exactly hero/butler/samurai/healer, no tank")
 	await _settle(root)
 
+## RBMBattleStage自身が内部でRBMAudio(ボタン操作とは無関係に、ヒット/
+## VFX/カウンター等を直接鳴らす専用の子ノード"RBMAudio")を持つため、
+## このプレビューではそれを明示的にmuteしている(でないとホーム画面で
+## 無音のはずの戦闘映像から実際の戦闘SEが鳴ってしまう)。
+func test_battle_stage_own_audio_is_muted() -> void:
+	var root := await _make_root()
+	await _await_battle_ready(root)
+	var stage_audio: Node = root._top_monitor_battle._stage.get_node_or_null("RBMAudio")
+	assert_not_null(stage_audio, "the battle stage must have its own RBMAudio child")
+	assert_true(stage_audio.muted, "the top monitor battle preview must be silent")
+	await _settle(root)
+
 func test_boss_appearance_is_not_the_dragon() -> void:
 	var root := await _make_root()
 	await _await_battle_ready(root)

@@ -62,11 +62,6 @@ func _ready() -> void:
 	call_deferred("_init_battle")
 
 func _init_battle() -> void:
-	# 音声完全OFF(このプレビュー専用のSubViewport内で完結させたいところだが、
-	# Masterバス全体をmuteする方式はRBMHomeMonitorSfx等ホーム画面側の他の
-	# 音にも影響するため、代わりにこのバトル映像自体が音を鳴らさないよう
-	# RBMAudioへは一切bindしない(通常のUIボタンのみが自動バインドされる
-	# 仕組みのため、ここでは何もしなければ鳴らない)。
 	var definition: Dictionary = RBMDataLoader.load_dict("res://data_bossmaker/definitions/test_definition_a.json")
 	definition["party"] = []
 	for id in ROSTER:
@@ -101,6 +96,17 @@ func _init_battle() -> void:
 		log_row.visible = false
 
 	_stage = _view._battlefield_ally_row.get_meta("visual_stage", null)
+
+	# 音声完全OFF: RBMBattleStage自身が内部でRBMAudio(自分専用の子ノード
+	# "RBMAudio")を持ち、ボタン操作とは無関係にヒット/属性VFX/カウンター
+	# 等のSEを直接鳴らす仕組みになっている(rbm_battle_stage.gd _sound参照)。
+	# ホーム画面の他の音(ホバー/クリック/BOOT SFX)には影響させたくない
+	# ため、Masterバスではなく、このプレビュー専用のRBMAudioインスタンス
+	# だけをmuteする。
+	var stage_audio: Node = _stage.get_node_or_null("RBMAudio") if is_instance_valid(_stage) else null
+	if stage_audio != null:
+		stage_audio.muted = true
+
 	_hero_id = _actor_id("hero")
 	_butler_id = _actor_id("butler")
 	_samurai_id = _actor_id("samurai")
