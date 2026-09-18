@@ -22,11 +22,9 @@ var _menu_panel: Control
 var _create_button: Button
 var _challenge_button: Button
 var _locale_button: Button
-var _challenge_text_patch: TextureRect
-var _create_text_patch: TextureRect
-var _challenge_text_texture: TextureRect
-var _create_text_texture: TextureRect
 var _title_boot_launcher: RBMTitleBootLauncher
+var _challenge_monitor: RBMHomeMonitorPanel
+var _creator_monitor: RBMHomeMonitorPanel
 
 var creator_entry: RBMCreatorEntry
 var challenge_entry: RBMChallengeEntry
@@ -86,46 +84,23 @@ func _sync_size_to_viewport() -> void:
 ## ではなく、左右の余白によって視線が中央付近へ来る程度の調整に留める。
 const CONTENT_SIDE_MARGIN_PX := 80.0
 
-## タイトル画面完成アート反映 — 採用された完成画像（Makers & Challengers、
-## ロゴ・背景・「挑戦」「作成」ボタンの絵まで全て含む1枚絵）。§1により
-## Claude Code側でこの画像を再加工/再生成/トリミングし直すことは禁止
-## されているため、ここでは配置のみを行う。
-const TITLE_IMAGE_PATH := "res://assets_bossmaker/art/title_screen_makers_and_challengers.png"
+## ホーム画面3モニター背景反映(承認済み独立プレビューの本実装): 採用された
+## 完成画像(Makers & Challengers、上中央/左下/右下の3モニター枠を含む
+## 1枚絵)。背景画像自体の再加工/再生成/トリミングは禁止されているため、
+## ここでは配置のみを行う。旧・完成画像(title_screen_makers_and_challengers.png、
+## 挑戦/作成ボタンが画像へ直接焼き込まれた旧デザイン)は完全に置き換えた。
+const TITLE_IMAGE_PATH := "res://assets_bossmaker/art/title_screen_home_monitors.png"
 
-## 完成画像自身のピクセル解像度と、その中に描かれた「挑戦」「作成」ボタン絵
-## の外接矩形（画像ピクセル座標）。tools/配下の使い捨てスクリプト
-## （グリッド線付きクロップを目視して実測、確認後に削除済み）で測定した値
-## そのもの——目分量の当て推量ではなく実測値。この矩形を画像サイズに対する
-## 比率へ変換し、実行時のControlサイズに関わらず正しい位置へ透明クリック
-## 領域を配置する（_apply_image_fraction_rect参照）。
+## 完成画像自身のピクセル解像度。RBMTitleEffectsが引き続きapply_image_
+## fraction_rect()を共有するため保持する(画像サイズ自体は旧背景と同一)。
 const TITLE_IMAGE_SIZE := Vector2(1672.0, 941.0)
-const CHALLENGE_BUTTON_PIXEL_RECT := Rect2(518.0, 775.0, 290.0, 97.0)
-const CREATE_BUTTON_PIXEL_RECT := Rect2(860.0, 775.0, 290.0, 97.0)
 
-## ローカライズ品質修正（ユーザーフィードバック対応、2回目）: 当初はこの
-## パッチを単色ColorRect（#472a17固定塗り）で実装していたが、実際のボタン
-## 絵は上が明るく下が暗い縦方向のグラデーション＋微細なノイズを持つため、
-## 単色パッチがボタン地と馴染まず「薄い四角い背景」として視認できてしまう
-## 問題があった。修正: 完成画像自体には一切触れず（§1の禁止事項どおり、
-## 画像の再加工/再生成/トリミングは行わない）、このパッチ矩形の各行を
-## スキャンし、文字の塗り色（明るいクリーム）と影色（黒）に該当する外れ値
-## ピクセルだけを除外した残りの画素の平均色をその行の色として再構成した
-## 「行ごとのグラデーション再現パッチ」画像（tools/vfx_prototype/
-## _gen_patch_bg.gdで生成、生成後は削除済み）を新規アセットとして用意し、
-## 単色ColorRectの代わりにこれを敷く——ボタン自身の縦グラデーションと
-## 継ぎ目なく馴染む。日本語モードではこのパッチ・差し替えテクスチャとも
-## 非表示にして完成画像の「挑戦」「作成」のドット文字をそのまま見せる
-## （修正前と完全に同じ見た目）。Englishモードの時だけパッチ＋事前生成した
-## ピクセルアート調のCHALLENGE/CREATEテクスチャ（tools/vfx_prototype/
-## _regen_centered_text.gdで、文字＋影の内容バウンディングボックスに対し
-## 四辺均等パディングで再生成——中心が視覚的な中心と一致するよう修正済み、
-## 生成後は削除済み）を重ねる。
-const CHALLENGE_TEXT_PATCH_RECT := Rect2(561.0, 790.0, 212.0, 67.0)
-const CREATE_TEXT_PATCH_RECT := Rect2(903.0, 790.0, 212.0, 67.0)
-const CHALLENGE_TEXT_PATCH_TEXTURE_PATH := "res://assets_bossmaker/art/title_button_patch_challenge.png"
-const CREATE_TEXT_PATCH_TEXTURE_PATH := "res://assets_bossmaker/art/title_button_patch_create.png"
-const CHALLENGE_TEXT_TEXTURE_PATH := "res://assets_bossmaker/art/title_button_text_challenge_en.png"
-const CREATE_TEXT_TEXTURE_PATH := "res://assets_bossmaker/art/title_button_text_create_en.png"
+## 左下「挑戦」／右下「ボス作成」モニターの確定Rect(1280x720基準、ユーザー
+## 承認済みキャリブレーションの固定値)。位置/サイズの再調整はしない——
+## 通常表示/ホバー/クリック判定/BOOT演出/拡大遷移の開始位置は全てこの2つの
+## Rectだけを共通の基準にする(RBMHomeMonitorPanel参照)。
+const HOME_MONITOR_CHALLENGE_RECT := Rect2(52.0, 365.0, 568.0, 248.0)
+const HOME_MONITOR_CREATE_RECT := Rect2(660.0, 365.0, 568.0, 248.0)
 
 ## pixel_rect（TITLE_IMAGE_SIZE基準のピクセル座標）をTITLE_IMAGE_SIZEに対する
 ## 比率へ変換し、controlのアンカーとして設定する（offsetは全て0——アンカー
@@ -180,12 +155,16 @@ func _build_ui() -> void:
 
 	# タイトル画面 ループ演出追加 §9: 完成静止画(_title_background)と操作
 	# ボタン(ChallengeModeButton/CreateModeButton)の間に挟む、独立した演出
-	# レイヤー。背景画像には一切触れず、炎/魔力装置/ボスの目の3種類の軽量
-	# ループ演出だけをここへ重ねる（詳細はRBMTitleEffects冒頭コメント参照）。
+	# レイヤー。ホーム画面3モニター背景反映により、炎/魔力装置/ボスの目の
+	# 発光点は旧・完成画像の特定ピクセル位置に実測値で紐付いたものであり、
+	# 新背景にはそれらの要素自体が存在しない(位置が無意味になる)ため、
+	# ノード自体は既存テスト互換のためそのまま生成しつつ非表示にする——
+	# RBMTitleEffects自身のロジック・構造には一切手を加えない。
 	_title_effects = RBMTitleEffects.new()
 	_title_effects.name = "TitleEffects"
 	_title_effects.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_title_effects.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_title_effects.visible = false
 	_title_screen.add_child(_title_effects)
 
 	# §3/§6: 既存の"_menu_panel"という名前・左右CONTENT_SIDE_MARGIN_PXの
@@ -203,109 +182,55 @@ func _build_ui() -> void:
 	# §3: 旧・文字ベースの仮タイトル「RPG BOSS MAKER」は削除——完成画像自身
 	# がロゴを含むため二重表示になる。
 
-	# §3/§6/§7: 「挑戦」「作成」——完成画像に描かれたボタン絵の位置へ透明な
-	# クリック領域を重ねる（画像は_title_backgroundが担当、Godot側は入力
-	# 判定のみ）。_title_background自身（またはそのアンカーコンテナである
-	# _title_screen）へ直接アンカーする——TITLE_IMAGE_SIZE基準の比率と
-	# STRETCH_KEEP_ASPECT_CENTEREDの実際の表示矩形はこのproject.godot設定
-	# 下ではほぼ一致するため、_apply_image_fraction_rect()の比率アンカー
-	# だけで正確に重なる（TextureRectの内部フィット計算を複製する必要が
-	# 無い）。ノード名"ChallengeModeButton"/"CreateModeButton"・text値
-	# ("挑戦"/"作成"、テキストは非表示だが既存テスト互換のため保持）・
-	# シグナル配線は無改修。
+	# ホーム画面3モニター背景反映: 旧・完成画像に焼き込まれた「挑戦」「作成」
+	# ボタン絵は新背景には存在しない。ChallengeModeButton/CreateModeButton
+	# 自体はノード名・text値・シグナル配線(_on_challenge_pressed/
+	# _on_create_pressed)を無改修のまま維持する——既存テスト
+	# (test_rbm_e2e_full_journey.gd等、GUTの_btn()ヘルパーがノード名で検索し
+	# .pressed.emit()する)との互換のためだけに存在する非表示の論理ボタンで
+	# あり、実際のクリック判定は担わない(非表示・入力無視)。実際にユーザーが
+	# クリックする表示/ホバー/BOOT/拡大遷移は、下で生成するRBMHomeMonitorPanel
+	# (承認済み独立プレビューの本実装)が担い、その`activated`シグナルが
+	# これらのボタンの`.pressed`を発火させることで、既存の遷移ロジックへ
+	# そのまま接続する。
 	_challenge_button = Button.new()
 	_challenge_button.name = "ChallengeModeButton"
 	_challenge_button.text = tr("挑戦")
-	_challenge_button.theme_type_variation = RBMUiTheme.VARIATION_IMAGE_HOTSPOT_BUTTON
-	_challenge_button.focus_mode = Control.FOCUS_ALL
-	apply_image_fraction_rect(_challenge_button, CHALLENGE_BUTTON_PIXEL_RECT)
+	_challenge_button.visible = false
+	_challenge_button.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_challenge_button.focus_mode = Control.FOCUS_NONE
 	_challenge_button.pressed.connect(_on_challenge_pressed)
 	_title_screen.add_child(_challenge_button)
 
 	_create_button = Button.new()
 	_create_button.name = "CreateModeButton"
 	_create_button.text = tr("作成")
-	_create_button.theme_type_variation = RBMUiTheme.VARIATION_IMAGE_HOTSPOT_BUTTON
-	_create_button.focus_mode = Control.FOCUS_ALL
-	apply_image_fraction_rect(_create_button, CREATE_BUTTON_PIXEL_RECT)
+	_create_button.visible = false
+	_create_button.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_create_button.focus_mode = Control.FOCUS_NONE
 	_create_button.pressed.connect(_on_create_pressed)
 	_title_screen.add_child(_create_button)
 
-	# ローカライズ品質修正: 完成画像自体には触れず(画像の再加工/再生成/
-	# トリミングは禁止のまま)、Englishモードの時だけ「挑戦」「作成」の文字
-	# 部分をボタン塗り色のパッチで覆い、完成画像と同じ配色・ドット絵技法で
-	# 事前生成したピクセルアート調テクスチャを重ねる。日本語モードではパッチ
-	# ・テクスチャとも非表示にし、完成画像のドット文字をそのまま見せる
-	# （_update_title_button_labels()が言語に応じてvisibleを切り替える）。
-	# ボタンの縁の金属鋲・枠線は覆わない範囲（CHALLENGE_TEXT_PATCH_RECT/
-	# CREATE_TEXT_PATCH_RECTはボタン矩形より一回り小さい内側の矩形）。
-	_challenge_text_patch = TextureRect.new()
-	_challenge_text_patch.name = "ChallengeTextPatch"
-	_challenge_text_patch.texture = load(CHALLENGE_TEXT_PATCH_TEXTURE_PATH)
-	_challenge_text_patch.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_challenge_text_patch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_challenge_text_patch.stretch_mode = TextureRect.STRETCH_SCALE
-	_challenge_text_patch.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	apply_image_fraction_rect(_challenge_text_patch, CHALLENGE_TEXT_PATCH_RECT)
-	_title_screen.add_child(_challenge_text_patch)
+	# 承認済み独立プレビューの本実装: 左下「挑戦」／右下「ボス作成」モニター。
+	# 通常表示/ホバー/クリック判定/BOOT演出/拡大遷移の開始位置は全て
+	# HOME_MONITOR_CHALLENGE_RECT/HOME_MONITOR_CREATE_RECTだけを基準にする
+	# (RBMHomeMonitorPanel冒頭コメント参照)。
+	_challenge_monitor = RBMHomeMonitorPanel.new()
+	_challenge_monitor.name = "ChallengeHomeMonitor"
+	_challenge_monitor.home_rect = HOME_MONITOR_CHALLENGE_RECT
+	_challenge_monitor.label_key = "挑戦"
+	_challenge_monitor.activated.connect(func(): _challenge_button.pressed.emit())
+	_title_screen.add_child(_challenge_monitor)
 
-	# ローカライズ品質修正（3回目、ユーザーフィードバック対応）: それぞれの
-	# TextureRectをSTRETCH_KEEP_ASPECT_CENTEREDで自分のパッチ矩形いっぱいに
-	# 独立して拡大していたため、"CHALLENGE"（9文字、横長）と"CREATE"（6文字）
-	# とで実際の拡大率が異なり、文字の高さ（=見た目のフォントサイズ）が
-	# 語ごとにバラバラになってしまっていた（幅が短いCREATEの方がより大きく
-	# 拡大される）。修正: 幅で制約される方（＝より長い語、CHALLENGE）を基準に
-	# 「パッチ幅いっぱいに収まる倍率」を1つだけ算出し、その同じ倍率を両方の
-	# 語へ適用する——文字列の長さに応じて片方だけ縮小/拡大する処理はしない。
-	# 結果として得られる表示矩形（画像座標系）を、各パッチ矩形の中央へ配置
-	# する。
-	# 中央基準はCHALLENGE_TEXT_PATCH_RECT（JP文字の実測に基づく内側矩形、鋲・
-	# 枠を避けるための「収まる幅」の算出にのみ使う）ではなく、CHALLENGE_
-	# BUTTON_PIXEL_RECT／CREATE_BUTTON_PIXEL_RECT（ボタン絵そのものの外接
-	# 矩形）を中心基準にする——パッチ矩形はJP2文字の実測値でボタン中心から
-	# 数px内側寄りにずれているため、それを基準にすると文字がボタン中心から
-	# わずかにずれて見える（ユーザー指摘）。
-	var challenge_texture: Texture2D = load(CHALLENGE_TEXT_TEXTURE_PATH)
-	var create_texture: Texture2D = load(CREATE_TEXT_TEXTURE_PATH)
-	var shared_text_scale: float = CHALLENGE_TEXT_PATCH_RECT.size.x / challenge_texture.get_size().x
-	var challenge_display_size := challenge_texture.get_size() * shared_text_scale
-	var create_display_size := create_texture.get_size() * shared_text_scale
-	var challenge_display_rect := Rect2(
-		CHALLENGE_BUTTON_PIXEL_RECT.position + (CHALLENGE_BUTTON_PIXEL_RECT.size - challenge_display_size) * 0.5,
-		challenge_display_size)
-	var create_display_rect := Rect2(
-		CREATE_BUTTON_PIXEL_RECT.position + (CREATE_BUTTON_PIXEL_RECT.size - create_display_size) * 0.5,
-		create_display_size)
+	_creator_monitor = RBMHomeMonitorPanel.new()
+	_creator_monitor.name = "CreatorHomeMonitor"
+	_creator_monitor.home_rect = HOME_MONITOR_CREATE_RECT
+	_creator_monitor.label_key = "ボス作成"
+	_creator_monitor.activated.connect(func(): _create_button.pressed.emit())
+	_title_screen.add_child(_creator_monitor)
 
-	_challenge_text_texture = TextureRect.new()
-	_challenge_text_texture.name = "ChallengeTextTexture"
-	_challenge_text_texture.texture = challenge_texture
-	_challenge_text_texture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_challenge_text_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_challenge_text_texture.stretch_mode = TextureRect.STRETCH_SCALE
-	_challenge_text_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	apply_image_fraction_rect(_challenge_text_texture, challenge_display_rect)
-	_title_screen.add_child(_challenge_text_texture)
-
-	_create_text_patch = TextureRect.new()
-	_create_text_patch.name = "CreateTextPatch"
-	_create_text_patch.texture = load(CREATE_TEXT_PATCH_TEXTURE_PATH)
-	_create_text_patch.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_create_text_patch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_create_text_patch.stretch_mode = TextureRect.STRETCH_SCALE
-	_create_text_patch.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	apply_image_fraction_rect(_create_text_patch, CREATE_TEXT_PATCH_RECT)
-	_title_screen.add_child(_create_text_patch)
-
-	_create_text_texture = TextureRect.new()
-	_create_text_texture.name = "CreateTextTexture"
-	_create_text_texture.texture = create_texture
-	_create_text_texture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_create_text_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_create_text_texture.stretch_mode = TextureRect.STRETCH_SCALE
-	_create_text_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	apply_image_fraction_rect(_create_text_texture, create_display_rect)
-	_title_screen.add_child(_create_text_texture)
+	_challenge_monitor.other_panel = _creator_monitor
+	_creator_monitor.other_panel = _challenge_monitor
 
 	# 起動導線(承認済みプレビュー反映版): タイトル→START→時計SYSTEM CORE
 	# 加速演出→SYSTEM BOOT/ONLINE→既存の挑戦/作成選択、という流れを、
@@ -318,9 +243,8 @@ func _build_ui() -> void:
 	_title_boot_launcher.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_title_screen.add_child(_title_boot_launcher)
 
-	# 言語切替ボタン——ホーム画面右上、既存の完成アート/ボタン絵とは重ならない
-	# 領域（挑戦/作成ボタン絵はCHALLENGE_BUTTON_PIXEL_RECT/CREATE_BUTTON_
-	# PIXEL_RECTの通り画像下側にあるため右上は空いている）。RBMUiThemeの
+	# 言語切替ボタン——ホーム画面右上、モニター群(上中央/左下/右下)とは重ならない
+	# 領域(いずれも画面下寄りにあるため右上は空いている)。RBMUiThemeの
 	# SecondaryButton（LOG/戻る等、補助操作と同じ控えめな見た目）をそのまま
 	# 使い、新しいデザイン言語は持ち込まない。表示文字列自体
 	# （「日本語」「English」）は各言語の自称であり、どちらのUI言語でも
@@ -340,7 +264,6 @@ func _build_ui() -> void:
 	_title_screen.add_child(_locale_button)
 	RBMLocale.locale_changed.connect(_on_locale_changed)
 	_update_locale_button_text()
-	_update_title_button_labels()
 
 	_build_creator_entry()
 	_build_challenge_entry()
@@ -373,7 +296,8 @@ func _build_ui() -> void:
 ## 無改修——生成コードそのものを1回多く実行させるだけ。
 func _on_locale_changed(_locale: String) -> void:
 	_update_locale_button_text()
-	_update_title_button_labels()
+	_challenge_monitor.refresh_locale()
+	_creator_monitor.refresh_locale()
 	_rebuild_creator_and_challenge_entries_for_current_locale()
 
 func _rebuild_creator_and_challenge_entries_for_current_locale() -> void:
@@ -420,17 +344,6 @@ func _on_locale_button_pressed() -> void:
 func _update_locale_button_text() -> void:
 	_locale_button.text = "English" if RBMLocale.current_locale() == "ja" else "日本語"
 
-## 日本語モードでは完成画像のドット文字「挑戦」「作成」をそのまま見せる
-## （パッチ・差し替えテクスチャとも非表示＝修正前と完全に同じ見た目）。
-## Englishモードの時だけパッチで覆い、同品質のピクセルアート調テクスチャ
-## （CHALLENGE/CREATE）を重ねる。
-func _update_title_button_labels() -> void:
-	var is_en := RBMLocale.current_locale() == "en"
-	_challenge_text_patch.visible = is_en
-	_challenge_text_texture.visible = is_en
-	_create_text_patch.visible = is_en
-	_create_text_texture.visible = is_en
-
 func _on_creator_exit_requested() -> void:
 	_show_menu()
 
@@ -448,6 +361,11 @@ func _show_menu() -> void:
 	_menu_panel.visible = true
 	creator_entry.visible = false
 	challenge_entry.visible = false
+	# Challenge/Creatorから戻った時(またはBOOT演出の途中で二重に呼ばれた
+	# 場合でも)、モニターがBOOT/拡大の途中状態のまま残らないよう、必ず
+	# 通常表示(home_rect・演出無し)へ戻す。
+	_challenge_monitor.reset_to_idle()
+	_creator_monitor.reset_to_idle()
 
 func _show_only(node: Control) -> void:
 	_title_screen.visible = false
