@@ -31,9 +31,19 @@ func run_gpu_verification(tree: SceneTree, output_dir: String) -> int:
 	await tree.process_frame
 
 	if side == "":
+		# 上中央モニターのボス戦プレビューが自動再生されるまで待つ。
+		var init_ticks := 0
+		while not root._top_monitor_battle._initialized and init_ticks < 300:
+			await tree.process_frame
+			init_ticks += 1
+		var top_autoplay: bool = root._top_monitor_battle._initialized and root._top_monitor_battle._running
+		var top_update_mode: bool = root._top_monitor_battle._battle_sub.render_target_update_mode == SubViewport.UPDATE_ALWAYS
+		await _hold(tree, 0.5)
+
 		var shot0 := tree.root.get_texture().get_image()
 		shot0.save_png(output_dir + "/prod_idle.png")
 		print("saved prod_idle.png")
+		print("TOP_MONITOR_AUTOPLAY: initialized_and_running=%s update_mode_always=%s" % [top_autoplay, top_update_mode])
 
 		root._challenge_monitor.mouse_entered.emit()
 		await _hold(tree, 0.3)
@@ -56,8 +66,10 @@ func run_gpu_verification(tree: SceneTree, output_dir: String) -> int:
 		_click(root._challenge_monitor)
 		await _hold(tree, 3.0)
 		var ok1: bool = root.challenge_entry.visible and not root._title_screen.visible
+		var top_stopped_on_challenge: bool = not root._top_monitor_battle._running and root._top_monitor_battle._battle_sub.render_target_update_mode == SubViewport.UPDATE_DISABLED
 		root._on_challenge_exit_requested()
 		await tree.process_frame
+		var top_resumed_after_challenge: bool = root._top_monitor_battle._running and root._top_monitor_battle._battle_sub.render_target_update_mode == SubViewport.UPDATE_ALWAYS
 		var sfx_stopped1: bool = not _any_sfx_playing(root._challenge_monitor_sfx)
 		var ok2: bool = root._title_screen.visible and root._challenge_monitor._state == RBMHomeMonitorPanel._State.IDLE
 		var ok2b: bool = root._challenge_monitor.position == RBMGameRoot.HOME_MONITOR_CHALLENGE_RECT.position and root._challenge_monitor.size == RBMGameRoot.HOME_MONITOR_CHALLENGE_RECT.size
@@ -68,8 +80,10 @@ func run_gpu_verification(tree: SceneTree, output_dir: String) -> int:
 		_click(root._creator_monitor)
 		await _hold(tree, 3.0)
 		var ok3: bool = root.creator_entry.visible and not root._title_screen.visible
+		var top_stopped_on_creator: bool = not root._top_monitor_battle._running and root._top_monitor_battle._battle_sub.render_target_update_mode == SubViewport.UPDATE_DISABLED
 		root._on_creator_exit_requested()
 		await tree.process_frame
+		var top_resumed_after_creator: bool = root._top_monitor_battle._running and root._top_monitor_battle._battle_sub.render_target_update_mode == SubViewport.UPDATE_ALWAYS
 		var sfx_stopped2: bool = not _any_sfx_playing(root._creator_monitor_sfx)
 		var ok4: bool = root._title_screen.visible and root._creator_monitor._state == RBMHomeMonitorPanel._State.IDLE
 		var ok4b: bool = root._creator_monitor.position == RBMGameRoot.HOME_MONITOR_CREATE_RECT.position and root._creator_monitor.size == RBMGameRoot.HOME_MONITOR_CREATE_RECT.size
@@ -79,7 +93,8 @@ func run_gpu_verification(tree: SceneTree, output_dir: String) -> int:
 
 		print("NAV_ROUNDTRIP: challenge_enter=%s challenge_return=%s challenge_return_rect=%s creator_enter=%s creator_return=%s creator_return_rect=%s" % [ok1, ok2, ok2b, ok3, ok4, ok4b])
 		print("SFX_STOPPED_AFTER_TRANSITION: challenge=%s creator=%s" % [sfx_stopped1, sfx_stopped2])
-		var all_ok: bool = ok1 and ok2 and ok2b and ok3 and ok4 and ok4b and sfx_stopped1 and sfx_stopped2
+		print("TOP_MONITOR_STOP_RESUME: stopped_on_challenge=%s resumed_after_challenge=%s stopped_on_creator=%s resumed_after_creator=%s" % [top_stopped_on_challenge, top_resumed_after_challenge, top_stopped_on_creator, top_resumed_after_creator])
+		var all_ok: bool = ok1 and ok2 and ok2b and ok3 and ok4 and ok4b and sfx_stopped1 and sfx_stopped2 and top_autoplay and top_update_mode and top_stopped_on_challenge and top_resumed_after_challenge and top_stopped_on_creator and top_resumed_after_creator
 		print("NAV_ROUNDTRIP_ALL_OK=%s" % all_ok)
 
 		_gpu_verification_completed = true

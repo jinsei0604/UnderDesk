@@ -27,6 +27,7 @@ var _challenge_monitor: RBMHomeMonitorPanel
 var _creator_monitor: RBMHomeMonitorPanel
 var _challenge_monitor_sfx: RBMHomeMonitorSfx
 var _creator_monitor_sfx: RBMHomeMonitorSfx
+var _top_monitor_battle: RBMHomeTopMonitorBattlePreview
 
 var creator_entry: RBMCreatorEntry
 var challenge_entry: RBMChallengeEntry
@@ -103,6 +104,10 @@ const TITLE_IMAGE_SIZE := Vector2(1672.0, 941.0)
 ## Rectだけを共通の基準にする(RBMHomeMonitorPanel参照)。
 const HOME_MONITOR_CHALLENGE_RECT := Rect2(52.0, 365.0, 568.0, 248.0)
 const HOME_MONITOR_CREATE_RECT := Rect2(660.0, 365.0, 568.0, 248.0)
+
+## 上中央モニターの確定Rect(1280x720基準、承認済み独立プレビューの実測値。
+## 位置/サイズの再調整はしない)。
+const HOME_TOP_MONITOR_RECT := Rect2(254.0, 37.0, 772.0, 291.0)
 
 ## pixel_rect（TITLE_IMAGE_SIZE基準のピクセル座標）をTITLE_IMAGE_SIZEに対する
 ## 比率へ変換し、controlのアンカーとして設定する（offsetは全て0——アンカー
@@ -258,6 +263,16 @@ func _build_ui() -> void:
 		_creator_monitor_sfx.stop_all()
 		_create_button.pressed.emit())
 
+	# 承認済み独立プレビューの本実装: 上中央モニターへ実際のM&C戦闘(無音・
+	# 自動ループ、固定シーケンス)を表示する(詳細はRBMHomeTopMonitorBattle
+	# Preview冒頭コメント参照)。開始/停止はホーム画面の表示/非表示に
+	# 合わせて_show_menu()/_show_only()から呼ぶ。
+	_top_monitor_battle = RBMHomeTopMonitorBattlePreview.new()
+	_top_monitor_battle.name = "TopMonitorBattlePreview"
+	_top_monitor_battle.position = HOME_TOP_MONITOR_RECT.position
+	_top_monitor_battle.size = HOME_TOP_MONITOR_RECT.size
+	_title_screen.add_child(_top_monitor_battle)
+
 	# 起動導線(承認済みプレビュー反映版): タイトル→START→時計SYSTEM CORE
 	# 加速演出→SYSTEM BOOT/ONLINE→既存の挑戦/作成選択、という流れを、
 	# 画面全体を覆う独立レイヤーとして追加する(詳細はRBMTitleBootLauncher
@@ -394,12 +409,14 @@ func _show_menu() -> void:
 	_creator_monitor.reset_to_idle()
 	_challenge_monitor_sfx.stop_all()
 	_creator_monitor_sfx.stop_all()
+	_top_monitor_battle.start_loop()
 
 func _show_only(node: Control) -> void:
 	_title_screen.visible = false
 	_menu_panel.visible = false
 	creator_entry.visible = (node == creator_entry)
 	challenge_entry.visible = (node == challenge_entry)
+	_top_monitor_battle.stop_loop()
 
 var _se_audio: Node
 func _se_node_added(node: Node) -> void:
