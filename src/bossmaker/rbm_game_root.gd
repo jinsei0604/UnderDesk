@@ -25,6 +25,8 @@ var _locale_button: Button
 var _title_boot_launcher: RBMTitleBootLauncher
 var _challenge_monitor: RBMHomeMonitorPanel
 var _creator_monitor: RBMHomeMonitorPanel
+var _challenge_monitor_sfx: RBMHomeMonitorSfx
+var _creator_monitor_sfx: RBMHomeMonitorSfx
 
 var creator_entry: RBMCreatorEntry
 var challenge_entry: RBMChallengeEntry
@@ -219,18 +221,42 @@ func _build_ui() -> void:
 	_challenge_monitor.name = "ChallengeHomeMonitor"
 	_challenge_monitor.home_rect = HOME_MONITOR_CHALLENGE_RECT
 	_challenge_monitor.label_key = "挑戦"
-	_challenge_monitor.activated.connect(func(): _challenge_button.pressed.emit())
 	_title_screen.add_child(_challenge_monitor)
 
 	_creator_monitor = RBMHomeMonitorPanel.new()
 	_creator_monitor.name = "CreatorHomeMonitor"
 	_creator_monitor.home_rect = HOME_MONITOR_CREATE_RECT
 	_creator_monitor.label_key = "ボス作成"
-	_creator_monitor.activated.connect(func(): _create_button.pressed.emit())
 	_title_screen.add_child(_creator_monitor)
 
 	_challenge_monitor.other_panel = _creator_monitor
 	_creator_monitor.other_panel = _challenge_monitor
+
+	# 承認済みSFX同期(right_creator_sfx_v2)の本実装: RBMHomeMonitorPanel自身
+	# には一切触れず、外部からその実際の視覚状態を監視して同期させる
+	# アダプタ(RBMTitleBootLauncherと同じ手法。詳細はRBMHomeMonitorSfx冒頭
+	# コメント参照)。
+	_challenge_monitor_sfx = RBMHomeMonitorSfx.new()
+	_challenge_monitor_sfx.name = "ChallengeHomeMonitorSfx"
+	_challenge_monitor_sfx.panel = _challenge_monitor
+	_challenge_monitor_sfx.side = "left"
+	_title_screen.add_child(_challenge_monitor_sfx)
+
+	_creator_monitor_sfx = RBMHomeMonitorSfx.new()
+	_creator_monitor_sfx.name = "CreatorHomeMonitorSfx"
+	_creator_monitor_sfx.panel = _creator_monitor
+	_creator_monitor_sfx.side = "right"
+	_title_screen.add_child(_creator_monitor_sfx)
+
+	_challenge_monitor.mouse_entered.connect(func(): _challenge_monitor_sfx.play_hover())
+	_creator_monitor.mouse_entered.connect(func(): _creator_monitor_sfx.play_hover())
+
+	_challenge_monitor.activated.connect(func():
+		_challenge_monitor_sfx.stop_all()
+		_challenge_button.pressed.emit())
+	_creator_monitor.activated.connect(func():
+		_creator_monitor_sfx.stop_all()
+		_create_button.pressed.emit())
 
 	# 起動導線(承認済みプレビュー反映版): タイトル→START→時計SYSTEM CORE
 	# 加速演出→SYSTEM BOOT/ONLINE→既存の挑戦/作成選択、という流れを、
@@ -366,6 +392,8 @@ func _show_menu() -> void:
 	# 通常表示(home_rect・演出無し)へ戻す。
 	_challenge_monitor.reset_to_idle()
 	_creator_monitor.reset_to_idle()
+	_challenge_monitor_sfx.stop_all()
+	_creator_monitor_sfx.stop_all()
 
 func _show_only(node: Control) -> void:
 	_title_screen.visible = false

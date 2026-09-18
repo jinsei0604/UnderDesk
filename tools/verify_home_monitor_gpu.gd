@@ -58,6 +58,7 @@ func run_gpu_verification(tree: SceneTree, output_dir: String) -> int:
 		var ok1: bool = root.challenge_entry.visible and not root._title_screen.visible
 		root._on_challenge_exit_requested()
 		await tree.process_frame
+		var sfx_stopped1: bool = not _any_sfx_playing(root._challenge_monitor_sfx)
 		var ok2: bool = root._title_screen.visible and root._challenge_monitor._state == RBMHomeMonitorPanel._State.IDLE
 		var ok2b: bool = root._challenge_monitor.position == RBMGameRoot.HOME_MONITOR_CHALLENGE_RECT.position and root._challenge_monitor.size == RBMGameRoot.HOME_MONITOR_CHALLENGE_RECT.size
 
@@ -69,6 +70,7 @@ func run_gpu_verification(tree: SceneTree, output_dir: String) -> int:
 		var ok3: bool = root.creator_entry.visible and not root._title_screen.visible
 		root._on_creator_exit_requested()
 		await tree.process_frame
+		var sfx_stopped2: bool = not _any_sfx_playing(root._creator_monitor_sfx)
 		var ok4: bool = root._title_screen.visible and root._creator_monitor._state == RBMHomeMonitorPanel._State.IDLE
 		var ok4b: bool = root._creator_monitor.position == RBMGameRoot.HOME_MONITOR_CREATE_RECT.position and root._creator_monitor.size == RBMGameRoot.HOME_MONITOR_CREATE_RECT.size
 
@@ -76,7 +78,8 @@ func run_gpu_verification(tree: SceneTree, output_dir: String) -> int:
 		shot_back2.save_png(output_dir + "/prod_back_to_menu_after_creator.png")
 
 		print("NAV_ROUNDTRIP: challenge_enter=%s challenge_return=%s challenge_return_rect=%s creator_enter=%s creator_return=%s creator_return_rect=%s" % [ok1, ok2, ok2b, ok3, ok4, ok4b])
-		var all_ok: bool = ok1 and ok2 and ok2b and ok3 and ok4 and ok4b
+		print("SFX_STOPPED_AFTER_TRANSITION: challenge=%s creator=%s" % [sfx_stopped1, sfx_stopped2])
+		var all_ok: bool = ok1 and ok2 and ok2b and ok3 and ok4 and ok4b and sfx_stopped1 and sfx_stopped2
 		print("NAV_ROUNDTRIP_ALL_OK=%s" % all_ok)
 
 		_gpu_verification_completed = true
@@ -88,6 +91,12 @@ func run_gpu_verification(tree: SceneTree, output_dir: String) -> int:
 
 	_gpu_verification_completed = true
 	return 0
+
+func _any_sfx_playing(sfx: RBMHomeMonitorSfx) -> bool:
+	for child in sfx.get_children():
+		if child is AudioStreamPlayer and child.playing:
+			return true
+	return false
 
 func _click(panel: RBMHomeMonitorPanel) -> void:
 	var release := InputEventMouseButton.new()

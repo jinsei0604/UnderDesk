@@ -150,7 +150,7 @@ This action cannot be undone."
 ボスイラスト表示領域,Boss Illustration Area
 ボススキル,Boss Skills
 ボス作成 ｜ %s,Boss Creation | %s
-ボス作成,Boss Creation
+ボス作成,BOSS CREATOR
 ボス名,Boss Name
 ボス名で検索,Search by boss name
 ボス名は%d文字以内にしてください,Boss name must be %d characters or fewer
@@ -292,7 +292,7 @@ Exiting now will discard them."
 指定行動を作る,Create Scripted Action
 指定行動を編集,Edit Scripted Action
 指定：ターン%d %s,Scripted: Turn %d %s
-挑戦,Challenge
+挑戦,CHALLENGE
 挑戦 %d回,Challenges: %d
 挑戦をやめる,Give Up Challenge
 挑戦を終了しますか？,End this challenge?
