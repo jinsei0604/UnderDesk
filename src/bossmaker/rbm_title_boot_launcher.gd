@@ -19,13 +19,25 @@ extends Control
 ## 防ぐ——RBMTitleBootPreview自身は(単独プレビューとして動くよう)全要素が
 ## mouse_filter=IGNOREなので、この保護は外側のこのアダプタが担う。演出完了
 ## 後は自身を非表示にするだけで、既存のボタンがそのまま露出する
-## (ChallengeModeButton/CreateModeButton自身のシグナル配線には一切触れない)。
+## (ChallengeModeButton/CreateModeButtonへ自身のシグナル配線には一切触れない)。
 ##
-## SFX: プレビュー確認・承認済みの6点(機械式時計tick/tock+滑らかな
-## mechanical whirr+start確認音+システム起動音+SYSTEM ONLINEチャイム)を
-## そのまま使用する。既存のRBMAudio(rbm_audio.gd、他セッション作業中のため
-## 今回は一切変更しない)には触れず、このアダプタが専用のAudioStreamPlayer
-## で独立に再生する——ボタンの汎用クリック/ホバー音(RBMAudio.bind_ui、
+## SFX(2026-09-18改訂: 音付きプレビューv2〜v8の一連の確認を経て確定した
+## 最終版): 時計tick/tockの発火は、RBMTitleBootPreviewが針とロードUIの
+## 回転に実際に使っている_spin_offset(累積角度)から直接導出する——
+## SFX専用のタイマー/加速カーブは一切持たない。一定角度(TICK_ANGLE_STEP)
+## 進むたびに1回発火するだけの単純な仕組みのため、針が2倍速で回れば
+## 発火も自動的に2倍、4倍なら4倍になり、映像と音の速度が原理的にズレない。
+## 音量はCORE_TRANSFORM中の_core_symbol.hand_alpha(針が視覚的にフェード
+## アウトするタイミング)だけに従う——最高速のまま徐々に小さくなり、
+## 急停止しない。SYSTEM CORE起動音(sfx_system_core_boot.wav)の音量は
+## 同じhand_alphaから「1.0-hand_alpha」で算出するため、時計音が完全に
+## 消える前から起動音が育ち始め、無音区間もリセットも発生しない
+## (旧mechanical_whirrクロスフェード方式は廃止)。ゲージSEは
+## RBMTitleBootPreview._gauge.lit_countの変化を検知して駆動する
+## (1セグメント点灯=1音、100%到達後は追加で鳴らさない、最後に短い
+## 確定音を1回)。既存のRBMAudio(rbm_audio.gd、他セッション作業中のため
+## 一切変更しない)には触れず、このアダプタが専用のAudioStreamPlayerで
+## 独立に再生する——ボタンの汎用クリック/ホバー音(RBMAudio.bind_ui、
 ## RBMGameRoot経由で全ボタンへ自動的に付く既存の仕組み)とは別レイヤーとして
 ## 重なる想定(このSTARTボタンにも既存どおり自動で付く)。
 
@@ -33,31 +45,44 @@ signal boot_completed
 
 const SFX_DIR := "res://assets_bossmaker/audio/title_boot/"
 
-const TICK_RATE_MIN := 3.2
-const TICK_RATE_MAX := 10.0
-## accel_activationがこの区間に入るとtick/tock→whirrへクロスフェードする。
-## 0.85は「tick_rateが約9拍/秒に達した頃」に相当し、プレビューで承認した
-## 「8〜10回/秒程度からフェードさせる」「最後だけ一気に高速化」という設計
-## そのまま。
-const WHIRR_CROSSFADE_FROM := 0.85
-const WHIRR_CROSSFADE_TO := 1.0
+## 一定角度(rad)ごとに1回tick/tockを発火する。HAND_STEADY_SPEED
+## (4.5rad/s)のときに約2.5Hz(0.4秒間隔)になるよう校正した値——「通常時は
+## 現在の自然なtick/tock感を維持する」という承認済み基準に合わせるための
+## 数値で、以降の加速カーブは針の実際の回転速度(_spin_speed)がそのまま
+## 反映される(SFX側で別途カーブを持たない)。
+const TICK_ANGLE_STEP := 1.8
+
+const TICK_POOL_SIZE := 6
+const GAUGE_STEP_POOL_SIZE := 3
+
+## SYSTEM CORE起動音のループ開始位置(秒)。sfx_system_core_boot.wavは
+## root(110Hz)とfifth(165Hz=root*1.5)を厳密な3:2比で使っており、
+## 2/110秒ごとに合成波形全体が同じ位相へ戻るため、この時刻以降は
+## サンプル単位でクリックの無いシームレスループになる。
+const BOOT_LOOP_BEGIN_SEC := 1.2
 
 var _preview: RBMTitleBootPreview
 var _revealed := false
 
 var _player_start: AudioStreamPlayer
-var _player_tick: AudioStreamPlayer
-var _player_tock: AudioStreamPlayer
-var _player_whirr: AudioStreamPlayer
+var _tick_pool: Array[AudioStreamPlayer] = []
+var _tock_pool: Array[AudioStreamPlayer] = []
 var _player_boot: AudioStreamPlayer
 var _player_chime: AudioStreamPlayer
+var _gauge_step_pool: Array[AudioStreamPlayer] = []
+var _player_gauge_complete: AudioStreamPlayer
 
+var _tick_idx := 0
+var _tock_idx := 0
+var _gauge_step_idx := 0
+
+var _offset_initialized := false
+var _last_tick_offset := 0.0
 var _next_is_tick := true
-var _tick_cooldown := 0.0
-var _whirr_started := false
 var _boot_started := false
 var _prev_phase = null
-var _boot_fade_db := 0.0
+var _prev_lit_count := 0
+var _gauge_completed := false
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -76,21 +101,19 @@ func _ready() -> void:
 
 func _build_audio_players() -> void:
 	_player_start = _make_player(SFX_DIR + "sfx_start_confirm.wav")
-	_player_tick = _make_player(SFX_DIR + "sfx_clock_tick.wav")
-	_player_tock = _make_player(SFX_DIR + "sfx_clock_tock.wav")
-	_player_whirr = _make_player(SFX_DIR + "sfx_mechanical_whirr.wav")
-	_player_boot = _make_player(SFX_DIR + "sfx_boot_drone.wav")
+	for i in range(TICK_POOL_SIZE):
+		_tick_pool.append(_make_player(SFX_DIR + "sfx_clock_tick.wav"))
+		_tock_pool.append(_make_player(SFX_DIR + "sfx_clock_tock.wav"))
+	for i in range(GAUGE_STEP_POOL_SIZE):
+		_gauge_step_pool.append(_make_player(SFX_DIR + "sfx_gauge_step.wav"))
+	_player_gauge_complete = _make_player(SFX_DIR + "sfx_gauge_complete.wav")
+	_player_boot = _make_player(SFX_DIR + "sfx_system_core_boot.wav")
 	_player_chime = _make_player(SFX_DIR + "sfx_online_chime.wav")
 
 	var boot_stream: AudioStreamWAV = _player_boot.stream
 	boot_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	boot_stream.loop_begin = int(0.4 * boot_stream.mix_rate)
+	boot_stream.loop_begin = int(BOOT_LOOP_BEGIN_SEC * boot_stream.mix_rate)
 	boot_stream.loop_end = boot_stream.data.size() / 2 - 1
-
-	var whirr_stream: AudioStreamWAV = _player_whirr.stream
-	whirr_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	whirr_stream.loop_begin = int(0.6 * whirr_stream.mix_rate)
-	whirr_stream.loop_end = whirr_stream.data.size() / 2 - 1
 
 func _make_player(path: String) -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()
@@ -113,22 +136,26 @@ func _process(delta: float) -> void:
 		_revealed = true
 		set_process(false)
 		# visible=falseは描画を止めるだけで、子のAudioStreamPlayerは止まらず
-		# 鳴り続けてしまう(boot_droneはLOOP_FORWARDにしてあるため放置すると
-		# 無限ループし続ける実害あり)——ハンドオフの瞬間に明示的に全て停止
-		# する。
+		# 鳴り続けてしまう(sfx_system_core_boot.wavはLOOP_FORWARDにして
+		# あるため放置すると無限ループし続ける実害あり)——ハンドオフの瞬間に
+		# 明示的に全て停止する。
 		_stop_all_audio()
 		visible = false
 		boot_completed.emit()
 
 func _stop_all_audio() -> void:
-	for p in [_player_tick, _player_tock, _player_whirr, _player_boot, _player_chime]:
+	for p in _tick_pool:
 		if p.playing:
 			p.stop()
-
-func _ensure_whirr_playing() -> void:
-	if not _whirr_started:
-		_player_whirr.play()
-		_whirr_started = true
+	for p in _tock_pool:
+		if p.playing:
+			p.stop()
+	for p in _gauge_step_pool:
+		if p.playing:
+			p.stop()
+	for p in [_player_boot, _player_chime, _player_gauge_complete]:
+		if p.playing:
+			p.stop()
 
 func _ensure_boot_playing() -> void:
 	if not _boot_started:
@@ -137,40 +164,76 @@ func _ensure_boot_playing() -> void:
 
 func _poll_audio(delta: float) -> void:
 	var phase = _preview._phase
-	var accel: float = _preview._accel_activation
+	var spin_offset: float = _preview._spin_offset
 	var hand_alpha: float = _preview._core_symbol.hand_alpha
+	var lit_count: int = _preview._gauge.lit_count
 
 	if phase == RBMTitleBootPreview._Phase.HAND_ACCEL or phase == RBMTitleBootPreview._Phase.CORE_TRANSFORM:
-		var whirr_mix := smoothstep(WHIRR_CROSSFADE_FROM, WHIRR_CROSSFADE_TO, accel)
-		var tick_gain := (1.0 - whirr_mix) * hand_alpha
-
-		if tick_gain > 0.02:
-			_tick_cooldown -= delta
-			if _tick_cooldown <= 0.0:
-				var rate := lerpf(TICK_RATE_MIN, TICK_RATE_MAX, clampf(accel, 0.0, 1.0))
-				_tick_cooldown = 1.0 / rate
-				var p := _player_tick if _next_is_tick else _player_tock
-				_next_is_tick = not _next_is_tick
-				p.volume_db = linear_to_db(clampf(0.55 * tick_gain, 0.0, 1.0))
-				p.play()
-
-		_ensure_whirr_playing()
-		var whirr_gain := whirr_mix * hand_alpha
-		_player_whirr.volume_db = linear_to_db(clampf(whirr_gain, 0.0, 1.0))
-		_player_whirr.pitch_scale = lerpf(0.9, 1.35, clampf(accel, 0.0, 1.0))
-
+		_update_angle_locked_ticks(spin_offset, hand_alpha)
 		if phase == RBMTitleBootPreview._Phase.CORE_TRANSFORM:
 			_ensure_boot_playing()
-			_boot_fade_db = linear_to_db(clampf(1.0 - hand_alpha, 0.0, 0.85))
-			_player_boot.volume_db = _boot_fade_db
+			_player_boot.volume_db = linear_to_db(clampf(1.0 - hand_alpha, 0.0, 0.85))
 	elif phase == RBMTitleBootPreview._Phase.BOOT or phase == RBMTitleBootPreview._Phase.ONLINE_HOLD or phase == RBMTitleBootPreview._Phase.FLASH:
-		if _player_whirr.playing:
-			_player_whirr.stop()
 		_ensure_boot_playing()
 		_player_boot.volume_db = linear_to_db(0.85)
+
+	if phase == RBMTitleBootPreview._Phase.BOOT:
+		_update_gauge_sfx(lit_count)
+	elif _prev_lit_count != 0 and phase != RBMTitleBootPreview._Phase.BOOT:
+		_prev_lit_count = 0
+		_gauge_completed = false
 
 	if _prev_phase != phase:
 		if phase == RBMTitleBootPreview._Phase.ONLINE_HOLD:
 			_player_chime.volume_db = linear_to_db(0.85)
 			_player_chime.play()
 		_prev_phase = phase
+
+## 角度クオンタイズによる発火本体。SFX専用のタイマー/カーブは持たず、
+## RBMTitleBootPreview自身が針とロードUIの回転に使っている_spin_offset
+## (累積角度)が一定量進むたびに1回発火するだけ——「加速カーブ」は
+## _spin_offsetの進み方(=_spin_speed)がそのまま反映される。音量は
+## hand_alphaだけに従う(速度に応じたフェードは行わない——最高速のまま
+## 音量だけが下がることで「時計が高速回転したまま消えていく」感覚を
+## 保つ、確認済みの設計)。
+func _update_angle_locked_ticks(spin_offset: float, hand_alpha: float) -> void:
+	if not _offset_initialized:
+		_last_tick_offset = spin_offset
+		_offset_initialized = true
+		return
+
+	var guard := 0
+	while spin_offset - _last_tick_offset >= TICK_ANGLE_STEP and guard < 64:
+		_last_tick_offset += TICK_ANGLE_STEP
+		guard += 1
+		_fire_tick(hand_alpha)
+
+func _fire_tick(gate: float) -> void:
+	if gate > 0.01:
+		var pool := _tick_pool if _next_is_tick else _tock_pool
+		var idx := _tick_idx if _next_is_tick else _tock_idx
+		var p: AudioStreamPlayer = pool[idx % pool.size()]
+		p.pitch_scale = 1.0
+		p.volume_db = linear_to_db(clampf(0.55 * gate, 0.0, 1.0))
+		p.play()
+	if _next_is_tick:
+		_tick_idx += 1
+	else:
+		_tock_idx += 1
+	_next_is_tick = not _next_is_tick
+
+## ゲージSE: RBMTitleBootPreview._gauge.lit_countの変化だけを検知して
+## 駆動する(独立タイマーは持たない)。1セグメント点灯=1音、満了後は
+## 追加で鳴らさない、最後に短い確定音を1回。
+func _update_gauge_sfx(lit_count: int) -> void:
+	if lit_count > _prev_lit_count:
+		for i in range(_prev_lit_count, lit_count):
+			var p := _gauge_step_pool[_gauge_step_idx % _gauge_step_pool.size()]
+			_gauge_step_idx += 1
+			p.volume_db = linear_to_db(0.5)
+			p.play()
+		_prev_lit_count = lit_count
+	if lit_count >= RBMTitleBootPreview.GAUGE_SEGMENTS and not _gauge_completed:
+		_gauge_completed = true
+		_player_gauge_complete.volume_db = linear_to_db(0.6)
+		_player_gauge_complete.play()
