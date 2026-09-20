@@ -159,6 +159,12 @@ var _uses_count_spin: SpinBox
 var _pending_conditions: Array = []
 var _pending_condition_logic: String = RBMActionPatternRules.DEFAULT_CONDITION_LOGIC
 var _pending_max_uses: int = RBMActionPatternRules.UNLIMITED_USES
+## 「＋ 条件をつける」で作成された、条件エディタが今まさに編集している条件の
+## _pending_conditions上のindex(-1=エディタは閉じている/どの条件にも紐付
+## いていない)。エディタの入力は「確定ボタンで初めて反映」ではなく、この
+## indexの条件へ常に即時反映される。
+var _editing_condition_index: int = -1
+var _condition_error_label: Label
 
 # --- 状態: skill_slot_view ---
 var _skill_slot_editing_slot_id: String = ""  # ""なら新規配置
@@ -747,6 +753,11 @@ func _refresh_skill_slot_view() -> void:
 	_refresh_condition_uses_block()
 
 func _on_skill_slot_confirm_pressed() -> void:
+	# 条件エディタの入力は即時に_pending_conditionsへ反映済み——ここでは
+	# 未入力・不正値の条件が残っていないかだけを確認し、あれば保存しない
+	# (理由は条件リスト直下のConditionErrorLabelに出ている)。
+	if _pending_conditions_block_save():
+		return
 	# 覚醒: 新規作成フロー中に種類ドロップダウンで「覚醒」が選ばれている、
 	# または「覚醒を編集」から開かれたセッション——どちらもdraft.awakening
 	# へ保存する（draft.skills/action_sequenceには一切触れない）。
@@ -820,6 +831,7 @@ func _on_skill_slot_delete_pressed() -> void:
 	refresh()
 
 func _close_skill_slot_view() -> void:
+	_close_condition_editor()
 	_form.visible = false
 	_skill_slot_form_active = false
 	_skill_slot_editing_awakening = false
@@ -1005,6 +1017,8 @@ func _on_random_add_candidate_pressed() -> void:
 func _on_random_confirm_pressed() -> void:
 	if _random_candidates.is_empty():
 		return
+	if _pending_conditions_block_save():
+		return
 	var slot := {
 		"kind": RBMActionPatternRules.SLOT_KIND_RANDOM,
 		"mode": _random_mode,
@@ -1059,6 +1073,7 @@ func _on_random_delete_pressed() -> void:
 	refresh()
 
 func _close_random_editor_view() -> void:
+	_close_condition_editor()
 	_show_only(_list_view)
 
 ## §11: このセッションで新規作成しただけで一度も正式に保存されていない
@@ -1221,6 +1236,13 @@ func _build_condition_uses_block() -> VBoxContainer:
 	_condition_list.name = "ConditionList"
 	block.add_child(_condition_list)
 
+	_condition_error_label = Label.new()
+	_condition_error_label.name = "ConditionErrorLabel"
+	_condition_error_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_condition_error_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
+	_condition_error_label.visible = false
+	block.add_child(_condition_error_label)
+
 	_condition_logic_option = OptionButton.new()
 	_condition_logic_option.name = "ConditionLogicOption"
 	for logic in RBMActionPatternRules.CONDITION_LOGIC_TYPES:
@@ -1366,19 +1388,13 @@ func _build_condition_editor() -> void:
 		_condition_attribute_option.add_item(tr(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute, attribute))))
 	_condition_attribute_row.add_child(_condition_attribute_option)
 
-	var confirm_row := HBoxContainer.new()
-	_condition_editor.add_child(confirm_row)
-	var confirm_button := Button.new()
-	confirm_button.name = "ConfirmConditionButton"
-	confirm_button.text = tr("追加する")
-	confirm_button.pressed.connect(_on_confirm_condition_pressed)
-	confirm_row.add_child(confirm_button)
-	var cancel_button := Button.new()
-	cancel_button.name = "CancelConditionButton"
-	cancel_button.text = tr("キャンセル")
-	cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
-	cancel_button.pressed.connect(func(): _condition_editor.visible = false)
-	confirm_row.add_child(cancel_button)
+	# 「追加する」「キャンセル」の二段階確定は持たない——どの入力も変更された
+	# 瞬間に、紐付いている条件(_editing_condition_index)へ即時反映する。
+	# 外側の保存/キャンセルだけが確定/破棄の手段。
+	for spin in [_condition_percent_spin, _condition_percent_min_spin, _condition_percent_max_spin, _condition_turn_spin, _condition_turn_min_spin, _condition_turn_max_spin, _condition_n_spin, _condition_count_spin]:
+		(spin as SpinBox).value_changed.connect(_on_condition_editor_value_changed)
+	for option in [_condition_character_option, _condition_boss_skill_option, _condition_ally_skill_option, _condition_attribute_option]:
+		(option as OptionButton).item_selected.connect(_on_condition_editor_value_changed)
 
 func _refresh_condition_uses_block() -> void:
 	_condition_logic_option.select(RBMActionPatternRules.CONDITION_LOGIC_TYPES.find(_pending_condition_logic))
@@ -1411,35 +1427,93 @@ func _rebuild_condition_list() -> void:
 		row.add_child(delete_button)
 		_condition_list.add_child(row)
 	_condition_logic_option.visible = _pending_conditions.size() > 1
+	_refresh_condition_error()
+
+## 未入力・不正値の条件が残っている間、その理由を条件リスト直下に表示する。
+## 保存(_pending_conditions_block_save)は同じ判定で止まる。
+func _refresh_condition_error() -> void:
+	var problem := draft.conditions_problem(_pending_conditions)
+	_condition_error_label.text = problem
+	_condition_error_label.visible = not problem.is_empty()
 
 func _on_condition_logic_selected(_index: int) -> void:
 	_pending_condition_logic = RBMActionPatternRules.CONDITION_LOGIC_TYPES[_condition_logic_option.selected]
 
+## 「＋ 条件をつける」: 押した時点で、編集中の下書き(_pending_conditions、外側の
+## 保存で初めてスロットへ書き込まれる)へ新しい条件を即座に作り、条件
+## エディタをその条件へ紐付ける。以後の入力変更はすべてその条件へ即時反映
+## される——「追加する」相当の確定操作は存在しない。
 func _on_add_condition_pressed() -> void:
+	## 前の条件の入力値が新しい条件へ持ち越されないよう、エディタを初期値へ
+	## 戻す(シグナルを出さない設定で、紐付け前に行う)。
+	_editing_condition_index = -1
 	_condition_type_option.select(0)
+	for spin in [_condition_percent_spin, _condition_percent_min_spin, _condition_percent_max_spin, _condition_turn_spin, _condition_turn_min_spin, _condition_turn_max_spin, _condition_n_spin, _condition_count_spin]:
+		(spin as SpinBox).set_value_no_signal((spin as SpinBox).min_value)
+	for option in [_condition_character_option, _condition_ally_skill_option, _condition_attribute_option]:
+		if (option as OptionButton).item_count > 0:
+			(option as OptionButton).select(0)
 	## §7: 「前回使った行動」プルダウンは、開くたびにその時点のdraft.skills
 	## から作り直す。
 	_condition_boss_skill_option.clear()
 	for skill in draft.skills:
 		_condition_boss_skill_option.add_item(str(skill.get("name", "?")))
 	_refresh_condition_editor_visibility()
+	_pending_conditions.append(_build_condition_from_editor())
+	_editing_condition_index = _pending_conditions.size() - 1
 	_condition_editor.visible = true
+	_rebuild_condition_list()
 
 func _on_condition_type_selected(_index: int) -> void:
 	_refresh_condition_editor_visibility()
+	_sync_editing_condition()
+
+func _on_condition_editor_value_changed(_value: Variant) -> void:
+	_sync_editing_condition()
+
+## エディタの現在の入力を、紐付いている条件(_editing_condition_index)へ書き戻し、
+## 一覧の表示と未入力エラーも更新する。
+func _sync_editing_condition() -> void:
+	if _editing_condition_index < 0 or _editing_condition_index >= _pending_conditions.size():
+		return
+	_pending_conditions[_editing_condition_index] = _build_condition_from_editor()
+	_rebuild_condition_list()
+
+## 条件エディタを閉じ、どの条件にも紐付いていない状態へ戻す(条件自体は
+## _pending_conditionsに残る——閉じるだけで条件を消したり確定し直したりは
+## しない)。スロット/ランダム/覚醒の編集を開く・閉じる時、条件の種類の選択肢
+## を差し替える時、紐付いた条件を削除した時に呼ぶ。
+func _close_condition_editor() -> void:
+	_editing_condition_index = -1
+	_condition_editor.visible = false
+
+## 外側の保存が押された時点で呼ぶ: 未入力・不正値の条件が残っていれば保存を
+## ブロックしてtrueを返す(入力は既に即時反映済みなので、ここで値を集め直す
+## ことはしない。入力途中のSpinBoxのテキストは、保存ボタンへフォーカスが
+## 移った時点でSpinBox自身が値へ確定する)。
+func _pending_conditions_block_save() -> bool:
+	_refresh_condition_error()
+	return not draft.conditions_problem(_pending_conditions).is_empty()
 
 ## 「条件の種類」ドロップダウンの選択肢を差し替える——通常攻撃/ランダム
 ## 攻撃を開く時はNORMAL_ACTION_UI_CONDITION_TYPES、覚醒を開く時はAWAKENING_
 ## UI_CONDITION_TYPESを渡す。以後_refresh_condition_editor_visibility()/
-## _on_confirm_condition_pressed()はこの配列を通じてselected indexを解決
+## _build_condition_from_editor()はこの配列を通じてselected indexを解決
 ## するため、OptionButtonの実際の項目と常に1対1で対応する。
+##
+## 選択肢の差し替えは「スロット/ランダム/覚醒の編集を開く」「覚醒⇄通常の
+## 種類切替」でしか起きないため、エディタの紐付けもここで必ず解除する
+## (index対応が変わった状態で古い条件へ書き戻さないため)。
 func _set_condition_type_options(types: Array[String]) -> void:
+	_close_condition_editor()
 	_active_condition_types = types
 	_condition_type_option.clear()
 	for condition_type in types:
 		_condition_type_option.add_item(tr(str(RBMActionPatternRules.CONDITION_TYPE_LABELS.get(condition_type, condition_type))))
 
 func _refresh_condition_editor_visibility() -> void:
+	if _condition_type_option.selected < 0 or _condition_type_option.selected >= _active_condition_types.size():
+		return
 	var condition_type := _active_condition_types[_condition_type_option.selected]
 	_condition_percent_row.visible = condition_type in ["hp_at_most", "hp_at_least"]
 	_condition_percent_range_row.visible = condition_type == "hp_between"
@@ -1452,7 +1526,12 @@ func _refresh_condition_editor_visibility() -> void:
 	_condition_ally_skill_row.visible = condition_type == "last_received_skill"
 	_condition_attribute_row.visible = condition_type == "last_received_attribute"
 
-func _on_confirm_condition_pressed() -> void:
+## エディタの現在の入力から条件Dictionaryを組み立てる。必須の値が選べない
+## (例: 作成済み攻撃が0件のlast_boss_skill)場合も黙って捨てず、その値を
+## 欠いたまま返す——保存時にdraft.conditions_problem()が検出して止める。
+func _build_condition_from_editor() -> Dictionary:
+	if _condition_type_option.selected < 0 or _condition_type_option.selected >= _active_condition_types.size():
+		return {}
 	var condition_type := _active_condition_types[_condition_type_option.selected]
 	var condition := {"type": condition_type}
 	match condition_type:
@@ -1471,28 +1550,37 @@ func _on_confirm_condition_pressed() -> void:
 		"allies_at_most", "allies_at_least", "allies_exactly":
 			condition["count"] = int(_condition_count_spin.value)
 		"character_alive", "character_downed":
-			condition["character_id"] = str(RBMDefinitionLoader.KNOWN_ALLY_PATHS.keys()[_condition_character_option.selected])
+			var character_ids: Array = RBMDefinitionLoader.KNOWN_ALLY_PATHS.keys()
+			var character_index := _condition_character_option.selected
+			if character_index >= 0 and character_index < character_ids.size():
+				condition["character_id"] = str(character_ids[character_index])
 		"last_boss_skill":
-			if draft.skills.is_empty():
-				return
-			condition["skill_id"] = str(draft.skills[_condition_boss_skill_option.selected].get("skill_id", ""))
+			var boss_skill_index := _condition_boss_skill_option.selected
+			if boss_skill_index >= 0 and boss_skill_index < draft.skills.size():
+				condition["skill_id"] = str(draft.skills[boss_skill_index].get("skill_id", ""))
 		"last_received_skill":
 			var ally_skill_ids := RBMActionPatternSummary.all_known_ally_skill_ids()
-			if ally_skill_ids.is_empty():
-				return
-			condition["skill_id"] = str(ally_skill_ids[_condition_ally_skill_option.selected])
+			var ally_skill_index := _condition_ally_skill_option.selected
+			if ally_skill_index >= 0 and ally_skill_index < ally_skill_ids.size():
+				condition["skill_id"] = str(ally_skill_ids[ally_skill_index])
 		"last_received_attribute":
-			condition["attribute"] = str(RBMDefinitionLoader.VALID_ATTRIBUTES[_condition_attribute_option.selected])
+			var attribute_index := _condition_attribute_option.selected
+			if attribute_index >= 0 and attribute_index < RBMDefinitionLoader.VALID_ATTRIBUTES.size():
+				condition["attribute"] = str(RBMDefinitionLoader.VALID_ATTRIBUTES[attribute_index])
 		_:
 			pass
-	_pending_conditions.append(condition)
-	_condition_editor.visible = false
-	_rebuild_condition_list()
+	return condition
 
 func _remove_condition(index: int) -> void:
 	if index < 0 or index >= _pending_conditions.size():
 		return
 	_pending_conditions.remove_at(index)
+	# エディタが紐付いていた条件を消した場合は閉じ、それより前の条件を消した
+	# 場合は紐付きindexを1つ詰める(消した条件はもう編集対象に存在しない)。
+	if index == _editing_condition_index:
+		_close_condition_editor()
+	elif index < _editing_condition_index:
+		_editing_condition_index -= 1
 	_rebuild_condition_list()
 
 func _on_uses_unlimited_toggled(pressed: bool) -> void:

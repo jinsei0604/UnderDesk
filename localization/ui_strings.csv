@@ -475,3 +475,17 @@ SP消費,SP Cost
 オンライン公開中,Published online
 オンライン状態を確認中...,Checking online status...
 オンライン状態を確認できません,Couldn't check online status
+HPの条件にパーセントが設定されていません,The HP condition has no percentage set
+HPの条件のパーセントは0〜100で指定してください,Set the HP condition percentage between 0 and 100
+HPの範囲条件に下限・上限が設定されていません,The HP range condition has no lower/upper limit set
+HPの範囲条件は「下限 ≦ 上限」（0〜100%）で指定してください,The HP range must satisfy lower ≤ upper (0–100%)
+ターンの条件にターン数が設定されていません,The turn condition has no turn number set
+○ターンごとの条件にターン数が設定されていません,The every-N-turns condition has no turn count set
+ターンの範囲条件は「下限 ≦ 上限」（1以上）で指定してください,The turn range must satisfy lower ≤ upper (1 or more)
+人数の条件に人数が設定されていません,The count condition has no number set
+キャラクターの条件にキャラクターが設定されていません,The character condition has no character selected
+「前回使った行動」の条件に行動が設定されていません,"The ""Last Action Used"" condition has no action selected"
+「味方の行動」の条件に行動が設定されていません,"The ""Ally Action"" condition has no action selected"
+属性の条件に属性が設定されていません,The attribute condition has no attribute selected
+条件の種類が設定されていません,The condition has no type selected
+条件のデータが不正です,The condition data is invalid

@@ -120,7 +120,6 @@ func _create_skill_slot_at_turn(advanced: RBMCreatorStep4ActionPatterns, name: S
 	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES.find("turn_at"))
 	advanced._on_condition_type_selected(advanced._condition_type_option.selected)
 	advanced._condition_turn_spin.value = float(turn)
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
 	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
 	return str(advanced.draft.action_sequence[-1].get("skill_id", ""))
 
@@ -805,7 +804,7 @@ func test_last_boss_skill_e2e_ui_select_save_load_and_battle_condition_fires() -
 			opener_index = i
 	assert_true(opener_index >= 0, "sanity")
 	advanced._condition_boss_skill_option.select(opener_index)
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
+	advanced._condition_boss_skill_option.item_selected.emit(opener_index)
 	assert_eq(str(advanced._pending_conditions[0].get("skill_id", "")), opener_id, "UI選択で正しいskill_idがDraftへ保存されること")
 	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
 	var pursuit_id := str(creator.draft.action_sequence[1].get("skill_id", ""))

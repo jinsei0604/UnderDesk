@@ -381,7 +381,6 @@ func test_step3_long_action_editor_scrolls_to_bottom_without_overlapping_form_or
 		advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_CONDITION_TYPES.find("turn_at"))
 		advanced._on_condition_type_selected(advanced._condition_type_option.selected)
 		advanced._condition_turn_spin.value = float(turn)
-		_btn(advanced, "ConfirmConditionButton").pressed.emit()
 	await get_tree().process_frame
 	await get_tree().process_frame
 

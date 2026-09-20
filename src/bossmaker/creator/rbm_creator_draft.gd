@@ -282,7 +282,11 @@ func action_step_manual_percentage_total(slot: Dictionary) -> float:
 func step4_advanced_is_valid() -> bool:
 	if creator_mode != CREATOR_MODE_ADVANCED:
 		return true
+	if has_awakening() and not conditions_problem(awakening.get("conditions", [])).is_empty():
+		return false
 	for slot in action_sequence:
+		if not conditions_problem(slot.get("conditions", [])).is_empty():
+			return false
 		if int(slot.get("conditions", []).size()) > 1 and not RBMActionPatternRules.CONDITION_LOGIC_TYPES.has(str(slot.get("condition_logic", ""))):
 			return false
 		if str(slot.get("kind", "")) == RBMActionPatternRules.SLOT_KIND_SKILL:
@@ -301,6 +305,69 @@ func step4_advanced_is_valid() -> bool:
 		else:
 			return false
 	return true
+
+## conditions配列の未入力・不正値を検出する(問題が無ければ空文字、あれば最初の
+## 問題の説明)。STEP 3の条件エディタは入力を即時反映する(追加ボタンでの
+## 確定段階を持たない)ため、必須値が未設定・無効なままの条件を外側の保存で
+## 黙って通さないよう、ここで検出して保存をブロックする。判定基準は
+## RBMDefinitionLoader._resolve_conditions()と同じ(=ここを通らない条件は
+## 定義化の時点でも必ず拒否される)。
+func conditions_problem(conditions: Array) -> String:
+	for condition_variant in conditions:
+		if not (condition_variant is Dictionary):
+			return TranslationServer.translate("条件のデータが不正です")
+		var problem := condition_problem(condition_variant)
+		if not problem.is_empty():
+			return problem
+	return ""
+
+func condition_problem(condition: Dictionary) -> String:
+	var condition_type := str(condition.get("type", ""))
+	match condition_type:
+		"hp_at_most", "hp_at_least":
+			if not condition.has("percent"):
+				return TranslationServer.translate("HPの条件にパーセントが設定されていません")
+			var percent := float(condition.get("percent", -1.0))
+			if percent < 0.0 or percent > 100.0:
+				return TranslationServer.translate("HPの条件のパーセントは0〜100で指定してください")
+		"hp_between":
+			if not condition.has("percent_min") or not condition.has("percent_max"):
+				return TranslationServer.translate("HPの範囲条件に下限・上限が設定されていません")
+			var percent_min := float(condition.get("percent_min", -1.0))
+			var percent_max := float(condition.get("percent_max", -1.0))
+			if percent_min < 0.0 or percent_max > 100.0 or percent_min > percent_max:
+				return TranslationServer.translate("HPの範囲条件は「下限 ≦ 上限」（0〜100%）で指定してください")
+		"turn_at", "turn_at_least", "turn_at_most":
+			if int(condition.get("turn", 0)) < 1:
+				return TranslationServer.translate("ターンの条件にターン数が設定されていません")
+		"turn_every_n":
+			if int(condition.get("n", 0)) < 1:
+				return TranslationServer.translate("○ターンごとの条件にターン数が設定されていません")
+		"turn_between":
+			var turn_min := int(condition.get("turn_min", 0))
+			var turn_max := int(condition.get("turn_max", 0))
+			if turn_min < 1 or turn_max < 1 or turn_min > turn_max:
+				return TranslationServer.translate("ターンの範囲条件は「下限 ≦ 上限」（1以上）で指定してください")
+		"allies_at_most", "allies_at_least", "allies_exactly":
+			if not condition.has("count") or int(condition.get("count", -1)) < 0:
+				return TranslationServer.translate("人数の条件に人数が設定されていません")
+		"character_alive", "character_downed":
+			if not RBMDefinitionLoader.KNOWN_ALLY_PATHS.has(str(condition.get("character_id", ""))):
+				return TranslationServer.translate("キャラクターの条件にキャラクターが設定されていません")
+		"last_boss_skill":
+			if find_skill(str(condition.get("skill_id", ""))).is_empty():
+				return TranslationServer.translate("「前回使った行動」の条件に行動が設定されていません")
+		"last_received_skill":
+			if not RBMActionPatternSummary.all_known_ally_skill_ids().has(str(condition.get("skill_id", ""))):
+				return TranslationServer.translate("「味方の行動」の条件に行動が設定されていません")
+		"last_received_attribute":
+			if not RBMDefinitionLoader.VALID_ATTRIBUTES.has(str(condition.get("attribute", ""))):
+				return TranslationServer.translate("属性の条件に属性が設定されていません")
+		"weak_hit":
+			pass
+		_:
+			return TranslationServer.translate("条件の種類が設定されていません")
+	return ""
 
 ## Clear Check/CHALLENGE確認画面に出す「このボスにはランダム行動が設定
 ## されています。挑戦ごとに行動が変化する場合があります。」の表示条件。

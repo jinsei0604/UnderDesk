@@ -310,10 +310,11 @@ func test_ui_add_condition_button_flow_saves_the_condition_into_the_slot() -> vo
 
 	_btn(advanced, "AddConditionButton").pressed.emit()
 	assert_true(advanced._condition_editor.visible)
+	assert_eq(advanced._pending_conditions.size(), 1, "「＋ 条件をつける」を押した時点で条件が下書きへ作られる")
 	advanced._condition_percent_spin.value = 42.0
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
 
-	assert_false(advanced._condition_editor.visible, "confirm closes the condition sub-editor")
+	assert_null(advanced.find_child("ConfirmConditionButton", true, false), "内側の「追加する」は存在しない")
+	assert_null(advanced.find_child("CancelConditionButton", true, false), "内側のキャンセルは存在しない")
 	assert_eq(advanced._pending_conditions.size(), 1)
 	assert_eq(str(advanced._pending_conditions[0].get("type", "")), "hp_at_most")
 	assert_eq(float(advanced._pending_conditions[0].get("percent", -1.0)), 42.0)
@@ -335,15 +336,14 @@ func test_condition_logic_option_hidden_until_a_second_condition_exists() -> voi
 	assert_false(advanced._condition_logic_option.visible, "条件0件ではAND/ORは無意味なので隠す")
 
 	_btn(advanced, "AddConditionButton").pressed.emit()
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
 	assert_eq(advanced._pending_conditions.size(), 1)
 	assert_false(advanced._condition_logic_option.visible, "条件1件のままではAND/ORを出さない")
 
 	_btn(advanced, "AddConditionButton").pressed.emit()
 	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES.find("turn_at"))
 	advanced._on_condition_type_selected(advanced._condition_type_option.selected)
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
 	assert_eq(advanced._pending_conditions.size(), 2)
+	assert_eq(str(advanced._pending_conditions[1].get("type", "")), "turn_at", "種類の変更は即座に下書きへ反映される")
 	assert_true(advanced._condition_logic_option.visible, "2件目を追加した瞬間だけAND/ORが現れる")
 
 func test_ui_condition_logic_option_toggles_and_or_into_the_saved_slot() -> void:
@@ -401,7 +401,7 @@ func test_last_boss_skill_condition_is_labeled_as_previous_action_not_existing_s
 	assert_eq(advanced._condition_boss_skill_option.item_count, creator.draft.skills.size())
 
 	advanced._condition_boss_skill_option.select(1)
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
+	advanced._condition_boss_skill_option.item_selected.emit(1)
 	assert_eq(str(advanced._pending_conditions[0].get("skill_id", "")), str(creator.draft.skills[1].get("skill_id", "")))
 
 # ---------------------------------------------------------------------------

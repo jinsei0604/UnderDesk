@@ -111,9 +111,7 @@ func run_gpu_verification(tree: SceneTree) -> int:
 	advanced._on_condition_type_selected(advanced._condition_type_option.selected)
 	advanced._condition_percent_spin.value = 30.0
 	await _shot("07_condition_editor_open")
-	_click(advanced, "ConfirmConditionButton")
-	await _tree().process_frame
-	print("pending_conditions after confirm: %d" % advanced._pending_conditions.size())
+	print("pending_conditions (reflected immediately, no inner confirm): %d" % advanced._pending_conditions.size())
 	_click(advanced, "SkillSlotConfirmButton")
 	await _tree().process_frame
 	await _shot("08_conditional_attack_added")

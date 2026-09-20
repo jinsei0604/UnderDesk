@@ -173,7 +173,6 @@ func _build_composite_advanced_draft(creator: RBMCreatorMain) -> Dictionary:
 	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_CONDITION_TYPES.find("turn_at_least"))
 	advanced._on_condition_type_selected(advanced._condition_type_option.selected)
 	advanced._condition_turn_spin.value = 3.0
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
 	assert_eq(advanced._pending_conditions.size(), 1)
 	advanced._uses_limited_check.button_pressed = true
 	advanced._on_uses_limited_toggled(true)

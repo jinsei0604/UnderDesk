@@ -221,7 +221,6 @@ func test_awakening_condition_uses_the_existing_condition_block() -> void:
 	advanced._condition_type_option.select(RBMActionPatternRules.AWAKENING_UI_CONDITION_TYPES.find("hp_at_most"))
 	advanced._on_condition_type_selected(advanced._condition_type_option.selected)
 	advanced._condition_percent_spin.value = 50.0
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
 	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
 	assert_true(creator.draft.has_awakening())
 	assert_eq(creator.draft.awakening["conditions"], [{"type": "hp_at_most", "percent": 50.0}])

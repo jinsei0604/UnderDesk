@@ -92,7 +92,6 @@ func test_awakening_hp_at_most_can_be_set_and_saved() -> void:
 	_open_new_awakening_form(advanced)
 	_select_condition_type(advanced, "hp_at_most")
 	advanced._condition_percent_spin.value = 30.0
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
 	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
 	assert_eq(creator.draft.awakening["conditions"], [{"type": "hp_at_most", "percent": 30.0}])
 
@@ -103,7 +102,6 @@ func test_awakening_turn_at_can_be_set_and_saved() -> void:
 	_open_new_awakening_form(advanced)
 	_select_condition_type(advanced, "turn_at")
 	advanced._condition_turn_spin.value = 5
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
 	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
 	assert_eq(creator.draft.awakening["conditions"], [{"type": "turn_at", "turn": 5}])
 
@@ -114,7 +112,6 @@ func test_awakening_allies_at_most_can_be_set_and_saved() -> void:
 	_open_new_awakening_form(advanced)
 	_select_condition_type(advanced, "allies_at_most")
 	advanced._condition_count_spin.value = 2
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
 	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
 	assert_eq(creator.draft.awakening["conditions"], [{"type": "allies_at_most", "count": 2}])
 
@@ -125,7 +122,6 @@ func test_awakening_character_downed_can_be_set_and_saved() -> void:
 	_open_new_awakening_form(advanced)
 	_select_condition_type(advanced, "character_downed")
 	advanced._condition_character_option.select(0)
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
 	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
 	var conditions: Array = creator.draft.awakening["conditions"]
 	assert_eq(conditions.size(), 1)
@@ -139,7 +135,6 @@ func test_awakening_last_received_skill_can_be_set_and_saved() -> void:
 	_open_new_awakening_form(advanced)
 	_select_condition_type(advanced, "last_received_skill")
 	advanced._condition_ally_skill_option.select(0)
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
 	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
 	var conditions: Array = creator.draft.awakening["conditions"]
 	assert_eq(conditions.size(), 1)
@@ -153,7 +148,6 @@ func test_awakening_last_received_attribute_can_be_set_and_saved() -> void:
 	_open_new_awakening_form(advanced)
 	_select_condition_type(advanced, "last_received_attribute")
 	advanced._condition_attribute_option.select(0)
-	_btn(advanced, "ConfirmConditionButton").pressed.emit()
 	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
 	var conditions: Array = creator.draft.awakening["conditions"]
 	assert_eq(conditions.size(), 1)
