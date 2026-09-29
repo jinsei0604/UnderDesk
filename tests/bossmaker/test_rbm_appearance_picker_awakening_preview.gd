@@ -52,7 +52,7 @@ func test_grid_is_still_three_columns_with_all_six_bosses_present() -> void:
 	var picker := _new_picker()
 	var grid: GridContainer = _find(picker, "AppearanceGrid")
 	assert_eq(grid.columns, 3)
-	assert_eq(grid.get_child_count(), 6)
+	assert_eq(grid.get_child_count(), 7, "既存6体+朽ちた機械武者")
 
 ## 画面再設計(2回目の改修)§1-2: この画面自身がroot_columnの中で実際の
 ## 表示領域を確保できるよう、size_flags_vertical=EXPAND_FILLを明示している
@@ -127,12 +127,16 @@ func test_back_button_does_not_change_the_currently_selected_boss() -> void:
 # 「覚醒可能」表示・プレビュー切替: 実データ(全6体が非対応)
 # ---------------------------------------------------------------------------
 
-func test_no_real_appearance_shows_the_awakening_badge_or_toggle_yet() -> void:
+func test_only_approved_appearances_show_awakening_badge_and_toggle() -> void:
 	var picker := _new_picker()
 	for entry in RBMCreatorAppearanceCatalog.all():
 		var id := str(entry["id"])
-		assert_null(_find(picker, "AwakeningCapableBadge_%s" % id), "%s must not show 「覚醒可能」 -- no appearance is awakening-capable yet" % id)
-		assert_null(_find(picker, "AwakenedPreviewToggle_%s" % id), "%s must not show the preview toggle either" % id)
+		if id == "appearance_musha":
+			assert_not_null(_find(picker, "AwakeningCapableBadge_%s" % id), "the approved musha shows 「覚醒可能」")
+			assert_not_null(_find(picker, "AwakenedPreviewToggle_%s" % id), "and the preview toggle")
+		else:
+			assert_null(_find(picker, "AwakeningCapableBadge_%s" % id), "%s must not show 「覚醒可能」" % id)
+			assert_null(_find(picker, "AwakenedPreviewToggle_%s" % id), "%s must not show the preview toggle either" % id)
 
 # ---------------------------------------------------------------------------
 # fixture経由: 覚醒対応の外見が来た場合の構造(catalog本体は不変のまま)

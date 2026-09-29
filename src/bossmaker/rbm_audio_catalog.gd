@@ -1,5 +1,12 @@
 extends RefCounted
 const FILES := {
+  "musha_single": "res://assets_bossmaker/audio/musha_single.wav",
+  "musha_aoe": "res://assets_bossmaker/audio/musha_aoe.wav",
+  "musha_buff": "res://assets_bossmaker/audio/musha_buff.wav",
+  "musha_heal": "res://assets_bossmaker/audio/musha_heal.wav",
+  "musha_awakening": "res://assets_bossmaker/audio/musha_awakening.wav",
+  "musha_awakened_single": "res://assets_bossmaker/audio/musha_awakened_single.wav",
+  "musha_awakened_aoe": "res://assets_bossmaker/audio/musha_awakened_aoe.wav",
   "fire_cast": "res://assets_bossmaker/audio/fire_cast.wav",
   "fire_move": "res://assets_bossmaker/audio/fire_move.wav",
   "fire_impact_light": "res://assets_bossmaker/audio/fire_impact_light.wav",

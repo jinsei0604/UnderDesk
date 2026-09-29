@@ -70,11 +70,22 @@ func _build_ui() -> void:
 	## グリッド自体はカードの最小サイズぶんしか場所を取らないため、
 	## 余った縦横の空間はCenterContainerで中央へ寄せる——「画面全体を使う」
 	## ことと「カード同士を無理に密着・引き伸ばしさせない」ことを両立する。
+	## ボスの数が増えて行数が表示領域を超えても、カードを縮小して詰め込まず
+	## 縦スクロールで全ボスを選べるようにする(横スクロールは無し——3列の
+	## カードは常に表示幅へ収まる)。カード全体が収まる間は、従来どおり
+	## CenterContainerが表示領域の中央へ寄せる(EXPAND_FILLでスクロール領域
+	## いっぱいへ広がり、超えた時だけ中身の高さぶんスクロールする)。
+	var grid_scroll := ScrollContainer.new()
+	grid_scroll.name = "GridScroll"
+	grid_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	grid_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	column.add_child(grid_scroll)
 	var grid_center := CenterContainer.new()
 	grid_center.name = "GridCenter"
 	grid_center.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	grid_center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.add_child(grid_center)
+	grid_scroll.add_child(grid_center)
 
 	var grid := GridContainer.new()
 	grid.name = "AppearanceGrid"

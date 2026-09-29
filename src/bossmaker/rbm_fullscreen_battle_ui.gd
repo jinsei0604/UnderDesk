@@ -74,6 +74,8 @@ func build() -> void:
 	hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.z_index = 20
+	# 表示専用: ステージの演出がUI欄の位置を知るため(朽ちた機械武者の着弾の墨を、着弾の瞬間だけUI欄の上にも重ねる)
+	stage.set_meta("battle_hud", hud)
 	panel(hud,Rect2(24,20,590,54))
 	place(view._boss_label,hud,Rect2(40,28,550,38))
 	view._boss_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT

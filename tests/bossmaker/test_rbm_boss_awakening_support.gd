@@ -4,8 +4,8 @@ extends GutTest
 ## RBMCreatorAppearanceCatalog.ENTRIESはGodotのconstとして実行時読み取り
 ## 専用のため、既存6体を書き換えて「対応ありのケース」を作ることはできない
 ## (かつ、実際のボスを勝手に覚醒対応へ設定することは今回の確定仕様として
-## 禁止されている)。そのため、
-##   ・既存6体は全てfalseであること(=勝手にtrueへ設定していないこと)
+## 禁止されている)。覚醒対応として承認されたのは、新ボスの朽ちた機械武者だけ。そのため、
+##   ・既存6体は全てfalse、朽ちた機械武者だけtrueであること(=勝手にtrueへ設定していないこと)
 ##   ・真偽値抽出ロジック自体(.get(key,false)パターン)がtrue/false/欠落の
 ##     いずれでも正しく動くこと
 ## を分けて検証する——後者はhand-builtなDictionaryで直接確認する、正規の
@@ -20,8 +20,9 @@ func after_each() -> void:
 
 func test_all_six_existing_appearances_are_not_set_to_supports_awakening() -> void:
 	for entry in RBMCreatorAppearanceCatalog.all():
-		assert_false(bool(entry.get("supports_awakening", false)), "%s must not be pre-enabled for awakening by this change" % str(entry.get("id", "")))
-		assert_false(RBMCreatorAppearanceCatalog.supports_awakening(str(entry["id"])), "%s must not be pre-enabled for awakening by this change" % str(entry["id"]))
+		var expected: bool = str(entry["id"]) == "appearance_musha"
+		assert_eq(bool(entry.get("supports_awakening", false)), expected, "%s: only the approved musha supports awakening" % str(entry.get("id", "")))
+		assert_eq(RBMCreatorAppearanceCatalog.supports_awakening(str(entry["id"])), expected, "%s: only the approved musha supports awakening" % str(entry["id"]))
 
 func test_supports_awakening_defaults_to_false_for_an_unknown_id() -> void:
 	assert_false(RBMCreatorAppearanceCatalog.supports_awakening("appearance_does_not_exist"))
@@ -38,7 +39,8 @@ func test_catalog_entry_count_and_ids_are_unchanged() -> void:
 	var ids: Array = []
 	for entry in RBMCreatorAppearanceCatalog.all():
 		ids.append(str(entry["id"]))
-	assert_eq(ids, ["appearance_slime", "appearance_wolf", "appearance_knight", "appearance_dragon", "appearance_ghost", "appearance_golem"])
+	# 既存6体のIDと並びは不変で、新ボス(朽ちた機械武者)が末尾に追加されただけ
+	assert_eq(ids, ["appearance_slime", "appearance_wolf", "appearance_knight", "appearance_dragon", "appearance_ghost", "appearance_golem", "appearance_musha"])
 
 # ---------------------------------------------------------------------------
 # RBMCreatorDraft
@@ -57,7 +59,7 @@ func test_draft_supports_awakening_is_false_for_every_real_appearance() -> void:
 	var draft := _draft()
 	for entry in RBMCreatorAppearanceCatalog.all():
 		draft.appearance_id = str(entry["id"])
-		assert_false(draft.supports_awakening(), "%s must resolve to false" % draft.appearance_id)
+		assert_eq(draft.supports_awakening(), draft.appearance_id == "appearance_musha", "%s: only the approved musha resolves to true" % draft.appearance_id)
 
 func test_draft_supports_awakening_is_false_when_no_appearance_chosen_yet() -> void:
 	var draft := _draft()

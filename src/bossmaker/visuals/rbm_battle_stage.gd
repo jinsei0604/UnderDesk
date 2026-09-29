@@ -23,12 +23,23 @@ const SamuraiWindBlock = preload("res://src/bossmaker/visuals/rbm_samurai_wind_b
 const TankHammer = preload("res://src/bossmaker/visuals/rbm_tank_hammer_finish.gd")
 const TankHammerImpactFrame = preload("res://src/bossmaker/visuals/rbm_tank_hammer_impact_frame.gd")
 const AwakeningTransform = preload("res://src/bossmaker/visuals/rbm_boss_awakening_transform.gd")
+const MushaAwakening = preload("res://src/bossmaker/visuals/rbm_musha_ink_awakening.gd")
+const MushaAura = preload("res://src/bossmaker/visuals/rbm_musha_aura.gd")
+const MushaInk = preload("res://src/bossmaker/visuals/rbm_musha_ink_director.gd")
+const MushaIdleBody = preload("res://src/bossmaker/visuals/rbm_musha_idle_body.gd")
+## 朽ちた機械武者の墨の層と待機中の本体(武者のときだけ。_refresh_musha_ink()が作り直す)。表示専用。
+var _musha_ink: Node
+var _musha_idle: Node2D
+## 覚醒後の朽ちた機械武者を包み続ける持続オーラ(覚醒状態に追従する独立部品)。
+var _musha_aura: Node2D
 ## Skill-owned timelines. Add dedicated scripts here, not long stage branches.
 const SKILL_PRESENTATIONS = {
 	"healer_heal_all": {"actor": "healer", "kind": "heal_all", "script": preload("res://src/bossmaker/visuals/rbm_healer_saint_finish.gd")},
 }
 var _skill_presentation: Node2D
-const BOSS_SINGLE_PRESENTATIONS={"golem":preload("res://src/bossmaker/visuals/rbm_golem_single_punch.gd")}
+const BOSS_SINGLE_PRESENTATIONS={"golem":preload("res://src/bossmaker/visuals/rbm_golem_single_punch.gd"),"musha":preload("res://src/bossmaker/visuals/rbm_musha_single.gd"),"musha_awakened":preload("res://src/bossmaker/visuals/rbm_musha_awakened_single.gd")}
+const BOSS_ALL_PRESENTATIONS={"musha":preload("res://src/bossmaker/visuals/rbm_musha_all.gd"),"musha_awakened":preload("res://src/bossmaker/visuals/rbm_musha_awakened_all.gd")}
+const BOSS_SUPPORT_PRESENTATIONS={"musha":preload("res://src/bossmaker/visuals/rbm_musha_support.gd"),"musha_awakened":preload("res://src/bossmaker/visuals/rbm_musha_support.gd")}
 var _hero_fire: Node2D
 var _hero_finish := false
 var _hero_elapsed := -1.0
@@ -60,12 +71,10 @@ var _tank_shake := Vector2.ZERO
 ## まま静止する長さ)。tank専用の分岐でのみ使う——他の必殺技には影響しない。
 const TANK_HITSTOP_DURATION := 0.12
 
-## 覚醒(Awakening)の再生専用状態。演出内容そのものはボス固有になる予定
-## だが(コード設計方針参照)、今回はまだどのボスにも専用演出が用意されて
-## いないため、rbm_boss_awakening_transform.gd(仮の最小限表現、同ファイル
-## 冒頭のコメント参照)を共通で使う——将来ボスごとの専用ファイルへ差し替える
-## 際は、ここのpreload先とディスパッチ(_play_awakening_entry())だけを
-## 変更すればよい。
+## 覚醒(Awakening)の再生専用状態。演出内容そのものはボス固有(コード設計方針参照)。
+## 専用演出を持たないボスは rbm_boss_awakening_transform.gd(仮の最小限表現、同ファイル
+## 冒頭のコメント参照)を共通で使う。専用演出を持つボス(朽ちた機械武者)は
+## _play_awakening_entry() で専用のファイルへ振り分ける。
 var _awakening_transform: Node2D
 var _awakened_appearance_applied := false
 
@@ -142,6 +151,9 @@ func _ready() -> void:
 	_awakening_transform.z_index = 90
 	_awakening_transform.visible = false
 	add_child(_awakening_transform)
+	_musha_aura = MushaAura.new()
+	add_child(_musha_aura)
+	_musha_aura.configure(self)
 	resized.connect(_layout_actors)
 	_layout_actors()
 
@@ -173,7 +185,34 @@ func configure(battle: Variant, appearance_id: String = "") -> void:
 		_add_actor(str(unit.id), str(unit.character_id))
 	_add_actor("boss", Assets.boss_asset(appearance_id))
 	_layout_actors()
+	_refresh_musha_ink()
 	_queue_visual_redraw()
+
+## 朽ちた機械武者のときだけ、墨の層(常時オーラ・技の墨)と待機中の本体(コマ描画の静止姿)を置く。
+## 別のボスへ替わったら片付ける。武者の演出(rbm_musha_*_presentation / awakening)は musha_ink_director() で受け取る。
+func _refresh_musha_ink() -> void:
+	var boss_visual: Control = _visuals.get("boss")
+	if Assets.boss_asset(_appearance_id) != "musha" or not is_instance_valid(boss_visual):
+		_dispose_musha_ink()
+		return
+	if is_instance_valid(_musha_ink) and is_instance_valid(_musha_idle) and _musha_idle.get("_boss") == boss_visual:
+		return
+	_dispose_musha_ink()
+	_musha_ink = MushaInk.new()
+	_musha_ink.setup(self, Color.WHITE)
+	_musha_idle = MushaIdleBody.new()
+	_musha_idle.setup(self, _musha_ink)
+
+func _dispose_musha_ink() -> void:
+	if is_instance_valid(_musha_idle):
+		_musha_idle.dispose()
+	if is_instance_valid(_musha_ink):
+		_musha_ink.dispose()
+	_musha_idle = null
+	_musha_ink = null
+
+func musha_ink_director() -> Node:
+	return _musha_ink if is_instance_valid(_musha_ink) else null
 
 func _add_actor(key: String, asset_id: String) -> void:
 	var visual: Control
@@ -258,6 +297,7 @@ func set_state(snapshot: Dictionary) -> void:
 		var visual: Control = _visuals[key]
 		visual.modulate.a = 0.38 if bool(unit.get("is_downed", false)) else 1.0
 	if not _playing:
+		_sync_boss_appearance()
 		_reset_actors()
 	_queue_visual_redraw()
 
@@ -323,6 +363,18 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 		_visuals[key].z_index = 4
 	for key in _guards:
 		_visuals[key].z_index = 4
+	var boss_support = BOSS_SUPPORT_PRESENTATIONS.get(str(_asset_ids.get(_actor,"")))
+	if boss_support != null and _actor == "boss" and _targets == ["boss"] and str(_entry.get("action","")) == "skill" and str(_skill.get("effect","")) in ["heal","self_heal","buff_atk_self","atk_self_buff"]:
+		_skill_presentation=boss_support.new()
+		add_child(_skill_presentation)
+		_tween=_skill_presentation.play(self)
+		return
+	var boss_all = BOSS_ALL_PRESENTATIONS.get(str(_asset_ids.get(_actor,"")))
+	if boss_all != null and _actor == "boss" and not _targets.is_empty() and str(_entry.get("action","")) in ["attack","skill"] and str(_profile["kind"]) == "boss_all":
+		_skill_presentation=boss_all.new()
+		add_child(_skill_presentation)
+		_tween=_skill_presentation.play(self)
+		return
 	var boss_single = BOSS_SINGLE_PRESENTATIONS.get(str(_asset_ids.get(_actor,"")))
 	if boss_single != null and _actor == "boss" and _targets.size() == 1 and not _entry.has("hits") and str(_entry.get("action","")) in ["attack","skill"] and str(_profile["kind"]) in ["normal","boss_single"]:
 		_skill_presentation=boss_single.new()
@@ -402,6 +454,7 @@ func cancel() -> void:
 	_targets.clear()
 	_counters.clear()
 	_guards.clear()
+	_sync_boss_appearance()
 	_reset_actors()
 	_queue_visual_redraw()
 
@@ -757,6 +810,11 @@ func _char_rect(visual: Variant) -> Rect2:
 ## HUDへ反映する——覚醒自体は"impact"らしい対象・ダメージを持たないが、
 ## 同じ二値シグナル契約(impact/finished)に揃えるためにそのまま踏襲する。
 func _play_awakening_entry() -> void:
+	if Assets.boss_asset(_appearance_id) == "musha":
+		_skill_presentation = MushaAwakening.new()
+		add_child(_skill_presentation)
+		_tween = _skill_presentation.play(self)
+		return
 	_playing = true
 	_phase = "awakening"
 	_awakening_transform.visible = true
@@ -778,30 +836,43 @@ func _awakening_transform_progress(age: float) -> void:
 		_apply_awakened_appearance()
 	_awakening_transform.queue_redraw()
 
-## ボスの外見を覚醒後専用アセットへ切り替える——_add_actor()を再度呼ぶ
-## (子ノードを増やす)のではなく、既存のActor_bossノードへsetup()を
-## 呼び直すことで同じノードのまま"再スキン"する。RBMVisualAssets.
-## has_awakened_design()がfalse(専用アセット未配置)の間は何もしない。
+## Synchronize restored/rewound snapshots without replaying the transformation.
+func _sync_boss_appearance() -> void:
+	var base_id := Assets.boss_asset(_appearance_id)
+	if not base_id in ["musha"]:
+		return
+	var desired := base_id
+	if bool(_state.get("is_awakened", false)) and Assets.has_awakened_design(base_id):
+		desired = Assets.awakened_asset_id(base_id)
+	_set_boss_appearance(desired)
+
 func _apply_awakened_appearance() -> void:
 	var asset_id := str(_asset_ids.get("boss", ""))
-	if asset_id.is_empty():
+	if asset_id.is_empty() or not Assets.has_awakened_design(asset_id):
 		return
-	var awakened_id := Assets.awakened_asset_id(asset_id)
-	if not Assets.has_awakened_design(awakened_id):
+	_set_boss_appearance(Assets.awakened_asset_id(asset_id))
+
+func _set_boss_appearance(asset_id: String) -> void:
+	if str(_asset_ids.get("boss", "")) == asset_id:
+		if is_instance_valid(_musha_aura):
+			_musha_aura.refresh()
 		return
 	var boss_visual: Control = _visuals.get("boss")
 	if not is_instance_valid(boss_visual) or not boss_visual.has_method("setup"):
 		return
-	_asset_ids["boss"] = awakened_id
-	# 高さは元のasset_idの値を引き継ぐ(HEIGHTSへ"_awakened"サフィックス
-	# 付きの専用値を追加すればそちらが優先される、RBMVisualAssets.
-	# display_height()参照)。
-	boss_visual.call("setup", awakened_id, Assets.display_height(asset_id))
+	var foot := _foot("boss")
+	_asset_ids["boss"] = asset_id
+	boss_visual.call("setup", asset_id, Assets.display_height(asset_id))
 	if boss_visual.has_method("set_pose"):
 		boss_visual.call("set_pose", int(_poses.get("boss", 0)))
+	_place_foot("boss", foot)
+	_layout_actors()
+	if is_instance_valid(_musha_aura):
+		_musha_aura.refresh()
 	_queue_visual_redraw()
 
 func _finish_awakening_entry() -> void:
+	_clear_skill_presentation()
 	_clear_awakening_transform()
 	_playing = false
 	_phase = "idle"
@@ -1212,5 +1283,7 @@ func _draw_shield(point: Vector2, color: Color, radius: float) -> void:
 
 func _play_se(phase: String) -> void:
 	if not is_instance_valid(_sound): return
+	if is_instance_valid(_skill_presentation) and _skill_presentation.has_method("play_sound_phase"):
+		if _skill_presentation.play_sound_phase(phase): return
 	var key: String = Sound.event_key(_entry, _profile, str(_asset_ids.get(_actor, "")), phase)
 	if not key.is_empty(): _sound.play_sound(key, -4 if phase == "cast" else 0)
