@@ -8,6 +8,12 @@ var command_scroll: ScrollContainer
 var command_backdrop: Panel
 var background: TextureRect
 var current_background := ""
+## 今の背景画像のパス(戦っているボスの専用背景。無ければ昼/夜の標準背景)。
+var current_background_path := ""
+## ボスごとの背景の任意の上書き(rbm_battle_backgrounds.gd)。表示専用で、戦闘・保存には関わらない。
+var boss_backgrounds: Dictionary = RBMBattleBackgrounds.BOSS_BACKGROUNDS
+## ボスごとの背景の命名規則(backgrounds/<boss_id>/background.png)。
+var background_convention: String = RBMBattleBackgrounds.CONVENTION
 var built := false
 
 func setup(target: Control) -> void:
@@ -141,9 +147,12 @@ func update() -> void:
 	if view is RBMCreatorTestBattleView or view is RBMCreatorClearCheckView:
 		if is_instance_valid(view.main) and view.main.get("draft") is RBMCreatorDraft:
 			value = view.main.draft.battle_background
-	if value != current_background:
-		current_background = value
-		background.texture = load("res://assets_bossmaker/art/battle_courtyard_%s.png" % ("day" if value == "day" else "night"))
+	current_background = value
+	# 戦っているボスの専用背景(backgrounds/<boss_id>/background.png)。無いときは昼/夜の標準背景(rbm_battle_backgrounds.gd)。
+	var path := RBMBattleBackgrounds.path_for(RBMVisualAssets.boss_asset(view._boss_appearance_id), value, boss_backgrounds, background_convention)
+	if path != current_background_path:
+		current_background_path = path
+		background.texture = load(path)
 	var selecting: bool = view._skill_list_panel.visible or view._target_picker.visible
 	var top := 302.0 if selecting else 442.0
 	command_backdrop.position.y = top-12

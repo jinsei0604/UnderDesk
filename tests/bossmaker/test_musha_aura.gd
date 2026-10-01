@@ -320,6 +320,24 @@ func test_the_background_gives_torch_positions_and_groove_paths() -> void:
 		for p in path:
 			assert_lte(p.y, stage.size.y - 11.0)
 
+func test_a_boss_dedicated_background_gets_no_courtyard_torches_even_if_its_path_says_night() -> void:
+	# ボスの専用背景(rbm_battle_backgrounds.gd)には中庭の松明が無い。パスに night を含む画像
+	# (knight のフォルダ)でも、中庭の松明の位置を当てはめない。
+	var stage := _stage(_session(), true)
+	var bg := TextureRect.new()
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.texture = load("res://assets_bossmaker/battle/knight/design.png")
+	assert_true(bg.texture.resource_path.contains("night"), "(the stand-in path contains night)")
+	stage.add_child(bg)
+	stage.move_child(bg, 0)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var aura: Node2D = stage._musha_aura
+	for i in range(0, 10):
+		aura._process(1.0 / 30.0)
+	assert_lt(aura._torches[0].x, 0.0, "no courtyard torch on another background")
+	assert_lt(aura._torches[1].x, 0.0)
+
 func test_without_a_background_there_are_no_torches_or_grooves_and_nothing_breaks() -> void:
 	var stage := _stage(_session(), true)
 	var aura: Node2D = stage._musha_aura

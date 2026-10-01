@@ -672,6 +672,8 @@ func _refresh_rewind_list() -> void:
 
 func set_boss_appearance(appearance_id: String) -> void:
 	_boss_appearance_id = appearance_id
+	# 背景もそのボスのもの(専用背景が無ければ標準背景)へ
+	_world_battle.update.call_deferred()
 	if session != null and session.battle != null and not _is_presenting():
 		_configure_presentation()
 

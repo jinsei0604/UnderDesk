@@ -33,7 +33,8 @@ const BOSS_BLOT_SIZE := Vector2(500, 100)
 const BOSS_BLOT_RADIUS := Vector2(158, 24)
 const ALLY_BLOT_SIZE := Vector2(180, 60)
 const ALLY_BLOT_RADIUS := Vector2(56, 10)
-## 背景画像(battle_courtyard_*)上の松明の炎の位置(画像に対する割合)。
+## 背景画像(battle_courtyard_*)上の松明の炎の位置(画像に対する割合)。標準背景(中庭)の画像だけのもので、
+## ボスの専用背景(rbm_battle_backgrounds.gd)では松明を探さない(パスに day/night を含んでいても当てはめない)。
 const TORCH_UVS := {
 	"night": [Vector2(0.366, 0.404), Vector2(0.633, 0.404)],
 	"day": [Vector2(0.338, 0.404), Vector2(0.703, 0.408)],
@@ -309,7 +310,7 @@ func _ensure_context(foot: Vector2, size: Vector2) -> void:
 	_paths = Ink.groove_paths(luminance, foot, size.y - 12.0)
 	var path := bg.texture.resource_path
 	for theme_name in TORCH_UVS:
-		if path.contains(theme_name):
+		if path.contains("battle_courtyard_" + theme_name):
 			for i in range(2):
 				var uv: Vector2 = TORCH_UVS[theme_name][i]
 				_torches[i] = offset + uv * tex_size * scale_v
