@@ -1006,3 +1006,151 @@ func test_creator_test_battle_and_clear_check_wins_are_never_counted() -> void:
 	assert_false(main._test_battle_view.has_signal("challenge_won"))
 	assert_false(main._clear_check_view.has_signal("challenge_won"))
 	await get_tree().process_frame # drain queued UI-rebuild frees before GUT's orphan check
+
+## 2026-10 — ハブからの「オンライン」で「さらに表示」した後に、ハブのSIMPLE/HARDCOREで
+## モードを切り替えると、オンラインのまま一覧を先頭から取り直す(続きの位置を捨てる)。
+func test_switching_mode_from_the_hub_restarts_the_online_list_from_the_top() -> void:
+	var api := _fake_online_api()
+	var first_page := []
+	var second_page := []
+	for i in range(20):
+		first_page.append({"id": "b-%02d" % i, "boss_name": "B%02d" % i, "author_name": "A"})
+		second_page.append({"id": "b-%02d" % (i + 20), "boss_name": "B%02d" % (i + 20), "author_name": "A"})
+	api.configure_list_pages({
+		"": {"ok": true, "bosses": first_page, "has_more": true, "next_cursor": "c1"},
+		"c1": {"ok": true, "bosses": second_page, "has_more": false},
+	})
+	var entry := _entry_with_online_api(api)
+	entry.enter_challenge()
+	var view := entry._online_list_view
+
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_FEATURED)
+	await view.load_more()
+	assert_eq(_live_row_count(view), 40)
+
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_HARDCORE)
+	assert_eq(view.current_category(), RBMOnlineBossListView.CATEGORY_ONLINE, "the online category is kept")
+	assert_eq(api.list_calls[api.list_calls.size() - 1], {"limit": 20, "mode": RBMCreatorDraft.CREATOR_MODE_ADVANCED, "cursor": ""}, "from the top, without the old cursor")
+	assert_eq(_live_row_count(view), 20, "the pages loaded for the old mode are gone")
+	var button: Button = view.find_child("OnlineListLoadMoreButton", true, false)
+	assert_true(button.visible)
+
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_NEW)
+	assert_false(button.visible, "the new category has no show more")
+
+func _live_row_count(view: RBMOnlineBossListView) -> int:
+	var count := 0
+	for row in view._rows_container.get_children():
+		if not row.is_queued_for_deletion():
+			count += 1
+	return count
+
+## 2026-10 — オンライン一覧の右の詳細で「挑戦する」を押すと、ローカルと同じ経路で戦闘が始まり、
+## 挑戦がそのボスのIDで記録され、戦闘背景はボスの作者が選んだ昼/夜になる。
+func test_the_challenge_button_in_the_online_details_starts_the_battle_and_records_the_attempt() -> void:
+	var auth := _ready_steam_auth_for_recorder()
+	var recorder_api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(recorder_api)
+	var recorder := RBMOnlineChallengeRecorder.new()
+	add_child_autofree(recorder)
+	recorder.set_steam_auth_for_testing(auth)
+	recorder.set_api_adapter_for_testing(recorder_api)
+
+	var draft := _minimal_online_draft("詳細から挑戦ボス")
+	draft.battle_background = "day"
+	draft.record_clear_check_success()
+	var payload: Dictionary = RBMOnlineBossPayload.build_for_publish(draft)["payload"]
+	var browse_api := _fake_online_api()
+	browse_api.configure_list_response({"ok": true, "bosses": [{"id": "online-boss-9", "boss_name": "詳細から挑戦ボス", "author_name": "作者"}]})
+	browse_api.configure_get_response({"ok": true, "boss": {"id": "online-boss-9", "boss_name": "詳細から挑戦ボス", "author_name": "作者", "revision": 1, "payload": payload}})
+	var entry := _entry_with_online_api_and_recorder(browse_api, recorder)
+	entry.enter_challenge()
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_FEATURED)
+	await wait_process_frames(1)
+
+	var view := entry._online_list_view
+	(view._rows_container.get_node("OnlineBossRow_online-boss-9") as Button).pressed.emit()
+	await wait_process_frames(1)
+	assert_false(entry._battle_view.visible, "picking a card only shows the details")
+
+	_schedule_recorder_ticket_success(auth)
+	(view._detail.find_child("DetailChallengeButton", true, false) as Button).pressed.emit()
+	await wait_process_frames(3)
+
+	assert_true(entry._battle_view.visible, "the battle starts from the challenge button")
+	assert_true(entry._battle_view.session.start_ok())
+	assert_eq(entry._battle_view.battle_background, "day", "the author's day/night choice carries into the battle")
+	assert_eq(recorder_api.record_attempt_calls.size(), 1)
+	assert_eq(recorder_api.record_attempt_calls[0]["boss_id"], "online-boss-9")
+	entry._on_battle_returned_to_list()
+	assert_true(view.visible, "after the battle the online list comes back")
+	await get_tree().process_frame
+
+## ハブのSIMPLE/HARDCOREから開いても、見出しはカテゴリ名で、モードは一覧画面の右上の切替で示す。
+func test_opening_from_the_hub_mode_buttons_titles_the_category_and_marks_the_mode() -> void:
+	var api := _fake_online_api()
+	api.configure_list_response({"ok": true, "bosses": []})
+	var entry := _entry_with_online_api(api)
+	entry.enter_challenge()
+
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_HARDCORE)
+	var view := entry._online_list_view
+	var title: Label = view.find_child("OnlineListTitleLabel", true, false)
+	assert_eq(title.text, TranslationServer.translate("オンライン"))
+	var hardcore: Button = view.find_child("OnlineListModeHardcore", true, false)
+	assert_eq((hardcore.get_theme_stylebox("normal") as StyleBoxFlat).border_color, RBMChallengeListStyle.ACCENT)
+
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_POPULAR)
+	assert_eq(title.text, TranslationServer.translate("人気"))
+	assert_eq(view.current_mode(), RBMCreatorDraft.CREATOR_MODE_ADVANCED, "the mode is kept")
+
+## 2026-10 — オンラインのボスの作者メッセージは、選んだ時の挑戦確認画面(_confirm_view)にも載る。
+func test_the_online_confirm_view_also_shows_the_author_message() -> void:
+	var draft := _minimal_online_draft("メッセージ確認ボス")
+	draft.set_author_notes("回復役を最後まで残してください。")
+	draft.record_clear_check_success()
+	var payload: Dictionary = RBMOnlineBossPayload.build_for_publish(draft)["payload"]
+	var api := _fake_online_api()
+	api.configure_list_response({"ok": true, "bosses": [{"id": "online-boss-m", "boss_name": "メッセージ確認ボス", "author_name": "作者"}]})
+	api.configure_get_response({"ok": true, "boss": {"id": "online-boss-m", "boss_name": "メッセージ確認ボス", "author_name": "作者", "revision": 1, "payload": payload}})
+	var entry := _entry_with_online_api(api)
+	entry.enter_challenge()
+	entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_FEATURED)
+	await wait_process_frames(1)
+
+	(entry._online_list_view._rows_container.get_node("OnlineBossRow_online-boss-m") as Button).pressed.emit()
+	await wait_process_frames(1)
+	assert_true(entry._confirm_view._author_notes_label.text.contains("回復役を最後まで残してください。"))
+
+## 2026-10 — ボスの専用背景があれば、右の詳細と「挑戦する」の先の戦闘の両方で同じ絵を使う。
+## 無ければどちらも作者が選んだ昼/夜。test_rbm_battle_backgrounds.gdと同じく、命名規則を既存の画像
+## (battle/<boss_id>/design.png)に見立てて確かめる(本番の命名規則・対応表は書き換えない)。
+func test_a_dedicated_boss_background_is_used_in_both_the_details_and_the_battle() -> void:
+	for convention in ["res://assets_bossmaker/battle/%s/design.png", "res://assets_bossmaker/battle/backgrounds/%s/__no_background_for_tests__.png"]:
+		var draft := _minimal_online_draft("背景確認ボス")
+		draft.appearance_id = "appearance_dragon"
+		draft.battle_background = "day"
+		draft.record_clear_check_success()
+		var payload: Dictionary = RBMOnlineBossPayload.build_for_publish(draft)["payload"]
+		var api := _fake_online_api()
+		api.configure_list_response({"ok": true, "bosses": [{"id": "online-boss-bg", "boss_name": "背景確認ボス", "author_name": "作者", "appearance_id": "appearance_dragon"}]})
+		api.configure_get_response({"ok": true, "boss": {"id": "online-boss-bg", "boss_name": "背景確認ボス", "author_name": "作者", "revision": 1, "payload": payload}})
+		var entry := _entry_with_online_api(api)
+		entry.enter_challenge()
+		entry._online_list_view._detail.background_convention = convention
+		entry._battle_view._world_battle.background_convention = convention
+		entry._on_hub_category_selected(RBMChallengeHubView.CATEGORY_FEATURED)
+		await wait_process_frames(1)
+
+		(entry._online_list_view._rows_container.get_node("OnlineBossRow_online-boss-bg") as Button).pressed.emit()
+		await wait_process_frames(1)
+		var expected := "res://assets_bossmaker/battle/dragon/design.png" if convention.contains("design") else "res://assets_bossmaker/art/battle_courtyard_day.png"
+		var stage: TextureRect = entry._online_list_view._detail.find_child("DetailStageBackground", true, false)
+		assert_eq(stage.texture.resource_path, expected, "details: %s" % convention)
+
+		(entry._online_list_view._detail.find_child("DetailChallengeButton", true, false) as Button).pressed.emit()
+		await wait_process_frames(4)
+		assert_true(entry._battle_view.visible)
+		assert_eq(entry._battle_view._world_battle.background.texture.resource_path, expected, "battle: %s" % convention)
+		entry.queue_free()
+		await get_tree().process_frame

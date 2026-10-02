@@ -295,7 +295,7 @@ Deno.test("each row carries the plain clearer and challenger counts, never the c
   const body: ListHardBossesResponseBody = await (await handleListHardBosses(req(), db)).json();
   const row = body.bosses![0];
   assertEquals([row.unique_challengers, row.unique_clearers], [25, 3], "3/25 = 12% is the clear rate to show");
-  assertEquals(Object.keys(row).sort(), ["author_name", "boss_name", "creator_mode", "id", "published_at", "revision", "unique_challengers", "unique_clearers"]);
+  assertEquals(Object.keys(row).sort(), ["appearance_id", "author_name", "boss_name", "creator_mode", "id", "published_at", "revision", "unique_challengers", "unique_clearers"]);
   assertEquals(JSON.stringify(body).includes(String(4 / 27)), false, "the corrected rate (3+1)/(25+2) is internal only");
 });
 
@@ -308,4 +308,35 @@ Deno.test("a complete tie (rate, challengers and published_at) is ordered by id 
 
   const body: ListHardBossesResponseBody = await (await handleListHardBosses(req(), db)).json();
   assertEquals(body.bosses!.map((b) => b.id), ["a-first", "b-second"]);
+});
+
+// ---------------------------------------------------------------------------
+// 2026-10 — カード用に外見IDも返す(順位の決め方は変えない)。
+// ---------------------------------------------------------------------------
+
+Deno.test("each hard row carries the appearance id from the payload (empty when missing)", async () => {
+  const db = new FakeSupabaseRestClient();
+  db.seed("bosses", [
+    { id: "with", boss_name: "竜", author_name: "A", published_at: "2026-01-01T00:00:00Z", revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "advanced", appearance_id: "appearance_dragon" } } },
+    { id: "without", boss_name: "外見なし", author_name: "A", published_at: "2026-01-02T00:00:00Z", revision: 1, is_published: true, payload: { draft_fields: { appearance_id: 42 } } },
+  ]);
+  seedChallengers(db, "with", 5, 0);
+  seedChallengers(db, "without", 5, 1);
+
+  const body: ListHardBossesResponseBody = await (await handleListHardBosses(req(), db)).json();
+  assertEquals(body.bosses!.map((b) => [b.id, b.appearance_id]), [["with", "appearance_dragon"], ["without", ""]]);
+});
+
+Deno.test("the ranking uses the corrected rate even when the displayed clear rates read the other way", async () => {
+  const db = new FakeSupabaseRestClient();
+  // 3/33 shows 9.1% but its corrected rate (3+1)/(33+2) = 11.4% is lower than
+  // 1/12, which shows 8.3% with a corrected rate (1+1)/(12+2) = 14.3%.
+  seedBoss(db, "few", "表示8.3%", "2026-01-01T00:00:00Z");
+  seedChallengers(db, "few", 12, 1);
+  seedBoss(db, "many", "表示9.1%", "2026-01-02T00:00:00Z");
+  seedChallengers(db, "many", 33, 3);
+
+  const body: ListHardBossesResponseBody = await (await handleListHardBosses(req(), db)).json();
+  assertEquals(body.bosses!.map((b) => b.boss_name), ["表示9.1%", "表示8.3%"], "rank by the corrected rate");
+  assertEquals(body.bosses!.map((b) => [b.unique_clearers, b.unique_challengers]), [[3, 33], [1, 12]], "the screen still shows the plain 9.1% / 8.3%");
 });

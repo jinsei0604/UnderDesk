@@ -14,6 +14,13 @@ var _record_clear_response: Dictionary = {"ok": true, "clear_count": 1}
 var _list_unchallenged_response: Dictionary = {"ok": true, "bosses": []}
 var _list_popular_response: Dictionary = {"ok": true, "bosses": []}
 var _list_hard_response: Dictionary = {"ok": true, "bosses": []}
+## ページ送りのテスト用(2026-10): cursorごとのlist_bosses()の応答(""=先頭ページ)。
+## ここに無いcursorはconfigure_list_response()の応答を返す。
+var _list_responses_by_cursor: Dictionary = {}
+## list_bosses()が応答を返すまで待つフレーム数(取得中の二重押下などを試すため)。0なら即座に返す。
+var list_delay_frames := 0
+## get_boss()が応答を返すまで待つフレーム数(詳細の取得中の表示・選び直しを試すため)。0なら即座に返す。
+var get_delay_frames := 0
 
 var publish_calls: Array[Dictionary] = []
 var unpublish_calls: Array[Dictionary] = []
@@ -36,6 +43,9 @@ func configure_unpublish_response(response: Dictionary) -> void:
 
 func configure_list_response(response: Dictionary) -> void:
 	_list_response = response
+
+func configure_list_pages(responses_by_cursor: Dictionary) -> void:
+	_list_responses_by_cursor = responses_by_cursor.duplicate(true)
 
 func configure_get_response(response: Dictionary) -> void:
 	_get_response = response
@@ -63,12 +73,18 @@ func unpublish(ticket_hex: String, boss_id: String) -> Dictionary:
 	unpublish_calls.append({"ticket": ticket_hex, "boss_id": boss_id})
 	return _unpublish_response.duplicate(true)
 
-func list_bosses(limit: int = 20, mode: String = "") -> Dictionary:
-	list_calls.append({"limit": limit, "mode": mode})
+func list_bosses(limit: int = 20, mode: String = "", cursor: String = "") -> Dictionary:
+	list_calls.append({"limit": limit, "mode": mode, "cursor": cursor})
+	for i in range(list_delay_frames):
+		await get_tree().process_frame
+	if _list_responses_by_cursor.has(cursor):
+		return (_list_responses_by_cursor[cursor] as Dictionary).duplicate(true)
 	return _list_response.duplicate(true)
 
 func get_boss(id: String) -> Dictionary:
 	get_calls.append(id)
+	for i in range(get_delay_frames):
+		await get_tree().process_frame
 	return _get_response.duplicate(true)
 
 func record_challenge_attempt(ticket_hex: String, boss_id: String) -> Dictionary:

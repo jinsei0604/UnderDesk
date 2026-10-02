@@ -89,10 +89,14 @@ func unpublish(ticket_hex: String, boss_id: String) -> Dictionary:
 ## payload.draft_fields.creator_modeをサーバー側で抽出済みのcreator_mode
 ## フィールドを返す。フィルタ自体もサーバー側(list-bosses)で行う——
 ## クライアントは受け取った結果をそのまま表示するだけでよい。
-func list_bosses(limit: int = 20, mode: String = "") -> Dictionary:
+## cursor(2026-10): 前のページの応答のnext_cursorを渡すと、その続きのページを返す
+## (空なら最新の先頭ページ)。応答のhas_more/next_cursorで続きの有無が分かる。
+func list_bosses(limit: int = 20, mode: String = "", cursor: String = "") -> Dictionary:
 	var url := _function_url("list-bosses") + "?limit=%d" % limit
 	if not mode.is_empty():
 		url += "&mode=%s" % mode.uri_encode()
+	if not cursor.is_empty():
+		url += "&cursor=%s" % cursor.uri_encode()
 	return await _request(url, HTTPClient.METHOD_GET)
 
 func get_boss(id: String) -> Dictionary:

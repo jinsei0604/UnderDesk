@@ -13,7 +13,8 @@
 // 補正クリア率 = (unique_clearers + 1) / (unique_challengers + 2)。
 // この値が低いほど高難度——値そのものはランキングの並び替え専用の内部値で、
 // クライアントへは一切返さない。画面に出すクリア率は、レスポンスの
-// unique_clearers / unique_challengers(通常の割合)からクライアントが計算する。
+// unique_clearers / unique_challengers(通常の割合)からクライアントが計算する
+// (順位の値と画面に出す値は別。2026-10にユーザーが改めて確定)。
 //
 // 順位: 1. 補正クリア率 ASC 2. 同率ならユニーク挑戦者数 DESC
 //       3. さらに同率ならpublished_at DESC
@@ -24,11 +25,13 @@
 // 読み、全体で順位を決めてから上位limit件(既定20)を返す。
 //
 // list-popular-bossesと同じ理由で認証不要・service_role経由の集計。
-// レスポンスには一覧の概要行と集計値unique_challengers/unique_clearersだけを
+// レスポンスには一覧の概要行(2026-10からはカード用の外見ID appearance_idも)と
+// 集計値unique_challengers/unique_clearersだけを
 // 載せ、challenger_steam_idなど個人に結びつく値・記録の行そのものは含めない。
 
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
 import { selectAllPages } from "../_shared/select_all_pages.ts";
+import { extractAppearanceId } from "../_shared/boss_card_fields.ts";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -43,6 +46,7 @@ export interface BossSummaryRow {
   published_at: string;
   revision: number;
   creator_mode: string;
+  appearance_id: string;
 }
 
 // 高難度ランキングの1行: 一覧の概要行+表示用の集計値(クリア率の分母と分子)。
@@ -141,6 +145,7 @@ export async function handleListHardBosses(req: Request, db: SupabaseRestClient)
           published_at: row.published_at,
           revision: row.revision,
           creator_mode: extractCreatorMode(row.payload),
+          appearance_id: extractAppearanceId(row.payload),
         } as BossSummaryRow,
         uniqueChallengers: aggregate.uniqueChallengers,
         uniqueClearers: aggregate.uniqueClearers,

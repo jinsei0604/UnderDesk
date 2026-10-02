@@ -1,7 +1,7 @@
 // Phase 4B/4C/4D/4E — SupabaseRestClientのテスト専用インメモリ実装。
 // 実Supabaseへは一切出ない。PostgRESTのクエリ文字列のうち、このプロジェクト
-// が実際に発行する範囲(column=eq.value、column=gt.value、order=column.asc|desc、
-// limit=N、select=col1,col2)だけをサポートする最小限のパーサー。
+// が実際に発行する範囲(column=eq.value、column=gt.value、column=in.(a,b)、
+// order=column.asc|desc、limit=N、select=col1,col2)だけをサポートする最小限のパーサー。
 //
 // 人気/高難度ランキングの全件取得(_shared/select_all_pages.ts)のテスト用に、
 // PostgRESTの「1回の応答の行数上限」(Supabaseの「Max rows」)を真似る
@@ -48,6 +48,7 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
   private parseQuery(query: string): {
     filters: [string, string][];
     greaterThan: [string, string][];
+    oneOf: [string, Set<string>][];
     order?: { column: string; desc: boolean };
     limit?: number;
     select?: string[];
@@ -55,6 +56,7 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
     const params = new URLSearchParams(query);
     const filters: [string, string][] = [];
     const greaterThan: [string, string][] = [];
+    const oneOf: [string, Set<string>][] = [];
     let order: { column: string; desc: boolean } | undefined;
     let limit: number | undefined;
     let select: string[] | undefined;
@@ -70,9 +72,11 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
         filters.push([key, value.slice(3)]);
       } else if (value.startsWith("gt.")) {
         greaterThan.push([key, value.slice(3)]);
+      } else if (value.startsWith("in.(") && value.endsWith(")")) {
+        oneOf.push([key, new Set(value.slice(4, -1).split(","))]);
       }
     }
-    return { filters, greaterThan, order, limit, select };
+    return { filters, greaterThan, oneOf, order, limit, select };
   }
 
   async select<T>(table: string, query: string): Promise<RestResult<T>> {
@@ -81,10 +85,11 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
     if (this.failingSelects.some((f) => f.table === table && f.call === call)) {
       return Promise.resolve({ ok: false, rows: [], status: 503, errorMessage: `fake failure on ${table} select #${call}` });
     }
-    const { filters, greaterThan, order, limit, select } = this.parseQuery(query);
+    const { filters, greaterThan, oneOf, order, limit, select } = this.parseQuery(query);
     let rows = this.rowsOf(table).filter((row) =>
       filters.every(([col, val]) => String(row[col]) === val) &&
-      greaterThan.every(([col, val]) => String(row[col]) > val)
+      greaterThan.every(([col, val]) => String(row[col]) > val) &&
+      oneOf.every(([col, values]) => values.has(String(row[col])))
     );
     if (order) {
       rows = [...rows].sort((a, b) => {

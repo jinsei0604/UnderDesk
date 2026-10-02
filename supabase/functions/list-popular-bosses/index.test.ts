@@ -288,7 +288,7 @@ Deno.test("each row carries the unique challenger count for display and nothing 
 
   const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
   assertEquals(body.bosses!.map((b) => [b.id, b.unique_challengers]), [["played", 3], ["unplayed", 0]]);
-  assertEquals(Object.keys(body.bosses![0]).sort(), ["author_name", "boss_name", "creator_mode", "id", "published_at", "revision", "unique_challengers"]);
+  assertEquals(Object.keys(body.bosses![0]).sort(), ["appearance_id", "author_name", "boss_name", "creator_mode", "id", "published_at", "revision", "unique_challengers", "unique_clearers"]);
   assertEquals(JSON.stringify(body).includes("7656119800000000"), false);
 });
 
@@ -301,4 +301,43 @@ Deno.test("a complete tie (challengers, total challenges and published_at) is or
 
   const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
   assertEquals(body.bosses!.map((b) => b.id), ["a-first", "b-second"]);
+});
+
+// ---------------------------------------------------------------------------
+// 2026-10 — カード用に、一度でもクリアした人数(クリア率の分子)と外見IDも返す。順位は変えない。
+// ---------------------------------------------------------------------------
+
+Deno.test("each popular row carries how many players cleared it at least once", async () => {
+  const db = new FakeSupabaseRestClient();
+  seedBoss(db, "b1", "確認ボス", "2026-01-01T00:00:00Z");
+  seedChallengers(db, "b1", [
+    { steamId: "1", challengeCount: 4, clearCount: 2 },
+    { steamId: "2", challengeCount: 1, clearCount: 0 },
+    { steamId: "3", challengeCount: 2, clearCount: 1 },
+  ]);
+
+  const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
+  assertEquals([body.bosses![0].unique_challengers, body.bosses![0].unique_clearers], [3, 2], "players, not clear counts");
+});
+
+Deno.test("the clearer count never changes the popular order", async () => {
+  const db = new FakeSupabaseRestClient();
+  seedBoss(db, "more-players", "多人数", "2026-01-01T00:00:00Z");
+  seedChallengers(db, "more-players", [{ steamId: "1", challengeCount: 1 }, { steamId: "2", challengeCount: 1 }]);
+  seedBoss(db, "more-clears", "クリア多数", "2026-01-02T00:00:00Z");
+  seedChallengers(db, "more-clears", [{ steamId: "1", challengeCount: 1, clearCount: 9 }]);
+
+  const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
+  assertEquals(body.bosses!.map((b) => b.id), ["more-players", "more-clears"]);
+});
+
+Deno.test("each popular row carries the appearance id from the payload (empty when missing)", async () => {
+  const db = new FakeSupabaseRestClient();
+  db.seed("bosses", [
+    { id: "with", boss_name: "武者", author_name: "A", published_at: "2026-01-02T00:00:00Z", revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "advanced", appearance_id: "appearance_musha" } } },
+    { id: "without", boss_name: "外見なし", author_name: "A", published_at: "2026-01-01T00:00:00Z", revision: 1, is_published: true, payload: {} },
+  ]);
+
+  const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
+  assertEquals(body.bosses!.map((b) => [b.id, b.appearance_id]), [["with", "appearance_musha"], ["without", ""]]);
 });

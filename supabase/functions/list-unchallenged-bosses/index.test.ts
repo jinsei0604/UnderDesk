@@ -177,3 +177,126 @@ Deno.test("missing ticket is rejected as invalid_request", async () => {
   const res = await handleListUnchallengedBosses(postJson({}), verifierSucceedingAs(ME), dbWithBosses(), 480);
   assertEquals(res.status, 400);
 });
+
+// ---------------------------------------------------------------------------
+// 2026-10 — 公開中の全ボスから未挑戦を探す(新しい50件だけにしない)。
+// ---------------------------------------------------------------------------
+
+function isoDay(day: number): string {
+  return new Date(Date.UTC(2025, 0, 1) + day * 86_400_000).toISOString();
+}
+
+// <prefix>-0000(最も古い)〜(最も新しい)をcount件公開する。sameTimeなら全部同じ公開日時。
+function seedMany(db: FakeSupabaseRestClient, count: number, prefix = "u", mode = "simple", firstDay = 0, sameTime = false): string[] {
+  const ids: string[] = [];
+  const rows = [];
+  for (let i = 0; i < count; i++) {
+    const id = `${prefix}-${String(i).padStart(4, "0")}`;
+    rows.push({ id, boss_name: id, author_name: "A", published_at: isoDay(sameTime ? firstDay : firstDay + i), revision: 1, is_published: true, payload: { draft_fields: { creator_mode: mode } } });
+    ids.push(id);
+  }
+  db.seed("bosses", rows);
+  return ids;
+}
+
+function challenge(db: FakeSupabaseRestClient, bossIds: string[], steamId = ME): void {
+  db.seed("boss_challenge_records", bossIds.map((bossId, i) => ({
+    id: `rec-${steamId}-${String(i).padStart(5, "0")}`,
+    boss_id: bossId,
+    challenger_steam_id: steamId,
+    challenge_count: 1,
+    clear_count: 0,
+  })));
+}
+
+async function unchallenged(db: FakeSupabaseRestClient, payload: Record<string, unknown> = {}): Promise<ListUnchallengedBossesResponseBody> {
+  const res = await handleListUnchallengedBosses(postJson({ ticket: VALID_HEX_TICKET, ...payload }), verifierSucceedingAs(ME), db, 480);
+  assertEquals(res.status, 200);
+  return await res.json();
+}
+
+Deno.test("unchallenged bosses older than the newest 50 are found once the newer ones are all challenged", async () => {
+  const db = new FakeSupabaseRestClient();
+  const ids = seedMany(db, 60);
+  challenge(db, ids.slice(5)); // the newest 55 are challenged
+  const body = await unchallenged(db);
+  assertEquals(body.bosses!.map((b) => b.id), ids.slice(0, 5).reverse());
+});
+
+Deno.test("the top 20 unchallenged come back newest first out of every published boss", async () => {
+  const db = new FakeSupabaseRestClient();
+  const ids = seedMany(db, 120);
+  challenge(db, ids.filter((_, i) => i % 3 === 0));
+  const expected = ids.filter((_, i) => i % 3 !== 0).reverse().slice(0, 20);
+  const body = await unchallenged(db);
+  assertEquals(body.bosses!.map((b) => b.id), expected);
+});
+
+Deno.test("my challenge records beyond the server row cap still exclude those bosses", async () => {
+  const db = new FakeSupabaseRestClient();
+  db.setMaxRowsPerResponse(100);
+  const ids = seedMany(db, 260);
+  challenge(db, ids.slice(10)); // 250 records, more than two pages at the cap
+  challenge(db, ids.slice(0, 10), SOMEONE_ELSE); // someone else's history never counts
+  const body = await unchallenged(db);
+  assertEquals(body.bosses!.map((b) => b.id), ids.slice(0, 10).reverse());
+});
+
+Deno.test("mode filtering looks at every published boss, not just the newest 50", async () => {
+  const db = new FakeSupabaseRestClient();
+  const oldHardcore = seedMany(db, 2, "old-hc", "advanced", 0);
+  seedMany(db, 60, "new-simple", "simple", 10);
+  const advanced = await unchallenged(db, { mode: "advanced" });
+  assertEquals(advanced.bosses!.map((b) => b.id), [...oldHardcore].reverse());
+  const simple = await unchallenged(db, { mode: "simple" });
+  assertEquals(simple.bosses!.length, 20);
+  assertEquals(simple.bosses!.every((b) => b.creator_mode === "simple"), true);
+});
+
+Deno.test("unchallenged bosses with the same published_at are ordered by id", async () => {
+  const db = new FakeSupabaseRestClient();
+  const ids = seedMany(db, 25, "t", "simple", 5, true);
+  const body = await unchallenged(db);
+  assertEquals(body.bosses!.map((b) => b.id), [...ids].sort().slice(0, 20));
+});
+
+Deno.test("a failure while reading bosses or my records returns an error instead of a partial list", async () => {
+  const cases: [string, number][] = [["bosses", 2], ["boss_challenge_records", 1]];
+  for (const [table, call] of cases) {
+    const db = new FakeSupabaseRestClient();
+    db.setMaxRowsPerResponse(1000);
+    seedMany(db, 1500);
+    db.failSelectCall(table, call);
+    const res = await handleListUnchallengedBosses(postJson({ ticket: VALID_HEX_TICKET }), verifierSucceedingAs(ME), db, 480);
+    const body: ListUnchallengedBossesResponseBody = await res.json();
+    assertEquals(res.status, 502, table);
+    assertEquals(body.bosses, undefined);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 2026-10 — カード用の項目: 外見IDと、全プレイヤーの挑戦者数・クリア者数(自分の記録だけではない)。
+// ---------------------------------------------------------------------------
+
+Deno.test("unchallenged rows carry the appearance id and everyone's challenger/clearer counts", async () => {
+  const db = new FakeSupabaseRestClient();
+  db.seed("bosses", [{ id: "g1", boss_name: "ゴーレム", author_name: "A", published_at: isoDay(1), revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "simple", appearance_id: "appearance_golem" } } }]);
+  db.seed("boss_challenge_records", [
+    { id: "r1", boss_id: "g1", challenger_steam_id: SOMEONE_ELSE, challenge_count: 2, clear_count: 1 },
+    { id: "r2", boss_id: "g1", challenger_steam_id: "76561198000000099", challenge_count: 1, clear_count: 0 },
+  ]);
+
+  const body = await unchallenged(db);
+  assertEquals(body.bosses!.map((b) => [b.id, b.appearance_id, b.unique_challengers, b.unique_clearers]), [["g1", "appearance_golem", 2, 1]]);
+  assertEquals(JSON.stringify(body).includes(SOMEONE_ELSE), false, "no player id leaks");
+});
+
+Deno.test("a failure while counting challengers for the unchallenged page returns an error", async () => {
+  const db = new FakeSupabaseRestClient();
+  seedMany(db, 3);
+  db.failSelectCall("boss_challenge_records", 2); // 1 = my own records, 2 = the counts for the page
+  const res = await handleListUnchallengedBosses(postJson({ ticket: VALID_HEX_TICKET }), verifierSucceedingAs(ME), db, 480);
+  const body: ListUnchallengedBossesResponseBody = await res.json();
+  assertEquals(res.status, 502);
+  assertEquals(body.bosses, undefined);
+});

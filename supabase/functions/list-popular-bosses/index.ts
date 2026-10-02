@@ -23,11 +23,14 @@
 // 自体は特定ユーザーに紐づかない集計値であり、Steam ticketで本人確認する
 // 必要がない)——ただしchallenge履歴の読み取り自体はservice_role経由の
 // Edge Function内でのみ行う。レスポンスには一覧の概要行と、ランキング表示用の
-// 集計値unique_challengers(ユニーク挑戦者数)だけを載せる。
+// 集計値unique_challengers(ユニーク挑戦者数)だけを載せる。2026-10から挑戦画面の
+// カード用に、外見ID(appearance_id)と一度でもクリアした人数(unique_clearers、
+// クリア率の分子)も載せる(順位の決め方は変えない)。
 // challenger_steam_idなど個人に結びつく値・記録の行そのものは一切含めない。
 
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
 import { selectAllPages } from "../_shared/select_all_pages.ts";
+import { extractAppearanceId } from "../_shared/boss_card_fields.ts";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -41,11 +44,13 @@ export interface BossSummaryRow {
   published_at: string;
   revision: number;
   creator_mode: string;
+  appearance_id: string;
 }
 
-// 人気ランキングの1行: 一覧の概要行+ユニーク挑戦者数(表示用の集計値)。
+// 人気ランキングの1行: 一覧の概要行+ユニーク挑戦者数(表示用の集計値)と、カードのクリア率用のクリア者数。
 export interface PopularBossRow extends BossSummaryRow {
   unique_challengers: number;
+  unique_clearers: number;
 }
 
 export interface ListPopularBossesResponseBody {
@@ -68,6 +73,7 @@ interface ChallengeRecordAggregateRow {
   id: string;
   boss_id: string;
   challenge_count: number;
+  clear_count: number;
 }
 
 function jsonResponse(body: ListPopularBossesResponseBody, status: number): Response {
@@ -117,7 +123,7 @@ export async function handleListPopularBosses(req: Request, db: SupabaseRestClie
   const recordsLookup = await selectAllPages<ChallengeRecordAggregateRow>(
     db,
     "boss_challenge_records",
-    "select=id,boss_id,challenge_count",
+    "select=id,boss_id,challenge_count,clear_count",
   );
   if (!recordsLookup.ok) {
     return jsonResponse({ ok: false, error_kind: "db_error", message: recordsLookup.errorMessage ?? "" }, 502);
@@ -125,16 +131,17 @@ export async function handleListPopularBosses(req: Request, db: SupabaseRestClie
 
   // boss_id -> {uniqueChallengers, totalChallenges}。(boss_id,
   // challenger_steam_id)がUNIQUEなので、この行数自体がユニーク挑戦者数。
-  const aggregates = new Map<string, { uniqueChallengers: number; totalChallenges: number }>();
+  const aggregates = new Map<string, { uniqueChallengers: number; totalChallenges: number; uniqueClearers: number }>();
   for (const record of recordsLookup.rows) {
-    const current = aggregates.get(record.boss_id) ?? { uniqueChallengers: 0, totalChallenges: 0 };
+    const current = aggregates.get(record.boss_id) ?? { uniqueChallengers: 0, totalChallenges: 0, uniqueClearers: 0 };
     current.uniqueChallengers += 1;
     current.totalChallenges += Number(record.challenge_count) || 0;
+    if (Number(record.clear_count) > 0) current.uniqueClearers += 1;
     aggregates.set(record.boss_id, current);
   }
 
   let bosses = bossesLookup.rows.map((row) => {
-    const aggregate = aggregates.get(row.id) ?? { uniqueChallengers: 0, totalChallenges: 0 };
+    const aggregate = aggregates.get(row.id) ?? { uniqueChallengers: 0, totalChallenges: 0, uniqueClearers: 0 };
     return {
       summary: {
         id: row.id,
@@ -143,9 +150,11 @@ export async function handleListPopularBosses(req: Request, db: SupabaseRestClie
         published_at: row.published_at,
         revision: row.revision,
         creator_mode: extractCreatorMode(row.payload),
+        appearance_id: extractAppearanceId(row.payload),
       } as BossSummaryRow,
       uniqueChallengers: aggregate.uniqueChallengers,
       totalChallenges: aggregate.totalChallenges,
+      uniqueClearers: aggregate.uniqueClearers,
       publishedAtMs: Date.parse(row.published_at),
     };
   });
@@ -166,6 +175,7 @@ export async function handleListPopularBosses(req: Request, db: SupabaseRestClie
   const rows: PopularBossRow[] = bosses.slice(0, limit).map((entry) => ({
     ...entry.summary,
     unique_challengers: entry.uniqueChallengers,
+    unique_clearers: entry.uniqueClearers,
   }));
   return jsonResponse({ ok: true, bosses: rows }, 200);
 }

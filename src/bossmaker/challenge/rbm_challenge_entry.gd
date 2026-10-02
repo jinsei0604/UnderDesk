@@ -182,6 +182,7 @@ func _build_online_list_view() -> void:
 		_online_list_view.set_api_adapter_for_testing(_injected_online_api_adapter_for_testing)
 	_online_list_view.set_recorder_for_testing(_online_recorder())
 	_online_list_view.boss_selected.connect(_on_online_boss_selected)
+	_online_list_view.challenge_requested.connect(_on_online_challenge_requested)
 	_online_list_view.back_requested.connect(_on_back_to_hub_pressed)
 	add_child(_online_list_view)
 
@@ -196,6 +197,13 @@ func _on_online_boss_selected(boss_id: String, draft: RBMCreatorDraft, _boss_nam
 	_selected_stage_id = ""
 	_confirm_view.open(boss_id, draft)
 	_show_online_browse()
+
+## オンライン一覧の右の詳細で「挑戦する」が押された(2026-10)。選択時と同じ着地点(_confirm_view)へ
+## 載せてから、ローカルの「このボスに挑戦」と同じ_on_challenge_requested()で戦闘を始める——挑戦回数の
+## 記録・戦闘背景の受け渡しなど、戦闘開始の処理は1つの経路のまま。
+func _on_online_challenge_requested(boss_id: String, draft: RBMCreatorDraft) -> void:
+	_on_online_boss_selected(boss_id, draft, draft.boss_name, draft.author_name)
+	_on_challenge_requested(draft.to_definition())
 
 func _show_online_browse() -> void:
 	_hub_view.visible = false
@@ -329,10 +337,11 @@ func _on_hub_category_selected(category: String) -> void:
 			_open_online_category(RBMCreatorDraft.CREATOR_MODE_ADVANCED, _online_list_view.current_category(), category)
 			return
 
-func _open_online_category(mode: String, online_category: String, hub_category: String) -> void:
+## 見出しはカテゴリ名(ハブのSIMPLE/HARDCOREから開いた時も。モードは一覧画面の右上の切替で示す、2026-10)。
+func _open_online_category(mode: String, online_category: String, _hub_category: String) -> void:
 	_confirm_view.clear_selection()
 	_show_online_browse()
-	_online_list_view.refresh_with(mode, online_category, _category_display_title(hub_category))
+	_online_list_view.refresh_with(mode, online_category, RBMOnlineBossListView.category_title(online_category))
 
 func _on_hub_search_requested() -> void:
 	_current_category = ""
@@ -361,25 +370,6 @@ func _on_hub_random_requested() -> void:
 	_refresh_list()
 	_show_browse()
 	_on_stage_row_pressed(str(picked.get("stage_id", "")))
-
-func _category_display_title(category: String) -> String:
-	match category:
-		RBMChallengeHubView.CATEGORY_SIMPLE:
-			return "SIMPLE"
-		RBMChallengeHubView.CATEGORY_HARDCORE:
-			return "HARDCORE"
-		RBMChallengeHubView.CATEGORY_FEATURED:
-			return tr("オンライン")
-		RBMChallengeHubView.CATEGORY_NEW:
-			return tr("新着")
-		RBMChallengeHubView.CATEGORY_UNCHALLENGED:
-			return tr("未挑戦")
-		RBMChallengeHubView.CATEGORY_POPULAR:
-			return tr("人気")
-		RBMChallengeHubView.CATEGORY_HIGH_DIFFICULTY:
-			return tr("高難度")
-		_:
-			return tr("検索")
 
 func _on_back_to_hub_pressed() -> void:
 	_show_hub()

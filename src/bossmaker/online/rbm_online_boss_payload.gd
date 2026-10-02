@@ -6,8 +6,12 @@ extends RefCounted
 ## 「Creator → Draft → Clear Check → online payload」を明確に分離する
 ## (ユーザー確定仕様)。ローカル保存(RBMLocalStageRepository)と同じ
 ## draft.to_saved_dict()を土台にしつつ、オンラインへ送る意味がない
-## フィールド(author_notes=著作者の私的メモ、published/published_at_unix_time
-## =ローカルChallenge一覧用のローカルフラグ)を取り除く。
+## フィールド(published/published_at_unix_time=ローカルChallenge一覧用の
+## ローカルフラグ等)を取り除く。
+## 作者メッセージ(author_notes)は2026-10から送る(ユーザー確定仕様): 作者の私的メモでは
+## なく、そのボスに挑戦する人へ見せる作者メッセージとして扱う(Creatorの「挑戦確認画面に
+## 表示されます」の案内と同じ)。文字数の上限(RBMCreatorDraft.MAX_AUTHOR_NOTES_LENGTH)は
+## 書く時・読み込む時の既存の切り詰めのまま。
 ##
 ## battle_hashはdraft.battle_content_snapshot()(既存のClear Check比較専用
 ## スナップショット——boss_name/appearance_id/battle_background等の非戦闘
@@ -22,7 +26,7 @@ const SCHEMA_VERSION := 1
 ## (§4B-3/§4E-8「対応していないボスデータとして安全に拒否」)。
 const MAX_SUPPORTED_SCHEMA_VERSION := 1
 
-const _LOCAL_ONLY_FIELDS := ["author_notes", "published", "published_at_unix_time", "online_boss_id", "online_published"]
+const _LOCAL_ONLY_FIELDS := ["published", "published_at_unix_time", "online_boss_id", "online_published"]
 
 ## 公開直前に呼ぶ。Clear Check未達成、または現在の戦闘内容がClear Check
 ## 成功時のsnapshotと一致しない場合は送信前に拒否する

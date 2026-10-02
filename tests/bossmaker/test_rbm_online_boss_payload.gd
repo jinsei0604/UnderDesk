@@ -49,12 +49,39 @@ func test_build_for_publish_succeeds_for_a_genuinely_cleared_draft() -> void:
 
 func test_build_for_publish_never_includes_local_only_fields() -> void:
 	var draft := _cleared_draft()
-	draft.author_notes = "私的メモ、送信されてはいけない"
 	var result := RBMOnlineBossPayload.build_for_publish(draft)
 	var draft_fields: Dictionary = result["payload"]["draft_fields"]
-	assert_false(draft_fields.has("author_notes"))
 	assert_false(draft_fields.has("published"))
 	assert_false(draft_fields.has("published_at_unix_time"))
+	assert_false(draft_fields.has("online_boss_id"))
+	assert_false(draft_fields.has("online_published"))
+
+## 2026-10(ユーザー確定仕様): 作者メッセージ(author_notes)は挑戦する人へ見せるものとして公開データに
+## 含め、挑戦側で復元できる。戦闘内容ではないのでbattle_hashは変わらない。
+func test_the_author_message_is_published_and_comes_back_for_the_challenger() -> void:
+	var draft := _cleared_draft()
+	var without := RBMOnlineBossPayload.build_for_publish(draft)
+	draft.set_author_notes("居合の構えに入ったら守りを固めること。")
+	var result := RBMOnlineBossPayload.build_for_publish(draft)
+	var payload: Dictionary = result["payload"]
+	assert_eq((payload["draft_fields"] as Dictionary)["author_notes"], "居合の構えに入ったら守りを固めること。")
+	assert_eq(payload["battle_hash"], without["payload"]["battle_hash"], "the message is not battle content")
+	var validated := RBMOnlineBossPayload.validate_for_challenge(payload)
+	assert_true(validated["ok"])
+	assert_eq((validated["draft"] as RBMCreatorDraft).author_notes, "居合の構えに入ったら守りを固めること。")
+
+func test_an_unset_author_message_comes_back_empty() -> void:
+	var payload: Dictionary = RBMOnlineBossPayload.build_for_publish(_cleared_draft())["payload"]
+	assert_eq((payload["draft_fields"] as Dictionary)["author_notes"], "")
+	var validated := RBMOnlineBossPayload.validate_for_challenge(payload)
+	assert_eq((validated["draft"] as RBMCreatorDraft).author_notes, "")
+
+func test_a_published_author_message_keeps_the_existing_length_cap() -> void:
+	var payload: Dictionary = RBMOnlineBossPayload.build_for_publish(_cleared_draft())["payload"]
+	(payload["draft_fields"] as Dictionary)["author_notes"] = "A".repeat(RBMCreatorDraft.MAX_AUTHOR_NOTES_LENGTH + 50)
+	var validated := RBMOnlineBossPayload.validate_for_challenge(payload)
+	assert_true(validated["ok"], "a too long message is cut, not rejected (same as loading a saved stage)")
+	assert_eq((validated["draft"] as RBMCreatorDraft).author_notes.length(), RBMCreatorDraft.MAX_AUTHOR_NOTES_LENGTH)
 
 func test_build_for_publish_battle_hash_ignores_cosmetic_fields() -> void:
 	var draft_a := _cleared_draft()
@@ -143,6 +170,20 @@ func test_validate_for_challenge_rejects_a_definition_with_no_party() -> void:
 	draft.atk = 100
 	draft.spd = 50
 	draft.add_skill({"name": "斬撃", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 1.0})
+	draft.record_clear_check_success()
+	var payload: Dictionary = RBMOnlineBossPayload.build_for_publish(draft)["payload"]
+	var result := RBMOnlineBossPayload.validate_for_challenge(payload)
+	assert_false(result["ok"])
+	assert_eq(result["error"], "definition_invalid")
+
+## ボスHP最大値変更（99999）: battle_hashが内容と一致していても（＝改ざん
+## 検知をすり抜けても）、hp自体がRBMDefinitionLoader.BOSS_HP_MAXを超える
+## payloadはRBMDefinitionLoader.resolve()の時点でdefinition_invalidとして
+## 拒否される——オンライン受信経路でも100000以上のHPが正規データとして
+## 通らないことの直接確認。
+func test_validate_for_challenge_rejects_hp_over_the_max_even_with_a_hash_that_matches_it() -> void:
+	var draft := _playable_draft()
+	draft.hp = RBMDefinitionLoader.BOSS_HP_MAX + 1
 	draft.record_clear_check_success()
 	var payload: Dictionary = RBMOnlineBossPayload.build_for_publish(draft)["payload"]
 	var result := RBMOnlineBossPayload.validate_for_challenge(payload)

@@ -491,3 +491,25 @@ HPの範囲条件は「下限 ≦ 上限」（0〜100%）で指定してくだ�
 条件のデータが不正です,The condition data is invalid
 朽ちた機械武者,Decayed Machine Warrior
 挑戦者 %d人,Challengers: %d
+さらに表示,Show more
+挑戦ハブ,Challenge Hub
+すべて,All
+ボス一覧,Bosses
+%d件表示中,Showing %d
+一覧を取得できませんでした,Couldn't fetch the list
+通信エラー（%s）,Connection error (%s)
+もう一度読み込む,Try again
+続きを取得できませんでした（%s）,Couldn't fetch more bosses (%s)
+挑戦者,Challengers
+クリア率,Clear rate
+%d人,%d
+作者メッセージ,Author's Message
+公開日,Published
+ボスHP,Boss HP
+作者が決めた固定メンバーで挑戦します,You fight with the author's fixed party
+挑戦する,Challenge
+勇者,Hero
+老執事,Butler
+少女,Girl
+侍,Samurai
+ハンマー使い,Titan
