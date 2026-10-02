@@ -2,8 +2,17 @@ extends GutTest
 
 ## Phase 3.5「タイトル画面UI新設 + 戦闘UIデザイン統一」— 回帰テスト。
 ##
-## §18: 挑戦/作成ボタンの存在・遷移・1280x720内への収まり、および今回の
-## Theme適用パスが既存の戦闘UI（Step 4で確定済み）の主要ノードを壊して
+## 現在のタイトル画面(ホーム画面、2026-09-18〜): 背景は3モニター枠を含む完成画像
+## (title_screen_home_monitors.png)。ユーザーは左下「挑戦」／右下「ボス作成」の
+## ホームモニター(ChallengeHomeMonitor/CreatorHomeMonitor)をクリックして挑戦/作成へ
+## 進む。ChallengeModeButton/CreateModeButtonは非表示の論理ボタンで、モニターの
+## activatedがその.pressedを発火させて既存の遷移へつなぐ(RBMGameRoot._build_ui()参照)。
+## モニターの位置・矩形・クリック範囲・起動演出はtest_rbm_home_monitor_transition.gdが
+## 確かめるため、ここでは重複して持たない。旧Phase 3.5の「背景にボタン絵が描き込まれ、
+## 透明なクリック領域を重ねる」方式は廃止された(その方式専用の検証は削除済み)。
+##
+## §18: 挑戦/作成の論理ボタンの存在・遷移、見えている主要タイトルUIの1280x720内への
+## 収まり、および今回のTheme適用パスが既存の戦闘UI（Step 4で確定済み）の主要ノードを壊して
 ## いないことを直接検証する。RBMGameRootを実際にインスタンス化し、Godot
 ## 自身のレイアウト計算を経た本物のControl.size/global_positionのみを
 ## 見る——test_rbm_step8_layout_regressions.gdの_make_root()と同じ方針・
@@ -128,32 +137,47 @@ func test_returning_from_challenge_shows_title_screen_again() -> void:
 # §16/§17: 1280x720内に主要UIが収まること
 # =============================================================================
 
+## 確かめる対象は、ユーザーが実際に見る主要タイトルUI(左下/右下のホームモニターと
+## 上中央の戦闘モニター)。非表示の論理ボタン(ChallengeModeButton/CreateModeButton)は
+## 画面に出ないので対象にしない。
 func test_title_screen_primary_ui_stays_within_viewport_at_1280x720() -> void:
 	var root := await _make_root()
 	var viewport: Rect2 = root.get_viewport_rect()
 	assert_eq(viewport.size, HEADLESS_WINDOW_SIZE, "sanity: viewport is exactly 1280x720")
 
-	var challenge_button := _btn(root, "ChallengeModeButton")
-	_assert_within_viewport(challenge_button, viewport, "挑戦 button")
-	var create_button := _btn(root, "CreateModeButton")
-	_assert_within_viewport(create_button, viewport, "作成 button")
+	var challenge_monitor := _visible_control(root, "ChallengeHomeMonitor")
+	_assert_within_viewport(challenge_monitor, viewport, "挑戦 home monitor")
+	var creator_monitor := _visible_control(root, "CreatorHomeMonitor")
+	_assert_within_viewport(creator_monitor, viewport, "ボス作成 home monitor")
+	var top_monitor := _visible_control(root, "TopMonitorBattlePreview")
+	_assert_within_viewport(top_monitor, viewport, "top-center battle monitor")
 
 	# §3: 中央は意図的に空ける——挑戦/作成は画面下部にあること
-	# （上半分ではなく、viewportの垂直中央より下に位置すること）。
-	var button_center_y := challenge_button.global_position.y + challenge_button.size.y * 0.5
-	assert_gt(button_center_y, viewport.size.y * 0.5, "挑戦/作成 must sit in the bottom half of the screen, per §3")
+	# （上半分ではなく、viewportの垂直中央より下に位置すること）。今は左下/右下の
+	# ホームモニターがその挑戦/作成にあたる。
+	for monitor in [challenge_monitor, creator_monitor]:
+		var center_y: float = monitor.global_position.y + monitor.size.y * 0.5
+		assert_gt(center_y, viewport.size.y * 0.5, "%s must sit in the bottom half of the screen, per §3" % monitor.name)
+
+func _visible_control(node: Node, control_name: String) -> Control:
+	var found := node.find_child(control_name, true, false) as Control
+	assert_not_null(found, "expected a Control named %s under %s" % [control_name, node])
+	if found != null:
+		assert_true(found.is_visible_in_tree(), "%s must be visible on the title screen" % control_name)
+	return found
 
 # =============================================================================
-# タイトル画面完成アート反映 — 完成画像の表示・旧仮タイトルの削除・
-# クリック領域が画像上のボタン位置と一致すること
+# タイトル画面完成アート反映 — 完成画像の表示・旧仮タイトルの削除
 # =============================================================================
 
 ## §2: 完成画像がそのまま採用されていること（再エンコード/差し替え忘れの
-## 回帰ガード）——パスとテクスチャの両方を確認する。
+## 回帰ガード）——パスとテクスチャの両方を確認する。今の正式背景は3モニター枠を含む
+## ホーム画面の完成画像(2026-09-18に旧title_screen_makers_and_challengers.pngから置き換え)。
 func test_title_background_uses_the_adopted_completed_image() -> void:
 	var root := await _make_root()
-	assert_eq(RBMGameRoot.TITLE_IMAGE_PATH, "res://assets_bossmaker/art/title_screen_makers_and_challengers.png")
+	assert_eq(RBMGameRoot.TITLE_IMAGE_PATH, "res://assets_bossmaker/art/title_screen_home_monitors.png")
 	assert_not_null(root._title_background.texture, "title background must have a real texture assigned")
+	assert_eq(root._title_background.texture.resource_path, RBMGameRoot.TITLE_IMAGE_PATH, "the assigned texture is the adopted home-monitor image itself")
 	assert_eq(root._title_background.stretch_mode, TextureRect.STRETCH_KEEP_ASPECT_CENTERED, "must preserve aspect ratio, not stretch/distort (§5)")
 
 ## §2/§9: 旧・文字ベースの仮タイトル「RPG BOSS MAKER」はどこにも存在しない
@@ -162,68 +186,10 @@ func test_old_placeholder_title_label_no_longer_exists() -> void:
 	var root := await _make_root()
 	assert_null(root.find_child("GameRootTitleLabel", true, false), "the old placeholder title Label must be removed")
 
-## §3: 完成画像に描かれた「挑戦」「作成」ボタン絵のちょうど上に、透明クリック
-## 領域が重なっていること——RBMGameRoot自身が計算した比率アンカーの結果を、
-## 実測したボタン絵の外接矩形（画像ピクセル座標）から独立に再計算し、
-## 一致することを確認する(単に定数を読み返すだけの同語反復にならないよう、
-## 実際のControl.get_rect()をTITLE_IMAGE_SIZE基準へ逆算して突き合わせる)。
-func test_click_regions_align_with_the_button_artwork_in_the_image() -> void:
-	var root := await _make_root()
-	var viewport: Rect2 = root.get_viewport_rect()
-
-	var challenge_button := _btn(root, "ChallengeModeButton")
-	var create_button := _btn(root, "CreateModeButton")
-
-	# _title_screenはFULL_RECTでviewportいっぱいに広がり、STRETCH_KEEP_ASPECT_
-	# CENTEREDの画像とproject.godotの基準アスペクト(1280x720)はほぼ一致する
-	# ため、viewport矩形を基準にピクセル座標へ逆算してよい（RBMGameRoot._
-	# apply_image_fraction_rect()と同じ前提）。
-	var challenge_rect_px := Rect2(
-		challenge_button.global_position.x / viewport.size.x * RBMGameRoot.TITLE_IMAGE_SIZE.x,
-		challenge_button.global_position.y / viewport.size.y * RBMGameRoot.TITLE_IMAGE_SIZE.y,
-		challenge_button.size.x / viewport.size.x * RBMGameRoot.TITLE_IMAGE_SIZE.x,
-		challenge_button.size.y / viewport.size.y * RBMGameRoot.TITLE_IMAGE_SIZE.y
-	)
-	var px_epsilon := 2.0
-	assert_almost_eq(challenge_rect_px.position.x, RBMGameRoot.CHALLENGE_BUTTON_PIXEL_RECT.position.x, px_epsilon)
-	assert_almost_eq(challenge_rect_px.position.y, RBMGameRoot.CHALLENGE_BUTTON_PIXEL_RECT.position.y, px_epsilon)
-	assert_almost_eq(challenge_rect_px.size.x, RBMGameRoot.CHALLENGE_BUTTON_PIXEL_RECT.size.x, px_epsilon)
-	assert_almost_eq(challenge_rect_px.size.y, RBMGameRoot.CHALLENGE_BUTTON_PIXEL_RECT.size.y, px_epsilon)
-
-	var create_rect_px := Rect2(
-		create_button.global_position.x / viewport.size.x * RBMGameRoot.TITLE_IMAGE_SIZE.x,
-		create_button.global_position.y / viewport.size.y * RBMGameRoot.TITLE_IMAGE_SIZE.y,
-		create_button.size.x / viewport.size.x * RBMGameRoot.TITLE_IMAGE_SIZE.x,
-		create_button.size.y / viewport.size.y * RBMGameRoot.TITLE_IMAGE_SIZE.y
-	)
-	assert_almost_eq(create_rect_px.position.x, RBMGameRoot.CREATE_BUTTON_PIXEL_RECT.position.x, px_epsilon)
-	assert_almost_eq(create_rect_px.position.y, RBMGameRoot.CREATE_BUTTON_PIXEL_RECT.position.y, px_epsilon)
-	assert_almost_eq(create_rect_px.size.x, RBMGameRoot.CREATE_BUTTON_PIXEL_RECT.size.x, px_epsilon)
-	assert_almost_eq(create_rect_px.size.y, RBMGameRoot.CREATE_BUTTON_PIXEL_RECT.size.y, px_epsilon)
-
-	# 2つのボタンが重ならないこと（測定誤差で食い違って重複配置になっていない
-	# ことの直接確認）。
-	assert_false(challenge_button.get_global_rect().intersects(create_button.get_global_rect()), "挑戦/作成 hit regions must not overlap")
-
-## §4: 透明クリック領域の見た目——通常時は完全透明、Hover/Pressedはごく
-## 控えめな半透明のみ（派手な発光/巨大枠/画像を隠すオーバーレイではない
-## ことを、実際のTheme StyleBoxの数値で直接確認する）。
-func test_hotspot_button_theme_is_transparent_at_rest_and_subtle_on_hover() -> void:
-	var root := await _make_root()
-	var challenge_button := _btn(root, "ChallengeModeButton")
-	assert_eq(challenge_button.theme_type_variation, RBMUiTheme.VARIATION_IMAGE_HOTSPOT_BUTTON)
-
-	var theme := root._title_screen.theme
-	assert_not_null(theme)
-	var normal: StyleBoxFlat = theme.get_stylebox("normal", RBMUiTheme.VARIATION_IMAGE_HOTSPOT_BUTTON)
-	assert_almost_eq(normal.bg_color.a, 0.0, 0.001, "normal state must be fully transparent (image supplies the look)")
-
-	var hover: StyleBoxFlat = theme.get_stylebox("hover", RBMUiTheme.VARIATION_IMAGE_HOTSPOT_BUTTON)
-	assert_gt(hover.bg_color.a, 0.0, "hover must give some feedback")
-	assert_lt(hover.bg_color.a, 0.25, "hover feedback must stay subtle, not an opaque overlay hiding the artwork")
-
-	var pressed: StyleBoxFlat = theme.get_stylebox("pressed", RBMUiTheme.VARIATION_IMAGE_HOTSPOT_BUTTON)
-	assert_lt(pressed.bg_color.a, 0.3, "pressed feedback must also stay subtle")
+# 旧「背景のボタン絵とクリック領域の一致」「透明ホットスポットの見た目」の検証は、
+# 背景にボタン絵が描き込まれた旧デザイン専用だったため削除した(2026-10)。今はホーム
+# モニター自体がクリック領域で、その位置・矩形・クリック範囲は
+# test_rbm_home_monitor_transition.gd が確かめている。
 
 # =============================================================================
 # §9/§14: 既存の戦闘UI（Step 4）の主要ノードがTheme適用後も無傷であること
