@@ -24,7 +24,8 @@ signal back_requested()
 ## 挑戦ハブ オンライン版「人気」/「高難度」連携(2026-09) — 5カテゴリ全て
 ## がこの画面を共有する。人気/高難度はSteam ticket不要(特定ユーザーに
 ## 紐づかない集計ランキングのため)、list_bosses()と同じ匿名GETの
-## list_popular_bosses()/list_hard_bosses()を使う。
+## list_popular_bosses()/list_hard_bosses()を使う。人気/高難度の行には
+## 順位と、人気=挑戦者数・高難度=クリア率を添える(_build_row())。
 const CATEGORY_ONLINE := "online"
 const CATEGORY_NEW := "new"
 const CATEGORY_UNCHALLENGED := "unchallenged"
@@ -71,7 +72,10 @@ func _ready() -> void:
 	_build_ui()
 
 func _build_ui() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# 親(挑戦画面)いっぱいに広げる。set_anchors_preset()だけだと、親が既に大きさを
+	# 持っている時点で呼ばれると今の大きさ(0)を保つ余白が入り、一覧の欄が0の高さに
+	# なって行が1つも見えなかった(2026-10に実画面で確認して修正)。
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var column := VBoxContainer.new()
 	column.name = "OnlineListColumn"
@@ -159,19 +163,39 @@ func refresh() -> void:
 		return
 
 	_status_label.text = ""
+	var rank := 0
 	for boss_variant in bosses:
 		if not (boss_variant is Dictionary):
 			continue
 		var boss: Dictionary = boss_variant
-		_rows_container.add_child(_build_row(boss))
+		rank += 1
+		_rows_container.add_child(_build_row(boss, rank))
 
-func _build_row(boss: Dictionary) -> Button:
+func _build_row(boss: Dictionary, rank: int) -> Button:
 	var button := Button.new()
 	var boss_id := str(boss.get("id", ""))
 	button.name = "OnlineBossRow_%s" % boss_id
 	button.text = tr("%s　(作者: %s)") % [str(boss.get("boss_name", "")), str(boss.get("author_name", ""))]
+	# 人気/高難度はランキングなので、サーバーが返した順の順位と、順位の根拠になる数値を添える
+	# (2026-10)。数値が無い応答(更新前のサーバー)なら順位だけを出し、0人・0%と誤って見せない。
+	match _current_category:
+		CATEGORY_POPULAR:
+			button.text = "%d　%s" % [rank, button.text]
+			if boss.has("unique_challengers"):
+				button.text += "　" + tr("挑戦者 %d人") % int(boss["unique_challengers"])
+		CATEGORY_HIGH_DIFFICULTY:
+			button.text = "%d　%s" % [rank, button.text]
+			if boss.has("unique_challengers") and boss.has("unique_clearers"):
+				button.text += "　" + tr("クリア率 %s") % _clear_rate_text(int(boss["unique_clearers"]), int(boss["unique_challengers"]))
 	button.pressed.connect(func(): _on_row_pressed(boss_id))
 	return button
+
+## 高難度に出すクリア率は、一度でもクリアした人数 / 挑戦した人数の通常の割合。順位に使う
+## 補正クリア率((クリア者+1)/(挑戦者+2))はサーバー内部だけの値で、表示しない。
+## 書式はローカル一覧カードのクリア率(RBMChallengeUiKit)と同じ小数1桁。
+static func _clear_rate_text(clearers: int, challengers: int) -> String:
+	var rate := float(clearers) / float(challengers) if challengers > 0 else 0.0
+	return "%.1f%%" % (rate * 100.0)
 
 func _on_row_pressed(boss_id: String) -> void:
 	_status_label.text = tr("取得中...")

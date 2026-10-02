@@ -1,7 +1,11 @@
 // Phase 4B/4C/4D/4E — SupabaseRestClientのテスト専用インメモリ実装。
 // 実Supabaseへは一切出ない。PostgRESTのクエリ文字列のうち、このプロジェクト
-// が実際に発行する範囲(column=eq.value、order=column.asc|desc、limit=N、
-// select=col1,col2)だけをサポートする最小限のパーサー。
+// が実際に発行する範囲(column=eq.value、column=gt.value、order=column.asc|desc、
+// limit=N、select=col1,col2)だけをサポートする最小限のパーサー。
+//
+// 人気/高難度ランキングの全件取得(_shared/select_all_pages.ts)のテスト用に、
+// PostgRESTの「1回の応答の行数上限」(Supabaseの「Max rows」)を真似る
+// setMaxRowsPerResponse()と、指定した回のselectを失敗させるfailSelectCall()を持つ。
 
 import { RestResult, SupabaseRestClient } from "./supabase_rest_client.ts";
 
@@ -14,9 +18,23 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
   private tables: Map<string, Record<string, unknown>[]> = new Map();
   private uniqueConstraints: UniqueConstraint[] = [];
   private nextId = 1;
+  private maxRowsPerResponse: number | undefined;
+  private failingSelects: { table: string; call: number }[] = [];
+  // 発行されたselectの記録(テーブルごとの回数を数えるため)。
+  selectCalls: { table: string; query: string }[] = [];
 
   addUniqueConstraint(constraint: UniqueConstraint): void {
     this.uniqueConstraints.push(constraint);
+  }
+
+  // PostgRESTの応答行数の上限(limitを大きくしても、これより多くは返さない)。
+  setMaxRowsPerResponse(maxRows: number): void {
+    this.maxRowsPerResponse = maxRows;
+  }
+
+  // tableへのcall回目(1始まり)のselectを、通信/DBの失敗として返す。
+  failSelectCall(table: string, call: number): void {
+    this.failingSelects.push({ table, call });
   }
 
   seed(table: string, rows: Record<string, unknown>[]): void {
@@ -29,12 +47,14 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
 
   private parseQuery(query: string): {
     filters: [string, string][];
+    greaterThan: [string, string][];
     order?: { column: string; desc: boolean };
     limit?: number;
     select?: string[];
   } {
     const params = new URLSearchParams(query);
     const filters: [string, string][] = [];
+    const greaterThan: [string, string][] = [];
     let order: { column: string; desc: boolean } | undefined;
     let limit: number | undefined;
     let select: string[] | undefined;
@@ -48,15 +68,23 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
         select = value.split(",");
       } else if (value.startsWith("eq.")) {
         filters.push([key, value.slice(3)]);
+      } else if (value.startsWith("gt.")) {
+        greaterThan.push([key, value.slice(3)]);
       }
     }
-    return { filters, order, limit, select };
+    return { filters, greaterThan, order, limit, select };
   }
 
   async select<T>(table: string, query: string): Promise<RestResult<T>> {
-    const { filters, order, limit, select } = this.parseQuery(query);
+    this.selectCalls.push({ table, query });
+    const call = this.selectCalls.filter((c) => c.table === table).length;
+    if (this.failingSelects.some((f) => f.table === table && f.call === call)) {
+      return Promise.resolve({ ok: false, rows: [], status: 503, errorMessage: `fake failure on ${table} select #${call}` });
+    }
+    const { filters, greaterThan, order, limit, select } = this.parseQuery(query);
     let rows = this.rowsOf(table).filter((row) =>
-      filters.every(([col, val]) => String(row[col]) === val)
+      filters.every(([col, val]) => String(row[col]) === val) &&
+      greaterThan.every(([col, val]) => String(row[col]) > val)
     );
     if (order) {
       rows = [...rows].sort((a, b) => {
@@ -68,6 +96,9 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
     }
     if (limit !== undefined) {
       rows = rows.slice(0, limit);
+    }
+    if (this.maxRowsPerResponse !== undefined) {
+      rows = rows.slice(0, this.maxRowsPerResponse);
     }
     if (select) {
       rows = rows.map((row) => {

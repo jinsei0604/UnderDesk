@@ -155,3 +155,150 @@ Deno.test("non-GET requests are rejected", async () => {
   const res = await handleListPopularBosses(new Request("http://localhost/list-popular-bosses", { method: "POST" }), db);
   assertEquals(res.status, 405);
 });
+
+// ---------------------------------------------------------------------------
+// 2026-10 — 公開中の全ボスが対象(新着50件だけにしない)・挑戦記録の全件取得・
+// 表示用のユニーク挑戦者数。
+// ---------------------------------------------------------------------------
+
+function isoDay(day: number): string {
+  return new Date(Date.UTC(2025, 0, 1) + day * 86_400_000).toISOString();
+}
+
+// boss-0000(最も古い)〜boss-NNNN(最も新しい)をcount件公開する。
+function seedManyBosses(db: FakeSupabaseRestClient, count: number, prefix = "boss", mode = "simple", firstDay = 0): string[] {
+  const ids: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const id = `${prefix}-${String(i).padStart(4, "0")}`;
+    seedBoss(db, id, id, isoDay(firstDay + i), mode);
+    ids.push(id);
+  }
+  return ids;
+}
+
+// bossIdへ別々のプレイヤーn人分の記録を入れる(idは${idPrefix}-00000形式)。
+function seedUniqueChallengers(db: FakeSupabaseRestClient, bossId: string, n: number, idOf: (i: number) => string): void {
+  const rows = [];
+  for (let i = 0; i < n; i++) {
+    rows.push({ id: idOf(i), boss_id: bossId, challenger_steam_id: `${bossId}-p${i}`, challenge_count: 1, clear_count: 0 });
+  }
+  db.seed("boss_challenge_records", rows);
+}
+
+Deno.test("an old popular boss outside the newest 50 is still ranked first", async () => {
+  const db = new FakeSupabaseRestClient();
+  seedManyBosses(db, 60);
+  seedChallengers(db, "boss-0000", [{ steamId: "1", challengeCount: 1 }, { steamId: "2", challengeCount: 1 }, { steamId: "3", challengeCount: 1 }]);
+
+  const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
+  assertEquals(body.bosses![0].id, "boss-0000", "the oldest of 60 published bosses is the most popular one");
+  assertEquals(body.bosses![0].unique_challengers, 3);
+});
+
+Deno.test("the top 20 of the ranking over every published boss is returned", async () => {
+  const db = new FakeSupabaseRestClient();
+  const ids = seedManyBosses(db, 30);
+  ids.forEach((id, i) => seedUniqueChallengers(db, id, i + 1, (n) => `${id}-r${String(n).padStart(3, "0")}`));
+
+  const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
+  assertEquals(body.bosses!.length, 20);
+  assertEquals(body.bosses!.map((b) => b.id), ids.slice(10).reverse());
+  assertEquals(body.bosses!.map((b) => b.unique_challengers), Array.from({ length: 20 }, (_, i) => 30 - i));
+});
+
+Deno.test("every challenge record counts even when the server returns at most 1000 rows per response", async () => {
+  const db = new FakeSupabaseRestClient();
+  db.setMaxRowsPerResponse(1000);
+  seedBoss(db, "a", "記録が多いボス", "2026-01-01T00:00:00Z");
+  seedBoss(db, "b", "記録が少し少ないボス", "2026-01-02T00:00:00Z");
+  // idを交互にして、最初の1000行だけだと両方500人ずつに見える並びにする。
+  seedUniqueChallengers(db, "a", 1500, (i) => `rec-${String(i * 2).padStart(5, "0")}`);
+  seedUniqueChallengers(db, "b", 1200, (i) => `rec-${String(i * 2 + 1).padStart(5, "0")}`);
+
+  const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
+  assertEquals(body.bosses!.map((b) => [b.id, b.unique_challengers]), [["a", 1500], ["b", 1200]]);
+  const recordPages = db.selectCalls.filter((c) => c.table === "boss_challenge_records").length;
+  assertEquals(recordPages, 4, "three pages of records and one empty page that ends the paging");
+});
+
+Deno.test("a server row cap smaller than the page size never ends the paging early", async () => {
+  const db = new FakeSupabaseRestClient();
+  db.setMaxRowsPerResponse(300);
+  seedBoss(db, "a", "A", "2026-01-01T00:00:00Z");
+  seedBoss(db, "b", "B", "2026-01-02T00:00:00Z");
+  seedUniqueChallengers(db, "a", 1000, (i) => `rec-${String(i * 2).padStart(5, "0")}`);
+  seedUniqueChallengers(db, "b", 999, (i) => `rec-${String(i * 2 + 1).padStart(5, "0")}`);
+
+  const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
+  assertEquals(body.bosses!.map((b) => [b.id, b.unique_challengers]), [["a", 1000], ["b", 999]]);
+});
+
+Deno.test("published bosses beyond the server's row cap are all ranked", async () => {
+  const db = new FakeSupabaseRestClient();
+  db.setMaxRowsPerResponse(1000);
+  seedManyBosses(db, 1200);
+  seedChallengers(db, "boss-1150", [{ steamId: "1", challengeCount: 1 }, { steamId: "2", challengeCount: 1 }]);
+
+  const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
+  assertEquals(body.bosses![0].id, "boss-1150");
+  assertEquals(body.bosses!.length, 20);
+});
+
+Deno.test("the mode filter applies to every published boss, not just the newest 50", async () => {
+  const db = new FakeSupabaseRestClient();
+  seedBoss(db, "old-hc", "古いHARDCORE", isoDay(0), "advanced");
+  seedChallengers(db, "old-hc", [{ steamId: "1", challengeCount: 1 }, { steamId: "2", challengeCount: 1 }]);
+  seedManyBosses(db, 60, "simple", "simple", 10);
+  seedBoss(db, "new-hc", "新しいHARDCORE", isoDay(100), "advanced");
+  seedChallengers(db, "new-hc", [{ steamId: "1", challengeCount: 1 }]);
+
+  const advanced: ListPopularBossesResponseBody = await (await handleListPopularBosses(req("?mode=advanced"), db)).json();
+  assertEquals(advanced.bosses!.map((b) => b.id), ["old-hc", "new-hc"]);
+  const simple: ListPopularBossesResponseBody = await (await handleListPopularBosses(req("?mode=simple"), db)).json();
+  assertEquals(simple.bosses!.length, 20);
+  assertEquals(simple.bosses!.every((b) => b.creator_mode === "simple"), true);
+});
+
+Deno.test("a failure on any page returns an error instead of a partial ranking", async () => {
+  for (const [table, call] of [["boss_challenge_records", 2], ["bosses", 1]] as const) {
+    const db = new FakeSupabaseRestClient();
+    db.setMaxRowsPerResponse(1000);
+    seedBoss(db, "a", "A", "2026-01-01T00:00:00Z");
+    seedUniqueChallengers(db, "a", 1500, (i) => `rec-${String(i).padStart(5, "0")}`);
+    db.failSelectCall(table, call);
+
+    const res = await handleListPopularBosses(req(), db);
+    const body: ListPopularBossesResponseBody = await res.json();
+    assertEquals(res.status, 502, table);
+    assertEquals(body.ok, false);
+    assertEquals(body.error_kind, "db_error");
+    assertEquals(body.bosses, undefined, `${table}: no partial ranking`);
+  }
+});
+
+Deno.test("each row carries the unique challenger count for display and nothing per player", async () => {
+  const db = new FakeSupabaseRestClient();
+  seedBoss(db, "played", "遊ばれたボス", "2026-01-01T00:00:00Z");
+  seedChallengers(db, "played", [
+    { steamId: "76561198000000001", challengeCount: 500 },
+    { steamId: "76561198000000002", challengeCount: 1 },
+    { steamId: "76561198000000003", challengeCount: 2 },
+  ]);
+  seedBoss(db, "unplayed", "未挑戦ボス", "2026-01-02T00:00:00Z");
+
+  const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
+  assertEquals(body.bosses!.map((b) => [b.id, b.unique_challengers]), [["played", 3], ["unplayed", 0]]);
+  assertEquals(Object.keys(body.bosses![0]).sort(), ["author_name", "boss_name", "creator_mode", "id", "published_at", "revision", "unique_challengers"]);
+  assertEquals(JSON.stringify(body).includes("7656119800000000"), false);
+});
+
+Deno.test("a complete tie (challengers, total challenges and published_at) is ordered by id so the order never changes", async () => {
+  const db = new FakeSupabaseRestClient();
+  seedBoss(db, "b-second", "B", "2026-01-01T00:00:00Z");
+  seedBoss(db, "a-first", "A", "2026-01-01T00:00:00Z");
+  seedChallengers(db, "b-second", [{ steamId: "1", challengeCount: 2 }]);
+  seedChallengers(db, "a-first", [{ steamId: "1", challengeCount: 2 }]);
+
+  const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
+  assertEquals(body.bosses!.map((b) => b.id), ["a-first", "b-second"]);
+});

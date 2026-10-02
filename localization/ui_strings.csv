@@ -490,3 +490,4 @@ HPの範囲条件は「下限 ≦ 上限」（0〜100%）で指定してくだ�
 条件の種類が設定されていません,The condition has no type selected
 条件のデータが不正です,The condition data is invalid
 朽ちた機械武者,Decayed Machine Warrior
+挑戦者 %d人,Challengers: %d

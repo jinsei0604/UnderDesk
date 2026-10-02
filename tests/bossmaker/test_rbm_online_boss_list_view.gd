@@ -317,3 +317,110 @@ func test_popular_category_renders_bosses_the_adapter_returns_in_server_order() 
 	assert_eq(view._rows_container.get_child_count(), 2)
 	var first_row: Button = view._rows_container.get_child(0)
 	assert_eq(first_row.name, "OnlineBossRow_most-popular")
+
+# ---------------------------------------------------------------------------
+# 2026-10 — 人気/高難度の行に順位と数値(人気=挑戦者数、高難度=クリア率)を出す。
+# 高難度のクリア率は「クリアした人数/挑戦した人数」の通常の割合で、順位用の
+# 補正クリア率は出さない。言語設定に左右されないよう、期待値もtr()と同じ
+# TranslationServer.translate()で組み立てる。
+# ---------------------------------------------------------------------------
+
+func _row_text(rank: int, boss_name: String, author: String, extra: String = "") -> String:
+	var text := "%d　%s" % [rank, TranslationServer.translate("%s　(作者: %s)") % [boss_name, author]]
+	return text + ("　" + extra if not extra.is_empty() else "")
+
+## refresh()は前回の行をqueue_free()するので、同じフレーム内では消える予定の行を除いて読む。
+func _row_texts(view: RBMOnlineBossListView) -> Array:
+	var texts := []
+	for row in view._rows_container.get_children():
+		if not row.is_queued_for_deletion():
+			texts.append((row as Button).text)
+	return texts
+
+func test_popular_rows_show_the_rank_and_the_number_of_challengers() -> void:
+	var api := _fake_api()
+	api.configure_list_popular_response({"ok": true, "bosses": [
+		{"id": "a", "boss_name": "ボスA", "author_name": "AAA", "unique_challengers": 128},
+		{"id": "b", "boss_name": "ボスB", "author_name": "BBB", "unique_challengers": 104},
+	]})
+	var view := _view_with(api)
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_POPULAR, "人気")
+
+	var people := TranslationServer.translate("挑戦者 %d人")
+	assert_eq(_row_texts(view), [
+		_row_text(1, "ボスA", "AAA", people % 128),
+		_row_text(2, "ボスB", "BBB", people % 104),
+	])
+	assert_eq(view._rows_container.get_child(0).name, "OnlineBossRow_a", "rows keep their names (selection is unchanged)")
+
+func test_high_difficulty_rows_show_the_rank_and_the_plain_clear_rate_not_the_corrected_one() -> void:
+	var api := _fake_api()
+	api.configure_list_hard_response({"ok": true, "bosses": [
+		{"id": "c", "boss_name": "ボスC", "author_name": "CCC", "unique_challengers": 25, "unique_clearers": 3},
+		{"id": "d", "boss_name": "ボスD", "author_name": "DDD", "unique_challengers": 50, "unique_clearers": 9},
+	]})
+	var view := _view_with(api)
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_HIGH_DIFFICULTY, "高難度")
+
+	var rate := TranslationServer.translate("クリア率 %s")
+	assert_eq(_row_texts(view), [
+		_row_text(1, "ボスC", "CCC", rate % "12.0%"),
+		_row_text(2, "ボスD", "DDD", rate % "18.0%"),
+	])
+	# 補正クリア率 (3+1)/(25+2)=14.8% はどこにも出さない
+	assert_false(str(_row_texts(view)).contains("14.8"))
+
+func test_ranking_rows_from_a_server_without_numbers_show_the_rank_only() -> void:
+	var api := _fake_api()
+	api.configure_list_popular_response({"ok": true, "bosses": [{"id": "a", "boss_name": "ボスA", "author_name": "AAA"}]})
+	api.configure_list_hard_response({"ok": true, "bosses": [{"id": "c", "boss_name": "ボスC", "author_name": "CCC"}]})
+	var view := _view_with(api)
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_POPULAR, "人気")
+	assert_eq(_row_texts(view), [_row_text(1, "ボスA", "AAA")], "no misleading 0 challengers")
+	await get_tree().process_frame
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_HIGH_DIFFICULTY, "高難度")
+	assert_eq(_row_texts(view), [_row_text(1, "ボスC", "CCC")], "no misleading 0% clear rate")
+
+func test_online_and_new_rows_have_no_rank_or_numbers() -> void:
+	var api := _fake_api()
+	api.configure_list_response({"ok": true, "bosses": [
+		{"id": "a", "boss_name": "ボスA", "author_name": "AAA", "unique_challengers": 128},
+	]})
+	var view := _view_with(api)
+	for category in [RBMOnlineBossListView.CATEGORY_ONLINE, RBMOnlineBossListView.CATEGORY_NEW]:
+		await view.refresh_with("", category, "一覧")
+		assert_eq(_row_texts(view), [TranslationServer.translate("%s　(作者: %s)") % ["ボスA", "AAA"]], category)
+		await get_tree().process_frame
+
+func test_a_failed_ranking_fetch_shows_the_error_and_no_rows() -> void:
+	var api := _fake_api()
+	api.configure_list_popular_response({"ok": false, "error_kind": "db_error", "message": "boom"})
+	api.configure_list_hard_response({"ok": false, "error_kind": "network_error", "message": "timeout"})
+	var view := _view_with(api)
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_POPULAR, "人気")
+	assert_eq(view._rows_container.get_child_count(), 0)
+	assert_true(view._status_label.text.contains("db_error"), "the status line tells the fetch failed")
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_HIGH_DIFFICULTY, "高難度")
+	assert_eq(view._rows_container.get_child_count(), 0)
+	assert_true(view._status_label.text.contains("network_error"))
+
+## 2026-10 実画面で発見: 親が既に大きさを持っている時に一覧を作ると、一覧の欄が0の高さに
+## なって行が1つも見えなかった(挑戦画面の中では常にこの状態)。親いっぱいに広がり、
+## 行が見える範囲に入ることを確かめる。
+func test_the_list_fills_its_parent_so_the_rows_are_visible() -> void:
+	var api := _fake_api()
+	api.configure_list_popular_response({"ok": true, "bosses": [{"id": "a", "boss_name": "ボスA", "author_name": "AAA", "unique_challengers": 3}]})
+	var host := Control.new()
+	host.size = Vector2(1280, 720)
+	add_child_autofree(host)
+	var view := RBMOnlineBossListView.new()
+	view.set_api_adapter_for_testing(api)
+	host.add_child(view)
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_POPULAR, "人気")
+	await get_tree().process_frame
+
+	assert_eq(view.size, host.size, "the list covers the whole challenge screen")
+	var scroll: ScrollContainer = view.find_child("OnlineListScroll", true, false)
+	assert_gt(scroll.size.y, 300.0, "the list area has a real height")
+	var row: Control = view._rows_container.get_child(0)
+	assert_true(scroll.get_global_rect().encloses(row.get_global_rect()), "the first row is inside the visible list area")

@@ -5,21 +5,29 @@
 //   1. ユニーク挑戦者数 DESC
 //   2. 同数なら総挑戦回数 DESC
 //   3. さらに同数ならpublished_at DESC
+//   (それでも完全に同じなら、並びを毎回同じにするためだけにid ASC)
 //
 // boss_challenge_recordsは(boss_id, challenger_steam_id)がUNIQUEなので、
 // 「そのbossに対する行数」が既にユニーク挑戦者数そのもの——1人が何十回
 // 挑戦しても行は1つのまま増えないため、連続挑戦だけで人気順位を水増し
-// できない。総挑戦回数は各行のchallenge_countの合計(SUM)で求める。
+// できない。総挑戦回数は各行のchallenge_countの合計(SUM)で求める
+// (challenge_countは「確認画面から戦闘を始めた回数」で、戦闘画面内の
+// 「もう一度挑戦」「最初からやり直す」は含まない)。
+//
+// 対象は公開中の全ボス(2026-10、新着50件だけを対象にしていた問題を修正)。
+// 公開ボス・挑戦記録とも_shared/select_all_pages.tsで全件をページングして
+// 読み、全体で順位を決めてから上位limit件(既定20)を返す。SIMPLE/HARDCOREの
+// mode絞り込みも、公開中の全ボスに対して行ってから順位を決める。
 //
 // list-bosses/list-unchallenged-bossesと同様、認証は不要(このランキング
 // 自体は特定ユーザーに紐づかない集計値であり、Steam ticketで本人確認する
 // 必要がない)——ただしchallenge履歴の読み取り自体はservice_role経由の
-// Edge Function内でのみ行い、challenger_steam_idを含む個人データは
-// レスポンスへ一切含めない(集計値だけをレスポンスへ載せる設計にすれば、
-// 個人データの漏洩自体が構造的に起こり得ない——今回はその集計値すら
-// レスポンスへ含めず、既存list-bossesと同じ概要行だけを順序だけ変えて返す)。
+// Edge Function内でのみ行う。レスポンスには一覧の概要行と、ランキング表示用の
+// 集計値unique_challengers(ユニーク挑戦者数)だけを載せる。
+// challenger_steam_idなど個人に結びつく値・記録の行そのものは一切含めない。
 
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
+import { selectAllPages } from "../_shared/select_all_pages.ts";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -35,9 +43,14 @@ export interface BossSummaryRow {
   creator_mode: string;
 }
 
+// 人気ランキングの1行: 一覧の概要行+ユニーク挑戦者数(表示用の集計値)。
+export interface PopularBossRow extends BossSummaryRow {
+  unique_challengers: number;
+}
+
 export interface ListPopularBossesResponseBody {
   ok: boolean;
-  bosses?: BossSummaryRow[];
+  bosses?: PopularBossRow[];
   error_kind?: string;
   message?: string;
 }
@@ -52,6 +65,7 @@ interface BossRowWithPayload {
 }
 
 interface ChallengeRecordAggregateRow {
+  id: string;
   boss_id: string;
   challenge_count: number;
 }
@@ -88,10 +102,11 @@ export async function handleListPopularBosses(req: Request, db: SupabaseRestClie
   const requestedMode = url.searchParams.get("mode");
   const modeFilter = requestedMode !== null && VALID_MODES.has(requestedMode) ? requestedMode : null;
 
-  // list-bossesと同じ理由でmode絞り込み前にlimitで打ち切らない。
-  const bossesLookup = await db.select<BossRowWithPayload>(
+  // 公開中の全ボス(新しい順の上限で打ち切らない)。
+  const bossesLookup = await selectAllPages<BossRowWithPayload>(
+    db,
     "bosses",
-    `is_published=eq.true&select=id,boss_name,author_name,published_at,revision,payload&order=published_at.desc&limit=${MAX_LIMIT}`,
+    "is_published=eq.true&select=id,boss_name,author_name,published_at,revision,payload",
   );
   if (!bossesLookup.ok) {
     return jsonResponse({ ok: false, error_kind: "db_error", message: bossesLookup.errorMessage ?? "" }, 502);
@@ -99,9 +114,10 @@ export async function handleListPopularBosses(req: Request, db: SupabaseRestClie
 
   // 全boss_challenge_records行から集計する(challenger_steam_id自体は
   // 取得すらしない——selectで指定した列以外はそもそもレスポンスに乗らない)。
-  const recordsLookup = await db.select<ChallengeRecordAggregateRow>(
+  const recordsLookup = await selectAllPages<ChallengeRecordAggregateRow>(
+    db,
     "boss_challenge_records",
-    `select=boss_id,challenge_count`,
+    "select=id,boss_id,challenge_count",
   );
   if (!recordsLookup.ok) {
     return jsonResponse({ ok: false, error_kind: "db_error", message: recordsLookup.errorMessage ?? "" }, 502);
@@ -143,11 +159,15 @@ export async function handleListPopularBosses(req: Request, db: SupabaseRestClie
   bosses.sort((a, b) => {
     if (b.uniqueChallengers !== a.uniqueChallengers) return b.uniqueChallengers - a.uniqueChallengers;
     if (b.totalChallenges !== a.totalChallenges) return b.totalChallenges - a.totalChallenges;
-    return b.publishedAtMs - a.publishedAtMs;
+    if (b.publishedAtMs !== a.publishedAtMs) return b.publishedAtMs - a.publishedAtMs;
+    return a.summary.id < b.summary.id ? -1 : a.summary.id > b.summary.id ? 1 : 0;
   });
 
-  const summaries = bosses.slice(0, limit).map((entry) => entry.summary);
-  return jsonResponse({ ok: true, bosses: summaries }, 200);
+  const rows: PopularBossRow[] = bosses.slice(0, limit).map((entry) => ({
+    ...entry.summary,
+    unique_challengers: entry.uniqueChallengers,
+  }));
+  return jsonResponse({ ok: true, bosses: rows }, 200);
 }
 
 if (import.meta.main) {

@@ -948,3 +948,47 @@ func test_republishing_does_not_change_the_published_at_timestamp() -> void:
 # 実際のAPI呼び出し・パネル遷移の検証は上の「SIMPLE / HARDCORE / オンライン
 # / 新着」節(test_online_categories_open_the_online_list_not_the_local_list()
 # 等)へ統合済み——ここには重複するテストを追加しない。
+
+# ---------------------------------------------------------------------------
+# ■ 人気/高難度ランキングの集計対象（2026-10）
+#
+# ランキングの元になる挑戦記録へ書くのは通常のCHALLENGEだけ。Creatorの
+# TEST BATTLE / クリアチェックで勝っても、ローカルの挑戦記録(stage_stats)も
+# オンラインの記録(RBMOnlineChallengeRecorder → record-challenge-*)も使われない。
+# ---------------------------------------------------------------------------
+
+func _descendants_of_type(node: Node, script_type: Script) -> Array:
+	var found := []
+	for child in node.get_children():
+		if child.get_script() == script_type:
+			found.append(child)
+		found.append_array(_descendants_of_type(child, script_type))
+	return found
+
+func test_creator_test_battle_and_clear_check_wins_are_never_counted() -> void:
+	var main := RBMCreatorMain.new()
+	main.size = Vector2(1280, 720)
+	add_child_autofree(main)
+	await get_tree().process_frame
+	main.draft.boss_name = "集計対象外確認ボス"
+	main.draft.hp = 1
+	main.draft.atk = 1
+	main.draft.spd = 1
+	main.draft.add_party_character("hero")
+	assert_true(bool(main.press_save_as_new().get("ok", false)), "sanity: the boss has a stage_id")
+	var stage_id: String = main.current_stage_id
+
+	assert_true(bool(main.press_test_battle().get("ok", false)))
+	main._test_battle_view.act_attack(0)
+	assert_eq(main._test_battle_view.session.battle.winner, "ally", "sanity: TEST BATTLE was won")
+	main._on_test_battle_return_to_creator()
+	main.press_clear_check()
+	assert_true(bool(main.press_clear_check_start(5).get("ok", false)))
+	main._clear_check_view.act_attack(0)
+	assert_eq(main._clear_check_view.session.battle.winner, "ally", "sanity: Clear Check was won")
+
+	assert_eq(RBMLocalStageRepository.read_stage_stats(stage_id), {"challenge_count": 0, "clear_count": 0}, "neither a challenge nor a clear is recorded")
+	assert_eq(_descendants_of_type(main, RBMOnlineChallengeRecorder).size(), 0, "no online recorder exists in the Creator")
+	assert_false(main._test_battle_view.has_signal("challenge_won"))
+	assert_false(main._clear_check_view.has_signal("challenge_won"))
+	await get_tree().process_frame # drain queued UI-rebuild frees before GUT's orphan check
