@@ -22,7 +22,7 @@ const CREATE_RECT := Rect2(660.0, 365.0, 568.0, 248.0)
 func _make_root() -> RBMGameRoot:
 	get_tree().root.size = Vector2i(1280, 720)
 	var root := RBMGameRoot.new()
-	add_child_autofree(root)
+	add_child_autoqfree(root)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	return root

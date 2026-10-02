@@ -45,7 +45,7 @@ func _enter_simple_creator(root: RBMGameRoot) -> RBMCreatorMain:
 func test_switching_locale_rebuilds_creator_and_challenge_entries() -> void:
 	RBMLocale.set_locale("en")
 	var root := RBMGameRoot.new()
-	add_child_autofree(root)
+	add_child_autoqfree(root)
 	await get_tree().process_frame
 	var old_creator_id := root.creator_entry.get_instance_id()
 	var old_challenge_id := root.challenge_entry.get_instance_id()
@@ -66,7 +66,7 @@ func test_creator_shows_japanese_after_switching_from_a_stale_english_startup_lo
 	# title screen BEFORE ever entering Creator for the first time.
 	RBMLocale.set_locale("en")
 	var root := RBMGameRoot.new()
-	add_child_autofree(root)
+	add_child_autoqfree(root)
 	await get_tree().process_frame
 
 	RBMLocale.set_locale("ja")
@@ -87,7 +87,7 @@ func test_creator_shows_english_after_switching_from_japanese_startup_locale() -
 	# fixing the other one.
 	RBMLocale.set_locale("ja")
 	var root := RBMGameRoot.new()
-	add_child_autofree(root)
+	add_child_autoqfree(root)
 	await get_tree().process_frame
 
 	RBMLocale.set_locale("en")
@@ -103,7 +103,7 @@ func test_creator_shows_english_after_switching_from_japanese_startup_locale() -
 func test_navigation_still_works_normally_after_a_locale_triggered_rebuild() -> void:
 	RBMLocale.set_locale("en")
 	var root := RBMGameRoot.new()
-	add_child_autofree(root)
+	add_child_autoqfree(root)
 	await get_tree().process_frame
 	RBMLocale.set_locale("ja")
 	await get_tree().process_frame
@@ -118,7 +118,7 @@ func test_switching_locale_back_and_forth_does_not_get_stuck() -> void:
 	# a broken/mixed display.
 	RBMLocale.set_locale("ja")
 	var root := RBMGameRoot.new()
-	add_child_autofree(root)
+	add_child_autoqfree(root)
 	await get_tree().process_frame
 
 	RBMLocale.set_locale("en")

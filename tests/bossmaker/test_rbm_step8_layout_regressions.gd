@@ -99,7 +99,7 @@ func _assert_within_viewport(node: Control, viewport: Rect2, description: String
 func _make_root() -> RBMGameRoot:
 	get_tree().root.size = Vector2i(HEADLESS_WINDOW_SIZE.x, HEADLESS_WINDOW_SIZE.y)
 	var root := RBMGameRoot.new()
-	add_child_autofree(root)
+	add_child_autoqfree(root)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	return root
