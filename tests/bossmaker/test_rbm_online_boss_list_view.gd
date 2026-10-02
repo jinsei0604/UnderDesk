@@ -1,6 +1,51 @@
 extends GutTest
 
 ## Phase 4D-1 — RBMOnlineBossListViewのfake駆動テスト。実HTTPへは出ない。
+##
+## Steamからの切り離し(2026-10): 未挑戦のテストは必ず偽のSteam(RBMFakeSteamAdapter)を
+## 注入し、本物のSteamへは一切触れない。開発PCのGit管理外 steam_dev_appid.local.txt や、
+## 起動中のSteamクライアントに結果が左右されないよう、このファイルの全テストでApp IDの
+## 読み込み先をテスト専用の一時パス(既定は存在しない=未設定)へ差し替え、途中で失敗しても
+## after_each()で必ず元に戻す(test_rbm_steam_auth.gd等と同じ確立済みパターン)。
+## Steam認証ノードはadd_child_autoqfree(遅延解放)にする: チケット結果のstate_changed.emit()
+## の中でテストが最後まで進んで終わることがあり、即時free()だとemit元へ戻った時に解放済みの
+## ノードへ触れる(test_rbm_boss_publisher.gdの注記と同じ理由)。
+
+const TMP_STEAM_APPID_PATH := "user://test_steam_dev_appid_online_list_view.local.txt"
+
+## このテストで注入した偽のSteam(本物のチケットを要求していないことの確認に使う)。
+var _fake_steam: RBMFakeSteamAdapter
+
+func before_each() -> void:
+	RBMSteamConfig.set_local_dev_app_id_path_for_testing(TMP_STEAM_APPID_PATH)
+	_fake_steam = null
+
+func after_each() -> void:
+	RBMSteamConfig.set_local_dev_app_id_path_for_testing("")
+	if FileAccess.file_exists(TMP_STEAM_APPID_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP_STEAM_APPID_PATH))
+
+## 開発用App IDファイルがある状態(=RBMSteamConfig.is_configured())を、テスト専用の一時パスで作る。
+func _simulate_dev_app_id_file() -> void:
+	var file := FileAccess.open(TMP_STEAM_APPID_PATH, FileAccess.WRITE)
+	file.store_string("480")
+	file.close()
+
+## 偽のSteamを注入したRBMSteamAuth。available=falseなら「利用不可」に固定する。
+func _fake_steam_auth(available: bool, timeout_seconds := RBMSteamAuth.DEFAULT_TICKET_TIMEOUT_SECONDS) -> RBMSteamAuth:
+	_fake_steam = RBMFakeSteamAdapter.new()
+	if available:
+		_fake_steam.configure_available()
+		_fake_steam.configure_logged_on(true, 76561198000000001, "Tester")
+		_simulate_dev_app_id_file()
+	else:
+		_fake_steam.configure_unavailable()
+	var auth := RBMSteamAuth.new()
+	auth.set_adapter_for_testing(_fake_steam)
+	auth.timeout_seconds = timeout_seconds
+	add_child_autoqfree(auth)
+	auth.initialize()
+	return auth
 
 func _view_with(api: RBMFakeBossApiAdapter) -> RBMOnlineBossListView:
 	var view := RBMOnlineBossListView.new()
@@ -19,12 +64,15 @@ func _fake_api() -> RBMFakeBossApiAdapter:
 ## それぞれ別途検証済み。ここではview自身の責務——「category==UNCHALLENGED
 ## の時だけ_api_adapter.list_bosses()ではなくrecorder経由の
 ## list_unchallenged_bosses()を呼ぶ」という配線だけを検証する。
-## Steamが未設定(is_available()==false)の素のrecorderを渡す——ticket取得
-## 自体は必ず安全に失敗するので、クラッシュせず"呼ばれたかどうか"だけを
-## 見るこのテストの目的には十分。
-func _view_with_recorder(api: RBMFakeBossApiAdapter, recorder_api: RBMFakeBossApiAdapter) -> RBMOnlineBossListView:
+## recorderには「利用不可」に固定した偽のSteamを注入する(既定)——ticket取得は
+## 本物のSteamへ行かずに必ず安全に失敗するので、クラッシュせず"呼ばれたかどうか"
+## だけを見るこのテストの目的には十分。authを渡せば成功/失敗/timeoutの経路も作れる。
+func _view_with_recorder(api: RBMFakeBossApiAdapter, recorder_api: RBMFakeBossApiAdapter, auth: RBMSteamAuth = null) -> RBMOnlineBossListView:
+	if auth == null:
+		auth = _fake_steam_auth(false)
 	var recorder := RBMOnlineChallengeRecorder.new()
 	add_child_autofree(recorder)
+	recorder.set_steam_auth_for_testing(auth)
 	recorder.set_api_adapter_for_testing(recorder_api)
 	var view := RBMOnlineBossListView.new()
 	view.set_api_adapter_for_testing(api)
@@ -172,10 +220,11 @@ func test_unchallenged_category_calls_the_recorder_not_the_plain_list_api() -> v
 	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_UNCHALLENGED, "未挑戦")
 
 	assert_eq(api.list_calls.size(), 0, "未挑戦はlist-bossesではなくlist-unchallenged-bosses経由でなければならない")
-	assert_true(view._status_label.text.length() > 0, "sanity: ticket acquisition fails safely (Steam not configured in tests) and must still show a status message, not crash")
+	assert_true(view._status_label.text.length() > 0, "sanity: ticket acquisition fails safely (Steam is fixed unavailable by the injected fake) and must still show a status message, not crash")
+	_assert_no_real_steam_and_no_ticket(view)
 
 func test_unchallenged_category_forwards_the_current_mode_to_the_recorder() -> void:
-	# ticket取得自体は失敗するが(Steam未設定)、_recorder.list_unchallenged_bosses()
+	# ticket取得自体は失敗するが(偽のSteamを利用不可に固定)、_recorder.list_unchallenged_bosses()
 	# 呼び出し自体がmodeを正しく受け取って渡すことは、recorderがticketを
 	# 取得する前にmode引数を保持している時点で検証できる——ここでは
 	# view.current_mode()がrefresh_with()の引数どおり更新されることを確認する
@@ -190,6 +239,66 @@ func test_unchallenged_category_forwards_the_current_mode_to_the_recorder() -> v
 	assert_eq(view.current_mode(), RBMCreatorDraft.CREATOR_MODE_ADVANCED)
 	assert_eq(view.current_category(), RBMOnlineBossListView.CATEGORY_UNCHALLENGED)
 	assert_eq(api.list_calls.size(), 0)
+	_assert_no_real_steam_and_no_ticket(view)
+
+## 未挑戦の取得に使ったrecorderが、注入した偽のSteamを使い(本物のRBMSteamAuth/
+## RBMSteamAdapterを自分で作っていない)、チケットを1枚も要求していないこと。
+func _assert_no_real_steam_and_no_ticket(view: RBMOnlineBossListView) -> void:
+	var recorder: RBMOnlineChallengeRecorder = view._recorder
+	assert_true(recorder._steam_auth.adapter_for_testing() is RBMFakeSteamAdapter, "the recorder uses the injected fake Steam")
+	assert_eq(recorder._steam_auth.adapter_for_testing(), _fake_steam)
+	for child in recorder.get_children():
+		assert_false(child is RBMSteamAuth, "the recorder never builds its own (real) Steam auth")
+	assert_false(recorder._steam_auth.is_available(), "Steam is fixed unavailable")
+	assert_eq(_fake_steam.last_issued_handle(), 0, "no Steam ticket was requested")
+
+## 開発PCのように開発用App IDファイルがあっても(=RBMSteamConfig.is_configured())、
+## 未挑戦のテストは偽のSteamだけを使い、本物のSteamへチケットを要求しない。
+func test_unchallenged_tests_never_reach_real_steam_even_with_a_dev_app_id_file() -> void:
+	_simulate_dev_app_id_file()
+	assert_true(RBMSteamConfig.is_configured(), "sanity: the dev App ID file is visible, like on a developer PC")
+	var api := _fake_api()
+	var recorder_api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(recorder_api)
+	var view := _view_with_recorder(api, recorder_api)
+
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_UNCHALLENGED, "未挑戦")
+	_assert_no_real_steam_and_no_ticket(view)
+	assert_eq(recorder_api.list_unchallenged_calls.size(), 0, "without a ticket the server is never asked either")
+
+## 偽のSteamが使える状態での各経路(成功は次のtest_unchallenged_category_renders_bosses_the_recorder_returns)。
+## どの経路でも本物のSteamへは行かず、Steam認証ノードは遅延解放なので、チケット結果の
+## emitの中でテストが終わっても解放済みのノードに触れない。
+func test_unchallenged_ticket_failure_shows_the_error_without_rows() -> void:
+	var api := _fake_api()
+	var recorder_api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(recorder_api)
+	var view := _view_with_recorder(api, recorder_api, _fake_steam_auth(true))
+	_fake_steam.fire_ticket_response.call_deferred(1, RBMSteamAdapter.RESULT_OK + 1, 0, PackedByteArray())
+
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_UNCHALLENGED, "未挑戦")
+	assert_eq(view._rows_container.get_child_count(), 0)
+	assert_true(view._status_label.text.contains("steam_ticket_failed"), "the failure is shown")
+	assert_eq(_fake_steam.last_issued_handle(), 1, "the fake (not real Steam) issued the ticket handle")
+	assert_true(_fake_steam.cancelled_handles().has(1), "the failed handle is cancelled")
+	assert_eq(recorder_api.list_unchallenged_calls.size(), 0)
+
+func test_unchallenged_ticket_timeout_shows_the_error_without_rows() -> void:
+	var api := _fake_api()
+	var recorder_api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(recorder_api)
+	# コールバックを一度も送らない -> 0.1秒のtimeout経路(以前クラッシュした経路と同じ)
+	var view := _view_with_recorder(api, recorder_api, _fake_steam_auth(true, 0.1))
+
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_UNCHALLENGED, "未挑戦")
+	assert_eq(view._rows_container.get_child_count(), 0)
+	assert_true(view._status_label.text.contains("steam_ticket_failed"), "the timeout is shown")
+	assert_eq(_fake_steam.last_issued_handle(), 1)
+	# RBMSteamAuth._on_timeout()はfailedを知らせた後でhandleを返すので、1フレーム待ってから確かめる
+	# (この間もSteam認証ノードは遅延解放なので生きている)。
+	await get_tree().process_frame
+	assert_true(_fake_steam.cancelled_handles().has(1), "the timed-out handle is cancelled")
+	assert_eq(recorder_api.list_unchallenged_calls.size(), 0)
 
 func test_unchallenged_category_renders_bosses_the_recorder_returns() -> void:
 	var api := _fake_api()
@@ -211,10 +320,8 @@ func test_unchallenged_category_renders_bosses_the_recorder_returns() -> void:
 	var auth := RBMSteamAuth.new()
 	auth.set_adapter_for_testing(fake_steam)
 	add_child_autoqfree(auth)
-	RBMSteamConfig.set_local_dev_app_id_path_for_testing("user://test_steam_dev_appid_online_list_view.local.txt")
-	var file := FileAccess.open("user://test_steam_dev_appid_online_list_view.local.txt", FileAccess.WRITE)
-	file.store_string("480")
-	file.close()
+	# App IDの読み込み先はbefore_each()でテスト専用の一時パスへ差し替え済み(after_each()で必ず戻す)
+	_simulate_dev_app_id_file()
 	auth.initialize()
 	recorder.set_steam_auth_for_testing(auth)
 	recorder_api.configure_list_unchallenged_response({
@@ -235,10 +342,6 @@ func test_unchallenged_category_renders_bosses_the_recorder_returns() -> void:
 
 	assert_eq(view._rows_container.get_child_count(), 1)
 	assert_eq(view._status_label.text, "")
-
-	RBMSteamConfig.set_local_dev_app_id_path_for_testing("")
-	if FileAccess.file_exists("user://test_steam_dev_appid_online_list_view.local.txt"):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_steam_dev_appid_online_list_view.local.txt"))
 
 ## サーバー側(list-bosses)が既にpublished_at降順で返す前提——クライアントは
 ## 受け取った順のままカードを並べる(再ソートしない)。

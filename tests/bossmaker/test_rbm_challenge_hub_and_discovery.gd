@@ -176,11 +176,25 @@ func _fake_online_api() -> RBMFakeBossApiAdapter:
 	add_child_autofree(api)
 	return api
 
+## 「未挑戦」を開くテストが本物のSteamへチケットを要求しないよう(2026-10)、Steamを利用不可に
+## 固定した偽のrecorderを必ず渡す——渡さないとentryが本物のRBMOnlineChallengeRecorder/
+## RBMSteamAuthを作り、開発PCのsteam_dev_appid.local.txtと起動中のSteamクライアントに左右される。
 func _entry_with_online_api(api: RBMFakeBossApiAdapter) -> RBMChallengeEntry:
 	var entry := RBMChallengeEntry.new()
 	entry.set_online_api_adapter_for_testing(api)
+	entry.set_online_recorder_for_testing(_offline_recorder())
 	add_child_autofree(entry)
 	return entry
+
+func _offline_recorder() -> RBMOnlineChallengeRecorder:
+	var auth := _ready_steam_auth_for_recorder(false, false)
+	var recorder_api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(recorder_api)
+	var recorder := RBMOnlineChallengeRecorder.new()
+	add_child_autofree(recorder)
+	recorder.set_steam_auth_for_testing(auth)
+	recorder.set_api_adapter_for_testing(recorder_api)
+	return recorder
 
 ## Steam App ID環境分離——他のSteam関連テストと同じ確立済みパターン
 ## (test_rbm_steam_auth.gd/test_rbm_boss_publisher.gd参照)。

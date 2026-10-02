@@ -17,7 +17,10 @@ func _stage(session: RBMCreatorTestSession) -> RBMBattleStage:
 	result.size = Vector2(1280,720)
 	result.set_meta("fullscreen_formation",true)
 	add_child_autofree(result)
-	result.configure(session.battle,"appearance_dragon")
+	# 決め技そのものを確かめるテストなので、相手は専用外見(=専用演出)を持たないボスにする。
+	# 竜などの専用演出は長さが別々に決まっているため、決め技の後の反撃の長さに結果が左右されない
+	# ように(2026-10、竜の専用攻撃が加わって「4.9秒で全部終わる」が成り立たなくなったため)。
+	result.configure(session.battle,"")
 	result.set_state(session.battle.presentation_state())
 	return result
 

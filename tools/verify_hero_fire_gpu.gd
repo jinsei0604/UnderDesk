@@ -37,10 +37,17 @@ func _run() -> void:
 		for entry in seen:
 			if str(entry.get("skill_id",""))=="hero_burst_slash":hero_events+=1
 		if hero_events!=1:_fail(mode+": hero impact count")
+		# 勇者の決め技の後には相手(竜)の専用攻撃が続き、その長さは竜の演出で決まる。決まった
+		# フレーム数ではなく、全部の再生が終わるまで待ってから片付きを確かめる(上限600フレーム。
+		# 2026-10、竜の専用攻撃が420フレームを少し越えるようになったため)。撮影する場面は変えない。
+		var follow_frames:=0
+		while stage.is_playing() and follow_frames<600:
+			await process_frame
+			follow_frames+=1
 		if stage.is_playing() or stage._hero_fire.visible or stage._hero_shake!=Vector2.ZERO:_fail(mode+": unfinished visuals")
 		if ages.is_empty() or ages.max()<2.0:_fail(mode+": finish did not run fully")
 		if view.session.battle.snapshot()!=resolved:_fail(mode+": simulation changed during playback")
-		report["cases"].append({"mode":mode,"hero_impacts":hero_events,"finish_observed":not ages.is_empty(),"simulation_unchanged":view.session.battle.snapshot()==resolved})
+		report["cases"].append({"mode":mode,"hero_impacts":hero_events,"finish_observed":not ages.is_empty(),"simulation_unchanged":view.session.battle.snapshot()==resolved,"frames_after_window_until_finished":follow_frames})
 		await _close_view()
 	report["case_count"]=report["cases"].size()
 	report["passed"]=report["errors"].is_empty()

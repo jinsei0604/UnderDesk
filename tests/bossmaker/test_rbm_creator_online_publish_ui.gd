@@ -84,7 +84,10 @@ func _ready_steam_auth(available := true, logged_on := true) -> RBMSteamAuth:
 	fake.configure_logged_on(logged_on, 76561198000000001, "Tester")
 	var auth := RBMSteamAuth.new()
 	auth.set_adapter_for_testing(fake)
-	add_child_autofree(auth)
+	# add_child_autoqfree(遅延解放)、add_child_autofreeではない: チケット結果のstate_changed.emit()
+	# の中でテストが最後まで進んで終わると、即時free()ではemit元へ戻った時に解放済みのノードへ
+	# 触れる(test_rbm_boss_publisher.gdの注記と同じ理由。2026-10、同じ型の危険の予防)。
+	add_child_autoqfree(auth)
 	auth.initialize()
 	return auth
 
