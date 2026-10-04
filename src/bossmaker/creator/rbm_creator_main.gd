@@ -50,6 +50,11 @@ signal exited  ## §36: 未保存確認を解決した（または元々不要�
 ## 保存済みボス一覧（_show_list()）へ直接戻るためだけに使う。
 signal exited_to_saved_list
 
+## ウィンドウ終了要求(右上の×/Alt+F4)から開いた既存の未保存確認で「保存せず
+## 終了」が確定された通知。Creator画面から退出するだけの`exited`とは別物——
+## こちらはゲーム自体の終了を意味し、RBMGameRootが購読して終了処理へ進む。
+signal quit_confirmed
+
 var _world_ui = preload("res://src/bossmaker/rbm_world_ui.gd").new()
 
 var draft: RBMCreatorDraft = RBMCreatorDraft.new()
@@ -91,6 +96,10 @@ var _return_to_summary_button: Button
 
 var _exit_button: Button
 var _exit_confirm_panel: PanelContainer
+## 既存の未保存確認パネルが、Creator退出(戻る/作成終了)ではなくウィンドウ
+## 終了要求のために開かれているか。パネル自体・判定・文言は共通で、「保存せず
+## 終了」の行き先だけをこのフラグで切り替える(パネルが閉じたら必ず戻る)。
+var _exit_confirm_for_window_close := false
 
 var _appearance_picker: RBMCreatorAppearancePicker
 var _test_battle_view: RBMCreatorTestBattleView
@@ -251,6 +260,11 @@ func _build_ui() -> void:
 	## 他パネルと同じ「囲まれたカード」に統一する——確認内容・ボタン構成は
 	## 無改修。
 	_exit_confirm_panel.add_theme_stylebox_override("panel", RBMCreatorUiKit.panel_box())
+	## パネルがどの経路で閉じても(保存する/保存せず終了/キャンセル/画面切替)、
+	## ウィンドウ終了要求用の状態を持ち越さない。
+	_exit_confirm_panel.visibility_changed.connect(func():
+		if not _exit_confirm_panel.visible:
+			_exit_confirm_for_window_close = false)
 	root_column.add_child(_exit_confirm_panel)
 	var exit_confirm_column := VBoxContainer.new()
 	exit_confirm_column.name = "ExitConfirmColumn"
@@ -628,6 +642,18 @@ func press_exit_creator() -> void:
 	else:
 		exited.emit()
 
+## ウィンドウ終了要求(右上の×/Alt+F4)。「戻る/作成終了」と同じ
+## has_unsaved_changes()で判定し、未保存変更があれば同じ確認パネルを開いて
+## trueを返す(呼び出し側は終了を止める)。未保存変更が無ければfalse(そのまま
+## 終了してよい)。確認中の再要求はパネルが既に開いているため何も増やさず、
+## 常にtrue(終了は止めたまま)を返す。
+func request_window_close() -> bool:
+	if not has_unsaved_changes():
+		return false
+	_exit_confirm_for_window_close = true
+	_exit_confirm_panel.visible = true
+	return true
+
 ## §36「保存する」: 通常の保存フロー（STEP7の保存ボタンと同じ画面）へ進む。
 ## 既存stageだからといって自動上書きはしない——ユーザーが上書き/新しい
 ## ボスとして保存を選べる既存の保存画面（RBMCreatorSaveView）にそのまま
@@ -640,8 +666,14 @@ func _on_exit_confirm_save_pressed() -> void:
 
 ## §36「保存せず終了」: 編集中の変更を破棄してCreator自体を退出する。
 func _on_exit_confirm_discard_pressed() -> void:
+	## パネルを閉じるとフラグが戻るため、先に読んでおく。ウィンドウ終了要求
+	## から開いた確認なら、Creator退出ではなくゲーム終了へ進む。
+	var quit_game := _exit_confirm_for_window_close
 	_exit_confirm_panel.visible = false
-	exited.emit()
+	if quit_game:
+		quit_confirmed.emit()
+	else:
+		exited.emit()
 
 ## §36「キャンセル」: 何も起こさずCreatorへ戻る。
 func _on_exit_confirm_cancel_pressed() -> void:

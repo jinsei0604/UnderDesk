@@ -32,7 +32,15 @@ var _top_monitor_battle: RBMHomeTopMonitorBattlePreview
 var creator_entry: RBMCreatorEntry
 var challenge_entry: RBMChallengeEntry
 
+## ウィンドウ終了(右上の×/Alt+F4)。SceneTreeの自動終了は止め、Creator編集中で
+## 未保存変更がある時だけ、Creator既存の未保存確認を通してから終了する。
+## 空でなければget_tree().quit()の代わりに呼ぶ(テストが実際にプロセスを
+## 終了させずに「終了へ進んだこと」を検証するためのフック)。
+var quit_action: Callable = Callable()
+var _quit_started := false
+
 func _ready() -> void:
+	get_tree().auto_accept_quit = false
 	## Step 8 最終最小修正 §1: このシーンルート自身にはControlの親が存在
 	## しないため、サイズはビューポートに対して手動で同期する必要がある
 	## （project.godotのwindow/stretch/mode="canvas_items"設定下で、単純に
@@ -67,6 +75,39 @@ func _ready() -> void:
 	_se_audio = preload("res://src/bossmaker/rbm_audio.gd").for_owner(self)
 	_se_audio.bind_ui(self)
 	get_tree().node_added.connect(_se_node_added)
+
+func _exit_tree() -> void:
+	if is_inside_tree():
+		get_tree().auto_accept_quit = true
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		request_quit()
+
+## 右上の×/Alt+F4によるウィンドウ終了要求の入口。Creator編集画面が表示中で
+## 未保存変更があれば、Creator既存の確認パネルを開いて終了を止める(確認中の
+## 連打でも新しいパネルは増えず、終了もすり抜けない)。それ以外(タイトル/
+## ホーム/Challenge/Creatorでも未保存変更なし)は確認せずそのまま終了する。
+func request_quit() -> void:
+	if _quit_started:
+		return
+	if _is_creator_editing() and creator_entry.main.request_window_close():
+		return
+	_quit_game()
+
+func _is_creator_editing() -> bool:
+	return is_instance_valid(creator_entry) and creator_entry.visible and creator_entry.main != null and creator_entry.main.visible
+
+## 実際の終了。一度始めたら再入しない(確認済みの終了が再び確認を呼ぶ
+## ループにならないよう、get_tree().quit()自体は終了要求を再送しない)。
+func _quit_game() -> void:
+	if _quit_started:
+		return
+	_quit_started = true
+	if quit_action.is_valid():
+		quit_action.call()
+	else:
+		get_tree().quit()
 
 func _on_root_window_size_changed() -> void:
 	_sync_size_to_viewport()
@@ -358,6 +399,9 @@ func _build_creator_entry() -> void:
 	creator_entry.visible = false
 	creator_entry.exit_requested.connect(_on_creator_exit_requested)
 	add_child(creator_entry)
+	## ウィンドウ終了要求から開いたCreator既存の未保存確認で「保存せず終了」が
+	## 確定された時の終了(mainはEntryの_ready()でadd_child時に構築済み)。
+	creator_entry.main.quit_confirmed.connect(_quit_game)
 
 func _build_challenge_entry() -> void:
 	challenge_entry = RBMChallengeEntry.new()
