@@ -378,7 +378,7 @@ func test_step3_long_action_editor_scrolls_to_bottom_without_overlapping_form_or
 	## 条件カードを十分積み、フォーム展開後のcontentを確実にviewportより高くする。
 	for turn in range(1, 13):
 		_btn(advanced, "AddConditionButton").pressed.emit()
-		advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_CONDITION_TYPES.find("turn_at"))
+		advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES.find("turn_at"))
 		advanced._on_condition_type_selected(advanced._condition_type_option.selected)
 		advanced._condition_turn_spin.value = float(turn)
 	await get_tree().process_frame

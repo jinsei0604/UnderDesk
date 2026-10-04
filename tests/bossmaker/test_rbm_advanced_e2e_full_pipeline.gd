@@ -170,7 +170,7 @@ func _build_composite_advanced_draft(creator: RBMCreatorMain) -> Dictionary:
 	advanced._form._name_edit.text = "怒りの一撃"
 	advanced._form._attack_multiplier_spin.value = 0.3
 	_btn(advanced, "AddConditionButton").pressed.emit()
-	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_CONDITION_TYPES.find("turn_at_least"))
+	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES.find("turn_at_least"))
 	advanced._on_condition_type_selected(advanced._condition_type_option.selected)
 	advanced._condition_turn_spin.value = 3.0
 	assert_eq(advanced._pending_conditions.size(), 1)
