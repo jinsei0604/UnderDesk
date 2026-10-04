@@ -1,6 +1,6 @@
 {
 	"id": "healer",
-	"display_name": "雷属性・少女ヒーラー",
+	"display_name": "雷属性・少女",
 	"attribute": "LIGHTNING",
 	"hp": 800,
 	"atk": 140,
