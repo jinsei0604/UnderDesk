@@ -60,5 +60,9 @@ const FILES := {
   "lightning_impact_light": "res://assets_bossmaker/audio/lightning_impact_light.wav",
   "lightning_impact_heavy": "res://assets_bossmaker/audio/lightning_impact_heavy.wav",
   "lightning_burst": "res://assets_bossmaker/audio/lightning_burst.wav",
-  "lightning_end": "res://assets_bossmaker/audio/lightning_end.wav"
+  "lightning_end": "res://assets_bossmaker/audio/lightning_end.wav",
+  "hammer_swing": "res://assets_bossmaker/audio/hammer_swing.wav",
+  "hammer_impact": "res://assets_bossmaker/audio/hammer_impact.wav",
+  "hammer_burst": "res://assets_bossmaker/audio/hammer_burst.wav",
+  "hammer_burst_second": "res://assets_bossmaker/audio/hammer_burst_second.wav"
 }
