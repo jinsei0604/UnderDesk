@@ -656,6 +656,7 @@ class BossProfilePanel:
 		custom_minimum_size = Vector2(WIDTH_PX, 0.0)
 		var scroll := ScrollContainer.new()
 		scroll.name = "BossProfileScroll"
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 		add_child(scroll)
 		var column := VBoxContainer.new()

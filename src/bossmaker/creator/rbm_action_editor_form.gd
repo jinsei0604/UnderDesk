@@ -39,8 +39,10 @@ const AWAKENING := "awakening"
 const TYPE_LABELS := {ATTACK: "攻撃", SELF_HEAL: "自己回復", ATK_SELF_BUFF: "ATK自己強化", AWAKENING: "覚醒"}
 const TYPE_IDS := [ATTACK, SELF_HEAL, ATK_SELF_BUFF, AWAKENING]
 
-const SLIDER_MIN_SIZE := Vector2(320.0, 28.0)
-const NAME_EDIT_MIN_SIZE := Vector2(360.0, 32.0)
+## 横幅は表示領域に合わせて伸縮する(EXPAND_FILL)ための下限——旧320pxの固定最小幅は
+## STEP3の中央エリア(左右余白込みで約400px)を押し広げ、横スクロールを生んでいた。
+const SLIDER_MIN_SIZE := Vector2(96.0, 28.0)
+const NAME_EDIT_MIN_SIZE := Vector2(160.0, 32.0)
 const STAT_SPIN_MIN_SIZE_LARGE := Vector2(170.0, 32.0)
 const STAT_SPIN_MIN_SIZE_DEFAULT := Vector2(120.0, 32.0)
 
@@ -152,6 +154,7 @@ func _build_ui() -> void:
 	_name_edit = LineEdit.new()
 	_name_edit.name = "ActionNameEdit"
 	_name_edit.custom_minimum_size = NAME_EDIT_MIN_SIZE
+	_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_name_row.add_child(_name_edit)
 
 	var type_row := HBoxContainer.new()
@@ -238,6 +241,7 @@ func _build_attack_fields(parent: Control) -> void:
 	_attack_multiplier_slider.max_value = 100.0
 	_attack_multiplier_slider.step = 0.01
 	_attack_multiplier_slider.custom_minimum_size = SLIDER_MIN_SIZE
+	_attack_multiplier_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mult_row.add_child(_attack_multiplier_slider)
 	_attack_multiplier_spin = SpinBox.new()
 	_attack_multiplier_spin.name = "AttackMultiplierSpin"
@@ -281,6 +285,7 @@ func _build_self_heal_fields(parent: Control) -> void:
 	_self_heal_fixed_slider.max_value = 1000000
 	_self_heal_fixed_slider.step = 1
 	_self_heal_fixed_slider.custom_minimum_size = SLIDER_MIN_SIZE
+	_self_heal_fixed_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fixed_row.add_child(_self_heal_fixed_slider)
 	_self_heal_fixed_spin = SpinBox.new()
 	_self_heal_fixed_spin.name = "SelfHealFixedSpin"
@@ -306,6 +311,7 @@ func _build_self_heal_fields(parent: Control) -> void:
 	_self_heal_percent_slider.max_value = 100.0
 	_self_heal_percent_slider.step = 0.1
 	_self_heal_percent_slider.custom_minimum_size = SLIDER_MIN_SIZE
+	_self_heal_percent_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	percent_row.add_child(_self_heal_percent_slider)
 	_self_heal_percent_spin = SpinBox.new()
 	_self_heal_percent_spin.name = "SelfHealPercentSpin"
@@ -336,6 +342,7 @@ func _build_atk_buff_fields(parent: Control) -> void:
 	_atk_buff_multiplier_slider.max_value = 100.0
 	_atk_buff_multiplier_slider.step = 0.01
 	_atk_buff_multiplier_slider.custom_minimum_size = SLIDER_MIN_SIZE
+	_atk_buff_multiplier_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mult_row.add_child(_atk_buff_multiplier_slider)
 	_atk_buff_multiplier_spin = SpinBox.new()
 	_atk_buff_multiplier_spin.name = "AtkBuffMultiplierSpin"
@@ -398,6 +405,7 @@ func _build_awakening_fields(parent: Control) -> void:
 	_awakening_buff_multiplier_slider.max_value = 100.0
 	_awakening_buff_multiplier_slider.step = 0.01
 	_awakening_buff_multiplier_slider.custom_minimum_size = SLIDER_MIN_SIZE
+	_awakening_buff_multiplier_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	buff_mult_row.add_child(_awakening_buff_multiplier_slider)
 	_awakening_buff_multiplier_spin = SpinBox.new()
 	_awakening_buff_multiplier_spin.name = "AwakeningBuffMultiplierSpin"
@@ -464,6 +472,7 @@ func _build_awakening_fields(parent: Control) -> void:
 	_awakening_heal_fixed_slider.max_value = 1000000
 	_awakening_heal_fixed_slider.step = 1
 	_awakening_heal_fixed_slider.custom_minimum_size = SLIDER_MIN_SIZE
+	_awakening_heal_fixed_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	heal_fixed_row.add_child(_awakening_heal_fixed_slider)
 	_awakening_heal_fixed_spin = SpinBox.new()
 	_awakening_heal_fixed_spin.name = "AwakeningHealFixedSpin"
@@ -489,6 +498,7 @@ func _build_awakening_fields(parent: Control) -> void:
 	_awakening_heal_percent_slider.max_value = 100.0
 	_awakening_heal_percent_slider.step = 0.1
 	_awakening_heal_percent_slider.custom_minimum_size = SLIDER_MIN_SIZE
+	_awakening_heal_percent_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	heal_percent_row.add_child(_awakening_heal_percent_slider)
 	_awakening_heal_percent_spin = SpinBox.new()
 	_awakening_heal_percent_spin.name = "AwakeningHealPercentSpin"

@@ -63,6 +63,8 @@ func _build_ui() -> void:
 	_scroll_container = ScrollContainer.new()
 	_scroll_container.name = "Step3SimpleScroll"
 	_scroll_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	## 横スクロールは無し(縦のみ)。子コンテンツは表示幅へ収める。
+	_scroll_container.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(_scroll_container)
 
 	var margin := MarginContainer.new()

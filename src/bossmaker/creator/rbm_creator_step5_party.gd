@@ -118,10 +118,14 @@ func _build_ui() -> void:
 	var card_scroll := ScrollContainer.new()
 	card_scroll.name = "PartyCardScroll"
 	card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	## パーティは最大MAX_PARTY_SIZE(4)人で、カードは表示幅を等分して収める
+	## (下の_build_party_card()参照)——横スクロールは不要。
+	card_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	column.add_child(card_scroll)
 	_party_card_list = HBoxContainer.new()
 	_party_card_list.name = "PartyCardList"
 	_party_card_list.add_theme_constant_override("separation", 10)
+	_party_card_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card_scroll.add_child(_party_card_list)
 
 	var add_row := HBoxContainer.new()
@@ -177,6 +181,7 @@ func _build_ui() -> void:
 	tab_scroll.name = "SelectedCharacterTabScroll"
 	tab_scroll.custom_minimum_size = Vector2(0.0, PERFORMANCE_SCROLL_HEIGHT_PX)
 	tab_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tab_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_selected_settings_panel.add_child(tab_scroll)
 	_tab_content = VBoxContainer.new()
 	_tab_content.name = "SelectedCharacterTabContent"
@@ -289,6 +294,9 @@ func _build_party_card(character_id: String) -> void:
 	var master := draft.master_character_def(character_id)
 	var card := PanelContainer.new()
 	card.name = "PartyCard_%s" % character_id
+	## 全カードが同じ幅で表示幅を等分する(名前の長さでカード列の最小幅が
+	## 押し広がって、横スクロールが必要になることが無いように)。
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_party_card_list.add_child(card)
 	var column := VBoxContainer.new()
 	card.add_child(column)
@@ -297,6 +305,8 @@ func _build_party_card(character_id: String) -> void:
 	select_button.name = "SelectCharacterButton_%s" % character_id
 	select_button.text = tr(str(master.get("display_name", character_id)))
 	select_button.toggle_mode = true
+	## 等分した幅に収まらない長い名前は、切らずにボタン内で折り返す。
+	select_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	select_button.button_pressed = (character_id == _selected_character_id)
 	select_button.pressed.connect(select_character.bind(character_id))
 	column.add_child(select_button)

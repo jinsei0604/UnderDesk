@@ -204,6 +204,9 @@ func _build_ui() -> void:
 	_scroll_container = ScrollContainer.new()
 	_scroll_container.name = "Step3AdvancedScroll"
 	_scroll_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	## 横スクロールは無し(縦のみ)。子コンテンツは表示幅へ収める(EXPAND_FILL/
+	## 折り返し/最小幅の縮小)ことで実現しており、単に隠しているのではない。
+	_scroll_container.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(_scroll_container)
 
 	var margin := MarginContainer.new()
@@ -589,6 +592,10 @@ func _build_skill_slot_view() -> VBoxContainer:
 	view.add_child(_skill_slot_performance_summary_row)
 	_skill_slot_performance_summary_label = Label.new()
 	_skill_slot_performance_summary_label.name = "SkillSlotPerformanceSummaryLabel"
+	## 長い行動名/性能サマリーが行の最小幅を押し広げて横スクロールを生まない
+	## よう、残り幅いっぱいへ広げて折り返す(表示内容は無改修)。
+	_skill_slot_performance_summary_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_skill_slot_performance_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_skill_slot_performance_summary_row.add_child(_skill_slot_performance_summary_label)
 	var edit_performance_button := Button.new()
 	edit_performance_button.name = "SkillSlotEditPerformanceButton"
@@ -1388,6 +1395,13 @@ func _build_condition_editor() -> void:
 		_condition_attribute_option.add_item(tr(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute, attribute))))
 	_condition_attribute_row.add_child(_condition_attribute_option)
 
+	# 最長の選択肢に合わせて幅を確保する既定(fit_to_longest_item)のままだと、
+	# 長い行動名/味方スキル名が条件エディタ全体の最小幅を押し広げるため、
+	# 現在の選択に合わせて表示し、はみ出す分は省略表示にする。
+	for option in [_condition_type_option, _condition_character_option, _condition_boss_skill_option, _condition_ally_skill_option, _condition_attribute_option]:
+		(option as OptionButton).fit_to_longest_item = false
+		(option as OptionButton).clip_text = true
+		(option as OptionButton).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	# 「追加する」「キャンセル」の二段階確定は持たない——どの入力も変更された
 	# 瞬間に、紐付いている条件(_editing_condition_index)へ即時反映する。
 	# 外側の保存/キャンセルだけが確定/破棄の手段。
@@ -1418,6 +1432,9 @@ func _rebuild_condition_list() -> void:
 		row.name = "ConditionRow_%d" % i
 		var label := Label.new()
 		label.text = RBMActionPatternSummary.condition_line(condition, draft)
+		## 長い行動名を含む条件文が親幅を押し広げないよう、残り幅で折り返す。
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		row.add_child(label)
 		var delete_button := Button.new()
 		delete_button.name = "RemoveConditionButton_%d" % i
