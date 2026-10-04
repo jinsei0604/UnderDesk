@@ -80,13 +80,13 @@ func _config_error() -> Dictionary:
 	if RBMSupabaseConfig.url().is_empty():
 		return {
 			"ok": false, "error_kind": "not_configured_url", "http_status": -1,
-			"message": "SUPABASE_URLが設定されていません（環境変数、または supabase_poc.local.env）。",
+			"message": tr("SUPABASE_URLが設定されていません（環境変数、または supabase_poc.local.env）。"),
 			"supabase_message": "", "supabase_code": "", "rows": [],
 		}
 	if RBMSupabaseConfig.publishable_key().is_empty():
 		return {
 			"ok": false, "error_kind": "not_configured_key", "http_status": -1,
-			"message": "SUPABASE_PUBLISHABLE_KEYが設定されていません（環境変数、または supabase_poc.local.env）。",
+			"message": tr("SUPABASE_PUBLISHABLE_KEYが設定されていません（環境変数、または supabase_poc.local.env）。"),
 			"supabase_message": "", "supabase_code": "", "rows": [],
 		}
 	return {}

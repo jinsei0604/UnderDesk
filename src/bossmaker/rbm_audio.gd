@@ -95,9 +95,27 @@ func _hover(button: BaseButton) -> void:
 	_cursor_time = now
 	play_sound("ui_cursor")
 
+## ボタンの表示文字列から「戻る/キャンセル/終了」系かどうかを判定し、
+## SEを出し分ける（純粋に演出用の推定であり、ゲームロジックには一切
+## 関与しない）。言語切替でtext自体が英語表記("Back"/"Cancel"/"Exit"等)
+## になっても同じ判定になるよう、日本語・英語どちらのキーワードも見る。
+const _CANCEL_KEYWORDS_JA := ["戻", "キャンセル", "終了"]
+const _CANCEL_KEYWORDS_EN := ["back", "cancel", "exit", "quit"]
+
 func _button(button: BaseButton) -> void:
 	if button.disabled or not button.is_visible_in_tree(): return
 	var label: String = button.text if button is Button else str(button.name)
-	play_sound("ui_cancel" if label.contains("戻") or label.contains("キャンセル") or label.contains("終了") else "ui_confirm")
+	var label_lower := label.to_lower()
+	var is_cancel := false
+	for keyword in _CANCEL_KEYWORDS_JA:
+		if label.contains(keyword):
+			is_cancel = true
+			break
+	if not is_cancel:
+		for keyword in _CANCEL_KEYWORDS_EN:
+			if label_lower.contains(keyword):
+				is_cancel = true
+				break
+	play_sound("ui_cancel" if is_cancel else "ui_confirm")
 
 

@@ -90,7 +90,7 @@ func adapter_for_testing() -> RBMSteamAdapter:
 func initialize() -> Dictionary:
 	_ensure_setup()
 	if not RBMSteamConfig.is_configured():
-		_init_result = {"status": -1, "verbal": "STEAM_APP_ID未設定（環境変数、または steam_dev_appid.local.txt）。"}
+		_init_result = {"status": -1, "verbal": tr("STEAM_APP_ID未設定（環境変数、または steam_dev_appid.local.txt）。")}
 		_available = false
 		return _init_result
 
