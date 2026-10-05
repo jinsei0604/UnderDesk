@@ -390,7 +390,7 @@ func test_equal_ally_spd_uses_party_order_and_clear_check_tracks_that_order() ->
 	draft.party_character_ids = ["tank", "hero"]
 	assert_false(draft.is_clear_check_currently_valid(), "party order changes the equal-SPD tie-break and must invalidate")
 	var reordered := RBMDefinitionLoader.start_battle(draft.to_definition(), 1)
-	assert_eq(str((reordered["battle"] as RBMBattle).party[0].display_name), "無属性・巨大な筋肉のハンマー使い")
+	assert_eq(str((reordered["battle"] as RBMBattle).party[0].display_name), "無属性・ハンマー使い")
 
 func test_clear_check_snapshot_contains_order_stats_allowed_skills_and_effective_values() -> void:
 	var draft := _draft()

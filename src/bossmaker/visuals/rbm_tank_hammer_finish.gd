@@ -1,6 +1,6 @@
 extends Node2D
 
-## 無属性・巨大な筋肉のハンマー使い(tank)「渾身の一撃」フィニッシュ。
+## 無属性・ハンマー使い(tank)「渾身の一撃」フィニッシュ。
 ## rbm_hero_fire_finish.gd/rbm_butler_ice_finish.gd/rbm_healer_lightning_
 ## finish.gd/rbm_samurai_wind_finish.gdと同じ手法(px/poly/stroke、外部
 ## からageを渡されるだけのNode2D)を踏襲する。

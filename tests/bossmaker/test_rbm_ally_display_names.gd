@@ -25,6 +25,14 @@ func test_girl_display_name_is_short_and_consistent_with_the_other_allies() -> v
 	assert_eq(str(_master("butler").get("display_name", "")), "氷属性・老執事")
 	assert_false(str(_master("healer").get("display_name", "")).contains("ヒーラー"), "the role suffix is gone from the user-facing name")
 
+## ハンマー使いも「巨大な筋肉の」を外して「属性・呼称」の短い表記へ揃えた。英訳は
+## 既存の"Neutral Hammer Titan"のまま。内部ID(tank)・性能・スキルは不変。
+func test_hammer_user_display_name_is_short_like_the_others() -> void:
+	assert_eq(str(_master("tank").get("display_name", "")), "無属性・ハンマー使い")
+	assert_eq(str(_master("tank").get("id", "")), "tank", "internal id unchanged")
+	RBMLocale.set_locale("en")
+	assert_eq(TranslationServer.translate("無属性・ハンマー使い"), "Neutral Hammer Titan")
+
 func test_english_name_follows_the_same_pattern() -> void:
 	RBMLocale.set_locale("en")
 	assert_eq(TranslationServer.translate("雷属性・少女"), "Lightning Girl")

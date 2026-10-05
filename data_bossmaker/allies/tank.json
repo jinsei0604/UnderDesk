@@ -1,6 +1,6 @@
 {
 	"id": "tank",
-	"display_name": "無属性・巨大な筋肉のハンマー使い",
+	"display_name": "無属性・ハンマー使い",
 	"attribute": "NEUTRAL",
 	"hp": 950,
 	"atk": 200,
