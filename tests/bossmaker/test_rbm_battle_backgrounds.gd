@@ -3,7 +3,7 @@ extends GutTest
 ## ボスごとの専用戦闘背景(rbm_battle_backgrounds.gd)と、全画面戦闘UI
 ## (TEST BATTLE・クリアチェック・挑戦で共通)での使われ方。
 ## 背景の決まり方: 上書き(BOSS_BACKGROUNDS) → backgrounds/<boss_id>/background.png → 昼/夜。
-## 専用背景の画像はまだ無いので、「専用背景あり」は既存の画像を代わりに使って確かめる。
+## 素材の追加に依存せず確認するため、「専用背景あり」は既存の画像を代わりに使う。
 ##   ・命名規則: 各ボスの design.png(battle/<boss_id>/design.png)を background.png の代わりにする
 ##   ・上書き: テスト用の対応表に既存の画像を書く
 ## 本番の対応表・命名規則は書き換えない。また、後で本物の background.png を置いても
@@ -130,7 +130,7 @@ func test_a_file_name_is_looked_up_in_the_backgrounds_folder() -> void:
 
 func test_missing_or_invalid_dedicated_backgrounds_fall_back_without_errors() -> void:
 	var bad := [
-		"musha/background.png",  # まだ置いていないファイル
+		"musha/__missing_background_for_tests__.png",  # 実背景の有無に依存しない不存在パス
 		"res://assets_bossmaker/battle/backgrounds/musha/none.png",
 		"res://no_such_folder/bg.png",
 		"res://assets_bossmaker/audio/boss_impact_mass.wav",  # 画像ではない
