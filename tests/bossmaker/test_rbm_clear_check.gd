@@ -44,7 +44,7 @@ func _fill_easy_win_boss(creator: RBMCreatorMain) -> void:
 ## ボスが応じる」という観測可能な順序を保つ。
 func _fill_guaranteed_loss_boss(creator: RBMCreatorMain) -> void:
 	creator.draft.boss_name = "強敵"
-	creator.draft.hp = 1000000
+	creator.draft.hp = 99999
 	creator.draft.atk = 9999
 	creator.draft.spd = 1
 	var skill_id := creator.draft.add_skill({"name": "猛攻", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 100.0})
@@ -655,7 +655,7 @@ func test_clear_check_rewind_reproduces_rng_and_refires_scripted_actions() -> vo
 ## 軽減されて命中する、という単純な1対1の観測に戻す。
 func _fill_branching_rng_boss(creator: RBMCreatorMain) -> void:
 	creator.draft.boss_name = "分岐ボス"
-	creator.draft.hp = 100000
+	creator.draft.hp = 99999
 	creator.draft.atk = 100
 	creator.draft.spd = 1
 	var weak_id := creator.draft.add_skill({"name": "弱撃", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 0.5})

@@ -55,7 +55,7 @@ func _btn(node: Node, button_name: String) -> Button:
 func _definition_with_hero_and_butler() -> Dictionary:
 	var draft := RBMCreatorDraft.new()
 	draft.boss_name = "Phase35Step3ボス"
-	draft.hp = 999999
+	draft.hp = 99999
 	draft.atk = 1
 	draft.spd = 1
 	draft.add_party_character("hero")

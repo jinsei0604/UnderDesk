@@ -18,7 +18,7 @@ func _run() -> void:
 	for character_id in Assets.ALLY_IDS:
 		for skill in _master(character_id).get("skills", []):
 			var definition := _definition_for(character_id)
-			definition["boss"]["hp"] = 100000
+			definition["boss"]["hp"] = 99999
 			definition["boss"]["atk"] = 20
 			definition["boss"]["spd"] = 1
 			await _open_view("test", definition, "appearance_knight")
@@ -119,7 +119,7 @@ func _counter_and_cover() -> void:
 	var definition := _definition_for("samurai")
 	definition["party"] = [definition["party"][3]]
 	definition["boss"]["spd"] = 1
-	definition["boss"]["hp"] = 100000
+	definition["boss"]["hp"] = 99999
 	await _open_view("test", definition, "appearance_wolf")
 	var rewind_snapshot: Dictionary = view.session.battle.snapshot().duplicate(true)
 	var rewind_presentation: Dictionary = view.session.battle.presentation_state().duplicate(true)
@@ -180,7 +180,7 @@ func _counter_and_cover() -> void:
 	definition = _definition_for("samurai")
 	definition["party"] = [definition["party"][0], definition["party"][3]]
 	definition["boss"]["spd"] = 1
-	definition["boss"]["hp"] = 100000
+	definition["boss"]["hp"] = 99999
 	var source: Dictionary = RBMDataLoader.load_dict("res://data_bossmaker/definitions/test_definition_b.json")
 	definition["boss"]["skills"] = [source["boss"]["skills"][3]]
 	definition["boss"]["normal_actions"] = [{"skill_id": "sentinel_frost_nova", "weight": 1}]

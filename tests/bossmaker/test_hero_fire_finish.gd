@@ -3,7 +3,7 @@ extends GutTest
 func _session() -> RBMCreatorTestSession:
 	var draft := RBMCreatorDraft.new()
 	draft.boss_name = "炎演出回帰"
-	draft.hp = 100000
+	draft.hp = 99999
 	draft.atk = 1
 	draft.spd = 1
 	draft.add_party_character("hero")

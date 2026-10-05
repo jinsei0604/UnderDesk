@@ -230,7 +230,7 @@ func test_step2_navigation_retains_all_immediate_changes() -> void:
 
 	assert_null(step2.find_child("EditStatsButton", true, false))
 	await get_tree().process_frame
-	step2._hp_spin.value = 123456
+	step2._hp_spin.value = 88888
 	step2._atk_spin.value = 1
 	step2._spd_spin.value = 1
 	_btn(step2, "Weak_WIND").pressed.emit()  # un-toggle it while editing
@@ -240,7 +240,7 @@ func test_step2_navigation_retains_all_immediate_changes() -> void:
 	main.go_to_step(3)
 	main.go_to_step(2)
 	await get_tree().process_frame
-	assert_eq(main.draft.hp, 123456, "工程を離れて戻っても即時反映値を保持")
+	assert_eq(main.draft.hp, 88888, "工程を離れて戻っても即時反映値を保持")
 	assert_eq(main.draft.atk, 1)
 	assert_eq(main.draft.spd, 1)
 	assert_false(main.draft.weak_attributes.has("WIND"))

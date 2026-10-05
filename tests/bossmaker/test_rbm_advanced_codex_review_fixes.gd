@@ -192,7 +192,7 @@ func test_same_turn_multiple_replace_entries_convert_into_separate_turn_at_slots
 ## ロビン実行モデル自体の帰結。
 func test_simple_and_hardcore_diverge_for_same_turn_multi_replace_only_the_first_slot_ever_fires() -> void:
 	var draft := _draft_with_two_skills()
-	draft.hp = 100000
+	draft.hp = 99999
 	draft.atk = 1
 	draft.spd = 1
 	draft.add_party_character("hero")

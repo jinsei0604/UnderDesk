@@ -334,10 +334,10 @@ func test_step2_hp_atk_spd_spin_boxes_are_wide_enough_and_hp_is_wider_than_atk_a
 	await get_tree().process_frame
 	var step2: RBMCreatorStep2Stats = main._step_views[1]
 
-	# BOSS_HP_MAX=1,000,000（7桁）はBOSS_ATK_MAX=9,999（4桁）/
-	# BOSS_SPD_MAX=500（3桁）よりずっと多い桁数を要求するため、HPの
-	# SpinBoxだけ明確に広い幅を持つこと（値の範囲自体は変更していない）。
-	assert_eq(RBMDefinitionLoader.BOSS_HP_MAX, 1000000, "sanity: value ranges themselves must not have changed")
+	# BOSS_HP_MAX=99,999（5桁）はBOSS_ATK_MAX=9,999（4桁）/
+	# BOSS_SPD_MAX=500（3桁）より多い桁数を要求するため、HPの
+	# SpinBoxだけ明確に広い幅を持つこと。
+	assert_eq(RBMDefinitionLoader.BOSS_HP_MAX, 99999, "sanity: value ranges themselves must not have changed")
 	assert_eq(RBMDefinitionLoader.BOSS_ATK_MAX, 9999, "sanity: value ranges themselves must not have changed")
 	assert_eq(RBMDefinitionLoader.BOSS_SPD_MAX, 500, "sanity: value ranges themselves must not have changed")
 

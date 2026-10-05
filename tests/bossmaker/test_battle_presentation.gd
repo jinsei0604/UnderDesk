@@ -16,7 +16,7 @@ class ManualStage extends Node:
 func _definition(fast_boss: bool = false) -> Dictionary:
 	var draft := RBMCreatorDraft.new()
 	draft.boss_name = "演出同期検証"
-	draft.hp = 100000
+	draft.hp = 99999
 	draft.atk = 1
 	draft.spd = 500 if fast_boss else 1
 	draft.add_party_character("hero")

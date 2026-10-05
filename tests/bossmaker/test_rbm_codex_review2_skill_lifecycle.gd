@@ -774,7 +774,7 @@ func test_same_name_actions_fire_with_independent_performance_in_real_battle() -
 func test_last_boss_skill_e2e_ui_select_save_load_and_battle_condition_fires() -> void:
 	var creator := _new_creator()
 	creator.draft.boss_name = "last_boss_skillE2Eボス"
-	creator.draft.hp = 999999
+	creator.draft.hp = 99999
 	creator.draft.atk = 10
 	# hero(data_bossmaker/allies/hero.json)のspd=100より低くし、各ターン
 	# 「味方が先に行動→ボスが応答する」という_resolve_one_ally_turn()の

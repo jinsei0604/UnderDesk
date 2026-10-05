@@ -64,7 +64,7 @@ HP/ATK/SPD/弱点/耐性も、ボスが持つスキル（攻撃/自己回復/ATK
   参照されなくなったが、`tests/bossmaker/test_rbm_battle.gd`（Step 2自身の既存フィクスチャ、
   Definition解決とは無関係）から今も直接読み込まれているため、プロジェクト全体では未参照では
   ない。`frost_sentinel.json`は本当にどこからも参照されなくなったが、削除はしていない。
-  - `hp`/`atk`/`spd`：範囲検証あり（HP 1〜1,000,000・ATK 1〜9,999・SPD 1〜500）、範囲外・未指定
+  - `hp`/`atk`/`spd`：範囲検証あり（HP 1〜99,999・ATK 1〜9,999・SPD 1〜500）、範囲外・未指定
     は補正せず拒否
   - `weak_attributes`/`resist_attributes`：任意（v0.1-C 多属性対応）。5属性
     （`FIRE`/`ICE`/`LIGHTNING`/`WIND`/`NEUTRAL`、`NEUTRAL`＝無属性も他と同じ1属性として

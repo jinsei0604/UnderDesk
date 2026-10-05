@@ -406,6 +406,51 @@ func test_list_excludes_unknown_version_stage_and_keeps_healthy_ones() -> void:
 	assert_eq(str(listing[0]["boss_name"]), "健全なボス")
 
 # ---------------------------------------------------------------------------
+# ボスHPの上限（BOSS_HP_MAX=99,999）と保存/読み込み。load_stage()自体は形状
+# 検証のみでゲーム的な意味validation（HP範囲）を行わない既存方針のまま——
+# 上限ちょうどの値は保存→読み込み後もそのまま有効で、外部編集などで保存
+# データに上限超過のHPが入っていても99999へ丸めず、Definition解決
+# (RBMDefinitionLoader.resolve())の時点で不正データとして拒否されることを
+# 確認する。
+# ---------------------------------------------------------------------------
+
+func test_save_and_load_at_the_hp_limit_keeps_99999_and_the_stage_stays_playable() -> void:
+	var draft := _basic_draft("HP上限ボス")
+	draft.hp = RBMDefinitionLoader.BOSS_HP_MAX
+	var saved := RBMLocalStageRepository.save_new(draft)
+	assert_true(bool(saved.get("ok", false)))
+	var stage_id := str(saved["stage_id"])
+
+	var result := RBMLocalStageRepository.load_stage(stage_id)
+	assert_true(bool(result.get("ok", false)))
+	var loaded := RBMCreatorDraft.new()
+	loaded.restore_from_saved_dict(result["draft_data"])
+	assert_eq(loaded.hp, 99999, "the HP at the limit must come back from save/load unchanged")
+	assert_true(bool(RBMDefinitionLoader.resolve(loaded.to_definition()).get("ok", false)), "the HP at the limit must pass Definition resolve")
+	assert_true(loaded.is_playable())
+
+	var listing := RBMLocalStageRepository.list()
+	assert_eq(listing.size(), 1)
+	assert_eq(str(listing[0]["status"]), "playable", "a saved stage with the HP at the limit must be listed as playable, not as a draft")
+
+func test_saved_hp_over_limit_loads_unrounded_but_is_rejected_at_definition_resolve() -> void:
+	var draft := _basic_draft("上限超過HPボス")
+	draft.hp = RBMDefinitionLoader.BOSS_HP_MAX + 1
+	var payload := _valid_minimal_payload("1000000099", "上限超過HPボス")
+	payload["draft"] = draft.to_saved_dict()
+	_write_raw_payload("1000000099", payload)
+
+	var result := RBMLocalStageRepository.load_stage("1000000099")
+	assert_true(bool(result.get("ok", false)), "load_stage() only validates shape, not HP range -- it must still succeed")
+
+	var loaded := RBMCreatorDraft.new()
+	loaded.restore_from_saved_dict(result["draft_data"])
+	assert_eq(loaded.hp, RBMDefinitionLoader.BOSS_HP_MAX + 1, "the out-of-range HP must not be silently clamped down on load")
+
+	var resolved := RBMDefinitionLoader.resolve(loaded.to_definition())
+	assert_false(bool(resolved.get("ok", true)), "an HP over BOSS_HP_MAX must be rejected as invalid data at Definition resolve time, never rounded down to fit")
+
+# ---------------------------------------------------------------------------
 # 最終レビュー対応② — 保存構造・コンテナ型の防御的検証 (§2-2必須破損テスト)
 # ---------------------------------------------------------------------------
 

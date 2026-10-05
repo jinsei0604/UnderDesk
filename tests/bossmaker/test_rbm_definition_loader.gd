@@ -178,7 +178,7 @@ func test_boss_hp_at_the_lower_bound_is_accepted() -> void:
 
 func test_boss_hp_at_the_upper_bound_is_accepted() -> void:
 	var boss := _base_boss()
-	boss["hp"] = 1000000
+	boss["hp"] = 99999
 	var resolved := RBMDefinitionLoader.resolve({"boss": boss, "party": _base_party(1)})
 	assert_true(bool(resolved.get("ok", false)))
 
@@ -188,9 +188,16 @@ func test_boss_hp_of_zero_is_rejected() -> void:
 	var resolved := RBMDefinitionLoader.resolve({"boss": boss, "party": _base_party(1)})
 	assert_false(bool(resolved.get("ok", true)))
 
-func test_boss_hp_over_one_million_is_rejected() -> void:
+func test_boss_hp_negative_is_rejected() -> void:
+	for hp in [-1, -100000]:
+		var boss := _base_boss()
+		boss["hp"] = hp
+		var resolved := RBMDefinitionLoader.resolve({"boss": boss, "party": _base_party(1)})
+		assert_false(bool(resolved.get("ok", true)), "boss hp %d must be rejected" % hp)
+
+func test_boss_hp_over_99999_is_rejected() -> void:
 	var boss := _base_boss()
-	boss["hp"] = 1000001
+	boss["hp"] = 100000
 	var resolved := RBMDefinitionLoader.resolve({"boss": boss, "party": _base_party(1)})
 	assert_false(bool(resolved.get("ok", true)))
 

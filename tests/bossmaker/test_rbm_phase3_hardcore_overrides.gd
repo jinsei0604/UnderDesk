@@ -33,7 +33,7 @@ func _remove_recursive(path: String) -> void:
 func _draft(mode: String = RBMCreatorDraft.CREATOR_MODE_ADVANCED) -> RBMCreatorDraft:
 	var draft := RBMCreatorDraft.new()
 	draft.boss_name = "Phase3検証ボス"
-	draft.hp = 1000000
+	draft.hp = 99999
 	draft.atk = 1
 	draft.spd = 1
 	draft.add_skill({"name": "待機攻撃", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 0.0})

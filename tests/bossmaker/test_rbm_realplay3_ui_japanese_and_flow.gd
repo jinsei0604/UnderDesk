@@ -453,7 +453,7 @@ func test_clear_check_mode_and_outcome_labels_are_japanese() -> void:
 func test_battle_log_never_leaks_raw_internal_effect_or_target_tokens() -> void:
 	var main := await _new_creator_main()
 	main.draft.boss_name = "ログ日本語テストボス"
-	main.draft.hp = 999999
+	main.draft.hp = 99999
 	main.draft.atk = 1
 	main.draft.spd = 1
 	main.draft.add_party_character("hero")

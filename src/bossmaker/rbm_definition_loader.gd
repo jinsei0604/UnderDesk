@@ -29,7 +29,7 @@ const MIN_PARTY_SIZE := 1
 const MAX_PARTY_SIZE := 4
 
 const BOSS_HP_MIN := 1
-const BOSS_HP_MAX := 1000000
+const BOSS_HP_MAX := 99999
 const BOSS_ATK_MIN := 1
 const BOSS_ATK_MAX := 9999
 const BOSS_SPD_MIN := 1

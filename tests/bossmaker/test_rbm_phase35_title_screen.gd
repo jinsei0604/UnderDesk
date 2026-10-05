@@ -198,7 +198,7 @@ func test_old_placeholder_title_label_no_longer_exists() -> void:
 func _definition_with_hero() -> Dictionary:
 	var draft := RBMCreatorDraft.new()
 	draft.boss_name = "タイトルUI回帰確認用ボス"
-	draft.hp = 999999
+	draft.hp = 99999
 	draft.atk = 1
 	draft.spd = 1
 	draft.add_party_character("hero")

@@ -44,7 +44,7 @@ func _btn(node: Node, button_name: String) -> Button:
 func _definition_with_hero_and_butler() -> Dictionary:
 	var draft := RBMCreatorDraft.new()
 	draft.boss_name = "Step4テストボス"
-	draft.hp = 999999
+	draft.hp = 99999
 	draft.atk = 1
 	draft.spd = 1
 	draft.add_party_character("hero")
@@ -56,7 +56,7 @@ func _definition_with_hero_and_butler() -> Dictionary:
 func _definition_with_ice_weak_boss() -> Dictionary:
 	var draft := RBMCreatorDraft.new()
 	draft.boss_name = "氷弱点ボス"
-	draft.hp = 999999
+	draft.hp = 99999
 	draft.atk = 1
 	draft.spd = 1
 	draft.weak_attributes = ["ICE"]
@@ -323,7 +323,7 @@ func test_turn_order_reflects_real_battle_state_not_a_naive_fixed_list() -> void
 func test_turn_order_tie_break_favors_ally_over_boss_on_equal_spd() -> void:
 	var draft := RBMCreatorDraft.new()
 	draft.boss_name = "同速ボス"
-	draft.hp = 999999
+	draft.hp = 99999
 	draft.atk = 1
 	draft.spd = 100
 	draft.add_party_character("hero")  # heroの既定spdは100（butler=120/spd比較用の共通仕様）
