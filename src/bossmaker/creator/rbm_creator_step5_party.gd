@@ -28,7 +28,18 @@ extends Control
 
 const CONTENT_SIDE_MARGIN_PX := 40.0
 const CONTENT_TOP_MARGIN_PX := 24.0
-const PERFORMANCE_SCROLL_HEIGHT_PX := 320.0
+## タブ領域が下部の「戻る/次へ/作成を終了」の帯へ貼り付かないための余白。
+const CONTENT_BOTTOM_MARGIN_PX := 12.0
+## タブ領域(使用可能スキル/性能調整)は画面の残りの高さいっぱいに広がり、
+## 中身が長ければ内部で縦スクロールする。追加欄を開いた時など残りが足りない
+## 時もこの高さは確保し、STEP4全体の縦スクロールで下まで届くようにする。
+## 使用可能スキルタブでは、下の操作ボタン行(編集/決定・キャンセル)まで含めた
+## 高さをこの最小値にする(_refresh_selected_settings参照)。
+const TAB_SCROLL_MIN_HEIGHT_PX := 160.0
+## タブ領域のホイール1刻み。Godotの既定(表示の高さの1/8)だと160〜180pxの領域
+## では約20pxしか動かず長い性能調整を送りにくいため、以前の320px時と同程度にする
+## (_on_tab_scroll_gui_input参照)。
+const TAB_SCROLL_WHEEL_STEP_PX := 40.0
 
 const TAB_SKILLS := "skills"
 const TAB_PERFORMANCE := "performance"
@@ -78,6 +89,11 @@ var _tab_row: HBoxContainer
 var _skills_tab_button: Button
 var _performance_tab_button: Button
 var _tab_content: VBoxContainer
+var _tab_scroll: ScrollContainer
+## 使用可能スキルタブの操作ボタン行(編集 / 決定・キャンセル)。一覧のスクロール
+## にもSTEP4全体のスクロールにも入れず、STEP4の下端(タブ領域のすぐ下)に常に表示する。
+var _skills_actions_bar: MarginContainer
+var _skills_actions: HBoxContainer
 
 ## §13相当（旧RBMCreatorStep6PartySkillsから移設）——選択中の1人分のみ
 ## 保持すればよいため、character_id -> Dictionaryだった旧構造から単純化した。
@@ -90,13 +106,35 @@ func setup(p_draft: RBMCreatorDraft, p_main: Node) -> void:
 	_build_ui()
 
 func _build_ui() -> void:
+	## STEP4をステップ表示領域の高さに収める。通常はタブ領域が残りの高さを
+	## 使って全体は動かず、追加欄を開いた時など収まらない時だけ全体が縦に
+	## スクロールする(以前は上端だけ固定で下へ伸び、下部の帯に重なっていた)。
+	## 横スクロールは無し(G3と同じ)。使用可能スキルタブの操作ボタン行だけは
+	## このスクロールの外(STEP4の下端)に置く。
+	var page_root := VBoxContainer.new()
+	page_root.name = "PartyStepRoot"
+	page_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	page_root.add_theme_constant_override("separation", 0)
+	add_child(page_root)
+	var page_scroll := ScrollContainer.new()
+	page_scroll.name = "PartyStepScroll"
+	page_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	page_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	page_root.add_child(page_scroll)
+	var margin := MarginContainer.new()
+	margin.name = "PartyStepMargin"
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margin.add_theme_constant_override("margin_left", int(CONTENT_SIDE_MARGIN_PX))
+	margin.add_theme_constant_override("margin_right", int(CONTENT_SIDE_MARGIN_PX))
+	margin.add_theme_constant_override("margin_top", int(CONTENT_TOP_MARGIN_PX))
+	margin.add_theme_constant_override("margin_bottom", int(CONTENT_BOTTOM_MARGIN_PX))
+	page_scroll.add_child(margin)
 	var column := VBoxContainer.new()
-	column.anchor_right = 1.0
-	column.offset_left = CONTENT_SIDE_MARGIN_PX
-	column.offset_right = -CONTENT_SIDE_MARGIN_PX
-	column.offset_top = CONTENT_TOP_MARGIN_PX
+	column.name = "PartyStepColumn"
 	column.add_theme_constant_override("separation", 12)
-	add_child(column)
+	margin.add_child(column)
 
 	var header_row := HBoxContainer.new()
 	header_row.name = "PartyHeaderRow"
@@ -149,6 +187,7 @@ func _build_ui() -> void:
 	_selected_settings_panel = VBoxContainer.new()
 	_selected_settings_panel.name = "SelectedCharacterSettingsPanel"
 	_selected_settings_panel.add_theme_constant_override("separation", 8)
+	_selected_settings_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(_selected_settings_panel)
 
 	_selected_empty_label = Label.new()
@@ -179,14 +218,49 @@ func _build_ui() -> void:
 
 	var tab_scroll := ScrollContainer.new()
 	tab_scroll.name = "SelectedCharacterTabScroll"
-	tab_scroll.custom_minimum_size = Vector2(0.0, PERFORMANCE_SCROLL_HEIGHT_PX)
+	tab_scroll.custom_minimum_size = Vector2(0.0, TAB_SCROLL_MIN_HEIGHT_PX)
 	tab_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tab_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tab_scroll.gui_input.connect(_on_tab_scroll_gui_input.bind(tab_scroll))
 	tab_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_selected_settings_panel.add_child(tab_scroll)
+	_tab_scroll = tab_scroll
 	_tab_content = VBoxContainer.new()
 	_tab_content.name = "SelectedCharacterTabContent"
 	_tab_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tab_scroll.add_child(_tab_content)
+
+	_skills_actions_bar = MarginContainer.new()
+	_skills_actions_bar.name = "SkillsTabActionsBar"
+	_skills_actions_bar.add_theme_constant_override("margin_left", int(CONTENT_SIDE_MARGIN_PX))
+	_skills_actions_bar.add_theme_constant_override("margin_right", int(CONTENT_SIDE_MARGIN_PX))
+	_skills_actions_bar.add_theme_constant_override("margin_top", 0)
+	_skills_actions_bar.add_theme_constant_override("margin_bottom", int(CONTENT_BOTTOM_MARGIN_PX))
+	_skills_actions_bar.visible = false
+	page_root.add_child(_skills_actions_bar)
+	_skills_actions = HBoxContainer.new()
+	_skills_actions.name = "SkillsTabActions"
+	_skills_actions_bar.add_child(_skills_actions)
+
+## タブ領域のホイールをTAB_SCROLL_WHEEL_STEP_PXずつ動かす。端に着いて動かない
+## 時は受け取らず、Godot既定の処理を経てSTEP4全体の縦スクロールへそのまま渡す。
+func _on_tab_scroll_gui_input(event: InputEvent, tab_scroll: ScrollContainer) -> void:
+	var wheel := event as InputEventMouseButton
+	if wheel == null or not wheel.pressed:
+		return
+	var direction := 0.0
+	if wheel.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		direction = 1.0
+	elif wheel.button_index == MOUSE_BUTTON_WHEEL_UP:
+		direction = -1.0
+	else:
+		return
+	var factor := wheel.factor if wheel.factor > 0.0 else 1.0
+	var bar := tab_scroll.get_v_scroll_bar()
+	var before := tab_scroll.scroll_vertical
+	tab_scroll.scroll_vertical = int(clamp(before + direction * TAB_SCROLL_WHEEL_STEP_PX * factor, 0.0, max(0.0, bar.max_value - bar.page)))
+	if tab_scroll.scroll_vertical != before:
+		tab_scroll.accept_event()
 
 # ---------------------------------------------------------------------------
 # パーティ追加/削除（既存API、無改修）
@@ -377,6 +451,11 @@ func _refresh_selected_settings() -> void:
 	_selected_empty_label.visible = not has_selection
 	_selected_header_label.visible = has_selection
 	_tab_row.visible = has_selection
+	for child in _skills_actions.get_children():
+		_skills_actions.remove_child(child)
+		child.queue_free()
+	_skills_actions_bar.visible = false
+	_tab_scroll.custom_minimum_size.y = TAB_SCROLL_MIN_HEIGHT_PX
 	if not has_selection:
 		for child in _tab_content.get_children():
 			_tab_content.remove_child(child)
@@ -393,6 +472,10 @@ func _refresh_selected_settings() -> void:
 		child.queue_free()
 	if _selected_tab == TAB_SKILLS:
 		_build_skills_tab(_selected_character_id, master)
+		## 一覧(スクロール)と下の操作ボタン行を合わせてTAB_SCROLL_MIN_HEIGHT_PXにする
+		## (一覧とボタン行の間はCONTENT_BOTTOM_MARGIN_PX)。
+		_skills_actions_bar.visible = true
+		_tab_scroll.custom_minimum_size.y = max(0.0, TAB_SCROLL_MIN_HEIGHT_PX - CONTENT_BOTTOM_MARGIN_PX - _skills_actions.get_combined_minimum_size().y)
 	else:
 		_build_performance_tab(_selected_character_id)
 
@@ -418,8 +501,9 @@ func _build_skills_normal_panel(character_id: String, master: Dictionary) -> voi
 	var edit_button := Button.new()
 	edit_button.name = "EditPartySkillsButton_%s" % character_id
 	edit_button.text = tr("編集")
+	edit_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	edit_button.pressed.connect(_on_edit_skills_pressed.bind(character_id))
-	_tab_content.add_child(edit_button)
+	_skills_actions.add_child(edit_button)
 
 func _on_edit_skills_pressed(character_id: String) -> void:
 	_skills_editing = true
@@ -464,19 +548,17 @@ func _build_skills_edit_panel(character_id: String, master: Dictionary) -> void:
 		]
 		row.add_child(label)
 
-	var confirm_row := HBoxContainer.new()
-	_tab_content.add_child(confirm_row)
 	var confirm_button := Button.new()
 	confirm_button.name = "ConfirmPartySkillsButton_%s" % character_id
 	confirm_button.text = tr("決定")
 	confirm_button.pressed.connect(_on_confirm_skills_pressed.bind(character_id))
-	confirm_row.add_child(confirm_button)
+	_skills_actions.add_child(confirm_button)
 	var cancel_button := Button.new()
 	cancel_button.name = "CancelPartySkillsButton_%s" % character_id
 	cancel_button.text = tr("キャンセル")
 	cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel_button.pressed.connect(_on_cancel_skills_pressed)
-	confirm_row.add_child(cancel_button)
+	_skills_actions.add_child(cancel_button)
 
 func _on_staged_skill_toggled(skill_id: String, pressed: bool) -> void:
 	_staged_allowed[skill_id] = pressed

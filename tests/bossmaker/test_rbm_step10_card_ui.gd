@@ -508,32 +508,65 @@ func test_step4_all_fixed_characters_show_every_real_skill_and_special_effect_da
 ## （SelectedCharacterTabRow）はスクロール領域の外にあり、最下部までスクロール
 ## しても常に到達可能であること」を確認する（同じ意図——スクロール可能領域
 ## と常設の操作導線が重ならないこと）。
+## STEP4と下部の帯の重なり修正（2026-10-05）: タブ領域は画面の残りの高さ（最小
+## 160px）になり、性能調整のスキルカード1枚（SIMPLE約200px/HARDCORE約320px）は
+## 表示領域より高くなりうる。そのため「最後のカード全体が一度に収まる」ことは
+## 求めず、最後のカードまでスクロールで届き、最下部でその下端と最後の要素
+## （HARDCOREでは最後の操作要素）まで見え、タブ領域が下部の帯（戻る/次へ/
+## 作成を終了）に隠れないことを確かめる。
 func test_step4_performance_skill_list_scrolls_to_last_skill_without_overlapping_tabs() -> void:
-	var main := await _new_creator_main()
-	main.go_to_step(4)
-	await get_tree().process_frame
-	var step4: RBMCreatorStep5Party = main._step_views[3]
-	step4.toggle_character("hero")
-	await get_tree().process_frame
-	_btn(step4, "SelectCharacterButton_hero").pressed.emit()
-	_btn(step4, "PerformanceTabButton").pressed.emit()
-	await get_tree().process_frame
-	await get_tree().process_frame
-	var scroll: ScrollContainer = step4.find_child("SelectedCharacterTabScroll", true, false)
-	var vbar := scroll.get_v_scroll_bar()
-	assert_true(vbar.visible, "長いスキル一覧では性能パネル内部の縦スクロールを有効にすること")
-	assert_gt(vbar.max_value, vbar.page)
-	var last_card := step4._tab_content.find_child("CharacterSkillCard_hero_burst_slash", true, false) as Control
-	assert_not_null(last_card, "最後の実スキルも一覧に存在すること")
-	assert_true(step4._tab_row.is_visible_in_tree(), "タブ切替行はスクロール領域外で常に到達可能であること")
-	assert_false(scroll.get_global_rect().intersects(step4._tab_row.get_global_rect()), "スクロール領域とタブ切替行が重ならないこと")
-	scroll.scroll_vertical = int(ceil(vbar.max_value))
-	await get_tree().process_frame
-	assert_gt(scroll.scroll_vertical, 0, "最下部へ実際にスクロールできること")
-	var scroll_rect := scroll.get_global_rect()
-	var last_rect := last_card.get_global_rect()
-	assert_true(last_rect.position.y >= scroll_rect.position.y - 0.5, "最下部スクロール後に最後のスキル上端が表示領域へ到達すること")
-	assert_true(last_rect.end.y <= scroll_rect.end.y + 0.5, "最下部スクロール後に最後のスキル全体を確認できること")
+	for mode_button in ["ChooseSimpleModeButton", "ChooseAdvancedModeButton"]:
+		var root := await _make_root()
+		_btn(root, "CreateModeButton").pressed.emit()
+		await get_tree().process_frame
+		_btn(root.creator_entry, "NewBossButton").pressed.emit()
+		await get_tree().process_frame
+		_btn(root.creator_entry, mode_button).pressed.emit()
+		await get_tree().process_frame
+		var main: RBMCreatorMain = root.creator_entry.main
+		main.go_to_step(4)
+		await get_tree().process_frame
+		var step4: RBMCreatorStep5Party = main._step_views[3]
+		step4.toggle_character("hero")
+		await get_tree().process_frame
+		_btn(step4, "SelectCharacterButton_hero").pressed.emit()
+		_btn(step4, "PerformanceTabButton").pressed.emit()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var scroll: ScrollContainer = step4.find_child("SelectedCharacterTabScroll", true, false)
+		var vbar := scroll.get_v_scroll_bar()
+		assert_true(vbar.visible, "%s: 長いスキル一覧では性能パネル内部の縦スクロールを有効にすること" % mode_button)
+		assert_gt(vbar.max_value, vbar.page)
+		var last_card := step4._tab_content.find_child("CharacterSkillCard_hero_burst_slash", true, false) as Control
+		assert_not_null(last_card, "最後の実スキルも一覧に存在すること")
+		assert_true(step4._tab_row.is_visible_in_tree(), "タブ切替行はスクロール領域外で常に到達可能であること")
+		assert_false(scroll.get_global_rect().intersects(step4._tab_row.get_global_rect()), "スクロール領域とタブ切替行が重ならないこと")
+		var footer_top: float = min(main._nav_row.get_global_rect().position.y, main._exit_button.get_global_rect().position.y)
+		assert_true(scroll.get_global_rect().end.y <= footer_top + 0.5, "%s: タブ領域は下部の帯より上で終わること" % mode_button)
+		scroll.scroll_vertical = int(ceil(vbar.max_value))
+		await get_tree().process_frame
+		assert_gt(scroll.scroll_vertical, 0, "最下部へ実際にスクロールできること")
+		var scroll_rect := scroll.get_global_rect()
+		var last_rect := last_card.get_global_rect()
+		assert_true(last_rect.end.y > scroll_rect.position.y + 0.5, "%s: 最下部スクロール後に最後のスキルが表示領域に入っていること" % mode_button)
+		assert_true(last_rect.end.y <= scroll_rect.end.y + 0.5, "%s: 最下部スクロール後に最後のスキルの下端まで確認できること" % mode_button)
+		var last_label: Control = null
+		var last_operable: Control = null
+		for node in last_card.find_children("*", "Control", true, false):
+			var c := node as Control
+			if not c.is_visible_in_tree() or c.size.y <= 0.0:
+				continue
+			if c is Label and (last_label == null or c.get_global_rect().end.y > last_label.get_global_rect().end.y):
+				last_label = c
+			if (c is BaseButton or c is Range) and (last_operable == null or c.get_global_rect().end.y > last_operable.get_global_rect().end.y):
+				last_operable = c
+		assert_not_null(last_label)
+		assert_true(scroll_rect.encloses(last_label.get_global_rect()), "%s: 最後のカードの最後の表示まで表示領域内で確認できること" % mode_button)
+		if mode_button == "ChooseAdvancedModeButton":
+			assert_not_null(last_operable, "HARDCOREの性能調整カードには操作要素があること")
+			assert_true(scroll_rect.encloses(last_operable.get_global_rect()), "HARDCORE: 最後の操作要素まで表示領域内で操作できること")
+		root.queue_free()
+		await get_tree().process_frame
 
 # =============================================================================
 # Creator UI改修（2026-09-05）§13/§17: 旧・独立STEP5「使用可能スキル」

@@ -414,8 +414,10 @@ func creator_layout(main: RBMCreatorMain) -> void:
 			creator_button_style(b,true)
 		# Reserve a visible gap above the global footer while retaining the existing scroll.
 		main._nav_row.add_theme_constant_override("separation",12)
-		var party_column: VBoxContainer = main._step_views[3].get_child(0)
-		party_column.offset_top = 16
+		var party_step: Control = main._step_views[3]
+		var party_margin: MarginContainer = party_step.find_child("PartyStepMargin",true,false)
+		party_margin.add_theme_constant_override("margin_top",16)
+		var party_column: VBoxContainer = party_step.find_child("PartyStepColumn",true,false)
 		party_column.add_theme_constant_override("separation",8)
 	# Refresh rebuilds some controls. Common conversion is applied after each refresh.
 	main._header.get_node("WorldProgressStrip").queue_redraw()
