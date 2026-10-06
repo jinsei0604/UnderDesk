@@ -22,22 +22,18 @@ extends RefCounted
 ## 内部IDのため翻訳対象ではない。display_name()の戻り値へTranslationServer.translate()を適用する
 ## ことで、参照元すべてに一括で反映される。
 ##
-## "supports_awakening": このボス外見が覚醒(Awakening)機能に対応しているか
-## ——ゲームデザイン上の可否そのものであり、覚醒後アセットの実在
-## (RBMVisualAssets.has_awakened_design())とは別概念(§3確定)。今回は
-## どのボスを覚醒対応にするかまだ決定しないため、既存6体は全てfalseの
-## まま——新しいボスを追加する際にこのキーをtrueにするだけで、Creator
-## STEP3の覚醒選択・ボス選択画面の「覚醒可能」表示・覚醒後プレビュー
-## 切替が自動的に有効になる(固定BOSS_IDS一覧やボス名による分岐は一切
-## 増やさない)。
+## Awakening support is a game-design choice independent from asset availability.
+## Dragon, mechanical samurai, astronaut and faceless gentleman support awakening.
 const ENTRIES: Array[Dictionary] = [
 	{"id": "appearance_slime", "name": "スライム", "supports_awakening": false},
 	{"id": "appearance_wolf", "name": "狼", "supports_awakening": false},
 	{"id": "appearance_knight", "name": "騎士", "supports_awakening": false},
-	{"id": "appearance_dragon", "name": "竜", "supports_awakening": false},
+	{"id": "appearance_dragon", "name": "竜", "supports_awakening": true},
 	{"id": "appearance_ghost", "name": "幽霊", "supports_awakening": false},
 	{"id": "appearance_golem", "name": "ゴーレム", "supports_awakening": false},
 	{"id": "appearance_musha", "name": "朽ちた機械武者", "supports_awakening": true},
+	{"id": "appearance_astronaut", "name": "宇宙飛行士", "supports_awakening": true},
+	{"id": "appearance_gentleman", "name": "異形紳士", "supports_awakening": true},
 ]
 
 static func all() -> Array[Dictionary]:

@@ -490,6 +490,7 @@ HPの範囲条件は「下限 ≦ 上限」（0〜100%）で指定してくだ�
 条件の種類が設定されていません,The condition has no type selected
 条件のデータが不正です,The condition data is invalid
 朽ちた機械武者,Decayed Machine Warrior
+宇宙飛行士,Astronaut
 挑戦者 %d人,Challengers: %d
 さらに表示,Show more
 挑戦ハブ,Challenge Hub
@@ -513,3 +514,4 @@ HPの範囲条件は「下限 ≦ 上限」（0〜100%）で指定してくだ�
 少女,Girl
 侍,Samurai
 ハンマー使い,Titan
+異形紳士,Faceless Gentleman

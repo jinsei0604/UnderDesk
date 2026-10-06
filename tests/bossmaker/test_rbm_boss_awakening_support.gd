@@ -1,50 +1,30 @@
 extends GutTest
-
-## RPG BOSS MAKER — ボスごとの覚醒対応可否(supports_awakening)の回帰テスト。
-## RBMCreatorAppearanceCatalog.ENTRIESはGodotのconstとして実行時読み取り
-## 専用のため、既存6体を書き換えて「対応ありのケース」を作ることはできない
-## (かつ、実際のボスを勝手に覚醒対応へ設定することは今回の確定仕様として
-## 禁止されている)。覚醒対応として承認されたのは、新ボスの朽ちた機械武者だけ。そのため、
-##   ・既存6体は全てfalse、朽ちた機械武者だけtrueであること(=勝手にtrueへ設定していないこと)
-##   ・真偽値抽出ロジック自体(.get(key,false)パターン)がtrue/false/欠落の
-##     いずれでも正しく動くこと
-## を分けて検証する——後者はhand-builtなDictionaryで直接確認する、正規の
-## catalogを一切書き換えない検証方法。
+## 覚醒対応(supports_awakening)の回帰テスト。覚醒対応は竜・朽ちた機械武者・宇宙飛行士・異形紳士の
+## 4体で、残りの5体(スライム・狼・騎士・幽霊・ゴーレム)は非対応のまま。
 
 func after_each() -> void:
 	await get_tree().process_frame
 
-# ---------------------------------------------------------------------------
-# RBMCreatorAppearanceCatalog
-# ---------------------------------------------------------------------------
-
-func test_all_six_existing_appearances_are_not_set_to_supports_awakening() -> void:
+## 覚醒対応は竜・朽ちた機械武者・宇宙飛行士・異形紳士の4体だけ。他の5体は非対応のまま。
+func test_only_approved_bosses_are_set_to_supports_awakening() -> void:
 	for entry in RBMCreatorAppearanceCatalog.all():
-		var expected: bool = str(entry["id"]) == "appearance_musha"
-		assert_eq(bool(entry.get("supports_awakening", false)), expected, "%s: only the approved musha supports awakening" % str(entry.get("id", "")))
-		assert_eq(RBMCreatorAppearanceCatalog.supports_awakening(str(entry["id"])), expected, "%s: only the approved musha supports awakening" % str(entry["id"]))
+		var expected: bool = str(entry["id"]) in ["appearance_dragon", "appearance_musha", "appearance_astronaut", "appearance_gentleman"]
+		assert_eq(bool(entry.get("supports_awakening", false)), expected)
+		assert_eq(RBMCreatorAppearanceCatalog.supports_awakening(str(entry["id"])), expected)
 
 func test_supports_awakening_defaults_to_false_for_an_unknown_id() -> void:
 	assert_false(RBMCreatorAppearanceCatalog.supports_awakening("appearance_does_not_exist"))
 
-## catalog自体はconstのため書き換えられない——「キーがtrue/false/欠落の
-## それぞれでどう解決されるか」という抽出ロジックの正しさは、実際に
-## by_id()が返す形と全く同じ形のDictionaryを直接使って確認する。
 func test_supports_awakening_extraction_logic_handles_true_false_and_missing_key() -> void:
 	assert_true(bool({"id": "x", "supports_awakening": true}.get("supports_awakening", false)))
 	assert_false(bool({"id": "x", "supports_awakening": false}.get("supports_awakening", false)))
-	assert_false(bool({"id": "x"}.get("supports_awakening", false)), "a missing key must default to false")
+	assert_false(bool({"id": "x"}.get("supports_awakening", false)))
 
+## 全9体のIDと並び: 既存6体は不変で、その後ろに朽ちた機械武者・宇宙飛行士・異形紳士がこの順で並ぶこと。
 func test_catalog_entry_count_and_ids_are_unchanged() -> void:
 	var ids: Array = []
-	for entry in RBMCreatorAppearanceCatalog.all():
-		ids.append(str(entry["id"]))
-	# 既存6体のIDと並びは不変で、新ボス(朽ちた機械武者)が末尾に追加されただけ
-	assert_eq(ids, ["appearance_slime", "appearance_wolf", "appearance_knight", "appearance_dragon", "appearance_ghost", "appearance_golem", "appearance_musha"])
-
-# ---------------------------------------------------------------------------
-# RBMCreatorDraft
-# ---------------------------------------------------------------------------
+	for entry in RBMCreatorAppearanceCatalog.all(): ids.append(str(entry["id"]))
+	assert_eq(ids, ["appearance_slime", "appearance_wolf", "appearance_knight", "appearance_dragon", "appearance_ghost", "appearance_golem", "appearance_musha", "appearance_astronaut", "appearance_gentleman"])
 
 func _draft() -> RBMCreatorDraft:
 	var draft := RBMCreatorDraft.new()
@@ -55,11 +35,11 @@ func _draft() -> RBMCreatorDraft:
 	draft.add_party_character("hero")
 	return draft
 
-func test_draft_supports_awakening_is_false_for_every_real_appearance() -> void:
+func test_draft_supports_awakening_only_for_approved_bosses() -> void:
 	var draft := _draft()
 	for entry in RBMCreatorAppearanceCatalog.all():
 		draft.appearance_id = str(entry["id"])
-		assert_eq(draft.supports_awakening(), draft.appearance_id == "appearance_musha", "%s: only the approved musha resolves to true" % draft.appearance_id)
+		assert_eq(draft.supports_awakening(), draft.appearance_id in ["appearance_dragon", "appearance_musha", "appearance_astronaut", "appearance_gentleman"])
 
 func test_draft_supports_awakening_is_false_when_no_appearance_chosen_yet() -> void:
 	var draft := _draft()
@@ -70,11 +50,8 @@ func test_is_awakening_appearance_valid_is_true_when_no_awakening_configured() -
 	var draft := _draft()
 	draft.appearance_id = "appearance_slime"
 	assert_false(draft.has_awakening())
-	assert_true(draft.is_awakening_appearance_valid(), "no awakening configured -- always valid regardless of appearance")
+	assert_true(draft.is_awakening_appearance_valid())
 
-## これは既存データ(supports_awakening=false)の実データだけで再現できる、
-## 今回のvalidationの本題そのもの——覚醒対応でない外見のまま覚醒を設定
-## した場合は不正、というケース。
 func test_is_awakening_appearance_valid_is_false_when_awakening_set_on_unsupported_appearance() -> void:
 	var draft := _draft()
 	draft.appearance_id = "appearance_slime"
@@ -86,26 +63,20 @@ func test_is_awakening_appearance_valid_is_false_when_awakening_set_on_unsupport
 func test_is_playable_becomes_false_when_awakening_is_orphaned_by_an_appearance_change() -> void:
 	var draft := _draft()
 	draft.appearance_id = "appearance_dragon"
-	assert_true(draft.is_playable(), "sanity: a normal minimal boss with no awakening is playable")
+	assert_true(draft.is_playable())
 	draft.set_awakening({"conditions": [], "condition_logic": "AND", "buff": {}, "heal": {}})
-	# The appearance never supported awakening in the first place, so this
-	# awakening is invalid the moment it exists -- is_playable() must reflect
-	# that immediately, without needing to simulate "changing the appearance
-	# afterward" (any appearance that could reach this state is, today,
-	# already unsupported).
-	assert_false(draft.is_playable(), "an awakening configured on a non-supporting appearance must block playability")
+	assert_true(draft.is_awakening_appearance_valid())
+	assert_true(draft.is_playable(), "Approved dragon allows awakening")
+	draft.appearance_id = "appearance_slime"
+	assert_false(draft.is_playable(), "Changing to an unsupported appearance blocks the orphaned awakening")
 	draft.remove_awakening()
-	assert_true(draft.is_playable(), "removing the orphaned awakening restores playability")
+	assert_true(draft.is_playable())
 
 func test_is_playable_unaffected_when_no_awakening_is_configured_regardless_of_appearance() -> void:
 	var draft := _draft()
 	for entry in RBMCreatorAppearanceCatalog.all():
 		draft.appearance_id = str(entry["id"])
-		assert_true(draft.is_playable(), "%s with no awakening configured must remain playable (no regression)" % draft.appearance_id)
-
-# ---------------------------------------------------------------------------
-# Creator STEP3: 覚醒の種類選択disabled判定
-# ---------------------------------------------------------------------------
+		assert_true(draft.is_playable())
 
 func _new_creator() -> RBMCreatorMain:
 	var creator := RBMCreatorMain.new()
@@ -120,13 +91,9 @@ func _fill_minimum_valid_boss(creator: RBMCreatorMain) -> void:
 	creator.draft.add_skill({"name": "斬撃", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 1.0})
 	creator.draft.add_party_character("hero")
 
-func _step3(creator: RBMCreatorMain) -> RBMCreatorStep4:
-	creator.go_to_step(3)
-	var view: RBMCreatorStep4 = creator._step_views[2]
-	return view
-
 func _open_advanced(creator: RBMCreatorMain) -> RBMCreatorStep4ActionPatterns:
-	var step3 := _step3(creator)
+	creator.go_to_step(3)
+	var step3: RBMCreatorStep4 = creator._step_views[2]
 	creator.draft.set_creator_mode(RBMCreatorDraft.CREATOR_MODE_ADVANCED)
 	creator.draft.action_sequence.clear()
 	step3.refresh()
@@ -134,27 +101,28 @@ func _open_advanced(creator: RBMCreatorMain) -> RBMCreatorStep4ActionPatterns:
 
 func _btn(node: Node, button_name: String) -> Button:
 	var found: Button = node.find_child(button_name, true, false)
-	assert_not_null(found, "expected a real Button node named %s under %s" % [button_name, node])
+	assert_not_null(found, "expected a real Button node named %s" % button_name)
 	return found
 
-## 既存6体はすべて覚醒非対応のため、この経路は実データだけで完全に
-## 再現できる——「覚醒未設定でも、外見が非対応なら選択不可」の確認。
 func test_awakening_type_disabled_when_appearance_does_not_support_it_even_if_unset() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
-	creator.draft.appearance_id = "appearance_dragon"
+	creator.draft.appearance_id = "appearance_slime"
 	assert_false(creator.draft.has_awakening())
 	var advanced := _open_advanced(creator)
 	_btn(advanced, "AddSlotButton").pressed.emit()
 	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
 	assert_true(advanced._form._type_option.is_item_disabled(RBMActionEditorForm.TYPE_IDS.find(RBMActionEditorForm.AWAKENING)))
 
-## 「覚醒対応ならまだ選択できる」経路自体は、フォーム側のset_awakening_
-## type_available()に直接真偽値を渡して検証済み(既存の覚醒UIテスト群)。
-## ここでは、STEP3画面が実際に計算する2つの独立した真偽値の組み合わせ
-## ロジック(「対応している AND 未設定」の時だけ有効にする)を、内部で
-## 混同していないことを確認する——4通りの組み合わせすべてが正しい結論に
-## なることを直接の真偽値テーブルとして確認する。
+func test_awakening_type_available_for_approved_dragon() -> void:
+	var creator := _new_creator()
+	_fill_minimum_valid_boss(creator)
+	creator.draft.appearance_id = "appearance_dragon"
+	var advanced := _open_advanced(creator)
+	_btn(advanced, "AddSlotButton").pressed.emit()
+	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+	assert_false(advanced._form._type_option.is_item_disabled(RBMActionEditorForm.TYPE_IDS.find(RBMActionEditorForm.AWAKENING)))
+
 func test_awakening_availability_combines_support_and_configured_state_correctly() -> void:
 	var table := [
 		{"supports": true, "configured": false, "expected_available": true},
@@ -164,4 +132,4 @@ func test_awakening_availability_combines_support_and_configured_state_correctly
 	]
 	for row in table:
 		var available: bool = bool(row["supports"]) and not bool(row["configured"])
-		assert_eq(available, bool(row["expected_available"]), "supports=%s configured=%s" % [row["supports"], row["configured"]])
+		assert_eq(available, bool(row["expected_available"]))

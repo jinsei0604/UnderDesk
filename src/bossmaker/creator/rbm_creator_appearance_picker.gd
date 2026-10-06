@@ -107,12 +107,11 @@ func _build_ui() -> void:
 
 ## `entry`はRBMCreatorAppearanceCatalog.all()の1件と同じ形
 ## ({"id","name","supports_awakening"})——実運用では常にそこから呼ぶが、
-## 独立したメソッドに切り出してあるのは、既存6体の外見が全てsupports_
-## awakening=falseの間でも、「覚醒対応の外見が来たらどう描画するか」を
-## テスト側がその場限りのfixture Dictionaryを直接渡して検証できるように
-## するため(RBMCreatorAppearanceCatalog.ENTRIESはGodotのconstとして
-## 実行時読み取り専用のため書き換えられない——本物のボスデータを勝手に
-## 覚醒対応へ変更せずに済む)。
+## 独立したメソッドに切り出してあるのは、「覚醒対応の外見が来たらどう描画するか」
+## (覚醒後アセットがまだ無い場合など)を、テスト側がその場限りのfixture
+## Dictionaryを直接渡して検証できるようにするため(RBMCreatorAppearanceCatalog.
+## ENTRIESはGodotのconstとして実行時読み取り専用のため書き換えられない——
+## 本物のボスデータの覚醒対応を書き換えずに済む)。
 ##
 ## カード構造の再設計§5-7/§9: カード全体(画像+名前+バッジ/切替ボタン)を
 ## 1つのButton(`card`)にし、押した瞬間に選択即決定する。中身の画像/名前/

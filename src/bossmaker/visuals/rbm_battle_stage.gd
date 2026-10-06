@@ -23,6 +23,15 @@ const SamuraiWindBlock = preload("res://src/bossmaker/visuals/rbm_samurai_wind_b
 const TankHammer = preload("res://src/bossmaker/visuals/rbm_tank_hammer_finish.gd")
 const TankHammerImpactFrame = preload("res://src/bossmaker/visuals/rbm_tank_hammer_impact_frame.gd")
 const AwakeningTransform = preload("res://src/bossmaker/visuals/rbm_boss_awakening_transform.gd")
+const GentlemanAwakening = preload("res://src/bossmaker/visuals/rbm_gentleman_awakening.gd")
+const GentlemanAura = preload("res://src/bossmaker/visuals/rbm_gentleman_aura.gd")
+var _gentleman_aura: Node2D
+const AstronautAwakening = preload("res://src/bossmaker/visuals/rbm_astronaut_awakening.gd")
+const AstronautAura = preload("res://src/bossmaker/visuals/rbm_astronaut_aura.gd")
+var _astronaut_aura: Node2D
+const DragonAwakening = preload("res://src/bossmaker/visuals/rbm_dragon_awakening.gd")
+const DragonAura = preload("res://src/bossmaker/visuals/rbm_dragon_aura.gd")
+var _dragon_aura: Node2D
 const MushaAwakening = preload("res://src/bossmaker/visuals/rbm_musha_ink_awakening.gd")
 const MushaAura = preload("res://src/bossmaker/visuals/rbm_musha_aura.gd")
 const MushaInk = preload("res://src/bossmaker/visuals/rbm_musha_ink_director.gd")
@@ -37,9 +46,9 @@ const SKILL_PRESENTATIONS = {
 	"healer_heal_all": {"actor": "healer", "kind": "heal_all", "script": preload("res://src/bossmaker/visuals/rbm_healer_saint_finish.gd")},
 }
 var _skill_presentation: Node2D
-const BOSS_SINGLE_PRESENTATIONS={"golem":preload("res://src/bossmaker/visuals/rbm_golem_single_punch.gd"),"musha":preload("res://src/bossmaker/visuals/rbm_musha_single.gd"),"musha_awakened":preload("res://src/bossmaker/visuals/rbm_musha_awakened_single.gd")}
-const BOSS_ALL_PRESENTATIONS={"musha":preload("res://src/bossmaker/visuals/rbm_musha_all.gd"),"musha_awakened":preload("res://src/bossmaker/visuals/rbm_musha_awakened_all.gd")}
-const BOSS_SUPPORT_PRESENTATIONS={"musha":preload("res://src/bossmaker/visuals/rbm_musha_support.gd"),"musha_awakened":preload("res://src/bossmaker/visuals/rbm_musha_support.gd")}
+const BOSS_SINGLE_PRESENTATIONS={"gentleman":preload("res://src/bossmaker/visuals/rbm_gentleman_single.gd"),"gentleman_awakened":preload("res://src/bossmaker/visuals/rbm_gentleman_single.gd"),"astronaut":preload("res://src/bossmaker/visuals/rbm_astronaut_single.gd"),"astronaut_awakened":preload("res://src/bossmaker/visuals/rbm_astronaut_single.gd"),"golem":preload("res://src/bossmaker/visuals/rbm_golem_single_punch.gd"),"wolf":preload("res://src/bossmaker/visuals/rbm_wolf_single_bite.gd"),"knight":preload("res://src/bossmaker/visuals/rbm_knight_single_slash.gd"),"slime":preload("res://src/bossmaker/visuals/rbm_slime_single_punch.gd"),"dragon":preload("res://src/bossmaker/visuals/rbm_dragon_single.gd"),"dragon_awakened":preload("res://src/bossmaker/visuals/rbm_dragon_awakened_single.gd"),"ghost":preload("res://src/bossmaker/visuals/rbm_ghost_single.gd"),"musha":preload("res://src/bossmaker/visuals/rbm_musha_single.gd"),"musha_awakened":preload("res://src/bossmaker/visuals/rbm_musha_awakened_single.gd")}
+const BOSS_ALL_PRESENTATIONS={"gentleman":preload("res://src/bossmaker/visuals/rbm_gentleman_all.gd"),"gentleman_awakened":preload("res://src/bossmaker/visuals/rbm_gentleman_all.gd"),"astronaut":preload("res://src/bossmaker/visuals/rbm_astronaut_all.gd"),"astronaut_awakened":preload("res://src/bossmaker/visuals/rbm_astronaut_all.gd"),"golem":preload("res://src/bossmaker/visuals/rbm_golem_ground_slam.gd"),"wolf":preload("res://src/bossmaker/visuals/rbm_wolf_pack_rush.gd"),"knight":preload("res://src/bossmaker/visuals/rbm_knight_wide_slash.gd"),"slime":preload("res://src/bossmaker/visuals/rbm_slime_splash.gd"),"dragon":preload("res://src/bossmaker/visuals/rbm_dragon_all.gd"),"dragon_awakened":preload("res://src/bossmaker/visuals/rbm_dragon_all.gd"),"ghost":preload("res://src/bossmaker/visuals/rbm_ghost_all.gd"),"musha":preload("res://src/bossmaker/visuals/rbm_musha_all.gd"),"musha_awakened":preload("res://src/bossmaker/visuals/rbm_musha_awakened_all.gd")}
+const BOSS_SUPPORT_PRESENTATIONS={"gentleman":preload("res://src/bossmaker/visuals/rbm_gentleman_support.gd"),"gentleman_awakened":preload("res://src/bossmaker/visuals/rbm_gentleman_support.gd"),"astronaut":preload("res://src/bossmaker/visuals/rbm_astronaut_support.gd"),"astronaut_awakened":preload("res://src/bossmaker/visuals/rbm_astronaut_support.gd"),"golem":preload("res://src/bossmaker/visuals/rbm_golem_support.gd"),"wolf":preload("res://src/bossmaker/visuals/rbm_wolf_support.gd"),"knight":preload("res://src/bossmaker/visuals/rbm_knight_support.gd"),"slime":preload("res://src/bossmaker/visuals/rbm_slime_support.gd"),"dragon":preload("res://src/bossmaker/visuals/rbm_dragon_support.gd"),"dragon_awakened":preload("res://src/bossmaker/visuals/rbm_dragon_support.gd"),"ghost":preload("res://src/bossmaker/visuals/rbm_ghost_support.gd"),"musha":preload("res://src/bossmaker/visuals/rbm_musha_support.gd"),"musha_awakened":preload("res://src/bossmaker/visuals/rbm_musha_support.gd")}
 var _hero_fire: Node2D
 var _hero_finish := false
 var _hero_elapsed := -1.0
@@ -72,9 +81,9 @@ var _tank_shake := Vector2.ZERO
 const TANK_HITSTOP_DURATION := 0.12
 
 ## 覚醒(Awakening)の再生専用状態。演出内容そのものはボス固有(コード設計方針参照)。
-## 専用演出を持たないボスは rbm_boss_awakening_transform.gd(仮の最小限表現、同ファイル
-## 冒頭のコメント参照)を共通で使う。専用演出を持つボス(朽ちた機械武者)は
-## _play_awakening_entry() で専用のファイルへ振り分ける。
+## 覚醒対応の4体(竜・朽ちた機械武者・宇宙飛行士・異形紳士)は _play_awakening_entry() で
+## それぞれ専用の覚醒演出へ振り分ける。専用演出を持たないボスの覚醒が再生された場合だけ、
+## rbm_boss_awakening_transform.gd(仮の最小限表現、同ファイル冒頭のコメント参照)を使う。
 var _awakening_transform: Node2D
 var _awakened_appearance_applied := false
 
@@ -151,9 +160,18 @@ func _ready() -> void:
 	_awakening_transform.z_index = 90
 	_awakening_transform.visible = false
 	add_child(_awakening_transform)
+	_dragon_aura = DragonAura.new()
+	add_child(_dragon_aura)
+	_dragon_aura.configure(self)
 	_musha_aura = MushaAura.new()
 	add_child(_musha_aura)
 	_musha_aura.configure(self)
+	_astronaut_aura = AstronautAura.new()
+	add_child(_astronaut_aura)
+	_astronaut_aura.configure(self)
+	_gentleman_aura = GentlemanAura.new()
+	add_child(_gentleman_aura)
+	_gentleman_aura.configure(self)
 	resized.connect(_layout_actors)
 	_layout_actors()
 
@@ -810,6 +828,21 @@ func _char_rect(visual: Variant) -> Rect2:
 ## HUDへ反映する——覚醒自体は"impact"らしい対象・ダメージを持たないが、
 ## 同じ二値シグナル契約(impact/finished)に揃えるためにそのまま踏襲する。
 func _play_awakening_entry() -> void:
+	if Assets.boss_asset(_appearance_id) == "gentleman":
+		_skill_presentation = GentlemanAwakening.new()
+		add_child(_skill_presentation)
+		_tween = _skill_presentation.play(self)
+		return
+	if Assets.boss_asset(_appearance_id) == "astronaut":
+		_skill_presentation = AstronautAwakening.new()
+		add_child(_skill_presentation)
+		_tween = _skill_presentation.play(self)
+		return
+	if Assets.boss_asset(_appearance_id) == "dragon":
+		_skill_presentation = DragonAwakening.new()
+		add_child(_skill_presentation)
+		_tween = _skill_presentation.play(self)
+		return
 	if Assets.boss_asset(_appearance_id) == "musha":
 		_skill_presentation = MushaAwakening.new()
 		add_child(_skill_presentation)
@@ -839,7 +872,7 @@ func _awakening_transform_progress(age: float) -> void:
 ## Synchronize restored/rewound snapshots without replaying the transformation.
 func _sync_boss_appearance() -> void:
 	var base_id := Assets.boss_asset(_appearance_id)
-	if not base_id in ["musha"]:
+	if not base_id in ["dragon", "musha", "astronaut", "gentleman"]:
 		return
 	var desired := base_id
 	if bool(_state.get("is_awakened", false)) and Assets.has_awakened_design(base_id):
@@ -854,8 +887,14 @@ func _apply_awakened_appearance() -> void:
 
 func _set_boss_appearance(asset_id: String) -> void:
 	if str(_asset_ids.get("boss", "")) == asset_id:
+		if is_instance_valid(_dragon_aura):
+			_dragon_aura.refresh()
 		if is_instance_valid(_musha_aura):
 			_musha_aura.refresh()
+		if is_instance_valid(_astronaut_aura):
+			_astronaut_aura.refresh()
+		if is_instance_valid(_gentleman_aura):
+			_gentleman_aura.refresh()
 		return
 	var boss_visual: Control = _visuals.get("boss")
 	if not is_instance_valid(boss_visual) or not boss_visual.has_method("setup"):
@@ -867,8 +906,14 @@ func _set_boss_appearance(asset_id: String) -> void:
 		boss_visual.call("set_pose", int(_poses.get("boss", 0)))
 	_place_foot("boss", foot)
 	_layout_actors()
+	if is_instance_valid(_dragon_aura):
+		_dragon_aura.refresh()
 	if is_instance_valid(_musha_aura):
 		_musha_aura.refresh()
+	if is_instance_valid(_astronaut_aura):
+		_astronaut_aura.refresh()
+	if is_instance_valid(_gentleman_aura):
+		_gentleman_aura.refresh()
 	_queue_visual_redraw()
 
 func _finish_awakening_entry() -> void:

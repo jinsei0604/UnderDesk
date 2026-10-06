@@ -7,25 +7,18 @@ const POSE_COUNT := 12
 const POSE_CANVAS := Vector2(512, 512)
 const POSE_FOOT := Vector2(256, 460)
 const ALLY_IDS := ["hero", "butler", "healer", "samurai", "tank"]
-const BOSS_IDS := ["slime", "wolf", "knight", "dragon", "ghost", "golem", "musha"]
+const BOSS_IDS := ["slime", "wolf", "knight", "dragon", "ghost", "golem", "musha", "astronaut", "gentleman"]
 const HEIGHTS := {"hero": 100.222222, "butler": 104.777778, "healer": 82.0, "samurai": 104.777778, "tank": 111.611111,
 	"slime": 150.0, "wolf": 155.0, "knight": 170.0, "dragon": 180.0, "ghost": 160.0, "golem": 180.0, "musha": 180.0,
 	# 覚醒後の朽ちた機械武者: 抜刀待機(高さ579px)を試作の確定倍率0.335で表示する。
-	"musha_awakened": 193.965}
+	"musha_awakened": 193.965, "astronaut": 116.0, "astronaut_awakened": 116.0, "gentleman": 160.0, "gentleman_awakened": 160.0}
 const APPEARANCES := {
 	"appearance_slime": "slime", "appearance_wolf": "wolf", "appearance_knight": "knight",
 	"appearance_dragon": "dragon", "appearance_ghost": "ghost", "appearance_golem": "golem",
-	"appearance_musha": "musha",
+	"appearance_musha": "musha", "appearance_astronaut": "astronaut", "appearance_gentleman": "gentleman",
 }
-## 覚醒(Awakening)後の外見の命名規約——通常appearanceの資産と同じROOT配下、
-## asset_id + AWAKENED_SUFFIXという名前のフォルダに専用design.png/framesを
-## 置くだけで自動的に認識される(known()がこのsuffixを剥がした素の
-## asset_idをBOSS_IDSに照らして判定するため、BOSS_IDS自体へ個別に追記する
-## 必要はない)。覚醒後アセットが無いボスでは has_awakened_design() が
-## falseを返す——呼び出し側(RBMBattleStage)はそのまま通常の外見を保つ
-## (is_awakened自体の内部状態には一切影響しない)。朽ちた機械武者は musha_awakened を持つ。
-## ボスごとの実際の覚醒後デザイン・専用モーションはユーザー側で別途制作し、
-## このフォルダへ配置するだけで有効になる。
+## Awakening designs use the existing <boss>_awakened asset folder convention.
+## Only explicitly supported bosses receive such assets; normal saved IDs are unchanged.
 const AWAKENED_SUFFIX := "_awakened"
 
 static var _texture_cache: Dictionary = {}
@@ -45,11 +38,12 @@ static func has_awakened_design(asset_id: String) -> bool:
 
 static func boss_asset(appearance_id: String) -> String:
 	# Empty/unknown IDs remain explicit unknowns. Do not invent a saved or visual
-	# mapping between a fixture boss ID and one of the six authored appearances.
+	# mapping between a fixture boss ID and one of the authored boss appearances.
 	return str(APPEARANCES.get(appearance_id, ""))
 
 static func display_height(asset_id: String) -> float:
-	return float(HEIGHTS.get(asset_id, 100.0))
+	var base_id := asset_id.trim_suffix(AWAKENED_SUFFIX)
+	return float(HEIGHTS.get(asset_id, HEIGHTS.get(base_id, 100.0)))
 
 static func design_path(asset_id: String) -> String:
 	return ROOT + asset_id + "/design.png" if known(asset_id) else ""

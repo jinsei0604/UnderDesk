@@ -5,11 +5,11 @@ extends GutTest
 ## 回帰テスト。
 ##
 ## RBMCreatorAppearanceCatalog.ENTRIESはGodotのconstとして実行時読み取り
-## 専用のため、既存6体を覚醒対応へ書き換えることはできない(かつ、実際の
-## ボスを勝手に覚醒対応へ設定することは今回の確定仕様として禁止されて
-## いる)。「覚醒対応の外見が来た場合」の構造テストは、picker._build_card()
+## 専用のため、テストからボスの覚醒対応を書き換えることはできない。実データ
+## では覚醒対応の4体(竜・朽ちた機械武者・宇宙飛行士・異形紳士)と非対応の5体の
+## 表示を確かめる。覚醒後アセットが無い場合などの構造テストは、picker._build_card()
 ## へその場限りのfixture Dictionaryを直接渡すことで、正規のcatalogに
-## 一切触れずに検証する——実在の6つのidとは衝突しない専用のfixture id
+## 一切触れずに検証する——実在の9つのidとは衝突しない専用のfixture id
 ## ("appearance_test_fixture")だけを使う。
 
 func after_each() -> void:
@@ -38,7 +38,7 @@ func test_preview_area_is_larger_than_the_old_48px_and_swatch_uses_nearest_filte
 	assert_eq(swatch.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST, "pixel art must never be smoothed/interpolated")
 	assert_eq(swatch.stretch_mode, TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
 
-func test_all_six_cards_share_the_identical_preview_box_size() -> void:
+func test_every_boss_card_shares_the_identical_preview_box_size() -> void:
 	var picker := _new_picker()
 	var sizes: Array = []
 	for entry in RBMCreatorAppearanceCatalog.all():
@@ -48,11 +48,11 @@ func test_all_six_cards_share_the_identical_preview_box_size() -> void:
 	for s in sizes:
 		assert_eq(s, sizes[0], "every boss card must share one preview box size regardless of the underlying art's own dimensions")
 
-func test_grid_is_still_three_columns_with_all_six_bosses_present() -> void:
+func test_grid_is_still_three_columns_with_all_nine_bosses_present() -> void:
 	var picker := _new_picker()
 	var grid: GridContainer = _find(picker, "AppearanceGrid")
 	assert_eq(grid.columns, 3)
-	assert_eq(grid.get_child_count(), 7, "既存6体+朽ちた機械武者")
+	assert_eq(grid.get_child_count(), 9, "既存8体+異形紳士")
 
 ## 画面再設計(2回目の改修)§1-2: この画面自身がroot_columnの中で実際の
 ## 表示領域を確保できるよう、size_flags_vertical=EXPAND_FILLを明示している
@@ -124,19 +124,19 @@ func test_back_button_does_not_change_the_currently_selected_boss() -> void:
 	assert_eq(picker._selected_id, "appearance_dragon", "戻るはboss idを変更しない")
 
 # ---------------------------------------------------------------------------
-# 「覚醒可能」表示・プレビュー切替: 実データ(全6体が非対応)
+# 「覚醒可能」表示・プレビュー切替: 実データ(覚醒対応は竜・朽ちた機械武者・宇宙飛行士・異形紳士の4体)
 # ---------------------------------------------------------------------------
 
 func test_only_approved_appearances_show_awakening_badge_and_toggle() -> void:
 	var picker := _new_picker()
 	for entry in RBMCreatorAppearanceCatalog.all():
 		var id := str(entry["id"])
-		if id == "appearance_musha":
-			assert_not_null(_find(picker, "AwakeningCapableBadge_%s" % id), "the approved musha shows 「覚醒可能」")
-			assert_not_null(_find(picker, "AwakenedPreviewToggle_%s" % id), "and the preview toggle")
+		if id in ["appearance_dragon", "appearance_musha", "appearance_astronaut", "appearance_gentleman"]:
+			assert_not_null(_find(picker, "AwakeningCapableBadge_%s" % id))
+			assert_not_null(_find(picker, "AwakenedPreviewToggle_%s" % id))
 		else:
-			assert_null(_find(picker, "AwakeningCapableBadge_%s" % id), "%s must not show 「覚醒可能」" % id)
-			assert_null(_find(picker, "AwakenedPreviewToggle_%s" % id), "%s must not show the preview toggle either" % id)
+			assert_null(_find(picker, "AwakeningCapableBadge_%s" % id))
+			assert_null(_find(picker, "AwakenedPreviewToggle_%s" % id))
 
 # ---------------------------------------------------------------------------
 # fixture経由: 覚醒対応の外見が来た場合の構造(catalog本体は不変のまま)

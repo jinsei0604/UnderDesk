@@ -1,5 +1,10 @@
 extends GutTest
 const Palette=preload("res://src/bossmaker/visuals/rbm_attribute_vfx_palette.gd")
+## ゴーレム専用の演出(単体・全体・支援)。他のボスには選ばれてはいけない。
+const GOLEM_PRESENTATIONS=[preload("res://src/bossmaker/visuals/rbm_golem_single_punch.gd"),preload("res://src/bossmaker/visuals/rbm_golem_ground_slam.gd"),preload("res://src/bossmaker/visuals/rbm_golem_support.gd")]
+
+func _is_golem_presentation(presentation) -> bool:
+	return is_instance_valid(presentation) and GOLEM_PRESENTATIONS.has(presentation.get_script())
 
 func _fixture(attribute: String="NEUTRAL",character: String="hero",with_tank: bool=false) -> Dictionary:
 	var draft:=RBMCreatorDraft.new()
@@ -102,13 +107,15 @@ func test_cover_target_contact_uses_redirected_target_position() -> void:
 func test_non_single_or_other_boss_does_not_dispatch() -> void:
 	var f:=_fixture()
 	f.stage.play_entry({"actor":"boss","action":"skill","hits":{"0":{"amount":20}}},{"effect":"damage","target":"ally_all"})
-	assert_null(f.stage._skill_presentation)
+	assert_eq(f.stage._skill_presentation.get_script(),preload("res://src/bossmaker/visuals/rbm_golem_ground_slam.gd"))
 	f.stage.cancel()
 	f.stage.play_entry({"actor":"boss","action":"skill","target":"boss","amount":20},{"effect":"self_heal"})
-	assert_null(f.stage._skill_presentation)
+	assert_eq(f.stage._skill_presentation.get_script(),preload("res://src/bossmaker/visuals/rbm_golem_support.gd"))
 	f.stage.cancel()
 	f.stage.configure(f.session.battle,"appearance_dragon")
 	f.stage.play_entry(f.entry,f.skill)
-	assert_null(f.stage._skill_presentation)
+	# 竜は自分の専用演出を持つようになった(以前の「竜はnull」の前提は古い)。確かめるのは、
+	# 他のボスの単体攻撃にゴーレムの演出が選ばれないこと。
+	assert_false(_is_golem_presentation(f.stage._skill_presentation),"another boss's single attack never uses a golem presentation")
 	f.stage.cancel()
 	await get_tree().process_frame

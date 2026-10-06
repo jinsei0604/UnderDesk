@@ -1,5 +1,23 @@
 extends RefCounted
 const FILES := {
+  "gentleman_single": "res://assets_bossmaker/audio/gentleman/single.wav",
+  "gentleman_all": "res://assets_bossmaker/audio/gentleman/all.wav",
+  "gentleman_buff": "res://assets_bossmaker/audio/gentleman/buff.wav",
+  "gentleman_heal": "res://assets_bossmaker/audio/gentleman/heal.wav",
+  "gentleman_awakening": "res://assets_bossmaker/audio/gentleman/awakening.wav",
+  "gentleman_awakened_single": "res://assets_bossmaker/audio/gentleman/awakened_single.wav",
+  "gentleman_awakened_all": "res://assets_bossmaker/audio/gentleman/awakened_all.wav",
+
+  "astronaut_single": "res://assets_bossmaker/audio/astronaut/single.wav",
+  "astronaut_all": "res://assets_bossmaker/audio/astronaut/all.wav",
+  "astronaut_awakening": "res://assets_bossmaker/audio/astronaut/awakening.wav",
+  "astronaut_planet": "res://assets_bossmaker/audio/astronaut/planet.wav",
+  "astronaut_blackhole": "res://assets_bossmaker/audio/astronaut/blackhole.wav",
+
+  "dragon_awakening": "res://assets_bossmaker/audio/dragon_awakening.wav",
+  "dragon_normal_breath": "res://assets_bossmaker/audio/dragon_normal_breath.wav",
+  "dragon_awakened_breath": "res://assets_bossmaker/audio/dragon_awakened_breath.wav",
+  "dragon_awakened_meteors": "res://assets_bossmaker/audio/dragon_awakened_meteors.wav",
   "musha_single": "res://assets_bossmaker/audio/musha_single.wav",
   "musha_aoe": "res://assets_bossmaker/audio/musha_aoe.wav",
   "musha_buff": "res://assets_bossmaker/audio/musha_buff.wav",
