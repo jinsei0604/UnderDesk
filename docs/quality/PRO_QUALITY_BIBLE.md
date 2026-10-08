@@ -20,6 +20,7 @@ Steamで販売する商用インディーゲームとして、プレイヤーが
 | 性能の計測・改善 | [PERFORMANCE.md](PERFORMANCE.md)、本書 §5.1 | mc-godot-performance |
 | 動画・一覧画像・スクリーンショットのレビュー | 本書 §3、[REVIEW_CHECKLIST.md](REVIEW_CHECKLIST.md)、[ANIMATION_CRAFT.md](ANIMATION_CRAFT.md)、[ART_DIRECTION.md](ART_DIRECTION.md)、[examples/README.md](examples/README.md) | mc-visual-review |
 | どの作業でも、終わる前 | [REVIEW_CHECKLIST.md](REVIEW_CHECKLIST.md) の該当リスト | — |
+| テストの範囲を決める（どのテストをどこまで実行するか） | [TESTING.md](TESTING.md) | — |
 | 何を直すかを決める | [QUALITY_AUDIT.md](QUALITY_AUDIT.md)、[QUALITY_AUDIT_STANDARD_DELTA.md](QUALITY_AUDIT_STANDARD_DELTA.md) | — |
 | 外部資料の根拠を確かめる | [EXTERNAL_REFERENCES.md](EXTERNAL_REFERENCES.md) | — |
 | Skill が本当に効いているか確かめる | [QUALITY_EVALS.md](QUALITY_EVALS.md) | — |
@@ -55,6 +56,7 @@ Steamで販売する商用インディーゲームとして、プレイヤーが
 - Release Gate を満たさないものは、**見た目が良くても完成扱いにしない。**
 - Release Gate に反する問題は P0 か P1 として扱う（§2）。
 - 処理落ちは「見た目」と「操作感」を直接壊すので、演出の品質改善で処理落ちを増やすことは認めない（[PERFORMANCE.md](PERFORMANCE.md)）。
+- 表の「全GUT」は、リリース候補・大きな統合の時の確認（[TESTING.md](TESTING.md) §9）。個々の作業では、TESTING.md で選んだレベルのテストで、その作業に関わる条件を確かめる。
 
 **Polish Priority（Release Gate を満たしたものを磨く）**
 - Art Direction／Animation／Combat Feel／VFX／UI/UX／Audio／Presentation。
@@ -136,12 +138,10 @@ G は「1280×720の実画面を、実時間（処理落ち込み）で見て」
 2. 関連する規約の章と [QUALITY_AUDIT.md](QUALITY_AUDIT.md) の該当項目を読む（Skill を使う場合は、Skill が示す章だけ）。
 3. **1つの問題だけ**を直す。一度に大量のファイルを書き換えない。
 4. 確認を3つ行ってから次へ進む。
-   - **Test**: テストの実行範囲の決まりはここが正本（他の文書・Skill はここを参照する）。
-     - 通常の作業の繰り返しでは、**変更範囲に関係するGUT**を優先して実行する。全GUTを毎回機械的には実行しない。
-     - **全GUT**は必要な時に実行する: 影響範囲が広い変更（共通部品・戦闘ロジック・保存と読み込み・多くの画面にまたがる変更など）、まとまった作業の最終的な回帰確認（Release Gate の確認・commit の前など）。
-     - 見た目・演出・音の作業では、GUTの件数より **Runtime（実GPU・実時間）と Video の確認**を重視する。GUTの合格だけで見た目の品質を判断しない。
-     - 報告では、実行したテストと、全GUTを実行した／しなかった理由を書く。
-     - テストを削ってPASSさせない。前提が古くなったテストは「なぜ無効になったか」を確かめてから直す。
+   - **Test**: テストの選び方（手順・レベル・全GUTの条件・想定外の失敗の扱い・範囲を広げる時・実画面と音の確認・報告の形・実行順への依存）は [TESTING.md](TESTING.md) が唯一の正本（他の文書・Skill はそこを参照する）。
+     - 変更したファイルの数ではなく、**変更で壊れる可能性がある範囲**でテストを選ぶ。少ないテストで済ませたこと自体を良いとしない。「念のため全GUT」はしない。commit の前というだけでは全GUTにしない。
+     - 見た目・演出・UI・音の作業は、GUTの合格だけで完了にしない（**Runtime（実GPU・実時間）と Video の確認**、TESTING.md §6）。全GUTを省いた分、この2つを省かない。
+     - テストを削ってPASSさせない。失敗を未解決のまま合格として扱わない。前提が古くなったテストは「なぜ無効になったか」を確かめてから直す。
    - **Runtime**: 実GPUで実際の画面を動かす。演出は**実時間のフレーム時間**も測る（[PERFORMANCE.md](PERFORMANCE.md) §3）。
    - **Video**: 動き・タイミング・impact・camera・loop・変形・読みやすさは、実際の映像（またはコマ送りの一覧画像）で最終判断する。コードだけで完成と判断しない。承認・却下の比較は [examples/README.md](examples/README.md) の運用で残す。
 5. 意味のある単位でcommitする（commitはユーザーの依頼がある時だけ）。大量の変更を1commitにまとめない。
@@ -160,7 +160,7 @@ G は「1280×720の実画面を、実時間（処理落ち込み）で見て」
 次の作業を始める時は、必ず冒頭の表から該当する章を開いてから作業する（全文は不要）。対応する Skill（§8）があれば使う。
 - 新規ボス・新規攻撃・覚醒・VFX・Animation・UI・Title Screen・Camera・SE・キャラクターの移動・背景演出・戦闘演出
 
-作業の最後に [REVIEW_CHECKLIST.md](REVIEW_CHECKLIST.md) の該当リストを埋めて報告に含める。
+作業の最後に [REVIEW_CHECKLIST.md](REVIEW_CHECKLIST.md) の該当リストを埋めて報告に含める。テストの報告は [TESTING.md](TESTING.md) §7 の形（実行したテスト・結果・全GUTを実行したか・その理由）で含める。
 
 してはいけないこと:
 - 規約と違うという理由だけで、既存の承認済み演出・画面を作り直す
@@ -222,6 +222,7 @@ G は「1280×720の実画面を、実時間（処理落ち込み）で見て」
 ---
 
 ## 改訂履歴
+- 2026-10-09 追記: テストの選び方を [TESTING.md](TESTING.md) に分けて唯一の正本にした（変更で壊れうる範囲でテストを選ぶ、変更の確かめ方（status・diff・stage済み・未追跡、区別できない変更は「未確認の変更」として調べる）、Level 1〜4、全GUTの条件 A〜E、事前読み込みの Level 3 と 4 の境界、「念のため全GUT」の禁止、想定外の失敗の切り分け、範囲を広げる時、変更の領域とテストの対応表、実画面・映像・音の確認の区分、実行順への依存、報告の形）。§5 の Test・§6・§1.1 は TESTING.md を参照する形にした。「commit の前は全GUT」は、大きな節目（Level 4 D）に改めた。REVIEW_CHECKLIST A の「実GPUで実際の画面を確認した」を TESTING.md §6 の区分に置き換えた。QUALITY_EVALS に Test selection と Eval H を追加。CLAUDE.md の古いテストの件数を TESTING.md への参照に替え（QA-41）、品質の作業の入口を足した。Codex 用の入口としてリポジトリのルートに AGENTS.md を置いた（参照だけ）。
 - 2026-10-08 追記（同日3回目）: QA-06 の第3段。PERFORMANCE §2.1 に「間に合わない時は、演出の開始の境界で、その演出の素材が揃うまで待つ（固定の時間ではなく実際に読み終えるまで。待つ間に HP の表示・次の行動を進めない。今の PC で間に合っても外さない）」を追加。§2 の `get_image()` の例外から、武者オーラの直接の読み出し（写しが無い時の代わり）を削除した記録に更新。VRAM の基準値は QA-06 の値として承認（将来の絶対の予算ではない）。COMBAT_PRESENTATION §9・REVIEW_CHECKLIST C に同じ規則への参照を追加。
 - 2026-10-08 追記（同日2回目）: QA-06 を再オープン。完了の条件を「通常の操作で到達できる最速の経路を含め、初回の演出の最中に同期の読み込み・初めてのデコード・初めての解析・同期の GPU 読み出しを起こさない」とした（QUALITY_AUDIT_STANDARD_DELTA の QA-06 の記録）。
 - 2026-10-08 追記: PERFORMANCE §2.1（演出の素材は再生中に初めて読み込まない。開始フレームで同期の読み込み・初めてのデコード・初めての解析を起こさない、停止を別の瞬間へ移さない、VRAM の管理、GPU 側の初回の準備は計測してから）を追加（QA-06 の完了に合わせて）。COMBAT_PRESENTATION §9・REVIEW_CHECKLIST C・AUDIO §5 は PERFORMANCE §2.1 を参照する形に変更（「戦闘開始時に読み込む」の書き方を、停止を移さない書き方にそろえた）。同日、VRAM の基準値を「絶対の上限ではなく判断の基準」と明記し、`get_image()` の例外を武者オーラの用途と条件に限定し、§2.1 に「現在の実装との差」（事前読み込みより前に始まる演出・戦闘後も保持・オーラの直接読み出し）を追記。

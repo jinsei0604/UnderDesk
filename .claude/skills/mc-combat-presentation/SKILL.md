@@ -32,6 +32,6 @@ description: Routes Makers & Challengers battle-presentation work to the project
 - 1回に1つの問題だけを扱う。
 
 ## 終わる前
-- Test（実行範囲は PRO_QUALITY_BIBLE.md §5）→ Runtime（実GPU・実時間のフレーム時間、1280×720と1920×1080）→ Video（一覧画像・動画）の順で確かめる。
+- Test（テストの選び方は [TESTING.md](../../../docs/quality/TESTING.md)。影響範囲でレベルを選ぶ）→ Runtime（実GPU・実時間のフレーム時間、1280×720と1920×1080）→ Video（一覧画像・動画）の順で確かめる。
 - [REVIEW_CHECKLIST.md](../../../docs/quality/REVIEW_CHECKLIST.md) のリスト A・B・C を埋める（音を触ったら F も）。
 - 見た目の良し悪しは、映像をユーザーが見て決める。このSkillや規約を読んだことを品質の根拠にしない。

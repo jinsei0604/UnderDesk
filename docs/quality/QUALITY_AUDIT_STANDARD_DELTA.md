@@ -172,6 +172,10 @@ QUALITY_AUDIT.md の本文（QA番号・実測・優先度）は変えずに、�
 - 状態：**完了**（2026-10-08）
 - commit：QA-06 は `a1fe569`（実装・再発防止テスト・検証ツールの新しい契約への対応・品質規約を1つの commit に。直前の QA-05 は `296d3e2`）。2026-10-08 に rpg-boss-maker へ push 済み
 
+### QA-41 CLAUDE.md のテスト基準が古い — 解消（2026-10-09、ユーザーの承認）
+- 対応：`CLAUDE.md` の古い件数（「42 scripts / 1046 tests / 12205 assertions / failures 0」）を消し、テストの選び方の唯一の正本 [TESTING.md](TESTING.md) への参照に替えた。品質の作業の入口（PRO_QUALITY_BIBLE.md）への参照も1行足した。全GUTの規模（参考値）は TESTING.md §9 に置き、PERFORMANCE §5 からは消した（件数を書く場所を1か所にした）
+- 状態：**解消**
+
 ---
 
 ## 改善作業中に見つかった未監査の事項
