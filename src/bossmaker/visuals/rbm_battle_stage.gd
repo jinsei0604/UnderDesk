@@ -26,6 +26,9 @@ const AwakeningTransform = preload("res://src/bossmaker/visuals/rbm_boss_awakeni
 const GentlemanAwakening = preload("res://src/bossmaker/visuals/rbm_gentleman_awakening.gd")
 const GentlemanAura = preload("res://src/bossmaker/visuals/rbm_gentleman_aura.gd")
 var _gentleman_aura: Node2D
+const GentlemanImpacts = preload("res://src/bossmaker/visuals/rbm_gentleman_impact_sheets.gd")
+## 異形紳士の着弾画像をこの戦闘の間だけ保持する(ボスが決まった時点で裏で読み込む)。表示専用。
+var _gentleman_impacts: Node
 const AstronautAwakening = preload("res://src/bossmaker/visuals/rbm_astronaut_awakening.gd")
 const AstronautAura = preload("res://src/bossmaker/visuals/rbm_astronaut_aura.gd")
 var _astronaut_aura: Node2D
@@ -172,6 +175,9 @@ func _ready() -> void:
 	_gentleman_aura = GentlemanAura.new()
 	add_child(_gentleman_aura)
 	_gentleman_aura.configure(self)
+	_gentleman_impacts = GentlemanImpacts.new()
+	add_child(_gentleman_impacts)
+	_gentleman_impacts.configure(self)
 	resized.connect(_layout_actors)
 	_layout_actors()
 

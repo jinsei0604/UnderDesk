@@ -131,6 +131,171 @@ func test_support_and_counter_each_complete_one_resolved_entry() -> void:
 		assert_false(f.stage.is_playing())
 		assert_eq(f.session.battle.snapshot(),snapshot)
 
+const Vfx = preload("res://src/bossmaker/visuals/rbm_gentleman_vfx.gd")
+const Sheets = preload("res://src/bossmaker/visuals/rbm_gentleman_impact_sheets.gd")
+
+func _sheet_stage(appearance: String = "appearance_gentleman", awakening: bool = true) -> Dictionary:
+	var draft := RBMCreatorDraft.new()
+	draft.appearance_id = appearance
+	draft.boss_name = "異形紳士"
+	draft.hp = 3000
+	draft.atk = 1
+	draft.spd = 1
+	for id in ["hero", "butler", "healer", "samurai"]: draft.add_party_character(id)
+	var single := draft.add_skill({"name": "単体", "type": "attack", "target": "single", "attribute": "FIRE", "atk_multiplier": 1.0})
+	draft.add_skill({"name": "全体", "type": "attack", "target": "all", "attribute": "ICE", "atk_multiplier": 1.0})
+	draft.add_skill({"name": "回復", "type": "self_heal", "heal_amount": 200})
+	if awakening:
+		draft.set_awakening({"conditions": [{"type": "hp_at_most", "percent": 10.0}], "condition_logic": "AND", "buff": {}, "heal": {}})
+	draft.normal_actions_enabled = true
+	draft.normal_action_percentages[single] = 100.0
+	var session := RBMCreatorTestSession.new(draft.to_definition(), 5)
+	var stage := RBMBattleStage.new()
+	stage.size = Vector2(1280, 720)
+	stage.set_meta("fullscreen_formation", true)
+	add_child_autofree(stage)
+	stage.configure(session.battle, appearance)
+	stage.set_state(session.battle.presentation_state())
+	return {"stage": stage, "session": session, "skill": single}
+
+## Lets the stage's sheet keeper notice the boss and finish its background reads.
+func _settle(stage: RBMBattleStage) -> Array:
+	var sheets = stage._gentleman_impacts
+	for i in 300:
+		await get_tree().process_frame
+		if sheets._boss_id == str(stage._asset_ids.boss) and sheets._pending.is_empty(): break
+	var held: Array = sheets._held.keys()
+	held.sort()
+	return held
+
+func _sheets(pairs: Array) -> Array:
+	var paths: Array = []
+	for pair in pairs: paths.append(Vfx.impact_path(pair[0], pair[1]))
+	paths.sort()
+	return paths
+
+func test_impact_sheets_are_read_once_per_battle_for_the_boss_attacks_and_form() -> void:
+	var f := _sheet_stage()
+	var stage: RBMBattleStage = f.stage
+	# Before awakening only the single FIRE draws a sheet (the normal all-target attack draws none).
+	assert_eq(await _settle(stage), _sheets([["FIRE", "duel"]]))
+	var kept: Texture2D = stage._gentleman_impacts._held[Vfx.impact_path("FIRE", "duel")]
+	for attack in 2:
+		var entry: Dictionary = {}
+		var before: Dictionary = {}
+		for attempt in 12:
+			before = f.session.battle.presentation_state().duplicate(true)
+			for e in f.session.resolve_ally_action({"type": "defend"}):
+				if str(e.get("actor")) == "boss": entry = e
+			if not entry.is_empty(): break
+		stage.set_state(before)
+		stage.play_entry(entry, RBMBattleUiKit.find_skill_for_actor("boss", f.skill, f.session.battle))
+		var d = stage._skill_presentation
+		assert_eq(d.action_kind, "single")
+		stage._tween.custom_step(d.impact_time + .1)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		# The drawn sheet is the one kept since the battle began, not a fresh read.
+		assert_same(d._vfx._impact_textures.get("duel"), kept)
+		stage._tween.custom_step(30)
+		await get_tree().process_frame
+	assert_eq(await _settle(stage), _sheets([["FIRE", "duel"]]))
+	# Awakened: the duel sheet can no longer be drawn and is released; REWIND reads it again.
+	var awakened: Dictionary = f.session.battle.presentation_state()
+	awakened.is_awakened = true
+	stage.set_state(awakened)
+	assert_eq(await _settle(stage), _sheets([["FIRE", "first"], ["FIRE", "heavy"], ["ICE", "first"]]))
+	awakened.is_awakened = false
+	stage.set_state(awakened)
+	assert_eq(await _settle(stage), _sheets([["FIRE", "duel"]]))
+	# Leaving the battle releases every sheet.
+	var sheets = stage._gentleman_impacts
+	stage.get_parent().remove_child(stage)
+	assert_true(sheets._held.is_empty())
+	assert_true(sheets._pending.is_empty())
+	stage.queue_free()
+
+func test_impact_sheets_without_awakening_and_for_other_bosses() -> void:
+	var f := _sheet_stage("appearance_gentleman", false)
+	assert_eq(await _settle(f.stage), _sheets([["FIRE", "duel"]]))
+	var other := _sheet_stage("appearance_slime")
+	assert_eq(await _settle(other.stage), [])
+
+func test_impact_sheets_stay_within_three_for_a_boss_of_many_attributes() -> void:
+	var draft := RBMCreatorDraft.new()
+	draft.appearance_id = "appearance_gentleman"
+	draft.boss_name = "異形紳士"
+	draft.hp = 3000
+	draft.atk = 1
+	draft.spd = 1
+	for id in ["hero", "butler", "healer", "samurai"]: draft.add_party_character(id)
+	draft.normal_actions_enabled = true
+	for attribute in ["NEUTRAL", "FIRE", "ICE", "LIGHTNING", "WIND"]:
+		var id := draft.add_skill({"name": attribute, "type": "attack", "target": "single", "attribute": attribute, "atk_multiplier": 1.0})
+		draft.normal_action_percentages[id] = 20.0
+	var session := RBMCreatorTestSession.new(draft.to_definition(), 5)
+	var stage := RBMBattleStage.new()
+	stage.size = Vector2(1280, 720)
+	stage.set_meta("fullscreen_formation", true)
+	add_child_autofree(stage)
+	stage.configure(session.battle, "appearance_gentleman")
+	stage.set_state(session.battle.presentation_state())
+	var sheets = stage._gentleman_impacts
+	# Read ahead in the order of the boss's skills, up to three sheets.
+	assert_eq(await _settle(stage), _sheets([["NEUTRAL", "duel"], ["FIRE", "duel"], ["ICE", "duel"]]))
+	var entry: Dictionary = {}
+	var before: Dictionary = {}
+	for attempt in 12:
+		before = session.battle.presentation_state().duplicate(true)
+		for e in session.resolve_ally_action({"type": "defend"}):
+			if str(e.get("actor")) == "boss": entry = e
+		if not entry.is_empty(): break
+	for attribute in ["ICE", "LIGHTNING", "WIND", "NEUTRAL", "FIRE"]:
+		stage.set_state(before)
+		stage.play_entry(entry, {"attribute": attribute, "effect": "damage", "target": "ally_random_single"})
+		var d = stage._skill_presentation
+		assert_eq(d._vfx.attribute, attribute)
+		assert_true(sheets._held.size() + sheets._pending.size() <= Sheets.MAX_SHEETS, attribute)
+		stage._tween.custom_step(d.impact_time + .1)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var drawn = d._vfx._impact_textures.get("duel")
+		assert_not_null(drawn, attribute)
+		assert_same(drawn, sheets._held.get(Vfx.impact_path(attribute, "duel")), attribute)
+		assert_true(sheets._held.size() + sheets._pending.size() <= Sheets.MAX_SHEETS, attribute)
+		stage._tween.custom_step(30)
+		await get_tree().process_frame
+	# The three most recently used remain.
+	var held: Array = sheets._held.keys()
+	held.sort()
+	assert_eq(held, _sheets([["WIND", "duel"], ["NEUTRAL", "duel"], ["FIRE", "duel"]]))
+
+func test_each_attack_draws_exactly_the_sheets_kept_for_it() -> void:
+	for setup in [["single", false], ["single", true], ["aoe", true], ["aoe", false]]:
+		var f := _fixture(setup[0], "WIND", setup[1])
+		var stage: RBMBattleStage = f.stage
+		await _settle(stage)
+		var kept: Array = stage._gentleman_impacts._held.keys()
+		stage.play_entry(f.entry, f.skill)
+		var d = stage._skill_presentation
+		# The presentation frees itself when it ends; keep what it drew.
+		var used: Dictionary = d._vfx._impact_textures
+		var action: String = d.action_kind
+		var duration: float = d.duration
+		var t := 0.0
+		while stage.is_playing() and t < duration:
+			stage._tween.custom_step(1.0 / 30)
+			t += 1.0 / 30
+			await get_tree().process_frame
+		var drawn: Array = used.keys()
+		drawn.sort()
+		var expected: Array = Vfx.IMPACT_STYLES.get(action, []).duplicate()
+		expected.sort()
+		assert_eq(drawn, expected, action)
+		for style in drawn: assert_true(kept.has(Vfx.impact_path("WIND", style)), action + " " + style)
+		if stage.is_playing(): stage._tween.custom_step(30)
+		assert_false(stage.is_playing())
+
 func test_boss_catalog_art_and_fixed_background() -> void:
 	const Backgrounds=preload("res://src/bossmaker/visuals/rbm_battle_backgrounds.gd")
 	assert_eq(RBMCreatorAppearanceCatalog.by_id("appearance_gentleman").name,"異形紳士")

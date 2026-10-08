@@ -53,6 +53,8 @@ func play(stage: Control) -> Tween:
 	_vfx=Vfx.new();_vfx.kind=action_kind;_vfx.data=data;_vfx.awakened=awakened
 	_vfx.canvas_size=Vector2(_viewport.size)
 	_vfx.attribute=str(stage._skill.get("attribute",stage._entry.get("attribute","NEUTRAL")))
+	_vfx.impact_sheets=stage.get("_gentleman_impacts")
+	if is_instance_valid(_vfx.impact_sheets):_vfx.impact_sheets.request(_vfx.attribute,action_kind)
 	_vfx.boss=stage._foot("boss")/_unit
 	for key in stage._party_keys:_vfx.party_feet.append(stage._foot(key)/_unit)
 	for key in stage._targets:

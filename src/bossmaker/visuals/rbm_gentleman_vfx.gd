@@ -2,6 +2,9 @@ extends Node2D
 ## Pixel-grid ink, gunfire, ruptured paving and smoke; no detached-arm animation.
 const Motion=preload("res://src/bossmaker/visuals/rbm_gentleman_motion.gd")
 const Palette=preload("res://src/bossmaker/visuals/rbm_attribute_vfx_palette.gd")
+## Impact sheets (8x7 cells of 320px) each action draws for its hits of power>=1.1; every other
+## hit is drawn procedurally. Keep in step with the powers impact() is called with in _draw().
+const IMPACT_STYLES := {"single":["duel"],"awakened_single":["first","heavy"],"awakened_all":["first"]}
 var kind := "single"
 var age := 0.0
 var boss := Vector2.ZERO
@@ -13,8 +16,15 @@ var canvas_size := Vector2(752,424)
 var attribute := "NEUTRAL"
 var awakened := false
 var data: Dictionary
+## The stage's rbm_gentleman_impact_sheets.gd; without one the sheets are loaded here.
+var impact_sheets: Node
 var _impact_textures: Dictionary={}
 var _soft_smoke: GradientTexture2D
+
+static func impact_path(attribute: String, style: String) -> String:
+	var attr:=attribute.to_lower()
+	if not Palette.COLORS.has(attribute):attr="neutral"
+	return Motion.ROOT+"impacts/"+attr+"_"+style+".png"
 
 func _ready() -> void:
 	_soft_smoke=GradientTexture2D.new()
@@ -25,11 +35,14 @@ func _ready() -> void:
 	gradient.offsets=PackedFloat32Array([0,.35,.65,1])
 	gradient.colors=PackedColorArray([Color(1,1,1,.95),Color(1,1,1,.6),Color(1,1,1,.25),Color(1,1,1,0)])
 	_soft_smoke.gradient=gradient
-	if kind in ["single","awakened_single","awakened_all"]:
-		var attr:=attribute.to_lower()
-		if not Palette.COLORS.has(attribute):attr="neutral"
-		for style in ["duel","first","heavy"]:
-			_impact_textures[style]=load(Motion.ROOT+"impacts/"+attr+"_"+style+".png")
+	if not is_instance_valid(impact_sheets):
+		for style in IMPACT_STYLES.get(kind,[]):_impact_textures[style]=load(impact_path(attribute,style))
+
+## Taken from the stage's sheets on the first frame that draws it, seconds after the attack began.
+func _impact_texture(style: String) -> Texture2D:
+	if not _impact_textures.has(style):
+		_impact_textures[style]=impact_sheets.texture(attribute,style) if is_instance_valid(impact_sheets) else load(impact_path(attribute,style))
+	return _impact_textures[style]
 
 func q(seed: int, channel: int=0) -> float:
 	return fposmod(sin(seed*127.1+channel*311.7+91.3)*43758.5453,1.0)
@@ -99,10 +112,10 @@ func envelope(a: float,b: float,d: float,e: float,t: float) -> float:
 	return smoothstep(a,b,t)*(1-smoothstep(d,e,t))
 func impact(p: Vector2,t: float,color: Color,power: float,seed: int=0) -> void:
 	if t<0 or t>1.65:return
-	if power>=1.1 and not _impact_textures.is_empty():
+	if power>=1.1 and IMPACT_STYLES.has(kind):
 		var style: String="duel" if power<1.5 else ("first" if power<2 else "heavy")
 		var index:=clampi(int(t*30),0,49)
-		draw_texture_rect_region(_impact_textures[style],Rect2((p-Vector2(160,160)).round(),Vector2(320,320)),Rect2(Vector2(index%8*320,floori(float(index)/8.0)*320),Vector2(320,320)))
+		draw_texture_rect_region(_impact_texture(style),Rect2((p-Vector2(160,160)).round(),Vector2(320,320)),Rect2(Vector2(index%8*320,floori(float(index)/8.0)*320),Vector2(320,320)))
 		return
 	var fade:=1-smoothstep(.12,.55,t)
 	var growth:=.3+.7*smoothstep(0,.10,t)
