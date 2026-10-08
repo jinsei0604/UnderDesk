@@ -15,6 +15,7 @@ const Motion = preload("res://src/bossmaker/visuals/rbm_musha_awakened_motion.gd
 const GlyphMotion = preload("res://src/bossmaker/visuals/rbm_musha_motion.gd")
 const Body = preload("res://src/bossmaker/visuals/rbm_musha_awakened_body.gd")
 const VFX = preload("res://src/bossmaker/visuals/rbm_musha_awakened_vfx.gd")
+const AudioCatalog = preload("res://src/bossmaker/rbm_audio_catalog.gd")
 
 const SOUND_KEY := "musha_awakening"
 const DURATION := Motion.AWAKENING_DURATION
@@ -62,6 +63,12 @@ func play(stage: Control) -> Tween:
 ## 完成トラックが音の全てを担う。
 func play_sound_phase(_phase: String) -> bool:
 	return true
+
+## 再生の最初に load() する素材(rbm_presentation_warmup.gd が、覚醒する前の戦闘の間に裏で読み込んで持つ)。
+## 覚醒後の本体の画像・外見を切り替えた後の待機の画像・完成トラック。
+static func warm_paths(_asset_id: String, _kind: String) -> Array[String]:
+	return [Body.ROOT + "awakened.png", Body.ROOT + "swing.png", RBMVisualAssets.frame_path("musha_awakened", 0),
+		str(AudioCatalog.FILES[SOUND_KEY])]
 
 func _advance(t: float) -> void:
 	if not active or not is_instance_valid(_stage):

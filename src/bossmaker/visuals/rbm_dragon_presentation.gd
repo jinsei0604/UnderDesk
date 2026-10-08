@@ -9,6 +9,7 @@ const VFX=preload("res://src/bossmaker/visuals/rbm_dragon_vfx.gd")
 const RangedVFX=preload("res://src/bossmaker/visuals/rbm_dragon_ranged_vfx.gd")
 const RANGED_SOUNDS={"breath":"dragon_normal_breath","focused_breath":"dragon_awakened_breath","meteors":"dragon_awakened_meteors"}
 const MeteorSky=preload("res://src/bossmaker/visuals/rbm_dragon_meteor_sky.gd")
+const AudioCatalog=preload("res://src/bossmaker/rbm_audio_catalog.gd")
 var _sky: Node2D
 var _sound_started:=false
 var kind:="single"
@@ -26,6 +27,18 @@ var _hit:=false
 var _released:=false
 var _boss_visible:=true
 var _shake:=Vector2.ZERO
+
+## Read in the background once the boss is known (rbm_presentation_warmup.gd): the bite frames, the
+## boss pose frames the timelines switch to, and the approved ranged clips.
+static func warm_paths(asset_id: String, kind: String) -> Array[String]:
+	var awakened:=asset_id=="dragon_awakened"
+	var out: Array[String]=[]
+	if kind=="single" and not awakened:
+		for i in range(12): out.append(BiteBody.ROOT+"%02d.png" % i)
+	for pose in range(1,11): out.append(RBMVisualAssets.frame_path(asset_id,pose))
+	var ranged: String={"single":"focused_breath" if awakened else "","all":"meteors" if awakened else "breath"}.get(kind,"")
+	if ranged!="": out.append(str(AudioCatalog.FILES[RANGED_SOUNDS[ranged]]))
+	return out
 
 func play(stage: Control) -> Tween:
 	_stage=stage

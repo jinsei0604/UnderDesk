@@ -7,6 +7,16 @@ const Motion = preload("res://src/bossmaker/visuals/rbm_musha_awakened_motion.gd
 const Awakening = preload("res://src/bossmaker/visuals/rbm_musha_awakening.gd")
 const Attack = preload("res://src/bossmaker/visuals/rbm_musha_awakened_presentation.gd")
 const Palette = preload("res://src/bossmaker/visuals/rbm_attribute_vfx_palette.gd")
+const AssetsReady = preload("res://tests/bossmaker/presentation_assets_ready.gd")
+## 演出の契約は、事前読み込みが素材を読み終えた状態で検証する(QA-06。読み終えていない時の待ちは
+## test_rbm_presentation_warmup.gd が検証する)。
+var _ready_assets: Array = []
+
+func before_all() -> void:
+	_ready_assets = AssetsReady.hold(["musha"])
+
+func after_all() -> void:
+	_ready_assets.clear()
 
 func after_each() -> void:
 	await get_tree().process_frame

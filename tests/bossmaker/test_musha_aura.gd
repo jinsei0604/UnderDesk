@@ -294,6 +294,12 @@ func test_no_post_pass_or_ink_before_the_awakening() -> void:
 	assert_false(aura._post.visible)
 	assert_false(aura._boss_blot.visible)
 
+## 背景の明るさの画像は、背景の RGBA8 の写し(覚醒より前に作る)から得る(QA-06。オーラは GPU から直接は読み
+## 出さない)。headless では写しが描かれないので、写しと同じ画素の画像を、写しが出来た状態として渡す。
+static func _copied(aura: Node2D, texture: Texture2D) -> void:
+	aura._bg_image = texture.get_image()
+	aura._bg_image_id = texture.get_instance_id()
+
 func test_the_background_gives_torch_positions_and_groove_paths() -> void:
 	var stage := _stage(_session(), true)
 	var bg := TextureRect.new()
@@ -304,6 +310,7 @@ func test_the_background_gives_torch_positions_and_groove_paths() -> void:
 	stage.move_child(bg, 0)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var aura: Node2D = stage._musha_aura
+	_copied(aura, bg.texture)
 	aura._process(0.1)
 	assert_eq(aura._paths.size(), Timeline.TRACE_POOL)
 	# 1280x720にカバー表示した背景上の松明(画像の36.6%/63.3%, 40.4%)。
@@ -333,10 +340,36 @@ func test_a_boss_dedicated_background_gets_no_courtyard_torches_even_if_its_path
 	stage.move_child(bg, 0)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var aura: Node2D = stage._musha_aura
+	_copied(aura, bg.texture)
 	for i in range(0, 10):
 		aura._process(1.0 / 30.0)
+	assert_gt(aura._paths.size(), 0, "the grooves were traced on this background")
 	assert_lt(aura._torches[0].x, 0.0, "no courtyard torch on another background")
 	assert_lt(aura._torches[1].x, 0.0)
+
+## QA-06: 写しが無いまま覚醒した状態でも、オーラは背景を GPU から直接読み出さない。写しを頼み、出来るまで
+## 溝・松明を省く(通常の戦闘では、覚醒の演出が写しが出来るまで始まらないので、この状態にならない)。
+func test_without_its_copy_the_aura_never_reads_the_background_back_and_asks_for_a_copy() -> void:
+	var stage := _stage(_session(), true)
+	var bg := TextureRect.new()
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.texture = load("res://assets_bossmaker/art/battle_courtyard_night.png")
+	stage.add_child(bg)
+	stage.move_child(bg, 0)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var aura: Node2D = stage._musha_aura
+	for i in range(0, 10):
+		aura._process(1.0 / 30.0)
+	assert_null(aura._bg_image, "nothing was read back from the GPU")
+	assert_eq(aura._paths.size(), 0, "no grooves until the copy is made")
+	assert_eq(aura._bg_copy_tried, bg.texture.get_instance_id(), "a copy of this background was asked for")
+	assert_not_null(aura._bg_copy, "the copy waits to be drawn")
+	# 写しが出来たら(ここでは同じ画素の画像を渡す)、溝を辿る。
+	aura._drop_background_copy()
+	_copied(aura, bg.texture)
+	aura._process(1.0 / 30.0)
+	assert_eq(aura._paths.size(), Timeline.TRACE_POOL, "the grooves are traced once the copy exists")
 
 func test_without_a_background_there_are_no_torches_or_grooves_and_nothing_breaks() -> void:
 	var stage := _stage(_session(), true)

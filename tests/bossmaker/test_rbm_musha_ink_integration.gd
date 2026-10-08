@@ -6,6 +6,16 @@ const Frames = preload("res://src/bossmaker/visuals/rbm_musha_frames.gd")
 const Ink = preload("res://src/bossmaker/visuals/rbm_musha_ink_director.gd")
 const FramePresentation = preload("res://src/bossmaker/visuals/rbm_musha_frame_presentation.gd")
 const AwakenedFrames = preload("res://src/bossmaker/visuals/rbm_musha_awakened_frame_presentation.gd")
+const AssetsReady = preload("res://tests/bossmaker/presentation_assets_ready.gd")
+## 演出の契約は、事前読み込みが素材を読み終えた状態で検証する(QA-06。読み終えていない時の待ちは
+## test_rbm_presentation_warmup.gd が検証する)。
+var _ready_assets: Array = []
+
+func before_all() -> void:
+	_ready_assets = AssetsReady.hold(["musha"])
+
+func after_all() -> void:
+	_ready_assets.clear()
 
 func after_each() -> void:
 	await get_tree().process_frame

@@ -26,6 +26,16 @@ var _restored := false
 
 func is_gentleman() -> bool:return true
 
+## Read in the background once the boss is known (rbm_presentation_warmup.gd), so the first play never
+## parses the motion data or decodes its track on its first frame. kind is the stage's action kind.
+static func warm_paths(asset_id: String, kind: String) -> Array[String]:
+	var out: Array[String]=[Motion.MOTION_PATH]
+	var form:="awakened_" if asset_id=="gentleman_awakened" else ""
+	var keys: Array={"single":[form+"single"],"all":[form+"all"],"support":["buff","heal"],"awakening":["awakening"]}.get(kind,[])
+	for key in keys:out.append(str(Audio.FILES["gentleman_"+key]))
+	if kind=="awakening":out.append(RBMVisualAssets.frame_path("gentleman_awakened",0))
+	return out
+
 func play(stage: Control) -> Tween:
 	_stage=stage
 	active=true

@@ -8,6 +8,7 @@ extends "res://src/bossmaker/visuals/rbm_musha_presentation.gd"
 ## 支援の終わりに、足元から風の衝撃波が広がる。覚醒後の支援では、墨の層(rbm_musha_ink_director.gd)へ毎コマ経過を渡す。
 ## 表示専用(戦闘の状態・乱数・行動順には触れない)。
 const Rig = preload("res://src/bossmaker/visuals/rbm_musha_frames.gd")
+const AudioCatalog = preload("res://src/bossmaker/rbm_audio_catalog.gd")
 
 ## 平らな色の輪郭(瞬間移動の残像・出現の閃き)。色と不透明度は描画時の色で渡す。
 const FLAT_SHADER := """shader_type canvas_item;
@@ -112,6 +113,27 @@ func play(stage: Control) -> Tween:
 		_vfx.awakened = true  # 本番の固定位置の赤い単眼の代わりに、コマの眼の位置で再点灯を描く
 	_advance(0.0)
 	return tw
+
+## 再生の最初と途中で load() する素材(rbm_presentation_warmup.gd が、ボスが決まった時点で裏で読み込んで持つ)。
+## 筆文字(支援でも作る)・元の本体の画像(super.play() で読んでから差し替える)・コマ・完成トラック。
+static func warm_paths(asset_id: String, kind: String) -> Array[String]:
+	var awakened := asset_id == "musha_awakened"
+	var out: Array[String] = [Glyph.ROOT + "ink.png", Glyph.ROOT + "ice.png", Body.ROOT + "poses.png",
+		(Body.AWAKENED_ROOT if awakened else Body.ROOT) + "design.png"]
+	var frames: Array = []
+	if kind == "support":
+		frames = ["a3"] if awakened else SUPPORT_KEYS.map(func(k): return k[1])
+	else:
+		frames = (SINGLE_KEYS if kind == "single" else ALL_KEYS).map(func(k): return k[1])
+		if kind == "single":
+			frames.append_array(FLASHES.map(func(f): return f[2]))
+	for fr in frames:
+		if str(fr) != "":
+			out.append(Rig.texture_path(str(fr)))
+	var tracks: Array = ["musha_buff", "musha_heal"] if kind == "support" else (["musha_single"] if kind == "single" else ["musha_aoe"])
+	for track in tracks:
+		out.append(str(AudioCatalog.FILES[track]))
+	return out
 
 func _fx_layer(layer: int, z: int, additive: bool) -> Node2D:
 	var f := FxLayer.new()

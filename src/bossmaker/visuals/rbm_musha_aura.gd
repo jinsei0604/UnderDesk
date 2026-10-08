@@ -24,6 +24,7 @@ extends Node2D
 const Shaders = preload("res://src/bossmaker/visuals/rbm_musha_aura_shaders.gd")
 const Timeline = preload("res://src/bossmaker/visuals/rbm_musha_aura_timeline.gd")
 const Ink = preload("res://src/bossmaker/visuals/rbm_musha_aura_ink.gd")
+const BASE_ASSET := "musha"
 const AWAKENED_ASSET := "musha_awakened"
 ## 覚醒後の抜刀待機の単眼(足元から)。フレーム画像上の(-46,-473)を表示倍率0.335で換算。
 const EYE_OFFSET := Vector2(-15.4, -158.5)
@@ -42,6 +43,8 @@ const TORCH_UVS := {
 ## 松明の光が弱まる半径(背景画像の表示倍率1あたり)。
 const TORCH_RADIUS := 96.7
 const ALLY_SLOTS := 4
+## 武者の戦闘が始まってから、背景の写しを作り始めるまで待つフレーム数(_prepare_background())。
+const BG_COPY_DELAY_FRAMES := 45
 
 ## 覚醒演出の途中(まだ外見が覚醒後へ切り替わる前)に、演出側が強さを直接指定するための値。
 ## 負なら「覚醒状態に従って常時(power=1)」。
@@ -73,6 +76,16 @@ var _torches: Array = [Vector2(-1000, -1000), Vector2(-1000, -1000)]
 var _torch_radius := TORCH_RADIUS * 0.77
 var _bg_image: Image
 var _bg_image_id := 0
+## 背景の写しを描く RGBA8 の描画先(_prepare_background())。
+var _bg_copy: SubViewport
+var _bg_copy_id := 0
+var _bg_copy_drawn := false
+var _bg_copy_tried := 0
+var _bg_wait := BG_COPY_DELAY_FRAMES
+var _bg_context_due := false
+## 戦闘を始める前に用意する背景(読み込み中のパスと、読み終えた背景)。prepare_background()。
+var _bg_request := ""
+var _bg_prepared: Texture2D
 
 func _init() -> void:
 	visible = false
@@ -147,9 +160,11 @@ func _redraw() -> void:
 
 func _process(delta: float) -> void:
 	age += delta
+	_poll_background()
 	if not visible or not is_instance_valid(_stage):
 		if _allies_on:
 			_apply_allies(false)
+		_prepare_background()
 		return
 	_advance(delta)
 	_update_scene()
@@ -263,9 +278,170 @@ func _exit_tree() -> void:
 	if _allies_on:
 		_apply_allies(false)
 
+## 背景の写しと、戦闘の前に用意した背景は、オーラが消える時に片付ける(ステージが全画面の配置へ付け替え
+## られる時(_exit_tree)は、用意したものをそのまま残す)。
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		_drop_background_copy()
+		release_background()
+
 # ---------------------------------------------------------------------------
 # 背景(松明の位置と石畳の溝)。ステージ直下のTextureRectが背景の時だけ使う。無ければ松明・溝は省く。
 # ---------------------------------------------------------------------------
+
+## 覚醒する前の武者の戦闘の間に、背景の画像の写し(溝を辿るための明るさ)と溝・松明の位置を用意しておく。
+## 背景は不透明なので RGB8 で取り込まれていて、RGB8 の画像を GPU から読み出すと、起動して最初の1回だけ
+## ドライバーの準備で約55ms止まる(RGBA8 では起きない)。覚醒の始まりで止まらないように、背景を同じ大きさの
+## RGBA8 の描画先へ等倍で一度だけ描き、描き終えた後のフレームでそれを読み出す(画素は直接読み出した物と同じ)。
+## 写しは、戦闘を始める前の画面で用意する(prepare_background())。戦闘を始める前に用意されなかった時だけ、
+## 戦闘画面を開いた直後の重いフレームを避けて BG_COPY_DELAY_FRAMES 待ってから、戦闘の背景から作る。
+## 用意できる前に覚醒が来た時は、覚醒の演出の開始を写しが出来るまで待つ(background_ready()。直接は読み出さない)。
+## 写しを描く・読み出す・溝を辿るは別々のフレームで行う。
+func _prepare_background() -> void:
+	if not is_instance_valid(_stage) or str(_stage._asset_ids.get("boss", "")) != BASE_ASSET or not _can_awaken():
+		_bg_wait = BG_COPY_DELAY_FRAMES
+		return
+	var bg := _find_background()
+	if bg == null:
+		return
+	var texture_id := bg.texture.get_instance_id()
+	if _bg_context_due:
+		# 溝を辿るのは、戦闘の背景が写しを作った背景と同じになってから(戦闘の前の画面では辿らない)。
+		if texture_id == _bg_image_id and _stage.size.x >= 2.0 and _stage.size.y >= 2.0:
+			_bg_context_due = false
+			_ensure_context(_home_foot("boss"), _stage.size)
+		return
+	if texture_id == _bg_image_id or _bg_copy != null or texture_id == _bg_copy_tried:
+		return
+	if _bg_wait > 0:
+		_bg_wait -= 1
+		return
+	# 写しを作るのは背景1枚につき1回(写せなかった時は溝・松明を省く。GPU から直接は読み出さない)。
+	_bg_copy_tried = texture_id
+	_start_background_copy(bg.texture, texture_id)
+
+## 戦闘を始める前の画面から呼ばれる(rbm_battle_stage.gd の prepare_presentations())。覚醒が設定された武者の
+## 戦闘なら、戦闘の背景を裏で読み、RGBA8 の写しから明るさの画像を用意する。用意した背景は戦闘の間も参照を
+## 持つので、戦闘の背景(rbm_battle_backgrounds.gd が同じパスを load() する)と同じインスタンスになる。
+func prepare_background(definition: Dictionary, appearance_id: String, time_of_day: String) -> void:
+	var awakening: Variant = (definition.get("boss", {}) as Dictionary).get("awakening", {})
+	if RBMVisualAssets.boss_asset(appearance_id) != BASE_ASSET or not awakening is Dictionary or (awakening as Dictionary).is_empty():
+		release_background()
+		return
+	# RBMBattleBackgrounds.path_for() と同じ順(上書き → 命名規則 → 昼/夜)。ここでは読み込まずにパスだけ決める。
+	var path := RBMBattleBackgrounds.configured_path(BASE_ASSET)
+	if path.is_empty() or not ResourceLoader.exists(path, "Texture2D"):
+		path = RBMBattleBackgrounds.convention_path(BASE_ASSET)
+	if not ResourceLoader.exists(path, "Texture2D"):
+		path = RBMBattleBackgrounds.standard_path(time_of_day)
+	if path.is_empty() or path == _bg_request or (_bg_prepared != null and _bg_prepared.resource_path == path):
+		return
+	release_background()
+	if ResourceLoader.has_cached(path):
+		_use_prepared_background(load(path) as Texture2D)
+	elif ResourceLoader.load_threaded_request(path) == OK:
+		_bg_request = path
+
+## 戦闘を出る時・確認画面を離れる時に呼ばれる。用意した背景の参照を手放す(明るさの画像は小さいので残す。
+## 戦闘が見えていない間に、覚醒後の外見のまま GPU から読み出し直さないように)。
+func release_background() -> void:
+	if not _bg_request.is_empty():
+		ResourceLoader.load_threaded_get(_bg_request)
+	_bg_request = ""
+	_bg_prepared = null
+
+func _poll_background() -> void:
+	if not _bg_request.is_empty() and ResourceLoader.load_threaded_get_status(_bg_request) != ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		var texture := ResourceLoader.load_threaded_get(_bg_request) as Texture2D
+		_bg_request = ""
+		_use_prepared_background(texture)
+	if _bg_copy == null or not _bg_copy_drawn:
+		return
+	var image := _bg_copy.get_texture().get_image()
+	var texture_id := _bg_copy_id
+	_drop_background_copy()
+	if image == null or image.is_empty():
+		return
+	_bg_image = image
+	_bg_image_id = texture_id
+	_bg_context_due = true
+
+func _use_prepared_background(texture: Texture2D) -> void:
+	if texture == null:
+		return
+	_bg_prepared = texture
+	var texture_id := texture.get_instance_id()
+	if texture_id == _bg_image_id or texture_id == _bg_copy_tried:
+		return
+	_bg_copy_tried = texture_id
+	_start_background_copy(texture, texture_id)
+
+## QA-06: 覚醒の演出を始めてよいか(ステージの _start_dedicated() が覚醒の開始の前に確かめる)。武者の戦闘では、
+## 石畳の溝を辿る明るさの画像が今の戦闘の背景の写しから出来て、溝・松明の位置を辿り終えていること。出来て
+## いなければ写しを今すぐ頼む(待つ間のフレームで写す。覚醒の演出の最中に GPU から読み出さないため)。
+## 何も描かない環境(headless)では写せないので待たない(オーラも描かれない)。
+func background_ready() -> bool:
+	_poll_background()
+	if DisplayServer.get_name() == "headless" or not is_instance_valid(_stage) or str(_stage._asset_ids.get("boss", "")) != BASE_ASSET:
+		return true
+	var bg := _find_background()
+	if bg == null:
+		return true
+	var texture_id := bg.texture.get_instance_id()
+	if texture_id == _bg_image_id:
+		if _bg_context_due and _stage.size.x >= 2.0 and _stage.size.y >= 2.0:
+			# 溝を辿るのは待っている間のフレームで(辿ったフレームでは覚醒を始めない)。
+			_bg_context_due = false
+			_ensure_context(_home_foot("boss"), _stage.size)
+			return false
+		return true
+	if _bg_copy != null:
+		return false
+	if texture_id == _bg_copy_tried:
+		# 写せなかった(溝・松明を省いて始める。待ち続けない)。
+		return true
+	_bg_copy_tried = texture_id
+	_start_background_copy(bg.texture, texture_id)
+	return false
+
+## この戦闘で覚醒が設定されているか(覚醒しない戦闘ではオーラが出ないので用意しない)。戦闘は読むだけ。
+func _can_awaken() -> bool:
+	var battle = _stage.get("_battle")
+	if not battle is Object:
+		return false
+	var awakening = (battle as Object).get("awakening")
+	return awakening is Dictionary and not (awakening as Dictionary).is_empty()
+
+func _start_background_copy(texture: Texture2D, texture_id: int) -> void:
+	_drop_background_copy()
+	_bg_copy = SubViewport.new()
+	_bg_copy.size = Vector2i(texture.get_size())
+	_bg_copy.transparent_bg = false
+	_bg_copy.disable_3d = true
+	_bg_copy.gui_disable_input = true
+	_bg_copy.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
+	_bg_copy.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var sprite := Sprite2D.new()
+	sprite.texture = texture
+	sprite.centered = false
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_bg_copy.add_child(sprite)
+	add_child(_bg_copy)
+	_bg_copy_id = texture_id
+	_bg_copy_drawn = false
+	RenderingServer.frame_post_draw.connect(_on_background_copy_drawn, CONNECT_ONE_SHOT)
+
+func _on_background_copy_drawn() -> void:
+	_bg_copy_drawn = true
+
+func _drop_background_copy() -> void:
+	if RenderingServer.frame_post_draw.is_connected(_on_background_copy_drawn):
+		RenderingServer.frame_post_draw.disconnect(_on_background_copy_drawn)
+	if is_instance_valid(_bg_copy):
+		_bg_copy.queue_free()
+	_bg_copy = null
+	_bg_copy_id = 0
+	_bg_copy_drawn = false
 
 func _find_background() -> TextureRect:
 	for child in _stage.get_children():
@@ -285,10 +461,14 @@ func _ensure_context(foot: Vector2, size: Vector2) -> void:
 	if bg == null:
 		return
 	if texture_id != _bg_image_id:
-		_bg_image_id = texture_id
-		_bg_image = bg.texture.get_image()
-		if _bg_image != null and not _bg_image.is_empty() and _bg_image.is_compressed():
-			_bg_image.decompress()
+		# 明るさの画像は背景の写し(_start_background_copy())からだけ作り、ここで GPU から同期で読み出さない
+		# (QA-06)。覚醒の演出は写しが出来てから始まる(background_ready())ので、通常の戦闘ではここに来ない。
+		# 来た時(覚醒した状態から始まった等)は写しを頼み、出来るまで溝・松明を省く(出来た後で辿り直す)。
+		_context_key = ""
+		if _bg_copy == null and texture_id != _bg_copy_tried:
+			_bg_copy_tried = texture_id
+			_start_background_copy(bg.texture, texture_id)
+		return
 	if _bg_image == null or _bg_image.is_empty():
 		return
 	var tex_size := Vector2(_bg_image.get_size())

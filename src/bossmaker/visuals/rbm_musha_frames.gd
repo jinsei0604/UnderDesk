@@ -78,6 +78,11 @@ static func has_frame(fr: String) -> bool:
 	_ensure()
 	return FR.has(fr)
 
+## コマの画像のパス(演出の素材の事前読み込みの宣言用。rbm_presentation_warmup.gd)。無いコマは空文字。
+static func texture_path(fr: String) -> String:
+	_ensure()
+	return ROOT + str(FR[fr].tex) if FR.has(fr) else ""
+
 static func texture(path: String) -> Texture2D:
 	if not _tex.has(path):
 		_tex[path] = load(ROOT + path) as Texture2D

@@ -315,6 +315,9 @@ func _build_ui() -> void:
 	_test_battle_view.return_to_creator_requested.connect(_on_test_battle_return_to_creator)
 	_test_battle_view.set_meta("world_gold_zone", true)
 	root_column.add_child(_test_battle_view)
+	# QA-06: Creator を出る時は、最終確認で読み込んでおいた演出の素材を手放す。
+	exited.connect(_test_battle_view.release_presentations)
+	exited_to_saved_list.connect(_test_battle_view.release_presentations)
 
 	_clear_check_view = RBMCreatorClearCheckView.new()
 	_clear_check_view.name = "ClearCheckView"
@@ -740,7 +743,16 @@ func _refresh() -> void:
 	## 埋め込まない）。
 	_header.title_label.text = tr("ボス作成 ｜ %s") % tr(STEP_NAMES[current_step - 1])
 	_header.step_label.text = "STEP %d / %d" % [current_step, STEP_COUNT]
+	_update_battle_preparation(on_summary)
 	_refresh_world_ui.call_deferred()
+
+## QA-06: 最終確認(テストバトル・クリアチェックを始める画面)を表示している間は、テストバトルの演出の素材を
+## 裏で読み込んでおく(ボス・外見・味方・技・覚醒が確定した最も早い時点)。編集の画面へ戻ったら手放す。
+func _update_battle_preparation(on_summary: bool) -> void:
+	if on_summary and _steps_root.visible:
+		_test_battle_view.prepare_presentations(draft.to_definition(), draft.appearance_id, draft.battle_background)
+	elif not _test_battle_view.visible:
+		_test_battle_view.release_presentations()
 
 
 func _refresh_world_ui() -> void:

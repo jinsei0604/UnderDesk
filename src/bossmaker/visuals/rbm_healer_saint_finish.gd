@@ -6,6 +6,10 @@ var active := false
 var _stage: Control
 var _emitted := false
 
+## Read in the background once the party is known (rbm_presentation_warmup.gd): the healer's two cast poses.
+static func warm_paths(asset_id: String, _kind: String) -> Array[String]:
+	return [RBMVisualAssets.frame_path(asset_id, 4), RBMVisualAssets.frame_path(asset_id, 5)]
+
 func play(stage: Control) -> Tween:
 	_stage = stage
 	active = true

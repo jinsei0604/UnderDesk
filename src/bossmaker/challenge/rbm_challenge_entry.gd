@@ -212,6 +212,16 @@ func _show_online_browse() -> void:
 	_confirm_view.visible = true
 	_battle_view.visible = false
 	_last_browse_was_online = true
+	_update_battle_preparation()
+
+## QA-06: 選んだボスの確認(戦闘を始める前の画面)が出ている間は、戦闘の演出の素材を裏で読み込んでおく
+## (ボス・外見・味方・技・覚醒が確定した最も早い時点)。選択が無い時・挑戦の画面を離れた時は手放す。
+func _update_battle_preparation() -> void:
+	var draft: RBMCreatorDraft = _confirm_view._draft
+	if _confirm_view.visible and draft != null and not _confirm_view.stage_id.is_empty():
+		_battle_view.prepare_presentations(draft.to_definition(), draft.appearance_id, draft.battle_background)
+	else:
+		_battle_view.release_presentations()
 
 ## §7/§8: SIMPLE/HARDCORE/注目/新着/未挑戦/人気/高難度/検索がすべて共有する
 ## 唯一の共通レイアウト——左にボスカード一覧（スクロール可能、§18）、右に
@@ -534,6 +544,7 @@ func _on_battle_returned_to_list() -> void:
 # ---------------------------------------------------------------------------
 
 func _on_back_to_root_pressed() -> void:
+	_battle_view.release_presentations()
 	exit_requested.emit()
 
 ## §5: 共通ルートがCHALLENGEへ入るたびに呼ぶ公開エントリポイント。
@@ -550,6 +561,7 @@ func _show_hub() -> void:
 	_list_panel.visible = false
 	_confirm_view.visible = false
 	_battle_view.visible = false
+	_update_battle_preparation()
 
 ## §7〜§17: 一覧と詳細は常に同時に表示される（旧_show_list/_show_confirmの
 ## 統合）——選択の有無はConfirmViewの空状態/詳細表示の切り替えでのみ表現し、
@@ -561,6 +573,7 @@ func _show_browse() -> void:
 	_confirm_view.visible = true
 	_battle_view.visible = false
 	_last_browse_was_online = false
+	_update_battle_preparation()
 
 func _show_battle() -> void:
 	_hub_view.visible = false

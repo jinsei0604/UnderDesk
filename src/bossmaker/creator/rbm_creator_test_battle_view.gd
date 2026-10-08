@@ -390,6 +390,7 @@ func retry() -> void:
 
 func _on_return_pressed() -> void:
 	_cancel_presentation()
+	release_presentations()
 	return_to_creator_requested.emit()
 
 func _on_quit_pressed() -> void:
@@ -398,7 +399,21 @@ func _on_quit_pressed() -> void:
 func _on_quit_confirmed() -> void:
 	_cancel_presentation()
 	_quit_confirm.visible = false
+	release_presentations()
 	return_to_creator_requested.emit()
+
+## QA-06: 戦闘を始める前の画面(Creator の最終確認)から呼ぶ。この戦闘の演出の素材を、戦闘画面を開く前から
+## 裏で読み込み始める(rbm_battle_stage.gd の prepare_presentations())。
+func prepare_presentations(definition: Dictionary, appearance_id: String, time_of_day: String) -> void:
+	var visual_stage = _battlefield_ally_row.get_meta("visual_stage", null) if is_instance_valid(_battlefield_ally_row) else null
+	if is_instance_valid(visual_stage) and visual_stage.has_method("prepare_presentations"):
+		visual_stage.call("prepare_presentations", definition, appearance_id, time_of_day)
+
+## 戦闘を出る時・最終確認を離れる時に呼ぶ。事前読み込みで持っていた素材を手放す。
+func release_presentations() -> void:
+	var visual_stage = _battlefield_ally_row.get_meta("visual_stage", null) if is_instance_valid(_battlefield_ally_row) else null
+	if is_instance_valid(visual_stage) and visual_stage.has_method("release_presentations"):
+		visual_stage.call("release_presentations")
 
 # ---------------------------------------------------------------------------
 # commands (実機プレイ改善①: 「予約」ではなく即座に解決する)

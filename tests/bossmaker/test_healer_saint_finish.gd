@@ -1,4 +1,14 @@
 extends GutTest
+const AssetsReady = preload("res://tests/bossmaker/presentation_assets_ready.gd")
+## 演出の契約は、事前読み込みが素材を読み終えた状態で検証する(QA-06。読み終えていない時の待ちは
+## test_rbm_presentation_warmup.gd が検証する)。味方の専用の技の素材は hold() がすべて読む。
+var _ready_assets: Array = []
+
+func before_all() -> void:
+	_ready_assets = AssetsReady.hold([])
+
+func after_all() -> void:
+	_ready_assets.clear()
 
 func _fixture() -> Dictionary:
 	var definition: Dictionary = RBMDataLoader.load_dict("res://data_bossmaker/definitions/test_definition_a.json")

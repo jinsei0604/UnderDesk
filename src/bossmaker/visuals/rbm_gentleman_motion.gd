@@ -1,12 +1,15 @@
 extends RefCounted
 ## Approved v8 full-body drawings and timestamps. Never uses combat state or RNG.
 const ROOT := "res://assets_bossmaker/battle/gentleman/"
+const MOTION_PATH := ROOT + "motion.json"
 static var _data: Dictionary = {}
 static var _textures: Dictionary = {}
 
 static func clip(kind: String) -> Dictionary:
 	if _data.is_empty():
-		_data = JSON.parse_string(FileAccess.get_file_as_string(ROOT+"motion.json"))
+		# JSON のリソースとして読む(戦闘の開始時に rbm_presentation_warmup.gd が裏で読んでいれば、すぐに返る)。
+		var json := load(MOTION_PATH) as JSON
+		_data = json.data if json != null and json.data is Dictionary else JSON.parse_string(FileAccess.get_file_as_string(MOTION_PATH))
 	return _data["clips"][kind]
 
 static func frame_index(data: Dictionary, t: float) -> int:

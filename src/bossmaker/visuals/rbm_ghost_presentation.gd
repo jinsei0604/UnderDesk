@@ -15,6 +15,13 @@ var _hit:=false
 var _released:=false
 var _boss_visible:=true
 
+## Read in the background once the boss is known (rbm_presentation_warmup.gd): the ghost body loads
+## every pose frame when an attack starts.
+static func warm_paths(_asset_id: String, _kind: String) -> Array[String]:
+	var out: Array[String]=[]
+	for i in range(RBMVisualAssets.POSE_COUNT): out.append(RBMVisualAssets.frame_path("ghost",i))
+	return out
+
 func play(stage: Control) -> Tween:
 	_stage=stage
 	active=true

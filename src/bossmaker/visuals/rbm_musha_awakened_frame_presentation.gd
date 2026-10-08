@@ -15,6 +15,7 @@ extends "res://src/bossmaker/visuals/rbm_musha_awakened_presentation.gd"
 ##   足す音もステージの音と同じく、消音中(ホーム画面のモニター等)やステージが見えていない間は鳴らさない。
 const Rig = preload("res://src/bossmaker/visuals/rbm_musha_frames.gd")
 const PlaqueVFX = preload("res://src/bossmaker/visuals/rbm_musha_name_plaque_vfx.gd")
+const AudioCatalog = preload("res://src/bossmaker/rbm_audio_catalog.gd")
 const SD := 2.4
 const ALL_SKIP_AT := 2.45
 const ALL_HOLD := 4.07
@@ -163,6 +164,19 @@ func _extra_shake(T: float) -> Vector2:
 	if T < t0 or k <= 0.0:
 		return Vector2.ZERO
 	return (Vector2(sin(T * 97.0), cos(T * 83.0) * 0.6) * amp * k).round()
+
+## 再生の最初と途中で load() する素材(rbm_presentation_warmup.gd が、ボスが決まった時点で裏で読み込んで持つ)。
+## 元の本体の画像(super.play() で読んでから差し替える)・筆文字・コマ・完成トラックと、全体で足す音。
+static func warm_paths(_asset_id: String, kind: String) -> Array[String]:
+	var out: Array[String] = [Body.ROOT + "awakened.png", Body.ROOT + "swing.png", Brush.ROOT + "brush.png"]
+	for k in (SINGLE_KEYS if kind == "single" else ALL_KEYS):
+		out.append(Rig.texture_path(str(k[1])))
+	if kind == "single":
+		out.append(str(AudioCatalog.FILES["musha_awakened_single"]))
+	else:
+		for key in ["musha_awakened_aoe", "samurai_iai_draw", "neutral_sword_swing", "musha_single", "musha_aoe"]:
+			out.append(str(AudioCatalog.FILES[key]))
+	return out
 
 func _frame_at(T: float) -> Dictionary:
 	var keys := SINGLE_KEYS if kind == "single" else ALL_KEYS

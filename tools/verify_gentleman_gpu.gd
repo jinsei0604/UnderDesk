@@ -69,6 +69,19 @@ func open_view(mode: String, def: Dictionary) -> void:
 	var expected_path := "res://assets_bossmaker/battle/backgrounds/gentleman/background.png"
 	if view._world_battle.background.texture.resource_path != expected_path: fail(mode+": wrong fixed background")
 
+## QA-06: 演出は宣言した素材を読み終えてから始まる(読み終えていない時、ステージは開始を待つ)。実際のゲーム
+## (戦闘を始める前の画面から裏で読み込む)と同じく、事前読み込みが今の外見の計画を読み終えてから再生する。
+## 覚醒のケースは覚醒が設定されていない戦闘に覚醒を流すので(計画に入らない)、覚醒の演出の素材も読み終えるまで待つ。
+func warmed(awakening: bool = false) -> void:
+	var warm = stage.get("_presentation_warmup")
+	for i in 900:
+		await tree.process_frame
+		if warm == null:
+			return
+		if awakening and not warm.ensure(RBMBattleStage.BOSS_AWAKENING_PRESENTATIONS["gentleman"], "gentleman", "awakening").is_empty():
+			continue
+		if warm._key == str(warm._source().get("key","")) and warm.is_ready(): return
+
 func capture(tag: String) -> void:
 	await RenderingServer.frame_post_draw
 	var image := tree.root.get_texture().get_image()
@@ -93,6 +106,7 @@ func run_case(mode: String, kind: String, awakened: bool) -> void:
 	var resolved: Dictionary = view.session.battle.snapshot().duplicate(true)
 	stage.set_state(before)
 	RBMBattlePresenter.apply_status_snapshot(view,before)
+	await warmed(kind=="awakening")
 	var impacts: Array = []
 	stage.impact.connect(func(e):impacts.append(e))
 	view._present_batch([entry],before)

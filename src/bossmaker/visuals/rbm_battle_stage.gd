@@ -29,6 +29,14 @@ var _gentleman_aura: Node2D
 const GentlemanImpacts = preload("res://src/bossmaker/visuals/rbm_gentleman_impact_sheets.gd")
 ## 異形紳士の着弾画像をこの戦闘の間だけ保持する(ボスが決まった時点で裏で読み込む)。表示専用。
 var _gentleman_impacts: Node
+const PresentationWarmup = preload("res://src/bossmaker/visuals/rbm_presentation_warmup.gd")
+## 演出が再生中に読む素材を、ボスと味方が決まった時点で裏で読み込んでおく(各演出の warm_paths() が宣言)。表示専用。
+var _presentation_warmup: Node
+## 素材を読み終えるまで開始を待っている専用の演出(_start_dedicated())。
+var _waiting_script: Script
+var _waiting_asset := ""
+var _waiting_kind := ""
+var _waiting_seen_ready := false
 const AstronautAwakening = preload("res://src/bossmaker/visuals/rbm_astronaut_awakening.gd")
 const AstronautAura = preload("res://src/bossmaker/visuals/rbm_astronaut_aura.gd")
 var _astronaut_aura: Node2D
@@ -44,6 +52,8 @@ var _musha_ink: Node
 var _musha_idle: Node2D
 ## 覚醒後の朽ちた機械武者を包み続ける持続オーラ(覚醒状態に追従する独立部品)。
 var _musha_aura: Node2D
+## ボスごとの専用の覚醒演出(無いボスは rbm_boss_awakening_transform.gd)。
+const BOSS_AWAKENING_PRESENTATIONS = {"gentleman": GentlemanAwakening, "astronaut": AstronautAwakening, "dragon": DragonAwakening, "musha": MushaAwakening}
 ## Skill-owned timelines. Add dedicated scripts here, not long stage branches.
 const SKILL_PRESENTATIONS = {
 	"healer_heal_all": {"actor": "healer", "kind": "heal_all", "script": preload("res://src/bossmaker/visuals/rbm_healer_saint_finish.gd")},
@@ -178,6 +188,10 @@ func _ready() -> void:
 	_gentleman_impacts = GentlemanImpacts.new()
 	add_child(_gentleman_impacts)
 	_gentleman_impacts.configure(self)
+	_presentation_warmup = PresentationWarmup.new()
+	add_child(_presentation_warmup)
+	_presentation_warmup.configure(self)
+	set_process(_waiting_script != null)
 	resized.connect(_layout_actors)
 	_layout_actors()
 
@@ -211,6 +225,22 @@ func configure(battle: Variant, appearance_id: String = "") -> void:
 	_layout_actors()
 	_refresh_musha_ink()
 	_queue_visual_redraw()
+
+## 戦闘を始める前の画面(Creator の最終確認・クリアチェックの確認・挑戦のボスの確認)から呼ぶ(QA-06)。
+## この戦闘の演出の素材を、戦闘画面を開く前から裏で読み込み始める(rbm_presentation_warmup.gd)。
+## 武者のオーラの背景の写しも、ここで用意する(rbm_musha_aura.gd。覚醒の始まりで GPU から読み出さないため)。
+func prepare_presentations(definition: Dictionary, appearance_id: String, time_of_day: String = "night") -> void:
+	if is_instance_valid(_presentation_warmup):
+		_presentation_warmup.prepare(definition, appearance_id)
+	if is_instance_valid(_musha_aura):
+		_musha_aura.prepare_background(definition, appearance_id, time_of_day)
+
+## 戦闘を出る時・確認画面を離れる時に呼ぶ。事前読み込みで持っていた素材を手放す。
+func release_presentations() -> void:
+	if is_instance_valid(_presentation_warmup):
+		_presentation_warmup.release()
+	if is_instance_valid(_musha_aura):
+		_musha_aura.release_background()
 
 ## 朽ちた機械武者のときだけ、墨の層(常時オーラ・技の墨)と待機中の本体(コマ描画の静止姿)を置く。
 ## 別のボスへ替わったら片付ける。武者の演出(rbm_musha_*_presentation / awakening)は musha_ink_director() で受け取る。
@@ -345,9 +375,7 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 	_targets = _entry_targets()
 	var dedicated: Dictionary = SKILL_PRESENTATIONS.get(str(_entry.get("skill_id", "")), {})
 	if not dedicated.is_empty() and _entry.get("action", "") == "skill" and str(_asset_ids.get(_actor, "")) == dedicated["actor"] and _profile["kind"] == dedicated["kind"] and not _targets.is_empty():
-		_skill_presentation = dedicated["script"].new()
-		add_child(_skill_presentation)
-		_tween = _skill_presentation.play(self)
+		_start_dedicated(dedicated["script"], str(dedicated["actor"]), str(dedicated["kind"]))
 		return
 	_hero_finish = str(_entry.get("skill_id", "")) == "hero_burst_slash" and str(_asset_ids.get(_actor, "")) == "hero" and str(_profile["kind"]) == "fire_burst" and _targets.has("boss")
 	if _hero_finish:
@@ -389,21 +417,15 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 		_visuals[key].z_index = 4
 	var boss_support = BOSS_SUPPORT_PRESENTATIONS.get(str(_asset_ids.get(_actor,"")))
 	if boss_support != null and _actor == "boss" and _targets == ["boss"] and str(_entry.get("action","")) == "skill" and str(_skill.get("effect","")) in ["heal","self_heal","buff_atk_self","atk_self_buff"]:
-		_skill_presentation=boss_support.new()
-		add_child(_skill_presentation)
-		_tween=_skill_presentation.play(self)
+		_start_dedicated(boss_support, str(_asset_ids.get(_actor,"")), "support")
 		return
 	var boss_all = BOSS_ALL_PRESENTATIONS.get(str(_asset_ids.get(_actor,"")))
 	if boss_all != null and _actor == "boss" and not _targets.is_empty() and str(_entry.get("action","")) in ["attack","skill"] and str(_profile["kind"]) == "boss_all":
-		_skill_presentation=boss_all.new()
-		add_child(_skill_presentation)
-		_tween=_skill_presentation.play(self)
+		_start_dedicated(boss_all, str(_asset_ids.get(_actor,"")), "all")
 		return
 	var boss_single = BOSS_SINGLE_PRESENTATIONS.get(str(_asset_ids.get(_actor,"")))
 	if boss_single != null and _actor == "boss" and _targets.size() == 1 and not _entry.has("hits") and str(_entry.get("action","")) in ["attack","skill"] and str(_profile["kind"]) in ["normal","boss_single"]:
-		_skill_presentation=boss_single.new()
-		add_child(_skill_presentation)
-		_tween=_skill_presentation.play(self)
+		_start_dedicated(boss_single, str(_asset_ids.get(_actor,"")), "single")
 		return
 	_playing = true
 	_play_se("cast")
@@ -457,7 +479,61 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 	_tween.tween_method(_recovery_progress, 0.0, 1.0, float(_profile["recovery"]))
 	_tween.tween_callback(_finish)
 
+## QA-06: 専用の演出を始める境界。その演出が宣言した素材(warm_paths())を読み終えていれば、すぐに始める。
+## 読み終えていなければ、ここで待つ(固定の時間ではなく、読み終えるまで)。待つ間もこの行動は再生中のままなので、
+## presenter はこの行動の impact/finished を待ち、HP の表示・次の行動・ターンの終わり・覚醒の後の処理・別の
+## 演出は先へ進まない(映像だけが遅れて追いかける形にしない)。読み込みは裏のスレッドで、足りない素材を事前
+## 読み込みの順の先頭へ回して行う(メインスレッドを止めない)。武者の覚醒は、オーラの背景の写しも条件にする。
+func _start_dedicated(script: Script, asset_id: String, kind: String) -> void:
+	if _dedicated_ready(script, asset_id, kind):
+		_begin_dedicated(script)
+		return
+	_waiting_script = script
+	_waiting_asset = asset_id
+	_waiting_kind = kind
+	_waiting_seen_ready = false
+	_playing = true
+	_phase = "waiting"
+	set_process(true)
+
+func _begin_dedicated(script: Script) -> void:
+	_skill_presentation = script.new()
+	add_child(_skill_presentation)
+	_tween = _skill_presentation.play(self)
+
+func _dedicated_ready(script: Script, asset_id: String, kind: String) -> bool:
+	var ready := true
+	if is_instance_valid(_presentation_warmup) and not _presentation_warmup.ensure(script, asset_id, kind).is_empty():
+		ready = false
+	if kind == "awakening" and is_instance_valid(_musha_aura) and not _musha_aura.background_ready():
+		ready = false
+	return ready
+
+## 待っている演出の素材を毎フレーム確かめる(待っている間だけ動く)。
+func _process(_delta: float) -> void:
+	if _waiting_script == null:
+		set_process(false)
+		return
+	if not _dedicated_ready(_waiting_script, _waiting_asset, _waiting_kind):
+		_waiting_seen_ready = false
+		return
+	# 揃ったのを見たフレームでは始めない(読み終えた画像の GPU への転送を、演出の最初のフレームに重ねない)。
+	if not _waiting_seen_ready:
+		_waiting_seen_ready = true
+		return
+	var script := _waiting_script
+	_clear_waiting()
+	_begin_dedicated(script)
+
+func _clear_waiting() -> void:
+	_waiting_script = null
+	_waiting_asset = ""
+	_waiting_kind = ""
+	_waiting_seen_ready = false
+	set_process(false)
+
 func cancel() -> void:
+	_clear_waiting()
 	_clear_skill_presentation()
 	_clear_hero_finish()
 	_clear_butler_finish()
@@ -834,25 +910,9 @@ func _char_rect(visual: Variant) -> Rect2:
 ## HUDへ反映する——覚醒自体は"impact"らしい対象・ダメージを持たないが、
 ## 同じ二値シグナル契約(impact/finished)に揃えるためにそのまま踏襲する。
 func _play_awakening_entry() -> void:
-	if Assets.boss_asset(_appearance_id) == "gentleman":
-		_skill_presentation = GentlemanAwakening.new()
-		add_child(_skill_presentation)
-		_tween = _skill_presentation.play(self)
-		return
-	if Assets.boss_asset(_appearance_id) == "astronaut":
-		_skill_presentation = AstronautAwakening.new()
-		add_child(_skill_presentation)
-		_tween = _skill_presentation.play(self)
-		return
-	if Assets.boss_asset(_appearance_id) == "dragon":
-		_skill_presentation = DragonAwakening.new()
-		add_child(_skill_presentation)
-		_tween = _skill_presentation.play(self)
-		return
-	if Assets.boss_asset(_appearance_id) == "musha":
-		_skill_presentation = MushaAwakening.new()
-		add_child(_skill_presentation)
-		_tween = _skill_presentation.play(self)
+	var dedicated = BOSS_AWAKENING_PRESENTATIONS.get(Assets.boss_asset(_appearance_id))
+	if dedicated != null:
+		_start_dedicated(dedicated, Assets.boss_asset(_appearance_id), "awakening")
 		return
 	_playing = true
 	_phase = "awakening"
