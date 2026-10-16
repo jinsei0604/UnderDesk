@@ -1,6 +1,7 @@
 extends GutTest
 const Driver = preload("res://src/bossmaker/visuals/rbm_astronaut_presentation.gd")
 const Timeline = preload("res://src/bossmaker/visuals/rbm_astronaut_timeline.gd")
+const TempoMap = preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
 func _fixture(kind: String, attribute: String = "NEUTRAL", awakened: bool = false, counter: bool = false) -> Dictionary:
 	var draft := RBMCreatorDraft.new()
 	draft.appearance_id = "appearance_astronaut"
@@ -51,7 +52,10 @@ func test_four_attacks_deliver_exactly_one_resolved_impact_and_restore() -> void
 			var d = f.stage._skill_presentation
 			assert_true(d is Driver)
 			assert_eq(d.action_kind,("planet" if kind=="single" else "blackhole") if awakened else ("single" if kind=="single" else "all"))
-			f.stage._tween.custom_step(d.impact_time-.01)
+			# 戦闘テンポ（2026-10-16）: 命中は演出の時刻 impact_time のまま。実際の経過時間では、詰めた区間（Timeline.tempo）の分だけ早く着く。
+			var hit: float = TempoMap.real_time_at(d.impact_time,d.duration,Timeline.tempo(d.action_kind))
+			assert_lte(hit,d.impact_time)
+			f.stage._tween.custom_step(hit-.01)
 			assert_eq(seen.size(),0)
 			f.stage._tween.custom_step(.02)
 			assert_eq(seen.size(),1)

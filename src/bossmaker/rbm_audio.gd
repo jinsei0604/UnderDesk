@@ -40,6 +40,9 @@ func play_sound(key: String, gain_db: float = 0.0) -> void:
 	if not _cache.has(key): _cache[key] = load(Catalog.FILES[key])
 	var player := _players[_next]
 	_next = (_next + 1) % MAX_VOICES
+	if _fades.has(player):
+		(_fades[player] as Tween).kill()
+		_fades.erase(player)
 	player.stop()
 	player.stream = _cache[key]
 	player.volume_db = -9.0 + gain_db
@@ -47,6 +50,44 @@ func play_sound(key: String, gain_db: float = 0.0) -> void:
 
 func stop_all() -> void:
 	for player in _players: player.stop()
+	for player in _jumped:
+		if is_instance_valid(player): player.queue_free()
+	_jumped.clear()
+
+## 通しの音（key）を、演出の時刻を飛ばした先（position 秒）から鳴らし直す（戦闘テンポ 2026-10-16、rbm_tempo_map.gd）。
+## 今鳴っている声はそのまま fade 秒で消し、同じ音を飛ばした先から別の再生役で fade 秒かけて鳴らし始める。
+## 鳴っていなければ何もしない。stop_all() で一緒に止まる。
+var _jumped: Array[AudioStreamPlayer] = []
+func jump(key: String, position: float, fade: float = 0.04) -> void:
+	if not _cache.has(key):
+		return
+	for player in _players + _jumped:
+		if not is_instance_valid(player) or not player.playing or player.stream != _cache[key]:
+			continue
+		var next := AudioStreamPlayer.new()
+		next.stream = player.stream
+		var volume := player.volume_db
+		next.volume_db = -60.0
+		add_child(next)
+		next.play(clampf(position, 0.0, player.stream.get_length()))
+		next.finished.connect(func():
+			_jumped.erase(next)
+			next.queue_free())
+		_jumped.append(next)
+		next.create_tween().tween_property(next, "volume_db", volume, fade)
+		var out := player.create_tween()
+		out.tween_property(player, "volume_db", -60.0, fade)
+		if _jumped.has(player):
+			out.tween_callback(func():
+				_jumped.erase(player)
+				player.queue_free())
+		else:
+			_fades[player] = out
+			out.tween_callback(func():
+				_fades.erase(player)
+				player.stop())
+		return
+var _fades: Dictionary = {}
 
 static func attribute_key(attribute: String, part: String) -> String:
 	return attribute.to_lower() + "_" + part

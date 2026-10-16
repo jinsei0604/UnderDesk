@@ -10,6 +10,7 @@ const RangedVFX=preload("res://src/bossmaker/visuals/rbm_dragon_ranged_vfx.gd")
 const RANGED_SOUNDS={"breath":"dragon_normal_breath","focused_breath":"dragon_awakened_breath","meteors":"dragon_awakened_meteors"}
 const MeteorSky=preload("res://src/bossmaker/visuals/rbm_dragon_meteor_sky.gd")
 const AudioCatalog=preload("res://src/bossmaker/rbm_audio_catalog.gd")
+const TempoMap=preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
 var _sky: Node2D
 var _sound_started:=false
 var kind:="single"
@@ -93,7 +94,8 @@ func play(stage: Control) -> Tween:
 	stage._play_se("cast")
 	if not stage._guards.is_empty(): stage._sound.play_sound("cover_move",-5)
 	var tween:=create_tween()
-	tween.tween_method(_advance,0.0,duration,duration)
+	# 戦闘テンポ（2026-10-16）: 終わりの止まっている所だけ詰める。完成トラックも同じ時刻へ合わせ直す。
+	TempoMap.tween_timeline(tween,_advance,duration,Motion.tempo(action_kind),_jump_track)
 	if stage._samurai_finish:
 		tween.tween_callback(_restore_transform)
 		var counter_duration: float=stage.SAMURAI_WIND_START_DELAY+stage.SamuraiWind.AFTERMATH_START+stage.SamuraiWind.AFTERMATH_DURATION+.05
@@ -177,6 +179,10 @@ func _ranged_shake(t: float) -> Vector2:
 
 ## These approved clips include charge, release and impacts, independent of attribute.
 ## The stage audio owner keeps mute, voice limits, cancellation and visibility cleanup.
+func _jump_track(t: float) -> void:
+	if action_kind in RANGED_SOUNDS and is_instance_valid(_stage) and is_instance_valid(_stage._sound):
+		_stage._sound.jump(RANGED_SOUNDS[action_kind],t)
+
 func play_sound_phase(phase: String) -> bool:
 	if not action_kind in RANGED_SOUNDS: return false
 	if phase=="cast" and not _sound_started:

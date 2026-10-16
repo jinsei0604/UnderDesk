@@ -4,6 +4,7 @@ const Timeline = preload("res://src/bossmaker/visuals/rbm_astronaut_timeline.gd"
 const PixelLayer = preload("res://src/bossmaker/visuals/rbm_astronaut_pixel_layer.gd")
 const Gravity = preload("res://src/bossmaker/visuals/rbm_astronaut_gravity.gdshader")
 const Audio = preload("res://src/bossmaker/rbm_audio_catalog.gd")
+const TempoMap = preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
 var kind := "single"
 var action_kind := "single"
 var duration := 7.2
@@ -95,7 +96,8 @@ func play(stage: Control) -> Tween:
 	if not stage._guards.is_empty(): stage._sound.play_sound("cover_move",-5)
 	_advance(0)
 	var tween := create_tween()
-	tween.tween_method(_advance,0.0,duration,duration)
+	# 戦闘テンポ（2026-10-16）: 止まっている・ゆっくり消える区間だけ詰める（覚醒・強化・回復は詰めない）。通しの音も合わせ直す。
+	TempoMap.tween_timeline(tween,_advance,duration,Timeline.tempo(action_kind),_jump_audio)
 	if kind == "awakening":
 		tween.tween_callback(stage._finish_awakening_entry)
 		return tween
@@ -166,6 +168,9 @@ func _advance(t: float) -> void:
 			else:
 				var state: Dictionary = _stage._unit_state(key)
 				_stage._pose(key,11 if state.get("is_downed",false) else (10 if state.get("is_defending",false) or _stage._counters.has(key) else 0))
+
+func _jump_audio(t: float) -> void:
+	_audio = TempoMap.crossfade_jump(_audio,t)
 
 func play_sound_phase(phase: String) -> bool:
 	return not kind in ["buff","heal"] or phase != "impact"

@@ -11,6 +11,7 @@ extends Node2D
 ##   別の納刀音は重ねない(play_sound_phase()で汎用SEを抑止する)。
 ## - 中断・終了・反撃移行時は本体の可視性/位置/揺れ/筆文字/VFXを必ず元へ戻す。
 const Motion = preload("res://src/bossmaker/visuals/rbm_musha_motion.gd")
+const TempoMap = preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
 const Body = preload("res://src/bossmaker/visuals/rbm_musha_body.gd")
 const VFX = preload("res://src/bossmaker/visuals/rbm_musha_vfx.gd")
 const Glyph = preload("res://src/bossmaker/visuals/rbm_musha_glyph.gd")
@@ -110,7 +111,8 @@ func play(stage: Control) -> Tween:
 		if not stage._guards.is_empty():
 			stage._sound.play_sound("cover_move", -5)
 	var tween := create_tween()
-	tween.tween_method(_advance, 0.0, duration, duration)
+	# 戦闘テンポ（2026-10-16）: 止まっている区間だけ詰める。完成トラックも同じ時刻へ合わせ直す。
+	TempoMap.tween_timeline(tween, _advance, duration, Motion.tempo(timeline_kind), _jump_track)
 	if stage._samurai_finish:
 		tween.tween_callback(_restore_transform)
 		var counter_duration: float = stage.SAMURAI_WIND_START_DELAY + stage.SamuraiWind.AFTERMATH_START + stage.SamuraiWind.AFTERMATH_DURATION + .05
@@ -121,6 +123,10 @@ func play(stage: Control) -> Tween:
 		tween.tween_callback(stage._counter_impact)
 	tween.tween_callback(stage._finish)
 	return tween
+
+func _jump_track(t: float) -> void:
+	if is_instance_valid(_stage) and is_instance_valid(_stage._sound):
+		_stage._sound.jump(_sound_key, t)
 
 ## 完成トラックが音の全てを担うため、ステージの汎用SE(cast/release/impact)は出さない。
 func play_sound_phase(_phase: String) -> bool:

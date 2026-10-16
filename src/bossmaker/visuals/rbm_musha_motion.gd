@@ -29,6 +29,15 @@ const SINGLE_DURATION := 5.2
 const ALL_DURATION := 7.0
 const SUPPORT_DURATION := 4.2
 
+## 戦闘テンポ（2026-10-16）: 演出の時刻のうち詰める区間（rbm_tempo_map.gd、[から, まで, 実時間]）。承認済みのコマ・完成トラックはそのまま。
+## 一覧画像（0.1秒ごと）と完成トラックの無音（-120dB）で、画面も音も止まっていることを確かめた区間だけ。最後の0.5秒
+## （かばう味方が戻る）と、斬撃・納刀の鍔鳴り（全体 5.40秒）までは詰めない。
+##   単体: 墨が消えた後の立ち姿 / 全体: 鍔鳴りの後の立ち姿 / 強化・回復: 足元の輪が消えた後の立ち姿
+const TEMPO := {"single": [[3.85, 4.65, 0.0]], "all": [[5.70, 6.45, 0.0]], "support": [[3.30, 3.70, 0.0]]}
+
+static func tempo(kind: String) -> Array:
+	return TEMPO.get(kind, [])
+
 ## strike通知(ダメージ表示の同期)は「巨大な最終斬撃」へ合わせる(初撃は文字なしの
 ## 演出のみ)。initial→finalの両方でstrikeは呼ばない。
 const SINGLE_FIRST_HIT := 1.34

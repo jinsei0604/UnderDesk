@@ -6,6 +6,8 @@ extends GutTest
 const Motion = preload("res://src/bossmaker/visuals/rbm_musha_awakened_motion.gd")
 const Awakening = preload("res://src/bossmaker/visuals/rbm_musha_awakening.gd")
 const Attack = preload("res://src/bossmaker/visuals/rbm_musha_awakened_presentation.gd")
+const AttackFrames = preload("res://src/bossmaker/visuals/rbm_musha_awakened_frame_presentation.gd")
+const TempoMap = preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
 const Palette = preload("res://src/bossmaker/visuals/rbm_attribute_vfx_palette.gd")
 const AssetsReady = preload("res://tests/bossmaker/presentation_assets_ready.gd")
 ## 演出の契約は、事前読み込みが素材を読み終えた状態で検証する(QA-06。読み終えていない時の待ちは
@@ -271,7 +273,10 @@ func test_awakened_attacks_strike_once_at_the_approved_moment_and_return_home() 
 			# 元の時刻(impact_time)は変えず、演出の時刻で通知が一度だけ出る。
 			assert_eq(d.strike_at, 8.92 if kind == "aoe" else 4.55)
 			assert_eq(d._attribute, color)
-			stage._tween.custom_step(d.strike_at - .01)
+			# 戦闘テンポ（2026-10-16）: 着弾は演出の時刻 strike_at のまま。実際の経過時間では、全体の鍔鳴りの後の静止を詰めた分（0.5秒）だけ早く着く。
+			var strike_real: float = TempoMap.real_time_at(d.strike_at, d.duration, AttackFrames.TEMPO_ALL if d.kind == "all" else [])
+			assert_almost_eq(strike_real, d.strike_at - (0.5 if kind == "aoe" else 0.0), 0.001)
+			stage._tween.custom_step(strike_real - .01)
 			assert_eq(seen.size(), 0, "the precursor line/incision opening must not strike")
 			stage._tween.custom_step(.02)
 			assert_eq(seen, [f.entry])

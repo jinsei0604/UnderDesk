@@ -1,6 +1,7 @@
 extends GutTest
 const Driver = preload("res://src/bossmaker/visuals/rbm_gentleman_presentation.gd")
 const Timeline = preload("res://src/bossmaker/visuals/rbm_gentleman_motion.gd")
+const TempoMap = preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
 const AssetsReady = preload("res://tests/bossmaker/presentation_assets_ready.gd")
 ## 演出の契約は、事前読み込みが素材を読み終えた状態で検証する(QA-06。読み終えていない時の待ちは
 ## test_rbm_presentation_warmup.gd が検証する)。
@@ -62,7 +63,10 @@ func test_all_attributes_and_both_forms_deliver_one_impact_and_preserve_combat()
 				var d=f.stage._skill_presentation
 				assert_true(d is Driver)
 				assert_eq(d._vfx.attribute,attribute)
-				f.stage._tween.custom_step(d.impact_time-.01)
+				# 戦闘テンポ（2026-10-16）: 命中は演出の時刻 impact_time のまま。実際の経過時間では、詰めた区間（Timeline.tempo）の分だけ早く着く。
+				var hit: float=TempoMap.real_time_at(d.impact_time,d.duration,Timeline.tempo(d.action_kind))
+				assert_lte(hit,d.impact_time)
+				f.stage._tween.custom_step(hit-.01)
 				assert_eq(seen.size(),0)
 				f.stage._tween.custom_step(.02)
 				assert_eq(seen.size(),1)

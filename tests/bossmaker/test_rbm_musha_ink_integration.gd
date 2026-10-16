@@ -7,6 +7,7 @@ const Ink = preload("res://src/bossmaker/visuals/rbm_musha_ink_director.gd")
 const FramePresentation = preload("res://src/bossmaker/visuals/rbm_musha_frame_presentation.gd")
 const AwakenedFrames = preload("res://src/bossmaker/visuals/rbm_musha_awakened_frame_presentation.gd")
 const AssetsReady = preload("res://tests/bossmaker/presentation_assets_ready.gd")
+const TempoMap = preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
 ## 演出の契約は、事前読み込みが素材を読み終えた状態で検証する(QA-06。読み終えていない時の待ちは
 ## test_rbm_presentation_warmup.gd が検証する)。
 var _ready_assets: Array = []
@@ -244,21 +245,30 @@ func test_the_all_attack_white_screen_and_blast_are_shown_over_the_hud_only_whil
 	_fake_hud(stage)
 	var ink = stage.musha_ink_director()
 	stage.play_entry(f.entry, f.skill)
-	stage._tween.custom_step(Ink.A_FLASH - 0.05)
+	# 戦闘テンポ（2026-10-16）: 確かめる時刻は演出の時刻（Ink.A_*）のまま。全体は鍔鳴りの後の静止を詰めたので（TEMPO_ALL）、
+	# 実際の経過時間へ変えて進める。
+	var d = stage._skill_presentation
+	var elapsed := [0.0]
+	var go := func(at: float) -> void:
+		var real: float = TempoMap.real_time_at(at, d.duration, AwakenedFrames.TEMPO_ALL)
+		stage._tween.custom_step(real - float(elapsed[0]))
+		elapsed[0] = real
+		assert_almost_eq(float(d.age), at, 0.02, "the presentation is at %.2f" % at)
+	go.call(Ink.A_FLASH - 0.05)
 	assert_false(ink.hud_over[2].visible, "the stance before the draw: the HUD is in front")
-	stage._tween.custom_step(0.35)
+	go.call(Ink.A_FLASH + 0.3)
 	assert_true(ink.hud_over[2].visible, "the white screen covers the HUD as well")
 	assert_almost_eq(float(ink.hud_over_mat.get_shader_parameter("amount")), 1.0, 0.001, "as white as the rest of the screen")
-	stage._tween.custom_step((Ink.A_FLASH_END - Ink.A_FLASH) - 0.3 + 0.05)
+	go.call(Ink.A_FLASH_END + 0.05)
 	assert_false(ink.hud_over[2].visible, "right after the white screen the HUD is back in front")
-	stage._tween.custom_step(Ink.A_CLICK2 - Ink.A_FLASH_END)
+	go.call(Ink.A_CLICK2 + 0.05)
 	assert_false(ink.hud_over[2].visible, "the quiet pause before the blast: the HUD is in front")
-	stage._tween.custom_step(Ink.A_IMPACT + 0.1 - Ink.A_CLICK2 - 0.05)
+	go.call(Ink.A_IMPACT + 0.1)
 	assert_true(ink.hud_over[2].visible, "the ink blast is shown over the HUD")
-	stage._tween.custom_step((Ink.A_END - 0.2) - (Ink.A_IMPACT + 0.1))
+	go.call(Ink.A_END - 0.2)
 	assert_true(ink.hud_over[2].visible)
 	assert_lt(float(ink.hud_over_mat.get_shader_parameter("amount")), 0.9, "fading out near the end of the attack")
-	stage._tween.custom_step(0.17)
+	go.call(Ink.A_END - 0.03)
 	assert_true(stage.is_playing(), "(still inside the attack)")
 	assert_false(ink.hud_over[2].visible, "faded out before the attack ends")
 	stage.cancel()

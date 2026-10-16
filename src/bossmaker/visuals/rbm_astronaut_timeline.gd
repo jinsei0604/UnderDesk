@@ -2,6 +2,21 @@ extends RefCounted
 ## Approved review timings, in seconds. Pure presentation; no combat RNG/state.
 const DURATIONS := {"single":7.2, "all":7.4, "awakening":11.0, "planet":9.0, "blackhole":7.2, "buff":3.0, "heal":3.0}
 const IMPACTS := {"single":3.27, "all":3.25, "awakening":6.45, "planet":4.15, "blackhole":5.12, "buff":1.7, "heal":1.7}
+## 戦闘テンポ（2026-10-16）: 演出の時刻のうち詰める区間（rbm_tempo_map.gd、[から, まで, 実時間]）。承認済みの絵・音はそのまま。
+## 一覧画像（0.1秒ごと）と音の推移で確かめた区間だけ。狙い・落下・命中・爆発は変えない。最後の0.5秒（かばう味方が戻る）も残す。
+##   単体: 爆発の後に黒い煙が消えていく所を2倍の速さで（音は一定の低いうなり）
+##   全体: 最初の立ち姿（うなりだけ）・煙を2倍（うなりが小さくなる 6.3秒の手前まで）・煙が消えた後の立ち姿
+##   惑星（覚醒後の単体）: 最初の立ち姿（一定のうなり）・青い煙を2倍・煙が消えた後の立ち姿
+##   ブラックホール（覚醒後の全体）: 最初の立ち姿（無音）
+const TEMPO := {
+	"single": [[5.00, 6.60, 0.80]],
+	"all": [[0.05, 0.45, 0.0], [5.00, 6.20, 0.60], [6.60, 6.90, 0.0]],
+	"planet": [[0.10, 0.80, 0.0], [5.80, 7.60, 0.90], [7.60, 8.40, 0.0]],
+	"blackhole": [[0.45, 1.05, 0.0]],
+}
+
+static func tempo(kind: String) -> Array:
+	return TEMPO.get(kind, [])
 const SUCTION_START := 2.65
 const SUCTION_END := 4.75
 const RIFT_CONCEPT := "A"

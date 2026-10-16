@@ -4,6 +4,7 @@ const Motion=preload("res://src/bossmaker/visuals/rbm_gentleman_motion.gd")
 const Vfx=preload("res://src/bossmaker/visuals/rbm_gentleman_vfx.gd")
 const Smoke=preload("res://src/bossmaker/visuals/rbm_gentleman_smoke.gdshader")
 const Audio=preload("res://src/bossmaker/rbm_audio_catalog.gd")
+const TempoMap=preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
 var kind := "single"
 var action_kind := "single"
 var duration := 6.0
@@ -91,7 +92,8 @@ func play(stage: Control) -> Tween:
 	if not stage._guards.is_empty():stage._sound.play_sound("cover_move",-5)
 	_advance(0)
 	var tween:=create_tween()
-	tween.tween_method(_advance,0.0,duration,duration)
+	# 戦闘テンポ（2026-10-16）: 止まっている区間だけ詰める（覚醒は詰めない）。通しの音も同じ時刻へ合わせ直す。
+	TempoMap.tween_timeline(tween,_advance,duration,[] if kind=="awakening" else Motion.tempo(action_kind),_jump_audio)
 	if kind=="awakening":
 		tween.tween_callback(stage._finish_awakening_entry)
 		return tween
@@ -142,6 +144,8 @@ func _advance(t: float) -> void:
 				_stage._pose(key,11 if state.get("is_downed",false) else (10 if state.get("is_defending",false) or _stage._counters.has(key) else 0))
 
 func play_sound_phase(_phase: String) -> bool:return true
+func _jump_audio(t: float) -> void:
+	_audio=TempoMap.crossfade_jump(_audio,t)
 func _visibility_changed() -> void:
 	if is_instance_valid(_audio) and is_instance_valid(_stage):_audio.stream_paused=not _stage.is_visible_in_tree()
 func _restore() -> void:

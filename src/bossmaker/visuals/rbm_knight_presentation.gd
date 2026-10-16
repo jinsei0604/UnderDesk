@@ -2,6 +2,7 @@ extends Node2D
 ## Shared knight playback plumbing; dedicated entry scripts select each timeline.
 const Motion=preload("res://src/bossmaker/visuals/rbm_knight_motion.gd")
 const VFX=preload("res://src/bossmaker/visuals/rbm_knight_vfx.gd")
+const TempoMap=preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
 var kind:="single"
 var duration:=2.20
 var impact_time:=Motion.SINGLE_HIT
@@ -69,7 +70,8 @@ func play(stage: Control) -> Tween:
 	stage._play_se("cast")
 	if not stage._guards.is_empty(): stage._sound.play_sound("cover_move",-5)
 	var tween:=create_tween()
-	tween.tween_method(_advance,0.0,duration,duration)
+	# 戦闘テンポ（2026-10-16）: 回復・強化の、光が昇るだけの所を速める
+	TempoMap.tween_timeline(tween,_advance,duration,Motion.tempo(kind))
 	if stage._samurai_finish:
 		tween.tween_callback(_restore_transform)
 		var counter_duration: float=stage.SAMURAI_WIND_START_DELAY+stage.SamuraiWind.AFTERMATH_START+stage.SamuraiWind.AFTERMATH_DURATION+.05

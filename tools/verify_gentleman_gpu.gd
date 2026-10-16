@@ -126,11 +126,12 @@ func run_case(mode: String, kind: String, awakened: bool) -> void:
 		var saved := 0
 		var t := 0.0
 		var elapsed := Time.get_ticks_msec()
-		while t < seconds-.001:
+		# 戦闘テンポ（2026-10-16）: 印は演出の時刻なので、演出の時計（driver.age）で比べる（詰めた区間があると実時間とずれる）。
+		while stage.is_playing() and t < seconds+1.0:
 			playback.custom_step(1.0/60)
 			t += 1.0/60
 			await tree.process_frame
-			if saved < stamps.size() and t >= stamps[saved]:
+			if saved < stamps.size() and is_instance_valid(driver) and float(driver.age) >= stamps[saved]:
 				await capture(tag+"_%0.2f"%stamps[saved])
 				saved += 1
 		if stage.is_playing(): playback.custom_step(30)

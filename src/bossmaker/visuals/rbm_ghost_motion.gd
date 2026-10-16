@@ -3,6 +3,11 @@ var home:=Vector2(910,505)
 var target_foot:=Vector2(275,490)
 const SINGLE_HIT=1.43
 const ALL_HIT=1.62
+## 戦闘テンポ（2026-10-16）: 演出の時刻のうち詰める区間（rbm_tempo_map.gd、[から, まで, 実時間]）。一覧画像（0.1秒ごと）で確かめた区間だけ。
+## 単体・全体: 元の位置へ戻った後、浮いているだけの所を速く（最後の0.5秒は残す）。回復・強化: 吸い込まれる前に魂が回る所を少し速く。
+const TEMPO={"single":[[3.00,3.55,0.15]],"all":[[2.90,3.55,0.20]],"heal":[[0.90,2.00,0.60]],"buff":[[0.90,2.00,0.60]]}
+static func tempo(kind: String) -> Array:
+	return TEMPO.get(kind,[])
 
 func configure(origin: Vector2,feet: Array[Vector2]) -> void:
 	home=origin

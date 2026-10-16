@@ -16,9 +16,15 @@ extends "res://src/bossmaker/visuals/rbm_musha_awakened_presentation.gd"
 const Rig = preload("res://src/bossmaker/visuals/rbm_musha_frames.gd")
 const PlaqueVFX = preload("res://src/bossmaker/visuals/rbm_musha_name_plaque_vfx.gd")
 const AudioCatalog = preload("res://src/bossmaker/rbm_audio_catalog.gd")
+const TempoMap = preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
 const SD := 2.4
 const ALL_SKIP_AT := 2.45
 const ALL_HOLD := 4.07
+## 戦闘テンポ（2026-10-16）: 全体の演出の時刻（T）のうち詰める区間（rbm_tempo_map.gd、[から, まで, 実時間]）。
+## 鍔鳴り（6.85、rbm_musha_ink_director.gd の A_CLICK2）の後、遅れて斬り筋が走る（8.05、A_SWEEP）までの静止を 1.2秒→0.7秒に。
+## 抜刀の前の溜め（A_GATHER_END〜A_PULL）と、白が引いてからゆっくり納める動き（A_FLASH_END〜A_CLICK2）は意図した間なので変えない。
+## 音は T で鳴らしているので自然に合う。
+const TEMPO_ALL := [[7.15, 7.65, 0.0]]
 
 ## 本体のコマ割り [開始時刻(演出の時刻), コマ]
 const SINGLE_KEYS := [
@@ -120,7 +126,7 @@ func play(stage: Control) -> Tween:
 			strike_at = impact_time + ALL_HOLD
 			track_at = 0.0
 		tw = create_tween()
-		tw.tween_method(_advance, 0.0, duration, duration)
+		TempoMap.tween_timeline(tw, _advance, duration, TEMPO_ALL if kind == "all" else [])
 		if stage._samurai_finish:
 			tw.tween_callback(_restore_transform)
 			var counter_duration: float = stage.SAMURAI_WIND_START_DELAY + stage.SamuraiWind.AFTERMATH_START + stage.SamuraiWind.AFTERMATH_DURATION + .05

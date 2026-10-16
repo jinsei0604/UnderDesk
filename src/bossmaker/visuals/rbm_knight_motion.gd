@@ -1,4 +1,9 @@
 extends RefCounted
+## 戦闘テンポ（2026-10-16）: 演出の時刻のうち詰める区間（rbm_tempo_map.gd、[から, まで, 実時間]）。一覧画像（0.1秒ごと）で確かめた区間だけ。
+## 回復・強化: 剣を掲げたまま光が昇る所（効果音は1.1秒で終わる）を2倍の速さで。攻撃は変えない。
+const TEMPO={"heal":[[1.30,2.10,0.40]],"buff":[[1.30,2.10,0.40]]}
+static func tempo(kind: String) -> Array:
+	return TEMPO.get(kind,[])
 var home:=Vector2(840,500)
 const SCALE=170.0/320
 var contact:=Vector2(436,470)

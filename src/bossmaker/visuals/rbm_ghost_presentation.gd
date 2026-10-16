@@ -2,6 +2,7 @@ extends Node2D
 ## Approved ghost timelines; shared stage owns resolved impacts, counters and cleanup.
 const Motion=preload("res://src/bossmaker/visuals/rbm_ghost_motion.gd")
 const Visual=preload("res://src/bossmaker/visuals/rbm_ghost_visual.gd")
+const TempoMap=preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
 var kind:="single"
 var action_kind:="single"
 var duration:=4.05
@@ -57,7 +58,8 @@ func play(stage: Control) -> Tween:
 	stage._play_se("cast")
 	if not stage._guards.is_empty(): stage._sound.play_sound("cover_move",-5)
 	var tween:=create_tween()
-	tween.tween_method(_advance,0.0,duration,duration)
+	# 戦闘テンポ（2026-10-16）: 動きの終わった所・ゆっくりの所だけ速める（効果音は演出の時刻で鳴るので合ったまま）
+	TempoMap.tween_timeline(tween,_advance,duration,Motion.tempo(action_kind))
 	if stage._samurai_finish:
 		tween.tween_callback(_restore_transform)
 		var counter_duration: float=stage.SAMURAI_WIND_START_DELAY+stage.SamuraiWind.AFTERMATH_START+stage.SamuraiWind.AFTERMATH_DURATION+.05

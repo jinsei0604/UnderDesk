@@ -3,6 +3,10 @@ extends Node2D
 const VFX=preload("res://src/bossmaker/visuals/rbm_golem_ground_vfx.gd")
 const HIT:=1.64
 const DURATION:=4.12
+const TempoMap=preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
+## 戦闘テンポ（2026-10-16）: 演出の時刻のうち詰める区間（rbm_tempo_map.gd、[から, まで, 実時間]）。一覧画像（0.1秒ごと）で確かめた区間だけ。
+## 岩の柱が立ったまま止まる所（効果音は2.0秒で終わる）と、地割れが消えていく所を速く。叩きつけ・柱が出る所・最後の0.5秒は変えない。
+const TEMPO:=[[2.30,2.85,0.25],[3.20,3.62,0.20]]
 var age:=-1.0
 var active:=false
 var _stage: Control
@@ -42,7 +46,7 @@ func play(stage: Control) -> Tween:
 		var duration: float=stage.SAMURAI_WIND_START_DELAY+stage.SamuraiWind.AFTERMATH_START+stage.SamuraiWind.AFTERMATH_DURATION+.05
 		tween.tween_method(_counter_handoff,0.0,duration,duration)
 	else:
-		tween.tween_method(_advance,0.0,DURATION,DURATION)
+		TempoMap.tween_timeline(tween,_advance,DURATION,TEMPO)
 		if not stage._counters.is_empty():
 			tween.tween_method(stage._counter_progress,0.0,1.0,.20)
 			tween.tween_callback(stage._counter_impact)

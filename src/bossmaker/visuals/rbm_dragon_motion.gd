@@ -3,6 +3,11 @@ const BREATH_HIT:=1.02
 const FOCUSED_HIT:=1.04
 const METEOR_HIT:=1.65
 const SUPPORT_HIT:=.90
+## 戦闘テンポ（2026-10-16）: 演出の時刻のうち詰める区間（rbm_tempo_map.gd、[から, まで, 実時間]）。一覧画像（0.1秒ごと）と完成トラックの
+## 無音で、画面も音も止まっていることを確かめた区間だけ（最後の0.5秒は残す）。噛みつき・回復・強化・覚醒は変えない。
+const TEMPO:={"breath":[[3.05,3.55,0.0]],"focused_breath":[[3.35,3.95,0.0]],"meteors":[[5.80,6.15,0.0]]}
+static func tempo(kind: String) -> Array:
+	return TEMPO.get(kind,[])
 var home:=Vector2.ZERO
 var contact:=Vector2.ZERO
 var feet: Array[Vector2]=[]

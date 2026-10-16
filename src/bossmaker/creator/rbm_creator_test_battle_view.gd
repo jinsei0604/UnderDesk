@@ -561,9 +561,8 @@ func refresh() -> void:
 	var battle := session.battle
 	_boss_label.text = tr("%s　（ターン%d）") % [battle.boss.display_name, battle.current_turn]
 
-	RBMBattleUiKit.clear_children_safely(_party_rows)
-	for unit in battle.party:
-		_party_rows.add_child(RBMBattleUiKit.build_party_card(unit, open_ally_detail))
+	# 同じ戦闘・同じ顔ぶれなら作り直さず値だけ更新する（操作が戻る瞬間に止まらないように。戦闘テンポ 2026-10-16）
+	RBMBattleUiKit.sync_party_cards(_party_rows, battle, open_ally_detail)
 	RBMBattleUiKit.refresh_battlefield_ally_row(_battlefield_ally_row, battle, open_ally_detail)
 	_configure_presentation()
 

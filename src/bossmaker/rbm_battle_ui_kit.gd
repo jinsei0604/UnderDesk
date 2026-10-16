@@ -533,6 +533,7 @@ static func skill_row_text(skill: Dictionary, unit: RBMUnit) -> String:
 static func build_party_card(unit: RBMUnit, on_click: Callable) -> Control:
 	var card := PanelContainer.new()
 	card.name = "PartyRow_%d" % unit.id
+	card.set_meta("character_id", unit.character_id)
 	card.custom_minimum_size = Vector2(168, 0)
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 	# バグ修正: 共有Panel StyleBoxの既定16px余白（詳細ウィンドウ等の大きな
@@ -629,6 +630,35 @@ static func _compact_panel_box() -> StyleBoxFlat:
 	box.anti_aliasing = false
 	return box
 
+## 味方のカード（rows の中）を今の戦闘に合わせる。同じ戦闘・同じ顔ぶれのカードが既にあれば、作り直さずに値（名前・
+## HP・SP・戦闘不能の薄さ）だけを更新する（apply_status_snapshot と同じ内容。作り直した時と同じ表示になる）。
+## 戦闘テンポの改善（2026-10-16）: 行動の演出が終わって操作が戻る瞬間に、カード4枚の作り直し（顔の切り出し・配置・
+## 全画面の色の付け替え）で画面が約50ms止まっていたため。新しい戦闘・顔ぶれが変わった時だけ作り直す。
+static func sync_party_cards(rows: Control, battle: RBMBattle, on_click: Callable) -> void:
+	if party_cards_match(rows, battle):
+		RBMBattlePresenter.apply_status_snapshot(rows, battle.presentation_state())
+		return
+	clear_children_safely(rows)
+	for unit in battle.party:
+		rows.add_child(build_party_card(unit, on_click))
+	rows.set_meta("party_cards_battle", battle.get_instance_id())
+
+## rows のカードが、この戦闘の味方（順番・ID・キャラクター）と同じか。
+static func party_cards_match(rows: Control, battle: RBMBattle) -> bool:
+	if int(rows.get_meta("party_cards_battle", 0)) != battle.get_instance_id():
+		return false
+	var cards := rows.get_children()
+	if cards.size() != battle.party.size():
+		return false
+	for i in cards.size():
+		var unit: RBMUnit = battle.party[i]
+		if str(cards[i].name) != "PartyRow_%d" % unit.id or str(cards[i].get_meta("character_id", "")) != unit.character_id:
+			return false
+	return true
+
+## 顔の切り出し位置（絵の使われている範囲から求める）。絵ごとに1回だけ求めて使い回す（毎回 GPU から読み出さない）。
+static var _portrait_regions: Dictionary = {}
+
 ## §16/§17/§18: 戦場・カード双方で使う、将来Sprite/Textureへ差し替え可能な
 ## プレースホルダー枠。現在は正式アートが存在しないため、Panelの暗い額縁
 ## （既存の共有Panel StyleBox、新しい配色は増やさない）だけで表現する——
@@ -644,18 +674,25 @@ static func build_portrait(asset_id: String, portrait_size: float, node_name: St
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var texture := RBMVisualAssets.texture(asset_id)
 	if texture != null:
-		var image := texture.get_image()
-		# get_image() can return null for a texture whose import settings make it
-		# non-CPU-readable (e.g. VRAM compression) -- fall back to the uncropped
-		# texture rather than crashing on a null Image.
-		if image == null:
+		var key := texture.resource_path if not texture.resource_path.is_empty() else str(texture.get_instance_id())
+		if not _portrait_regions.has(key):
+			var image := texture.get_image()
+			# get_image() can return null for a texture whose import settings make it
+			# non-CPU-readable (e.g. VRAM compression) -- fall back to the uncropped
+			# texture rather than crashing on a null Image.
+			if image == null:
+				_portrait_regions[key] = Rect2()
+			else:
+				var used := image.get_used_rect()
+				var side := mini(used.size.x, int(used.size.y * 0.50))
+				_portrait_regions[key] = Rect2(used.position.x + (used.size.x - side) * 0.5, used.position.y, side, side)
+		var region: Rect2 = _portrait_regions[key]
+		if not region.has_area():
 			portrait.texture = texture
 			return portrait
-		var used := image.get_used_rect()
-		var side := mini(used.size.x, int(used.size.y * 0.50))
 		var atlas := AtlasTexture.new()
 		atlas.atlas = texture
-		atlas.region = Rect2(used.position.x + (used.size.x - side) * 0.5, used.position.y, side, side)
+		atlas.region = region
 		portrait.texture = atlas
 	return portrait
 
