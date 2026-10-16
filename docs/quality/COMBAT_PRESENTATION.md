@@ -89,6 +89,7 @@ Anticipation（予備動作）→ Action（動作）→ Impact（命中）→ Hi
 - **揺れはキャラと演出の絵だけを動かし、背景（`FullScreenBattleBackground`）は動かない。** 演出ごとに揺れの処理を別々に書いている（共通部品になっていない）。
 - Hit Stop はタンクの決め技（0.12秒）と執事の決め技の一部だけ。
 - Zoom／Push／Pull／Slow Motion は使っていない。
+- 2026-10: 戦闘開始前の登場演出・勝利演出（`src/bossmaker/visuals/encounter/`）だけが、戦場全体を動かす共通部品 `rbm_battlefield_camera.gd`（整数倍の寄りのカット・2px単位の揺れ。強さはステージの `presentation_shake_strength`、HUD は動かさない）と、ステージの `set_motion_speed()`（とどめのスロー。今の行動の Tween だけに掛け、`Engine.time_scale` は変えない）を使う。新しく Zoom・揺れ・スローを使う演出は、これらを使う（作り直さない）。
 
 ### 4.2 揺れ（Camera Shake）
 - 乱用しない。強さで差をつける（1280×720の論理ピクセル。目安）:

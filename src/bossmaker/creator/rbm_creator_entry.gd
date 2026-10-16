@@ -9,6 +9,16 @@ extends Control
 ## start_new()/start_loaded()で中身のフィールドだけを差し替える——これは
 ## RBMCreatorMain側の設計（STEPビュー群が保持するdraft参照を維持したまま
 ## フィールドだけ書き換える）とセットで、UI二重構築を避けるための構成。
+##
+## 見た目の刷新（2026-10、ユーザーが完成イメージで承認）: 入口・作成方法の選択・保存したボス戦の一覧の
+## 3画面を、挑戦側のオンライン一覧と同じ紺＋水色（RBMMenuUi／RBMChallengeListStyle）にした。
+## 城の扉・工房の背景画像は使わず、図形だけの地（RBMMenuUi.Backdrop）に置く。
+##   入口           = 2枚の大きなカード（RBMCreatorTopChoice。選んだ方が広がる）
+##   作成方法の選択 = SIMPLE／HARDCORE の大きなカード（設定できることの一覧つき）
+##   一覧           = 左にカード（RBMSavedBossCard）、右に詳細（RBMSavedBossDetailPanel）。
+##                    オンライン一覧のカード・詳細をそのまま土台にして、中身と操作（編集する・削除）だけ差し替える。
+## 画面の切り替え・検索の条件・開く・削除の処理（確認つき）は従来のまま。
+## 3画面とも RBMWorldUi.walk() の金への再配色を受けない（各画面のルートに meta "world_skip"）。
 
 ## Phase 1 Step 8 §4 — 共通ルートへ戻る要求。RBMCreatorMain自身の`exited`
 ## シグナル（既存・無改修、未保存変更警告を含む正式な退出処理の完了通知）
@@ -19,75 +29,78 @@ extends Control
 ## がexitedを発火した後だけであり、このexit_requestedはその後にのみ発火する。
 signal exit_requested
 
-## Phase 3.5 UI統一§33バグ修正: RBMChallengeEntry.SEARCH_FIELD_MIN_SIZEと
-## 同じ理由（検索欄のplaceholder_textが既定の極small幅で視覚的に切れて
-## いた、§38）。
-const SEARCH_FIELD_MIN_SIZE := Vector2(170.0, 32.0)
+const S := preload("res://src/bossmaker/challenge/rbm_challenge_list_style.gd")
+const M := preload("res://src/bossmaker/challenge/rbm_menu_ui.gd")
 
-## 「作成方法を選択」画面の正式アート実装で使用する2素材。ユーザー提供の
-## 完成アートをそのまま使用——新規AI生成・再加工は行っていない
-## （RBMCreatorGuideCharacterのクラス冒頭コメント・最終報告参照）。
-const MODE_CHOICE_BACKGROUND_PATH := "res://assets_bossmaker/art/creator_method_select_background.png"
-
-## 右側UI簡略化パス（2026-09-04）: 説明パネル／SIMPLE・HARDCORE選択パネルは
-## Godotの描画プリミティブ（現在はRBMWorldUi.method_layout()側）で再現して
-## おり、画像素材は使用していない。旧mode_choice_description_panel.png/
-## _selection_panel.pngは過去のデザイン検討の記録として資産フォルダに残置
-## しているが、コードからの参照は無い。
-
-## 「ボス戦を作成」TOP画面（_build_top_panel()）の背景。同じくユーザー
-## 提供の完成アート（UIなしの扉背景）をそのまま使用——新規AI生成・
-## 再加工は行っていない。
-const TOP_BACKGROUND_PATH := "res://assets_bossmaker/art/creator_top_background.png"
-
-## RBMCreatorGuideCharacterの表示scale/position。
-## 修正パス（2026-09-03）§5〜§7: 背景をSTRETCH_KEEP_ASPECT_COVEREDへ変更
-## した結果、部屋が旧CENTERED比で1280/960≈1.333倍拡大表示になったため、
-## 家具とのスケール感が合うようキャラクターも一回り拡大した（旧0.4636→
-## 0.50、部屋の拡大率をそのまま適用すると頭が画面上端を超えてしまうため
-## 全量は追従させず、720px高に収まる範囲で家具比とのバランスを実際に
-## レンダリングして調整した値）。足元は変更前と同じ画面y=700付近を維持。
+## RBMCreatorGuideCharacterの表示scale/position（案内役の部品は残してあり、今の画面では使っていない）。
 const GUIDE_CHARACTER_SCALE := 0.50
 const GUIDE_CHARACTER_POSITION := Vector2(76.0, 19.0)
 
+## 入口の2枚のカードの左上（全体 1152×480、RBMCreatorTopChoice）。
+const TOP_CHOICE_POSITION := Vector2(64, 150)
+## 作成方法の選択のカード。
+const MODE_CARD_SIZE := Vector2(600, 470)
+const MODE_CARD_TOP := 156.0
+const MODE_CARD_STEP := 632.0
+## 保存したボス戦の一覧の左右の欄・検索欄（挑戦側のオンライン一覧と同じ位置・大きさ）。
+const LIST_RECT := Rect2(24, 92, 444, 612)
+const DETAIL_RECT := Rect2(484, 92, 772, 612)
+const NAME_SEARCH_RECT := Rect2(818, 21, 240, 40)
+const ID_SEARCH_RECT := Rect2(1066, 21, 190, 40)
+const DELETE_DIALOG_SIZE := Vector2(560, 272)
+
 var main: RBMCreatorMain
 
-var _top_background: Control
 var _top_panel: Control
+var _top_choice: RBMCreatorTopChoice
+## 入口の保存件数を、次に入口が見えた時に数え直すか。起動時の画面の作成では保存データを読まず、
+## 最初に入口が見えた時・Creator から戻った時（保存した可能性がある）だけ数え直す。
+## 一覧を読み込んだ時（削除の後も）は、その行から数えて入口へ渡す。
+var _top_counts_dirty := true
 var _mode_choice_panel: Control
 var _mode_choice_content_built := false
 var _guide_character: RBMCreatorGuideCharacter
-var _list_panel: VBoxContainer
+var _list_panel: Control
 var _name_search_field: LineEdit
 var _id_search_field: LineEdit
 var _list_rows: VBoxContainer
+var _list_scroll: ScrollContainer
+var _list_count_label: Label
+var _list_warning: Panel
+var _list_warning_label: Label
+var _list_empty: Control
+var _list_no_match: Control
+var _saved_detail: RBMSavedBossDetailPanel
+## 一覧で選んでいるボス戦と、一覧の各行（stage_id -> _saved_entries() の1件）。
+var _selected_stage_id := ""
+var _entries_by_id: Dictionary = {}
+## 一覧に読み込んだ行（最終更新の新しい順）と、そのカード（stage_id -> RBMSavedBossCard）。
+## 検索で外れたカードは隠すだけで作り直さない（_refresh_list() 参照）。
+var _entries: Array = []
+var _cards: Dictionary = {}
+var _unreadable_count := 0
+## 「覚醒」の札: ファイルの版（"stage_id:最終更新"）-> 覚醒するか。
+var _awakening_by_version: Dictionary = {}
 
-var _delete_confirm_panel: VBoxContainer
+var _delete_confirm_panel: Control
 var _delete_confirm_label: Label
+var _delete_confirm_id_label: Label
+var _delete_confirm_thumbnail: TextureRect
+var _delete_cancel_button: Button
 var _delete_target_stage_id: String = ""
-
-## 値はすべて表示用文字列——STATUS_LABELS自体のキー("draft"/"playable"/
-## "clear_checked")はボス戦の内部ステータスIDであり翻訳対象ではない
-## (呼び出し側_add_stage_row()でtr()を適用、キー自体は不変)。
-const STATUS_LABELS := {
-	"draft": "下書き",
-	"playable": "挑戦可能",
-	"clear_checked": "✓ クリアチェック済み",
-}
 
 func _ready() -> void:
 	_build_ui()
 	var world = preload("res://src/bossmaker/rbm_world_ui.gd").new()
-	world.entry_layout(self)
 	world.walk(self)
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED:
+		_refresh_top_counts_if_visible()
+
 func _build_ui() -> void:
-	# Phase 3.5 UI統一§0/§5/§9: 従来はここに一切Themeを適用しておらず、
-	# CREATE全体（TOP/モード選択/一覧/STEP1〜7/保存/外見選択）がGodot既定の
-	# 見た目のまま残っていた。RBMCreatorEntry自身がCREATE全体の唯一の
-	# ルートControl（RBMGameRootには適用しない既存方針を維持したまま）
-	# であるため、ここへ明示適用するだけでCREATE配下すべてへカスケードする
-	# ——3戦闘Viewが既に使っているのと全く同じ1行のパターン。
+	# Phase 3.5 UI統一§0/§5/§9: RBMCreatorEntry自身がCREATE全体の唯一のルートControlのため、
+	# ここへ明示適用するだけでCREATE配下（Creator本体のSTEP画面など）すべてへカスケードする。
 	theme = RBMUiTheme.build_theme()
 	RBMBattleUiKit.add_root_background(self)
 
@@ -114,248 +127,59 @@ func _build_ui() -> void:
 
 	_show_top()
 
-## 左右と上下に等しい安全余白を持つ全画面レイアウト。保存済み一覧画面
-## （_build_list_panel()）でも共有する余白定数——この画面自体のTOP
-## レイアウトは背景アート実装（下記）で絶対位置指定へ切り替えたため、
-## ここでは他画面が引き続き使う3定数だけを残す。
-const CONTENT_SIDE_MARGIN_PX := 60.0
-const CONTENT_TOP_MARGIN_PX := 32.0
-const CONTENT_BOTTOM_MARGIN_PX := 24.0
+## 画面1枚分の層（全画面、地つき）。
+func _screen_layer(node_name: String, background_name: String) -> Control:
+	var layer := Control.new()
+	layer.name = node_name
+	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.set_meta("world_skip", true)
+	add_child(layer)
+	M.add_backdrop(layer, background_name)
+	return layer
 
-## 背景アート実装（2026-09-04）: 「ボス戦を作成」TOP画面専用の絶対位置
-## レイアウト定数。ユーザー提供のデザインリファレンス画像（1672×941、UI
-## 配置済みの完成イメージ）で実測した各要素の位置・寸法比率を1280×720へ
-## 換算し、実機レンダリングと突き合わせながら調整した値——参照画像を
-## そのまま貼り付けるのではなく、Godot UIとして再現するための数値のみ
-## 抽出している。
-const ENTRY_TITLE_TOP_PX := 90.0
-const ENTRY_TITLE_HEIGHT_PX := 62.0
-const ENTRY_TITLE_FONT_SIZE := 46
-const ENTRY_TITLE_UNDERLINE_TOP_PX := 156.0
-const ENTRY_TITLE_UNDERLINE_HEIGHT_PX := 14.0
-const ENTRY_TITLE_UNDERLINE_WIDTH_PX := 280.0
-const ENTRY_DESCRIPTION_TOP_PX := 198.0
-const ENTRY_DESCRIPTION_HEIGHT_PX := 26.0
-const ENTRY_DESCRIPTION_FONT_SIZE := 16
-const ENTRY_MAIN_BUTTON_SIZE := Vector2(375.0, 80.0)
-const ENTRY_MAIN_BUTTON_GAP_PX := 30
-const ENTRY_MAIN_BUTTON_TOP_PX := 460.0
-const ENTRY_MAIN_BUTTON_FONT_SIZE := 24
-const ENTRY_BACK_BUTTON_SIZE := Vector2(150.0, 44.0)
-const ENTRY_BACK_BUTTON_MARGIN_PX := 40.0
+# ---------------------------------------------------------------------------
+# 入口（ボス戦を作成）
+# ---------------------------------------------------------------------------
 
-## 「ボス戦を作成」入口だけで使うパレット。メインボタン自体は作成方法
-## 選択画面と同じ紺＋金の意匠（MethodChoiceSurface、完成イメージのボタン
-## 意匠と同一系統のため流用）を使うので、ここにはタイトル・下線・戻る
-## ボタン用の色だけを残す。
-const ENTRY_COLOR_ACCENT := Color("#ad8748")
-const ENTRY_COLOR_ACCENT_HOVER := Color("#d3aa5b")
-const ENTRY_COLOR_TITLE := Color("#eadcbd")
-const ENTRY_COLOR_DESCRIPTION := Color("#a89b84")
-const ENTRY_COLOR_FRAME := Color("#705532")
-const ENTRY_COLOR_BACK_HOVER := Color("#241b13")
-const ENTRY_COLOR_BACK_PRESSED := Color("#120e0b")
-
-## タイトル直下の細い金色装飾線＋中央の菱形。デザインリファレンス画像の
-## タイトル下線と同じ構成（左右の線＋中央の菱形）を、画像を使わずGodotの
-## 描画プリミティブだけで再現する。
-class EntryTitleUnderline:
-	extends Control
-
-	func _draw() -> void:
-		var y := size.y * 0.5
-		var gap := 10.0
-		draw_line(Vector2(0.0, y), Vector2(size.x * 0.5 - gap, y), Color(ENTRY_COLOR_FRAME, 0.85), 1.0)
-		draw_line(Vector2(size.x * 0.5 + gap, y), Vector2(size.x, y), Color(ENTRY_COLOR_FRAME, 0.85), 1.0)
-		var diamond := PackedVector2Array([
-			Vector2(size.x * 0.5, y - 5.0),
-			Vector2(size.x * 0.5 + 5.0, y),
-			Vector2(size.x * 0.5, y + 5.0),
-			Vector2(size.x * 0.5 - 5.0, y),
-		])
-		draw_colored_polygon(diamond, ENTRY_COLOR_ACCENT)
-
-## 背景アート実装（2026-09-04）: ユーザー提供の完成アート（UIなしの扉背景、
-## RBMCreatorGuideCharacterのクラス冒頭コメント・最終報告と同じく新規AI
-## 生成・再加工は行っていない）を実背景として使用し、その上へGodot UI
-## （Label/Button）としてタイトル・説明・メインボタン2つ・戻るボタンを
-## 重ねる。デザインリファレンス画像（UI配置済みの完成イメージ）は絵として
-## 貼り付けず、位置・サイズ・配色を再現するための参照にのみ用いた——
-## タイトルを含む文字はすべてLabel/Buttonとして実装しているため、Hover・
-## フォーカス・クリック・解像度対応・将来の文言変更が正常に機能する。
 func _build_top_panel() -> void:
-	_top_background = TextureRect.new()
-	_top_background.name = "EntryBackground"
-	_top_background.texture = load(TOP_BACKGROUND_PATH)
-	_top_background.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_top_background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	# 参照画像は1672×941（16:9とほぼ同一比率）——STRETCH_KEEP_ASPECT_COVERED
-	# はモード選択画面の背景（MODE_CHOICE_BACKGROUND_PATH）でも使っている
-	# 既存技法で、アスペクト比を保ったまま画面全体を覆う（画像の変形はしない）。
-	_top_background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	_top_background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_top_background)
-
-	_top_panel = Control.new()
-	_top_panel.name = "EntryTopPanel"
-	_top_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(_top_panel)
-
-	var title := Label.new()
-	title.name = "EntryTitleLabel"
-	title.text = tr("ボス戦を作成")
-	title.theme_type_variation = RBMUiTheme.VARIATION_TITLE_LABEL
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title.add_theme_color_override("font_color", ENTRY_COLOR_TITLE)
-	title.add_theme_font_size_override("font_size", ENTRY_TITLE_FONT_SIZE)
-	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title.anchor_right = 1.0
-	title.offset_top = ENTRY_TITLE_TOP_PX
-	title.offset_bottom = ENTRY_TITLE_TOP_PX + ENTRY_TITLE_HEIGHT_PX
-	_top_panel.add_child(title)
-
-	var underline := EntryTitleUnderline.new()
-	underline.name = "EntryTitleUnderline"
-	underline.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	underline.anchor_left = 0.5
-	underline.anchor_right = 0.5
-	underline.offset_left = -ENTRY_TITLE_UNDERLINE_WIDTH_PX * 0.5
-	underline.offset_right = ENTRY_TITLE_UNDERLINE_WIDTH_PX * 0.5
-	underline.offset_top = ENTRY_TITLE_UNDERLINE_TOP_PX
-	underline.offset_bottom = ENTRY_TITLE_UNDERLINE_TOP_PX + ENTRY_TITLE_UNDERLINE_HEIGHT_PX
-	_top_panel.add_child(underline)
-
-	var description := Label.new()
-	description.name = "EntryDescriptionLabel"
-	description.text = tr("新しいボス戦を作るか、保存したボス戦を編集してください。")
-	description.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
-	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	description.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	description.add_theme_font_size_override("font_size", ENTRY_DESCRIPTION_FONT_SIZE)
-	description.add_theme_color_override("font_color", ENTRY_COLOR_DESCRIPTION)
-	description.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	description.anchor_right = 1.0
-	description.offset_top = ENTRY_DESCRIPTION_TOP_PX
-	description.offset_bottom = ENTRY_DESCRIPTION_TOP_PX + ENTRY_DESCRIPTION_HEIGHT_PX
-	_top_panel.add_child(description)
-
-	# 中央の扉を隠さず、扉の下側〜床付近に2つの横長ボタンを並べる
-	# （デザインリファレンス画像で実測した比率）。HBoxContainerの中央寄せ
-	# ＋固定間隔なら、左右の余白・高さ・間隔が自動的に完全対称になる。
-	var button_row := HBoxContainer.new()
-	button_row.name = "EntryMainButtonRow"
-	button_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	button_row.add_theme_constant_override("separation", ENTRY_MAIN_BUTTON_GAP_PX)
-	button_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	button_row.anchor_right = 1.0
-	button_row.offset_top = ENTRY_MAIN_BUTTON_TOP_PX
-	button_row.offset_bottom = ENTRY_MAIN_BUTTON_TOP_PX + ENTRY_MAIN_BUTTON_SIZE.y
-	_top_panel.add_child(button_row)
-
-	var new_button := Button.new()
-	new_button.name = "NewBossButton"
-	_configure_top_main_button(new_button, tr("新しいボス戦を作る"))
-	new_button.pressed.connect(_on_new_pressed)
-	button_row.add_child(new_button)
-
-	var edit_button := Button.new()
-	edit_button.name = "EditSavedBossButton"
-	_configure_top_main_button(edit_button, tr("保存したボス戦を編集"))
-	edit_button.pressed.connect(_on_edit_saved_pressed)
-	button_row.add_child(edit_button)
-
-	## Step 8 §4: CREATE自体を終了し共通ルート画面へ戻る。メインボタンより
-	## 明確に弱い階層にするため、既存のVARIATION_SECONDARY_BUTTON系スタイル
-	## （_configure_entry_back_button、無改修）のまま左下へ小さく配置する。
+	_top_panel = _screen_layer("EntryTopPanel", "EntryBackground")
+	## Step 8 §4: CREATE自体を終了し共通ルート画面へ戻る（左上、各画面と同じ位置）。
 	var back_to_root_button := Button.new()
 	back_to_root_button.name = "BackToRootButton"
-	back_to_root_button.text = tr("← 戻る")
-	_configure_entry_back_button(back_to_root_button)
 	back_to_root_button.pressed.connect(_on_back_to_root_pressed)
-	back_to_root_button.anchor_top = 1.0
-	back_to_root_button.anchor_bottom = 1.0
-	back_to_root_button.offset_left = ENTRY_BACK_BUTTON_MARGIN_PX
-	back_to_root_button.offset_top = -ENTRY_BACK_BUTTON_MARGIN_PX - ENTRY_BACK_BUTTON_SIZE.y
-	back_to_root_button.offset_bottom = -ENTRY_BACK_BUTTON_MARGIN_PX
-	_top_panel.add_child(back_to_root_button)
+	M.header(_top_panel, back_to_root_button, tr("戻る"), tr("ボス戦を作成"), tr("新しく作るか、保存したボス戦を編集します"), "EntryTitleLabel", "EntryDescriptionLabel")
 
-## メインボタン2つ（「新しいボス戦を作る」「保存したボス戦を編集」）専用の
-## 構成。装飾（外枠・細い内枠・四隅の小さな装飾・上辺中央の小さな菱形）は
-## 作成方法選択画面のMethodChoiceSurfaceをdialogue=trueでそのまま再利用
-## する——完成イメージのボタン意匠と全く同じ紺＋金の系統であるため新規に
-## 描画クラスを増やさない。中身は1行の中央揃えラベルのみ（カテゴリ／説明文
-## は持たない、完成イメージのボタンも1行のみのため）。
-func _configure_top_main_button(button: Button, label_text: String) -> void:
-	button.text = ""
-	button.tooltip_text = label_text
-	button.custom_minimum_size = ENTRY_MAIN_BUTTON_SIZE
-	button.focus_mode = Control.FOCUS_ALL
-	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	for state in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
-		button.add_theme_stylebox_override(state, _entry_transparent_box())
+	_top_choice = RBMCreatorTopChoice.new()
+	_top_choice.name = "EntryChoice"
+	_top_choice.position = TOP_CHOICE_POSITION
+	_top_panel.add_child(_top_choice)
+	_top_choice.new_card.pressed.connect(_on_new_pressed)
+	_top_choice.edit_card.pressed.connect(_on_edit_saved_pressed)
 
-	var surface := MethodChoiceSurface.new()
-	surface.name = "MainButtonSurface"
-	surface.dialogue = true
-	surface.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	button.add_child(surface)
+## 表示が切り替わる最中（NOTIFICATION_VISIBILITY_CHANGED）は子の is_visible_in_tree() がまだ古いため、
+## 自分が見えていることと、入口の層そのものの visible で判断する。
+func _refresh_top_counts_if_visible() -> void:
+	if not _top_counts_dirty or _top_panel == null or not is_visible_in_tree() or not _top_panel.visible:
+		return
+	_top_counts_dirty = false
+	_top_choice.set_counts(_counts_of(RBMLocalStageRepository.list()))
 
-	var label := Label.new()
-	label.name = "MainButtonLabel"
-	label.text = label_text
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.add_theme_font_size_override("font_size", ENTRY_MAIN_BUTTON_FONT_SIZE)
-	label.add_theme_color_override("font_color", METHOD_IVORY)
-	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	button.add_child(label)
-	surface.title_label = label
+## 入口の「保存済み N件（うち下書き N件）」と内訳。
+func _counts_of(entries: Array) -> Dictionary:
+	var counts := {"total": 0, "draft": 0, "playable": 0, "clear_checked": 0, "published": 0}
+	for entry in entries:
+		counts["total"] += 1
+		var status := str(entry.get("status", "draft"))
+		if counts.has(status):
+			counts[status] += 1
+		if bool(entry.get("published", false)):
+			counts["published"] += 1
+	return counts
 
-	var refresh := func() -> void:
-		surface.set_state(button.is_hovered() or button.has_focus(), button.is_pressed())
-	button.mouse_entered.connect(refresh)
-	button.mouse_exited.connect(refresh)
-	button.focus_entered.connect(refresh)
-	button.focus_exited.connect(refresh)
-	button.button_down.connect(func() -> void: surface.set_state(button.is_hovered() or button.has_focus(), true))
-	button.button_up.connect(func() -> void: surface.set_state(button.is_hovered() or button.has_focus(), false))
-
-func _entry_transparent_box() -> StyleBoxFlat:
-	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0, 0, 0, 0)
-	box.set_content_margin_all(0.0)
-	box.shadow_size = 0
-	box.anti_aliasing = false
-	return box
-
-func _configure_entry_back_button(button: Button) -> void:
-	button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
-	button.custom_minimum_size = ENTRY_BACK_BUTTON_SIZE
-	button.focus_mode = Control.FOCUS_ALL
-	button.add_theme_stylebox_override("normal", _entry_back_box(Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0))
-	button.add_theme_stylebox_override("hover", _entry_back_box(Color(ENTRY_COLOR_BACK_HOVER, 0.72), ENTRY_COLOR_ACCENT, 1))
-	button.add_theme_stylebox_override("pressed", _entry_back_box(Color(ENTRY_COLOR_BACK_PRESSED, 0.82), ENTRY_COLOR_ACCENT, 1))
-	button.add_theme_stylebox_override("focus", _entry_back_box(Color(ENTRY_COLOR_BACK_HOVER, 0.72), ENTRY_COLOR_ACCENT, 1))
-	button.add_theme_color_override("font_color", ENTRY_COLOR_DESCRIPTION)
-	button.add_theme_color_override("font_hover_color", ENTRY_COLOR_ACCENT_HOVER)
-	button.add_theme_color_override("font_pressed_color", ENTRY_COLOR_ACCENT)
-	button.add_theme_color_override("font_focus_color", ENTRY_COLOR_ACCENT_HOVER)
-
-func _entry_back_box(fill: Color, border: Color, bottom_border_width: int) -> StyleBoxFlat:
-	var box := StyleBoxFlat.new()
-	box.bg_color = fill
-	box.set_corner_radius_all(0)
-	box.content_margin_left = 14.0
-	box.content_margin_right = 14.0
-	box.content_margin_top = 4.0
-	box.content_margin_bottom = 4.0
-	box.border_width_bottom = bottom_border_width
-	box.border_color = border
-	box.shadow_size = 0
-	box.anti_aliasing = false
-	return box
+# ---------------------------------------------------------------------------
+# 作成方法の選択
+# ---------------------------------------------------------------------------
 
 ## UI改善②: 「新しいボス戦を作る」を押した直後、STEP1へ進む前にSIMPLE/
 ## ADVANCEDのどちらで作るかをここで一度だけ選ばせる——以後、STEP1〜7の
@@ -363,200 +187,246 @@ func _entry_back_box(fill: Color, border: Color, bottom_border_width: int) -> St
 ## 最終確認画面から行う、RBMCreatorStep7Summary._on_switch_mode_button_
 ## pressed()参照）。
 ##
-## 正式アート実装（背景・案内役キャラクター）: この画面だけVBoxContainerの
-## 縦積みレイアウトから、背景画像＋キャラクター＋台詞ウィンドウ＋選択肢を
-## 層として重ねる構成へ作り直した。既存3ノード名（ChooseSimpleModeButton/
-## ChooseAdvancedModeButton/ModeChoiceBackButton、既存テスト・呼び出し元が
-## find_child()経由で参照——このファイル冒頭のSEARCH_FIELD_MIN_SIZE同様
-## §36で確認済み）と、それぞれの.pressed接続・「後から最終確認画面で
-## 変更できます」という既存仕様は無改修のまま維持する。旧ModeChoiceTitle
-## Label/ModeChoiceHintLabelは廃止し、台詞ウィンドウ内の新Labelへ役割を
-## 統合した（この2ノードは既存テストのいずれからも名前で参照されていない
-## ことを事前にgrepで確認済み）。
-##
-## 背景・案内役キャラクター画像はいずれもユーザー提供の完成アートをそのまま
-## 使用（新規AI生成・キャラデザイン変更・衣装変更・色変更は一切行っていない、
-## 最終報告参照）。RBMGameRoot.TITLE_IMAGE_PATH+_title_background_fallback/
-## _title_backgroundと同じ「STRETCH_KEEP_ASPECT_CENTERED＋EXPAND_IGNORE_
-## SIZE」技法をそのまま踏襲——背景は再加工・トリミングせず、アスペクト比を
-## 保ったまま1280×720へ収める（4:3画像のため左右にピラーボックスが生じる
-## が、_build_ui()冒頭で既に呼んでいるadd_root_background(self)がルート
-## 直下に置いた暗色ColorRectがそのまま余白を埋める——専用フォールバックを
-## 二重に作る必要はない）。
-##
-## パフォーマンス上の判断: 背景画像＋案内役キャラクター（2枚のRGBAテクス
-## チャ、うち体側は1067×1475）のロード・構築は、実際にこの画面を初めて
-## 表示する直前（_show_mode_choice()）まで遅延させる——bossmakerテスト
-## スイート全体で計測したところ、RBMCreatorEntryを生成するテストの大半は
-## この画面を一度も開かない（別STEPへ直接進む/保存済みstage一覧を使う等）
-## にもかかわらず、_build_ui()の中で無条件にこの重い構築を行うと該当しない
-## テストにまで一律コストが乗ってしまうことが判明したため（§24「毎フレーム
-## 処理の禁止」と同じ精神を、起動時の一括構築コストにも適用した判断）。
+## 中身はこの画面を初めて表示する直前（_show_mode_choice()）まで作らない——
+## RBMCreatorEntryを生成するテストの大半はこの画面を一度も開かないため。
 func _build_mode_choice_panel() -> void:
 	_mode_choice_panel = Control.new()
 	_mode_choice_panel.name = "ModeChoicePanel"
 	_mode_choice_panel.visible = false
 	_mode_choice_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_mode_choice_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mode_choice_panel.set_meta("world_skip", true)
 	add_child(_mode_choice_panel)
 
 func _ensure_mode_choice_content_built() -> void:
 	if _mode_choice_content_built:
 		return
 	_mode_choice_content_built = true
-	# Character-free selection is constructed directly; keep reusable guide assets intact.
-	var background := TextureRect.new()
-	background.name = "Background"
-	background.texture = load(MODE_CHOICE_BACKGROUND_PATH)
-	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_mode_choice_panel.add_child(background)
-	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var world = preload("res://src/bossmaker/rbm_world_ui.gd").new()
-	world.method_layout(self)
-	world.walk(_mode_choice_panel)
+	M.add_backdrop(_mode_choice_panel, "Background")
+	var back := Button.new()
+	back.name = "ModeChoiceBackButton"
+	back.pressed.connect(_on_mode_choice_back_pressed)
+	M.header(_mode_choice_panel, back, tr("ボス戦を作成"), tr("ボスを作る方法を選択"), "", "ModeChoiceTitleLabel")
 
-## 作成方法選択画面専用。共有Theme・入口・Creator本体へは適用しない。
-const METHOD_INK := Color("#111925")
-const METHOD_INK_HOVER := Color("#1c2938")
-const METHOD_INK_PRESSED := Color("#0c121b")
-const METHOD_GOLD := Color("#756142")
-const METHOD_GOLD_LIGHT := Color("#b99b60")
-const METHOD_IVORY := Color("#e9dfca")
-const METHOD_IVORY_LIGHT := Color("#fff0d4")
-const METHOD_MUTED := Color("#aaa495")
+	# 決める前に知っておくこと（作成開始後はモードを変更できない）と、迷った時の目安。
+	var notice := Panel.new()
+	notice.name = "MethodHeadingPanel"
+	notice.position = Vector2(24, 92)
+	notice.size = Vector2(1232, 44)
+	notice.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	notice.add_theme_stylebox_override("panel", S.box(Color(S.INSET, 0.94), Color("1a2830")))
+	_mode_choice_panel.add_child(notice)
+	S.rect(notice, Rect2(0, 0, 3, 44), S.ACCENT)
+	S.label(notice, tr("作成開始後はモードを変更できません"), Rect2(20, 7, 640, 30), 15, S.TEXT, "ModeChoiceHintLabel")
+	var advice := S.label(notice, tr("迷ったら SIMPLE から始めるのがおすすめです"), Rect2(620, 7, 592, 30), 13, S.MUTED, "ModeChoiceAdviceLabel")
+	advice.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
-## 右側UI仕上げ（2026-09-04）: 3パネル共通の横幅（既存のdialogue_layer/
-## choice_buttonsの幅と同じ640——アスペクト比640:371（説明パネル素材の
-## 実測比）が既存の説明パネル高さ172とほぼ一致するため、配置を変更せず
-## 素材の比率をそのまま活かせる）。選択パネルの高さは素材の実測アスペクト
-## 比640:213（=6.42:1）からそのまま導出——「添付画像の素材比率をそのまま
-## 強制する必要はない」が、今回は強制せずとも既存配置とちょうど合致した。
-## 縦方向の間隔は3パネルとも同じ値に統一する（§5、旧実装は説明パネル→
-## SIMPLE間が24px・SIMPLE→HARDCORE間が14pxとバラついていた）。
-const MODE_CHOICE_PANEL_WIDTH_PX := 640.0
-const MODE_CHOICE_DESCRIPTION_PANEL_HEIGHT_PX := 172.0
-const MODE_CHOICE_SELECTION_PANEL_HEIGHT_PX := 100.0
-const MODE_CHOICE_PANEL_GAP_PX := 20.0
+	_mode_card(0, "SIMPLE", tr("シンプルで作る"), tr("基本的な設定だけで、すぐにボス戦を作成できます。"), S.SILVER, "ChooseSimpleModeButton",
+		[tr("ボス名・外見・能力（HP・ATK・SPD）・弱点・耐性"), tr("技を作り、使う割合を決める"), tr("攻略パーティを選ぶ")],
+		_on_choose_simple_mode_pressed)
+	_mode_card(1, "HARDCORE", tr("ハードコアで作る"), tr("行動条件などを細かく設定して、ボス戦を作り込めます。"), S.HARD, "ChooseAdvancedModeButton",
+		[tr("SIMPLE で設定できることすべて"), tr("行動の順番と条件（ボスHP・ターン・味方の状態など）"), tr("覚醒（対応する外見のボスのみ）"), tr("味方の能力・技の調整")],
+		_on_choose_advanced_mode_pressed)
 
-class MethodChoiceSurface:
-	extends Control
+## SIMPLE／HARDCORE のカード。文字はすべて子の Label（Button.text は空）。カード全体が押せる。
+func _mode_card(index: int, category: String, title: String, description: String, color: Color, node_name: String, features: Array, callback: Callable) -> void:
+	var card := Button.new()
+	card.name = node_name
+	card.position = Vector2(24 + index * MODE_CARD_STEP, MODE_CARD_TOP)
+	card.size = MODE_CARD_SIZE
+	M.card_styles(card, false)
+	M.accessible_name(card, title)
+	card.pressed.connect(callback)
+	_mode_choice_panel.add_child(card)
+	M.accent_bar(card, color, MODE_CARD_SIZE.y)
+	M.number_font(S.label(card, category, Rect2(32, 22, 400, 56), 40, color, "CategoryLabel"))
+	S.label(card, title, Rect2(32, 82, 520, 32), 21, S.TEXT, "TitleLabel")
+	S.label(card, description, Rect2(32, 118, 540, 28), 15, S.MUTED, "DescriptionLabel")
+	S.rect(card, Rect2(24, 166, 552, 1), Color(S.PANEL_EDGE, 0.9), "Rule")
+	S.label(card, tr("設定できること"), Rect2(32, 178, 300, 24), 12, S.MUTED, "FeaturesCaption")
+	var y := 210.0
+	for i in range(features.size()):
+		S.rect(card, Rect2(34, y + 11, 6, 6), Color(color, 0.85), "FeatureMark%d" % i)
+		S.label(card, features[i], Rect2(52, y, 530, 28), 15, S.SILVER, "Feature%d" % i)
+		y += 36
+	var cta := M.cta_strip(card, Rect2(20, MODE_CARD_SIZE.y - 76, 560, 56), tr("この方法で作成を始める"), 17)
+	M.on_highlight(card, func(on: bool) -> void: cta.set_lit(1.0 if on else 0.0, 1.0 if on else 0.0))
 
-	var dialogue := false
-	var amount := 0.0
-	var target := 0.0
-	var pressed := false
-	var title_label: Label
-
-	func _ready() -> void:
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		set_process(false)
-
-	func set_state(highlighted: bool, down: bool) -> void:
-		target = 1.0 if highlighted else 0.0
-		pressed = down
-		set_process(true)
-		queue_redraw()
-
-	func _process(delta: float) -> void:
-		amount = move_toward(amount, target, delta / 0.12)
-		if is_instance_valid(title_label):
-			title_label.add_theme_color_override("font_color", METHOD_IVORY.lerp(METHOD_IVORY_LIGHT, amount))
-		queue_redraw()
-		if is_equal_approx(amount, target):
-			set_process(false)
-
-	func _draw() -> void:
-		var fill := METHOD_INK_PRESSED if pressed else METHOD_INK.lerp(METHOD_INK_HOVER, amount)
-		var edge := METHOD_GOLD.lerp(METHOD_GOLD_LIGHT, amount)
-		# 不透明な紺の地に、ごく弱い上辺の明度差。背景を透かすガラスにはしない。
-		draw_rect(Rect2(Vector2.ZERO, size), fill)
-		for y in range(0, int(size.y), 2):
-			var strength := 0.025 * (1.0 - float(y) / maxf(size.y, 1.0))
-			draw_rect(Rect2(1.0, float(y), size.x - 2.0, 2.0), Color(METHOD_IVORY, strength))
-		draw_rect(Rect2(Vector2.ONE, size - Vector2(2, 2)), edge, false, 1.0)
-		draw_rect(Rect2(Vector2(6, 6), size - Vector2(12, 12)), Color(METHOD_GOLD, 0.25), false, 1.0)
-		# 衣装の縁取りに合わせた短い角金具。大きな額縁や紋章は加えない。
-		for corner in [Vector2(1, 1), Vector2(size.x - 1, 1), Vector2(1, size.y - 1), size - Vector2.ONE]:
-			var direction := Vector2(1 if corner.x < size.x * 0.5 else -1, 1 if corner.y < size.y * 0.5 else -1)
-			draw_line(corner, corner + Vector2(direction.x * 12, 0), edge, 2.0)
-			draw_line(corner, corner + Vector2(0, direction.y * 12), edge, 2.0)
-		if dialogue:
-			var center := Vector2(size.x * 0.5, 6.0)
-			draw_colored_polygon(PackedVector2Array([center + Vector2(-4, 0), center + Vector2(0, -3), center + Vector2(4, 0), center + Vector2(0, 3)]), METHOD_GOLD_LIGHT)
-		else:
-			draw_line(Vector2(2, 20), Vector2(2, size.y - 20), Color(METHOD_GOLD_LIGHT, amount), 3.0)
-
+# ---------------------------------------------------------------------------
+# 保存したボス戦の一覧
+# ---------------------------------------------------------------------------
 
 func _build_list_panel() -> void:
-	_list_panel = VBoxContainer.new()
-	_list_panel.name = "EntryListPanel"
+	_list_panel = _screen_layer("EntryListPanel", "ListBackground")
 	_list_panel.visible = false
-	_list_panel.anchor_right = 1.0
-	_list_panel.offset_left = CONTENT_SIDE_MARGIN_PX
-	_list_panel.offset_right = -CONTENT_SIDE_MARGIN_PX
-	_list_panel.offset_top = CONTENT_TOP_MARGIN_PX
-	add_child(_list_panel)
-
-	var title := Label.new()
-	title.name = "EntryListTitleLabel"
-	title.text = tr("保存したボス戦を編集")
-	_list_panel.add_child(title)
-
-	var search_row := HBoxContainer.new()
-	_list_panel.add_child(search_row)
-	_name_search_field = LineEdit.new()
-	_name_search_field.name = "NameSearchField"
-	_name_search_field.custom_minimum_size = SEARCH_FIELD_MIN_SIZE
-	_name_search_field.placeholder_text = tr("ボス名で検索")
-	_name_search_field.text_changed.connect(func(_new_text: String): _refresh_list())
-	search_row.add_child(_name_search_field)
-	_id_search_field = LineEdit.new()
-	_id_search_field.name = "IdSearchField"
-	_id_search_field.custom_minimum_size = SEARCH_FIELD_MIN_SIZE
-	_id_search_field.placeholder_text = tr("ステージIDで検索")
-	_id_search_field.text_changed.connect(func(_new_text: String): _refresh_list())
-	search_row.add_child(_id_search_field)
-
-	_list_rows = VBoxContainer.new()
-	_list_rows.name = "StageListRows"
-	# Phase 3.5 UI統一§9/§11: RBMChallengeEntryと同じ理由・同じ処置。
-	_list_rows.add_theme_constant_override("separation", 10)
-	_list_panel.add_child(_list_rows)
 
 	var list_back_button := Button.new()
 	list_back_button.name = "ListBackButton"
-	list_back_button.text = tr("戻る")
-	list_back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	list_back_button.pressed.connect(_on_list_back_pressed)
-	_list_panel.add_child(list_back_button)
+	M.header(_list_panel, list_back_button, tr("ボス戦を作成"), tr("保存したボス戦を編集"), "", "EntryListTitleLabel")
+
+	_name_search_field = _search_field("NameSearchField", tr("ボス名で検索"), NAME_SEARCH_RECT)
+	_id_search_field = _search_field("IdSearchField", tr("ステージIDで検索"), ID_SEARCH_RECT)
+
+	var panel := Panel.new()
+	panel.name = "SavedListPanel"
+	panel.position = LIST_RECT.position
+	panel.size = LIST_RECT.size
+	panel.add_theme_stylebox_override("panel", S.box(Color(S.PANEL, 0.96), S.PANEL_EDGE))
+	_list_panel.add_child(panel)
+	S.section_title(panel, tr("保存したボス戦"), Vector2(16, 12))
+	_list_count_label = S.label(panel, "", Rect2(170, 12, LIST_RECT.size.x - 186, 28), 12, S.MUTED, "SavedCountLabel")
+	_list_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+	# 読み込めなかったファイルがあった時の一言（一覧は残す。壊れたファイルは従来どおり一覧に出さない、§43）。
+	_list_warning = Panel.new()
+	_list_warning.name = "SavedUnreadableWarning"
+	_list_warning.position = Vector2(12, 50)
+	_list_warning.size = Vector2(LIST_RECT.size.x - 24, 40)
+	_list_warning.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_list_warning.add_theme_stylebox_override("panel", S.box(Color(S.HARD_EDGE, 0.16), Color(S.HARD_EDGE, 0.8)))
+	_list_warning.visible = false
+	panel.add_child(_list_warning)
+	_list_warning_label = S.label(_list_warning, "", Rect2(12, 0, _list_warning.size.x - 24, 40), 12, S.HARD, "SavedUnreadableLabel")
+
+	_list_scroll = ScrollContainer.new()
+	_list_scroll.name = "SavedListScroll"
+	_list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	S.style_scrollbar(_list_scroll.get_v_scroll_bar())
+	panel.add_child(_list_scroll)
+	# 操作対象の白い枠(カードの外側3px)が切れないよう、左右と上に少し余白を取る（オンライン一覧と同じ）。
+	var margin := MarginContainer.new()
+	for side in ["margin_left", "margin_right", "margin_top"]:
+		margin.add_theme_constant_override(side, 4)
+	_list_scroll.add_child(margin)
+	_list_rows = VBoxContainer.new()
+	_list_rows.name = "StageListRows"
+	_list_rows.add_theme_constant_override("separation", 10)
+	margin.add_child(_list_rows)
+
+	_list_empty = _list_message(panel, "SavedListEmpty", tr("保存したボス戦はまだありません"), tr("「ボス戦を作成」の「新しいボス戦を作る」から作成し、\n保存するとここに並びます。"))
+	_list_no_match = _list_message(panel, "SavedListNoMatch", tr("条件に合うボス戦はありません"), tr("ボス名は一部だけでも探せます。\nステージIDは10桁すべてを入力してください。"))
+	var clear := Button.new()
+	clear.name = "SavedListClearSearchButton"
+	clear.text = tr("検索をクリア")
+	clear.add_theme_font_size_override("font_size", 15)
+	S.button_style(clear)
+	clear.focus_mode = Control.FOCUS_ALL
+	clear.pressed.connect(_on_clear_search_pressed)
+	_list_no_match.add_child(clear)
+	clear.size = Vector2(maxf(200.0, clear.get_combined_minimum_size().x), 42)
+	clear.position = Vector2((LIST_RECT.size.x - clear.size.x) / 2.0, 312)
+
+	_saved_detail = RBMSavedBossDetailPanel.new()
+	_saved_detail.name = "SavedBossDetailPanel"
+	_saved_detail.position = DETAIL_RECT.position
+	_saved_detail.size = DETAIL_RECT.size
+	_saved_detail.edit_pressed.connect(_on_detail_edit_pressed)
+	_saved_detail.delete_pressed.connect(_on_detail_delete_pressed)
+	_list_panel.add_child(_saved_detail)
 
 	_build_delete_confirm_panel()
 
+func _search_field(node_name: String, placeholder: String, area: Rect2) -> LineEdit:
+	var field := LineEdit.new()
+	field.name = node_name
+	field.placeholder_text = placeholder
+	field.position = area.position
+	field.size = area.size
+	field.clear_button_enabled = true
+	M.search_field(field)
+	field.text_changed.connect(func(_new_text: String): _refresh_list(false))
+	_list_panel.add_child(field)
+	return field
+
+## 一覧の欄の中央に出す一言（0件・一致なし）。
+func _list_message(panel: Control, node_name: String, title: String, hint: String) -> Control:
+	var box := Control.new()
+	box.name = node_name
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.size = LIST_RECT.size
+	box.visible = false
+	panel.add_child(box)
+	var t := S.label(box, title, Rect2(8, 222, LIST_RECT.size.x - 16, 28), 16, S.TEXT, "MessageTitle")
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var h := S.label(box, hint, Rect2(24, 254, LIST_RECT.size.x - 48, 48), 13, S.MUTED, "MessageHint")
+	h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	h.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return box
+
+## 削除の確認（画面全体を暗くした上の中央のダイアログ）。最初の操作対象は安全な「キャンセル」（UI_UX §13）。
 func _build_delete_confirm_panel() -> void:
-	_delete_confirm_panel = VBoxContainer.new()
+	_delete_confirm_panel = Control.new()
 	_delete_confirm_panel.name = "DeleteConfirmPanel"
 	_delete_confirm_panel.visible = false
+	_delete_confirm_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_delete_confirm_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_list_panel.add_child(_delete_confirm_panel)
+	var shade := ColorRect.new()
+	shade.name = "DeleteConfirmShade"
+	shade.color = Color(0.02, 0.03, 0.05, 0.78)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	_delete_confirm_panel.add_child(shade)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	_delete_confirm_label = Label.new()
-	_delete_confirm_label.name = "DeleteConfirmLabel"
-	_delete_confirm_panel.add_child(_delete_confirm_label)
+	var dialog := Panel.new()
+	dialog.name = "DeleteConfirmDialog"
+	dialog.size = DELETE_DIALOG_SIZE
+	dialog.position = ((Vector2(1280, 720) - DELETE_DIALOG_SIZE) / 2.0).floor()
+	var box := S.box(S.PANEL, Color(S.HARD_EDGE, 0.95))
+	box.shadow_color = Color(0, 0, 0, 0.6)
+	box.shadow_size = 12
+	dialog.add_theme_stylebox_override("panel", box)
+	_delete_confirm_panel.add_child(dialog)
+	S.rect(dialog, Rect2(0, 0, DELETE_DIALOG_SIZE.x, 3), S.HARD_EDGE)
+	S.label(dialog, tr("このボス戦を削除しますか？"), Rect2(28, 22, 504, 36), 21, S.TEXT, "DeleteConfirmTitle")
+	_delete_confirm_thumbnail = TextureRect.new()
+	_delete_confirm_thumbnail.name = "DeleteConfirmThumbnail"
+	_delete_confirm_thumbnail.position = Vector2(28, 74)
+	_delete_confirm_thumbnail.size = Vector2(64, 64)
+	_delete_confirm_thumbnail.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_delete_confirm_thumbnail.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_delete_confirm_thumbnail.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_delete_confirm_thumbnail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dialog.add_child(_delete_confirm_thumbnail)
+	_delete_confirm_label = S.label(dialog, "", Rect2(108, 76, 424, 30), 18, S.TEXT, "DeleteConfirmLabel")
+	_delete_confirm_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_delete_confirm_label.clip_text = true
+	_delete_confirm_id_label = S.label(dialog, "", Rect2(108, 106, 424, 24), 13, S.MUTED, "DeleteConfirmStageId")
+	M.number_font(_delete_confirm_id_label)
+	var warning := S.label(dialog, tr("この操作は取り消せません。保存したデータは元に戻せなくなります。"), Rect2(28, 150, 504, 44), 14, S.HARD, "DeleteConfirmWarning")
+	warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
-	var delete_row := HBoxContainer.new()
-	_delete_confirm_panel.add_child(delete_row)
-	var delete_confirm_button := Button.new()
-	delete_confirm_button.name = "DeleteConfirmButton"
-	delete_confirm_button.text = tr("削除する")
-	delete_confirm_button.pressed.connect(_on_delete_confirmed)
-	delete_row.add_child(delete_confirm_button)
-	var delete_cancel_button := Button.new()
-	delete_cancel_button.name = "DeleteCancelButton"
-	delete_cancel_button.text = tr("キャンセル")
-	delete_cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
-	delete_cancel_button.pressed.connect(_on_delete_cancelled)
-	delete_row.add_child(delete_cancel_button)
+	_delete_cancel_button = Button.new()
+	_delete_cancel_button.name = "DeleteCancelButton"
+	_delete_cancel_button.text = tr("キャンセル")
+	_delete_cancel_button.add_theme_font_size_override("font_size", 15)
+	S.button_style(_delete_cancel_button)
+	_delete_cancel_button.focus_mode = Control.FOCUS_ALL
+	_delete_cancel_button.pressed.connect(_on_delete_cancelled)
+	dialog.add_child(_delete_cancel_button)
+	var confirm := Button.new()
+	confirm.name = "DeleteConfirmButton"
+	confirm.text = tr("削除する")
+	confirm.add_theme_font_size_override("font_size", 15)
+	M.danger_style(confirm)
+	confirm.pressed.connect(_on_delete_confirmed)
+	dialog.add_child(confirm)
+	for b in [_delete_cancel_button, confirm]:
+		b.size = Vector2(maxf(150.0, b.get_combined_minimum_size().x), 46)
+	confirm.position = Vector2(DELETE_DIALOG_SIZE.x - 28 - confirm.size.x, DELETE_DIALOG_SIZE.y - 28 - 46)
+	_delete_cancel_button.position = Vector2(confirm.position.x - 12 - _delete_cancel_button.size.x, confirm.position.y)
+	# ダイアログが開いている間、キーボードの操作対象が後ろの画面へ出ないよう、2つのボタンの間だけで動かす。
+	for pair in [[_delete_cancel_button, confirm], [confirm, _delete_cancel_button]]:
+		var from: Button = pair[0]
+		var to: Button = pair[1]
+		var path := from.get_path_to(to)
+		from.focus_neighbor_left = path
+		from.focus_neighbor_right = path
+		from.focus_next = path
+		from.focus_previous = path
+		from.focus_neighbor_top = NodePath(".")
+		from.focus_neighbor_bottom = NodePath(".")
 
 # ---------------------------------------------------------------------------
 # §30: 新しいボス戦を作る
@@ -591,59 +461,185 @@ func _on_mode_choice_back_pressed() -> void:
 func _on_edit_saved_pressed() -> void:
 	_show_list()
 
+## 一覧に出す行: RBMLocalStageRepository.list()（壊れたファイルは静かに除外済み、§43）の各行に、
+## カードの「覚醒」の札のための awakening を足し、最終更新の新しい順に並べたもの。
+## awakening はファイルの版（stage_id と最終更新）ごとに覚えておき、変わっていないファイルは読み直さない。
+func _saved_entries() -> Array:
+	var entries: Array = []
+	for row in RBMLocalStageRepository.list():
+		var entry: Dictionary = row.duplicate()
+		var stage_id := str(row.get("stage_id", ""))
+		var version := "%s:%d" % [stage_id, int(row.get("updated_unix_time", 0))]
+		if not _awakening_by_version.has(version):
+			var awakening := false
+			var loaded := RBMLocalStageRepository.load_stage(stage_id)
+			if bool(loaded.get("ok", false)):
+				var draft := RBMCreatorDraft.new()
+				draft.restore_from_saved_dict(loaded.get("draft_data", {}))
+				awakening = draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED and draft.has_awakening() and draft.supports_awakening()
+			_awakening_by_version[version] = awakening
+		entry["awakening"] = _awakening_by_version[version]
+		entries.append(entry)
+	entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ta := int(a.get("updated_unix_time", 0))
+		var tb := int(b.get("updated_unix_time", 0))
+		if ta != tb:
+			return ta > tb
+		return str(a.get("stage_id", "")) < str(b.get("stage_id", "")))
+	return entries
+
+## 保存先にあるのに読み込めなかった（壊れている・形が違う）ボス戦の数。
+func _unreadable_stage_count(readable_count: int) -> int:
+	var dir := RBMLocalStageRepository.stages_dir()
+	if not DirAccess.dir_exists_absolute(dir):
+		return 0
+	var files := 0
+	for file_name in DirAccess.get_files_at(dir):
+		if file_name.ends_with(".json") and _looks_like_stage_id(file_name.get_basename()):
+			files += 1
+	return maxi(0, files - readable_count)
+
+static func _looks_like_stage_id(text: String) -> bool:
+	if text.length() != 10:
+		return false
+	for i in range(text.length()):
+		if not "0123456789".contains(text[i]):
+			return false
+	return true
+
 ## §32: 下書きも含めすべて表示、状態は都度算出（RBMLocalStageRepository.list()
 ## 自身が既にstatusをdraft/playable/clear_checkedとして返す）。
 ## §33: ボス名は大文字小文字を区別しない部分一致、stage_idは10桁完全一致。
-func _refresh_list() -> void:
-	for child in _list_rows.get_children():
-		child.queue_free()
+## reload = 保存先から読み直す（一覧を開いた時・削除の後）。検索欄の入力では読み直さず、
+## 読み込み済みの行を絞り込むだけ（保存データは一覧を開いている間に、この画面の外では変わらない）。
+## カードは1件につき1枚を使い回し、検索で外れたカードは隠す（作り直さない）。読み直した時は、
+## 内容が変わったカードと条件に合わないカードだけを捨てる。_list_rows の見えている子が、表示中の行。
+func _refresh_list(reload: bool = true) -> void:
+	if reload:
+		_reload_entries()
 	var name_query := _name_search_field.text
 	var id_query := _id_search_field.text
-	for entry in RBMLocalStageRepository.list():
-		var boss_name := str(entry.get("boss_name", ""))
+	var shown := 0
+	for entry in _entries:
 		var stage_id := str(entry.get("stage_id", ""))
-		if not name_query.is_empty() and not boss_name.to_lower().contains(name_query.to_lower()):
-			continue
-		if not id_query.is_empty() and stage_id != id_query:
-			continue
-		_add_stage_row(entry)
+		var card: RBMSavedBossCard = _cards.get(stage_id)
+		var boss_name := str(entry.get("boss_name", ""))
+		var matches := (name_query.is_empty() or boss_name.to_lower().contains(name_query.to_lower())) and (id_query.is_empty() or stage_id == id_query)
+		if matches:
+			if card == null:
+				card = _add_stage_row(entry)
+			card.visible = true
+			card.set_selected(stage_id == _selected_stage_id)
+			_list_rows.move_child(card, shown)
+			shown += 1
+		elif card != null:
+			if reload:
+				_drop_card(stage_id)
+			else:
+				card.visible = false
+	_update_list_state(_entries.size(), shown, _unreadable_count)
+	if not _selected_stage_id.is_empty() and _find_row(_selected_stage_id) == null:
+		_selected_stage_id = ""
+	if _selected_stage_id.is_empty():
+		_saved_detail.show_empty(shown > 0)
 
-## §32: 最低限、ボス名/外見/stage_id/状態を表示する。
-func _add_stage_row(entry: Dictionary) -> void:
-	var stage_id := str(entry.get("stage_id", ""))
-	var row := HBoxContainer.new()
-	row.name = "StageRow_%s" % stage_id
-	_list_rows.add_child(row)
+## 保存先から読み直す。内容が変わった・無くなったボス戦のカードは捨てる。入口の件数も同じ行から数え直す。
+func _reload_entries() -> void:
+	_entries = _saved_entries()
+	var previous := _entries_by_id
+	_entries_by_id = {}
+	for entry in _entries:
+		_entries_by_id[str(entry.get("stage_id", ""))] = entry
+	for stage_id in _cards.keys():
+		if not _entries_by_id.has(stage_id) or previous.get(stage_id, {}) != _entries_by_id[stage_id]:
+			_drop_card(stage_id)
+	_unreadable_count = _unreadable_stage_count(_entries.size())
+	_top_choice.set_counts(_counts_of(_entries))
+	_top_counts_dirty = false
 
-	var status_key := str(entry.get("status", "draft"))
-	var status_text: String = tr(String(STATUS_LABELS.get(status_key, status_key)))
-	var appearance_id := str(entry.get("appearance_id", ""))
-	var appearance_text := RBMCreatorAppearanceCatalog.display_name(appearance_id) if not appearance_id.is_empty() else tr("（未選択）")
+func _drop_card(stage_id: String) -> void:
+	var card: Node = _cards.get(stage_id)
+	_cards.erase(stage_id)
+	if is_instance_valid(card):
+		card.get_parent().remove_child(card)
+		card.queue_free()
 
-	var label := Label.new()
-	label.name = "StageRowLabel"
-	label.text = tr("%s  [%s]  外見:%s  ID:%s") % [str(entry.get("boss_name", "")), status_text, appearance_text, stage_id]
-	row.add_child(label)
+## 件数・0件・一致なし・読み込めないファイルの表示。
+func _update_list_state(total: int, shown: int, unreadable: int) -> void:
+	if total == 0:
+		_list_count_label.text = ""
+	elif shown == total:
+		_list_count_label.text = tr("%d件 / 更新が新しい順") % total
+	else:
+		_list_count_label.text = tr("%d件が一致 / 全%d件") % [shown, total]
+	_list_warning.visible = unreadable > 0
+	_list_warning_label.text = tr("読み込めないボス戦が%d件あります（ファイルが壊れている可能性）") % unreadable
+	var top := 98.0 if unreadable > 0 else 52.0
+	_list_scroll.position = Vector2(8, top)
+	_list_scroll.size = Vector2(LIST_RECT.size.x - 12, LIST_RECT.size.y - top - 8)
+	_list_scroll.visible = shown > 0
+	_list_empty.visible = total == 0
+	_list_no_match.visible = total > 0 and shown == 0
 
-	var open_button := Button.new()
-	open_button.name = "OpenButton"
-	open_button.text = tr("編集")
-	open_button.pressed.connect(_on_open_stage_pressed.bind(stage_id))
-	row.add_child(open_button)
+## 1件のカードを作る。押すと右に詳細を出す（開く・削除は詳細の「編集する」「削除」から）。
+func _add_stage_row(entry: Dictionary) -> RBMSavedBossCard:
+	var card := RBMSavedBossCard.new()
+	# 先に一覧へ入れてから中身を作る（札を横に並べる時の文字の幅は、画面の文字の設定が届いてから測る）。
+	_list_rows.add_child(card)
+	card.setup_saved(entry)
+	card.pressed.connect(_on_stage_card_pressed.bind(card.stage_id))
+	_cards[card.stage_id] = card
+	return card
 
-	var delete_button := Button.new()
-	delete_button.name = "DeleteButton"
-	delete_button.text = tr("削除")
-	delete_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
-	delete_button.pressed.connect(_on_delete_stage_pressed.bind(stage_id, str(entry.get("boss_name", ""))))
-	row.add_child(delete_button)
+## 表示中（検索で隠れていない）のカード。
+func _find_row(stage_id: String) -> RBMSavedBossCard:
+	var card: RBMSavedBossCard = _cards.get(stage_id)
+	return card if card != null and card.visible else null
+
+func _on_stage_card_pressed(stage_id: String) -> void:
+	_selected_stage_id = stage_id
+	for child in _list_rows.get_children():
+		if child is RBMSavedBossCard:
+			(child as RBMSavedBossCard).set_selected((child as RBMSavedBossCard).stage_id == stage_id)
+	var summary := _detail_summary(stage_id)
+	var loaded := RBMLocalStageRepository.load_stage(stage_id)
+	if not bool(loaded.get("ok", false)):
+		_saved_detail.show_open_error(summary)
+		return
+	var draft := RBMCreatorDraft.new()
+	draft.restore_from_saved_dict(loaded.get("draft_data", {}))
+	_saved_detail.show_boss(summary, draft)
+
+## 詳細に渡す行（名前が空なら「（名前未設定）」）。
+func _detail_summary(stage_id: String) -> Dictionary:
+	var summary: Dictionary = (_entries_by_id.get(stage_id, {"stage_id": stage_id}) as Dictionary).duplicate()
+	if str(summary.get("boss_name", "")).is_empty():
+		summary["boss_name"] = tr("（名前未設定）")
+	return summary
+
+func _on_detail_edit_pressed() -> void:
+	if not _selected_stage_id.is_empty():
+		_on_open_stage_pressed(_selected_stage_id)
+
+func _on_detail_delete_pressed() -> void:
+	if not _selected_stage_id.is_empty():
+		_on_delete_stage_pressed(_selected_stage_id, str(_detail_summary(_selected_stage_id).get("boss_name", "")))
+
+func _on_clear_search_pressed() -> void:
+	_name_search_field.text = ""
+	_id_search_field.text = ""
+	_refresh_list()
+	if _name_search_field.is_visible_in_tree():
+		_name_search_field.grab_focus()
 
 ## §34/§43: 破損/存在しないstageならstart_loaded()が{"ok":false}を返す——
-## クラッシュせず一覧画面に留まるだけで、他の健全なstageは引き続き利用できる。
+## クラッシュせず一覧画面に留まり、詳細に開けなかったことを出す。他の健全なstageは引き続き利用できる。
 func _on_open_stage_pressed(stage_id: String) -> void:
 	var result := main.start_loaded(stage_id)
 	if bool(result.get("ok", false)):
 		_show_creator()
+	else:
+		_saved_detail.show_open_error(_detail_summary(stage_id))
 
 # ---------------------------------------------------------------------------
 # §41/§42: 削除
@@ -651,18 +647,38 @@ func _on_open_stage_pressed(stage_id: String) -> void:
 
 func _on_delete_stage_pressed(stage_id: String, boss_name: String) -> void:
 	_delete_target_stage_id = stage_id
-	_delete_confirm_label.text = tr("「%s」を削除しますか？\nステージID：%s\n\nこの操作は取り消せません。") % [boss_name, stage_id]
+	var entry: Dictionary = _entries_by_id.get(stage_id, {})
+	_delete_confirm_label.text = boss_name if not boss_name.is_empty() else tr("（名前未設定）")
+	_delete_confirm_id_label.text = tr("ステージID %s") % stage_id
+	_delete_confirm_thumbnail.texture = S.fitted_sprite(RBMVisualAssets.boss_asset(str(entry.get("appearance_id", ""))), Vector2(64, 64))
 	_delete_confirm_panel.visible = true
+	if _delete_cancel_button.is_visible_in_tree():
+		_delete_cancel_button.grab_focus()
 
 func _on_delete_confirmed() -> void:
 	RBMLocalStageRepository.delete(_delete_target_stage_id)
+	if _delete_target_stage_id == _selected_stage_id:
+		_selected_stage_id = ""
 	_delete_confirm_panel.visible = false
 	_delete_target_stage_id = ""
 	_refresh_list()
+	_focus_list_after_dialog()
 
 func _on_delete_cancelled() -> void:
 	_delete_confirm_panel.visible = false
 	_delete_target_stage_id = ""
+	var delete_button := _saved_detail.find_child("DetailDeleteButton", true, false) as Control
+	if delete_button != null and delete_button.is_visible_in_tree():
+		delete_button.grab_focus()
+
+## 削除した後は、一覧の先頭のカード（無ければボス名の検索欄）を操作対象にする。
+func _focus_list_after_dialog() -> void:
+	if not _list_panel.is_visible_in_tree():
+		return
+	if _list_rows.get_child_count() > 0 and (_list_rows.get_child(0) as Control).visible:
+		(_list_rows.get_child(0) as Control).grab_focus()
+	else:
+		_name_search_field.grab_focus()
 
 func _on_list_back_pressed() -> void:
 	_show_top()
@@ -672,6 +688,8 @@ func _on_list_back_pressed() -> void:
 # ---------------------------------------------------------------------------
 
 func _on_creator_exited() -> void:
+	# Creator で保存した可能性があるので、入口の件数を数え直す。
+	_top_counts_dirty = true
 	_show_top()
 
 ## 実機プレイ改善③ item4: 保存成功→クリエイター一覧の直帰。_show_list()
@@ -695,15 +713,14 @@ func enter_create() -> void:
 # ---------------------------------------------------------------------------
 
 func _show_top() -> void:
-	_top_background.visible = true
 	_top_panel.visible = true
 	_mode_choice_panel.visible = false
 	_list_panel.visible = false
 	main.visible = false
+	_refresh_top_counts_if_visible()
 
 func _show_mode_choice() -> void:
 	_ensure_mode_choice_content_built()
-	_top_background.visible = false
 	_top_panel.visible = false
 	_mode_choice_panel.visible = true
 	_list_panel.visible = false
@@ -713,17 +730,17 @@ func _show_list() -> void:
 	_name_search_field.text = ""
 	_id_search_field.text = ""
 	_delete_confirm_panel.visible = false
+	_delete_target_stage_id = ""
+	_selected_stage_id = ""
 	_refresh_list()
-	_top_background.visible = false
+	_list_scroll.scroll_vertical = 0
 	_top_panel.visible = false
 	_mode_choice_panel.visible = false
 	_list_panel.visible = true
 	main.visible = false
 
 func _show_creator() -> void:
-	_top_background.visible = false
 	_top_panel.visible = false
 	_mode_choice_panel.visible = false
 	_list_panel.visible = false
 	main.visible = true
-

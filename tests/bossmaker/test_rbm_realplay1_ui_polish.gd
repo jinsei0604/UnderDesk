@@ -365,7 +365,12 @@ func test_create_top_and_list_screens_are_not_glued_to_the_top_left_corner() -> 
 
 	_btn(root.creator_entry, "EditSavedBossButton").pressed.emit()
 	await get_tree().process_frame
-	_assert_has_margin_and_within_viewport(root.creator_entry._list_panel, viewport, "CREATE saved-stage list panel")
+	# 見た目の刷新（2026-10）: _list_panel も _top_panel と同じく地を敷く全画面の層になった。
+	# 確かめたいこと（角に張り付いた実UI要素が無いこと）は、その中の実要素（戻る・一覧の欄・詳細の欄）で検証する。
+	assert_true(root.creator_entry._list_panel.visible, "sanity: the saved-stage list screen must be showing")
+	_assert_has_margin_and_within_viewport(root.creator_entry.find_child("ListBackButton", true, false), viewport, "CREATE saved-stage list back button")
+	_assert_has_margin_and_within_viewport(root.creator_entry.find_child("SavedListPanel", true, false), viewport, "CREATE saved-stage list panel")
+	_assert_has_margin_and_within_viewport(root.creator_entry.find_child("SavedBossDetailPanel", true, false), viewport, "CREATE saved-stage detail panel")
 
 func test_challenge_list_screen_is_not_glued_to_the_top_left_corner() -> void:
 	var root := await _make_root()

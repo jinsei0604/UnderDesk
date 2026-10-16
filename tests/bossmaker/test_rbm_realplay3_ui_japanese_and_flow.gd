@@ -263,10 +263,10 @@ func test_save_success_return_navigates_directly_to_the_saved_stage_list() -> vo
 	assert_true(root.creator_entry._list_panel.visible, "the saved-stage list must be showing directly")
 	assert_false(root.creator_entry._top_panel.visible)
 	assert_eq(root.creator_entry._list_rows.get_child_count(), 1, "the just-saved stage must already be present, with no re-fetch step needed")
-	var row: HBoxContainer = root.creator_entry._list_rows.get_child(0)
-	var label: Label = row.get_node("StageRowLabel")
-	assert_true(label.text.contains("直帰テストボス"), "sanity: the correct, just-saved stage must be the one listed")
-	assert_true(label.text.contains(stage_id))
+	# 見た目の刷新（2026-10）: 一覧の1行はカード（ボス名・ステージIDを別々の文字で出す）。
+	var row: RBMSavedBossCard = root.creator_entry._list_rows.get_child(0)
+	assert_true((row.get_node("NameLabel") as Label).text.contains("直帰テストボス"), "sanity: the correct, just-saved stage must be the one listed")
+	assert_true((row.get_node("StageIdLabel") as Label).text.contains(stage_id))
 
 	# §35既存: current_stage_id・未保存変更状態は一切壊れていない。
 	assert_eq(main.current_stage_id, stage_id)

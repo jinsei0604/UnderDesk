@@ -561,6 +561,12 @@ func cancel() -> void:
 func is_playing() -> bool:
 	return _playing
 
+## 今の行動の動きの速さ（表示専用。勝利演出のとどめのスローが使う）。今の行動の Tween にだけ掛け、ゲーム全体の
+## 時間（Engine.time_scale）・戦闘の状態・次の行動には触れない。1.0 で元の速さ。
+func set_motion_speed(scale: float) -> void:
+	if _tween != null and _tween.is_valid():
+		_tween.set_speed_scale(maxf(0.01, scale))
+
 func _queue_visual_redraw() -> void:
 	queue_redraw()
 	if is_instance_valid(_effects):

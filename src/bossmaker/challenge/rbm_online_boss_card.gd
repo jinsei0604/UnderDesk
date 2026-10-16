@@ -87,6 +87,14 @@ func _build(boss: Dictionary, category: String, rank: int) -> void:
 	var name_label := S.label(self, str(boss.get("boss_name", "")), Rect2(122, 10, 280, 28), 18, S.TEXT, "NameLabel")
 	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	name_label.clip_text = true
+	_build_details(boss, category)
+
+	var bar := S.rect(self, Rect2(0, 8, 3, SIZE.y - 16), S.ACCENT, "SelectedBar")
+	bar.visible = _selected
+
+## ボス名の下と右の情報（作者・公開日・モード・挑戦者数・クリア率）。保存したボス戦の一覧
+## （RBMSavedBossCard、2026-10）は、カードの土台はそのままに、ここだけを差し替える。
+func _build_details(boss: Dictionary, category: String) -> void:
 	var author := str(boss.get("author_name", ""))
 	var author_label := S.label(self, tr("by %s") % (author if not author.is_empty() else tr("（未設定）")), Rect2(122, 36, 200, 22), 13, S.MUTED, "AuthorLabel")
 	author_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -106,9 +114,6 @@ func _build(boss: Dictionary, category: String, rank: int) -> void:
 		rate_text = "%.1f%%" % (float(boss["unique_clearers"]) / float(challengers) * 100.0)
 	_stat(tr("挑戦者"), challengers_text, Vector2(250, 66), "Challengers", category == RBMOnlineBossListView.CATEGORY_POPULAR)
 	_stat(tr("クリア率"), rate_text, Vector2(330, 66), "ClearRate", category == RBMOnlineBossListView.CATEGORY_HIGH_DIFFICULTY)
-
-	var bar := S.rect(self, Rect2(0, 8, 3, SIZE.y - 16), S.ACCENT, "SelectedBar")
-	bar.visible = _selected
 
 func _stat(caption: String, value: String, at: Vector2, node_prefix: String, emphasized: bool) -> void:
 	S.label(self, caption, Rect2(at.x, at.y, 80, 16), 11, S.ACCENT_SOFT.lightened(0.2) if emphasized else S.DIM, node_prefix + "Caption")

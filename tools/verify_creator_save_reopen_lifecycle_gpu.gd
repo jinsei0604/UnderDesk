@@ -89,7 +89,7 @@ func _run() -> void:
 	if not entry._list_panel.visible:
 		_fail("「クリエイター一覧に戻る」で一覧画面が表示されるはず")
 
-	(_find(entry, "OpenButton") as Button).pressed.emit()
+	_open_first_saved(entry)
 	await process_frame
 	await RenderingServer.frame_post_draw
 	# 注: SaveSuccessPanel自身のvisible(ローカルフラグ)は、親のSaveView自体が
@@ -125,7 +125,7 @@ func _run() -> void:
 	for i in range(3):
 		(_find(entry.main, "SuccessReturnButton") as Button).pressed.emit()
 		await process_frame
-		(_find(entry, "OpenButton") as Button).pressed.emit()
+		_open_first_saved(entry)
 		await process_frame
 		if entry.main._save_view.visible or not entry.main._steps_root.visible:
 			_fail("%d回目の連続再編集で保存完了画面が残留した" % (i + 1))
@@ -178,3 +178,12 @@ func _remove_recursive(path: String) -> void:
 		entry_name = dir.get_next()
 	dir.list_dir_end()
 	DirAccess.remove_absolute(path)
+
+## 保存したボス戦の一覧（2026-10 刷新）: 先頭のカードを押して右に詳細を出し、詳細の「編集する」を押す。
+func _open_first_saved(entry: RBMCreatorEntry) -> void:
+	var card := entry._list_rows.get_child(0) as Button
+	if card == null:
+		_fail("一覧にカードが無い")
+		return
+	card.pressed.emit()
+	(_find(entry, "DetailEditButton") as Button).pressed.emit()

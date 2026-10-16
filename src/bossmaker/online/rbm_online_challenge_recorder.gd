@@ -22,6 +22,12 @@ func set_steam_auth_for_testing(auth: RBMSteamAuth) -> void:
 func set_api_adapter_for_testing(adapter: RBMBossApiAdapter) -> void:
 	_api_adapter = adapter
 
+## 討伐記録（RBMDefeatRecord）の持ち主: 今ログインしている Steam のアカウント（SteamID64）。分からなければ空。
+## 挑戦の記録と同じ Steam の初期化（RBMSteamAuth）を使う（新しい通信はしない）。
+func account_id() -> String:
+	_ensure_setup()
+	return _steam_auth.steam_id()
+
 func _ensure_setup() -> void:
 	if _steam_auth == null:
 		_steam_auth = RBMSteamAuth.new()

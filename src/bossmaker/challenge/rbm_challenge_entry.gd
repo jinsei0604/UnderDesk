@@ -54,6 +54,8 @@ signal exit_requested
 ## 実機プレイ改善①§12: RBMCreatorStep1Basicと同じ理由・同じ技法。
 const CONTENT_SIDE_MARGIN_PX := 80.0
 const CONTENT_TOP_MARGIN_PX := 40.0
+## 登場演出の入り（前の画面が閉じる）。
+const ScreenClose = preload("res://src/bossmaker/visuals/encounter/rbm_screen_close.gd")
 
 ## Phase 3.5 UI統一§33バグ修正: 既存のLineEdit（RBMCreatorStep1Basic.
 ## BOSS_NAME_EDIT_MIN_SIZE等）はcustom_minimum_sizeを持つが、この検索欄
@@ -65,6 +67,13 @@ const SEARCH_FIELD_MIN_SIZE := Vector2(170.0, 32.0)
 var _hub_view: RBMChallengeHubView
 var _online_list_view: RBMOnlineBossListView
 var _last_browse_was_online := false
+
+## 挑戦トップの「あなたの討伐記録」（RBMDefeatRecord、2026-10-16）。今のアカウントの記録（必要な時に作る）。
+var _defeat_record: RBMDefeatRecord
+## テスト・検証で差し替える記録（アカウント・Steam Cloud を偽物にする）。
+var _defeat_record_for_testing: RBMDefeatRecord
+## 「挑戦する」の時に控える、勝った時に記録する内容 {boss_id, mode, rate}（オンラインのボスだけ）。
+var _defeat_context: Dictionary = {}
 
 ## テスト専用: _online_list_view自身は_ready()内で初めて生成されるため、
 ## 生成前(.new()直後、add_child_autofree()より前)にこのフィールドへ
@@ -103,6 +112,10 @@ const STATUS_LABELS := {
 
 func _ready() -> void:
 	_build_ui()
+	# 討伐記録は、挑戦トップが実際に画面に出た時だけ読む（起動時・タイトル画面では Steam に触れない）
+	visibility_changed.connect(func():
+		if is_visible_in_tree() and _hub_view.visible:
+			_refresh_defeat_record())
 
 func _build_ui() -> void:
 	# Phase 3.5 UI統一§0/§5/§11: RBMCreatorEntryと同じ理由・同じ1行——
@@ -491,6 +504,23 @@ func _on_challenge_requested(definition: Dictionary) -> void:
 	var resolved := RBMDefinitionLoader.resolve(definition)
 	if not bool(resolved.get("ok", false)):
 		return
+	# 戦闘開始前の登場演出（2026-10-16）: 実際の画面（演出を見せる窓）では、前の画面（ボスの確認）が古いモニターの電源を
+	# 切るように閉じてから、今までと同じ手順で戦闘を始め、登場演出を頼む（rbm_screen_close.gd → RBMEncounterDirector）。
+	if _battle_view.presentation_enabled and is_visible_in_tree():
+		var info := {"boss_name": _confirm_view._draft.boss_name if _confirm_view._draft != null else "",
+			"author": _confirm_view._draft.author_name if _confirm_view._draft != null else ""}
+		ScreenClose.start(self, _start_challenge.bind(definition, info))
+		return
+	_start_challenge(definition, {})
+
+## 「挑戦する」の後の戦闘の開始（記録・背景・戦闘の開始・画面の切り替え）。encounter が空でなければ登場・勝利の演出を使う。
+func _start_challenge(definition: Dictionary, encounter: Dictionary) -> void:
+	# 討伐記録: オンラインのボスなら、ボスID・難易度・この挑戦を始めた時の正式なクリア率（一覧に出しているクリア率）を
+	# 控える（勝った時に初めてのボスなら記録する）。手元に保存したボスは数えない。
+	_defeat_context = {}
+	if _last_browse_was_online and not _confirm_view.stage_id.is_empty() and _confirm_view._draft != null:
+		_defeat_context = {"boss_id": _confirm_view.stage_id, "mode": _confirm_view._draft.creator_mode,
+			"rate": RBMDefeatRecord.official_rate(_online_list_view.summary_for(_confirm_view.stage_id))}
 	# Phase 3.5 Step 4 §5/§18: ボス詳細ウィンドウが非公開情報を漏らさない
 	# ようにするため、確認画面が既に読み込み済みのdraft（_confirm_view自身の
 	# フィールド、Definition自体には含まれない——RBMCreatorDraft.to_definition()
@@ -517,6 +547,8 @@ func _on_challenge_requested(definition: Dictionary) -> void:
 		else:
 			RBMLocalStageRepository.record_challenge_attempt(_confirm_view.stage_id)
 	_battle_view.battle_background = _confirm_view._draft.battle_background if _confirm_view._draft != null else "night"
+	if not encounter.is_empty():
+		_battle_view.request_encounter(encounter)
 	_battle_view.start_battle(definition, visibility, appearance_id)
 	_show_battle()
 
@@ -530,6 +562,38 @@ func _on_challenge_won() -> void:
 			_online_recorder().record_challenge_clear(_confirm_view.stage_id)
 		else:
 			RBMLocalStageRepository.record_challenge_clear(_confirm_view.stage_id)
+	_record_defeat()
+
+## 討伐記録（RBMDefeatRecord）: 挑戦で勝った時、初めてのボスなら記録する（同じボスは何度勝っても1件）。
+## TEST BATTLE・クリアチェックはこの経路を通らないので数えない。
+func _record_defeat() -> void:
+	if _defeat_context.is_empty():
+		return
+	# 保存先を分けていないテスト（ヘッドレス）は、開発機の記録に書かない
+	if _defeat_record_for_testing == null and DisplayServer.get_name() == "headless" and RBMLocalStageRepository._stages_dir_override.is_empty():
+		return
+	_defeat_book().record_clear(str(_defeat_context.boss_id), str(_defeat_context.mode), float(_defeat_context.rate))
+
+## 今のアカウントの討伐記録。本物の Steam（アカウント・Steam Cloud）は、ゲームとして動いている時（窓があり、
+## 保存先をテスト用に差し替えていない）だけ使う。それ以外は手元の LOCAL_ACCOUNT の記録だけ。
+func _defeat_book() -> RBMDefeatRecord:
+	if _defeat_record_for_testing != null:
+		return _defeat_record_for_testing
+	var real_steam := DisplayServer.get_name() != "headless" and RBMLocalStageRepository._stages_dir_override.is_empty()
+	var account := _online_recorder().account_id() if real_steam else RBMDefeatRecord.LOCAL_ACCOUNT
+	if _defeat_record == null or _defeat_record.account_id != RBMDefeatRecord.sanitize_account(account):
+		_defeat_record = RBMDefeatRecord.new(account, RBMSteamCloud.new() if real_steam else null)
+	return _defeat_record
+
+## テスト・検証用: 討伐記録を差し替える（偽のアカウント・偽の Steam Cloud）。
+func set_defeat_record_for_testing(record: RBMDefeatRecord) -> void:
+	_defeat_record_for_testing = record
+
+## 挑戦トップに今のアカウントの討伐記録を出す。
+func _refresh_defeat_record() -> void:
+	var book := _defeat_book()
+	book.load_records()
+	_hub_view.set_defeat_counts(book.counts())
 
 func _on_battle_returned_to_list() -> void:
 	# Phase 4D-1: オンライン一覧経由で挑戦した場合は、戦闘終了後もオンライン
@@ -562,6 +626,8 @@ func _show_hub() -> void:
 	_confirm_view.visible = false
 	_battle_view.visible = false
 	_update_battle_preparation()
+	if is_visible_in_tree():
+		_refresh_defeat_record()
 
 ## §7〜§17: 一覧と詳細は常に同時に表示される（旧_show_list/_show_confirmの
 ## 統合）——選択の有無はConfirmViewの空状態/詳細表示の切り替えでのみ表現し、

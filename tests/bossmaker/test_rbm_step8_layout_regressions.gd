@@ -139,106 +139,124 @@ func test_game_root_size_matches_viewport_exactly() -> void:
 	assert_eq(root.creator_entry.size, root.size, "creator_entry must receive the exact same size via its own FULL_RECT anchor to root")
 	assert_eq(root.challenge_entry.size, root.size, "challenge_entry must receive the exact same size via its own FULL_RECT anchor to root")
 
-## 背景アート実装（2026-09-04）: TOP画面を実背景画像＋Godot UI（Label/
-## Button）へ作り直した後の回帰テスト。背景は実際のゲーム背景として
-## 使用し、デザインリファレンス画像は絵として貼り付けていないこと
-## （タイトル・説明・ボタン文言がLabel/Buttonのtextとして実在すること）、
-## 2つのメインボタンが扉を覆わず下側〜床付近に左右対称で並ぶこと、戻る
-## ボタンが明確に小さい階層であること、Hover/フォーカス/押下フィード
-## バックが仕様どおりであることを検証する。
-func test_creator_entry_top_screen_uses_real_background_and_matches_reference_layout() -> void:
+## 見た目の刷新（2026-10、ユーザーが完成イメージで承認した「案A＋案C」）: TOP画面は城の扉の背景をやめ、
+## 図形だけの地の上に、左上の戻る・見出し・説明と、2枚の大きなカードを置く。ふだんは同じ幅（案A）、
+## 選んだ（マウスを重ねた・キーボードで選んだ）方が広く（720px）、もう一方が狭く（408px）なる（案C）。
+## 文字はすべてLabel/Buttonとして実在し（絵に焼き込まない）、2枚は重ならず、戻るは明確に小さい階層。
+## マウスは本物の入力（Viewport.push_input のマウス移動）で動かし、選択・幅・光り方を確かめる
+## （カードの上・カードの間の隙間・2枚の外。実際の画面での見え方は実GPU検証で確認）。
+func test_creator_entry_top_screen_matches_the_approved_split_layout() -> void:
 	var root := await _make_root()
 	_btn(root, "CreateModeButton").pressed.emit()
 	await get_tree().process_frame
 
 	var viewport := root.get_viewport_rect()
-	var background: TextureRect = root.creator_entry.find_child("EntryBackground", true, false)
-	var title: Label = root.creator_entry.find_child("EntryTitleLabel", true, false)
-	var underline: Control = root.creator_entry.find_child("EntryTitleUnderline", true, false)
-	var description: Label = root.creator_entry.find_child("EntryDescriptionLabel", true, false)
-	var button_row: HBoxContainer = root.creator_entry.find_child("EntryMainButtonRow", true, false)
-	var new_button := _btn(root.creator_entry, "NewBossButton")
-	var edit_button := _btn(root.creator_entry, "EditSavedBossButton")
-	var back_button := _btn(root.creator_entry, "BackToRootButton")
-	var new_surface: RBMCreatorEntry.MethodChoiceSurface = new_button.find_child("MainButtonSurface", true, false)
-	var new_label: Label = new_button.find_child("MainButtonLabel", true, false)
-	var edit_label: Label = edit_button.find_child("MainButtonLabel", true, false)
+	var entry: RBMCreatorEntry = root.creator_entry
+	var background: Control = entry.find_child("EntryBackground", true, false)
+	var title: Label = entry.find_child("EntryTitleLabel", true, false)
+	var description: Label = entry.find_child("EntryDescriptionLabel", true, false)
+	var choice: RBMCreatorTopChoice = entry.find_child("EntryChoice", true, false)
+	var new_button := _btn(entry, "NewBossButton")
+	var edit_button := _btn(entry, "EditSavedBossButton")
+	var back_button := _btn(entry, "BackToRootButton")
+	var new_card := new_button as RBMCreatorTopChoice.Card
+	var edit_card := edit_button as RBMCreatorTopChoice.Card
 
-	assert_true(background.visible, "the real door background must be visible on the CREATE top screen")
-	assert_not_null(background.texture, "the background must load an actual image asset, not a placeholder")
+	assert_true(background is RBMMenuUi.Backdrop, "the top screen must use the drawn backdrop")
+	assert_true(background.is_visible_in_tree())
+	for node in entry._top_panel.find_children("*", "TextureRect", true, false):
+		var texture: Texture2D = (node as TextureRect).texture
+		assert_true(texture == null or not texture.resource_path.ends_with("creator_top_background.png"), "the castle door art must no longer be used")
 	assert_eq(title.text, "ボス戦を作成")
-	assert_eq(description.text, "新しいボス戦を作るか、保存したボス戦を編集してください。")
-	assert_eq(title.get_theme_color("font_color"), RBMCreatorEntry.ENTRY_COLOR_TITLE)
-	assert_eq(description.get_theme_color("font_color"), RBMCreatorEntry.ENTRY_COLOR_DESCRIPTION)
-	assert_not_null(underline, "title must keep its thin gold rule/diamond ornament")
-	assert_eq(new_label.text, "新しいボス戦を作る")
-	assert_eq(edit_label.text, "保存したボス戦を編集")
+	assert_eq(description.text, "新しく作るか、保存したボス戦を編集します")
+	assert_eq(new_card.title_label.text, "新しいボス戦を作る")
+	assert_eq(edit_card.title_label.text, "保存したボス戦を編集")
+	assert_eq(new_card.cta.label.text, "作成を始める")
+	assert_eq(edit_card.cta.label.text, "一覧を開く")
 	assert_eq(back_button.text, "戻る")
 	assert_not_null(back_button.icon, "戻る矢印は共通ピクセルアイコンで表示")
+	# このテストの保存先は空なので、編集のカードは「まだありません」を出す（0件の状態）。
+	assert_true((edit_button.find_child("SavedEmptyLabel", true, false) as Label).visible)
+	assert_false((edit_button.find_child("SavedCountValue", true, false) as Label).visible)
 
-	# タイトル→(区切り線)→説明→(扉)→2つの選択肢、という視線の流れ。
-	assert_true(title.global_position.y + title.size.y <= underline.global_position.y + EPSILON, "title must precede its underline")
-	assert_true(underline.global_position.y + underline.size.y <= description.global_position.y + EPSILON, "underline must precede the description")
-	assert_true(description.global_position.y + description.size.y < new_button.global_position.y, "description must sit above the main buttons")
-	assert_true(new_button.global_position.y + new_button.size.y < back_button.global_position.y, "back must be a subordinate action below the main buttons")
+	# 視線の流れ: 見出し → 2枚のカード。戻るは左上（見出しの左、カードより上）。
+	assert_true(title.global_position.y + title.size.y < new_button.global_position.y, "title must precede the cards")
+	assert_true(back_button.get_global_rect().end.y < new_button.global_position.y, "back must sit above the cards")
+	assert_lt(back_button.global_position.x, title.global_position.x, "back must sit left of the title")
 
-	# 2つのメインボタンは同じ行を共有し、左右対称（同サイズ・同高さ）で
-	# 重ならない。
-	assert_eq(new_button.get_parent(), button_row, "main buttons must share one horizontal row")
-	assert_eq(edit_button.get_parent(), button_row, "main buttons must share one horizontal row")
-	assert_eq(new_button.size, RBMCreatorEntry.ENTRY_MAIN_BUTTON_SIZE)
-	assert_eq(edit_button.size, RBMCreatorEntry.ENTRY_MAIN_BUTTON_SIZE)
-	assert_almost_eq(new_button.global_position.y, edit_button.global_position.y, EPSILON, "main buttons must share the same vertical position")
-	assert_lt(new_button.global_position.x, edit_button.global_position.x, "new-boss button must sit on the left")
-	assert_false(new_button.get_global_rect().intersects(edit_button.get_global_rect()), "main buttons must not overlap")
-	# 完成イメージどおり中央の扉を完全に覆わない——ボタン行は画面の下半分
-	# （扉の下側〜床付近）に収まっていること。
-	assert_gt(new_button.global_position.y, viewport.size.y * 0.5, "main buttons must sit in the lower half of the screen, below the door")
+	# ふだん（どちらも選ばれていない）は同じ幅・同じ高さで左右に並び、重ならず、左右の余白も等しい。
+	assert_eq(choice.selected, RBMCreatorTopChoice.NONE)
+	assert_eq(new_button.size, edit_button.size)
+	assert_almost_eq(new_button.global_position.y, edit_button.global_position.y, EPSILON)
+	assert_lt(new_button.global_position.x, edit_button.global_position.x, "new-boss card must sit on the left")
+	assert_false(new_button.get_global_rect().intersects(edit_button.get_global_rect()), "cards must not overlap")
+	assert_almost_eq(new_button.global_position.x - viewport.position.x, viewport.end.x - edit_button.get_global_rect().end.x, EPSILON, "balanced side margins")
+	# 主な行動（新しく作る）の帯は、ふだんから光っている。
+	assert_eq(new_card.cta.lit, 1.0)
+	assert_eq(edit_card.cta.lit, 0.0)
 
-	# 戻るボタンはメインボタンより明確に小さい階層。
-	assert_lt(back_button.size.x, RBMCreatorEntry.ENTRY_MAIN_BUTTON_SIZE.x, "back button must be clearly smaller than the main buttons")
-	assert_lt(back_button.size.y, RBMCreatorEntry.ENTRY_MAIN_BUTTON_SIZE.y, "back button must be clearly smaller than the main buttons")
+	# 戻るはカードより明確に小さい階層。
+	assert_lt(back_button.size.x, new_button.size.x)
+	assert_lt(back_button.size.y, new_button.size.y)
+	for node in [title, description, new_button, edit_button, back_button]:
+		_assert_within_viewport(node, viewport, "CREATE top %s" % node.name)
+	_assert_card_text_fits(new_button)
+	_assert_card_text_fits(edit_button)
 
-	_assert_within_viewport(title, viewport, "CREATE entry title")
-	_assert_within_viewport(description, viewport, "CREATE entry description")
-	_assert_within_viewport(new_button, viewport, "CREATE new-boss button")
-	_assert_within_viewport(edit_button, viewport, "CREATE edit-saved button")
-	_assert_within_viewport(back_button, viewport, "CREATE back button")
-	for label in [title, description, new_label, edit_label]:
-		assert_true(label.get_minimum_size().x <= label.size.x + EPSILON, "%s text must not be clipped horizontally" % label.name)
+	# マウスを重ねた方が広がる。0.22秒の ease-out（半分の時間で4分の3以上進む）。
+	_point(new_button.get_global_rect().get_center())
+	assert_eq(choice.selected, 0)
+	choice._process(RBMCreatorTopChoice.DURATION / 2.0)
+	assert_gt(new_button.size.x, 564.0 + (RBMCreatorTopChoice.WIDE - 564.0) * 0.75, "ease-out: most of the change happens early")
+	assert_lt(new_button.size.x, RBMCreatorTopChoice.WIDE)
+	choice._process(RBMCreatorTopChoice.DURATION)
+	assert_eq(new_button.size.x, RBMCreatorTopChoice.WIDE)
+	assert_eq(edit_button.size.x, RBMCreatorTopChoice.NARROW)
+	assert_almost_eq(edit_button.get_global_rect().end.x, choice.get_global_rect().end.x, EPSILON, "the pair keeps its outer edges while resizing")
+	assert_false(new_button.get_global_rect().intersects(edit_button.get_global_rect()))
+	assert_eq(new_card.glow, 1.0)
+	_assert_card_text_fits(new_button)
+	_assert_card_text_fits(edit_button)
+	# カードの間の隙間へ出ても選択はそのまま。2枚の外へ出ると元の同じ幅に戻る。
+	_point(Vector2(new_button.get_global_rect().end.x + RBMCreatorTopChoice.GAP / 2.0, new_button.get_global_rect().get_center().y))
+	assert_eq(choice.selected, 0, "the gap between the cards keeps the selection")
+	_point(Vector2(640, 700))
+	assert_eq(choice.selected, RBMCreatorTopChoice.NONE)
+	choice._process(RBMCreatorTopChoice.DURATION)
+	assert_eq(new_button.size, edit_button.size)
 
-	# Hover: 金枠・紺の地・文字がそれぞれ明るくなり、120ms（既存の
-	# MethodChoiceSurface補間）で落ち着く。ネオン発光や拡大は行わない
-	# ——mouse_entered.emit()はheadless環境では実カーソル位置を動かさない
-	# ためButton.is_hovered()が真にならず、refreshラムダが正しく反応しない
-	# （実マウス入力を必要とする）。実際に画面へマウスが乗った時と同じ
-	# set_state()呼び出しを直接検証することで、この補間・配色ロジック
-	# そのものを確認する。
-	assert_eq(new_surface.amount, 0.0)
-	assert_false(new_surface.pressed)
-	new_surface.set_state(true, false)
-	new_surface._process(0.2)
-	assert_eq(new_surface.amount, 1.0, "hover surface must finish its ~120ms interpolation")
-	assert_eq(new_label.get_theme_color("font_color"), RBMCreatorEntry.METHOD_IVORY_LIGHT, "hover must brighten the label text")
-	new_surface.set_state(false, false)
-	new_surface._process(0.2)
-	assert_eq(new_surface.amount, 0.0)
-	assert_eq(new_label.get_theme_color("font_color"), RBMCreatorEntry.METHOD_IVORY, "leaving hover must restore the resting label color")
+	# 編集の方を選ぶと、編集が広がって光り、新しく作るの帯は消える。
+	_point(edit_button.get_global_rect().get_center())
+	choice._process(RBMCreatorTopChoice.DURATION)
+	assert_eq(edit_button.size.x, RBMCreatorTopChoice.WIDE)
+	assert_eq(new_button.size.x, RBMCreatorTopChoice.NARROW)
+	assert_eq(edit_card.cta.lit, 1.0)
+	assert_eq(new_card.cta.lit, 0.0)
+	_assert_card_text_fits(new_button)
+	_assert_card_text_fits(edit_button)
+	_point(Vector2(640, 700))
+	choice._process(RBMCreatorTopChoice.DURATION)
 
+	# キーボードで選んだカードも広がる。マウスが外へ出ても、キーボードで選んでいる間はそのまま。
 	new_button.grab_focus()
 	await get_tree().process_frame
-	assert_true(new_button.has_focus(), "main button must accept keyboard/gamepad focus")
-	new_surface._process(0.2)
-	assert_eq(new_surface.amount, 1.0, "focus must emphasize the button like hover")
+	assert_true(new_button.has_focus(), "cards must accept keyboard/gamepad focus")
+	assert_eq(choice.selected, 0)
+	assert_not_null(new_button.get_theme_stylebox("focus"))
+	_point(Vector2(640, 700))
+	assert_eq(choice.selected, 0)
 	new_button.release_focus()
-	new_surface.set_state(false, false)
+	await get_tree().process_frame
+	assert_eq(choice.selected, RBMCreatorTopChoice.NONE, "losing keyboard focus outside the cards returns to the even layout")
 
-	# 押下: 背景が暗くなるフィードバック（MethodChoiceSurface.pressed →
-	# METHOD_INK_PRESSED地）。
-	new_button.button_down.emit()
-	assert_true(new_surface.pressed, "pressed main button must switch to its dark pressed treatment")
-	new_button.button_up.emit()
-	assert_false(new_surface.pressed)
+## カードの中の見えている文字が、カードからはみ出さず、横に切れていないこと。
+func _assert_card_text_fits(card: Control) -> void:
+	for label_variant in card.find_children("*", "Label", true, false):
+		var label := label_variant as Label
+		if not label.is_visible_in_tree():
+			continue
+		assert_true(card.get_global_rect().grow(EPSILON).encloses(label.get_global_rect()), "%s/%s must stay inside its card" % [card.name, label.name])
+		assert_true(label.get_minimum_size().x <= label.size.x + EPSILON, "%s/%s text must not be clipped horizontally" % [card.name, label.name])
 
 # ---------------------------------------------------------------------------
 # Creator STEP1〜5 (STEP6=最終確認は内部構造が異なるため別テストで確認する
@@ -534,3 +552,10 @@ func test_challenge_confirm_screen_has_real_display_area_and_does_not_overlap_bu
 	assert_true(start_button.global_position.y >= scroll_bottom - EPSILON, "CHALLENGE confirm: button top (%s) must be at/after the ScrollContainer's own bottom edge (%s), not merely after its top" % [start_button.global_position.y, scroll_bottom])
 	var start_button_bottom := start_button.global_position.y + start_button.size.y
 	assert_true(start_button_bottom <= viewport_bottom + EPSILON, "CHALLENGE confirm: button bottom (%s) must be within the viewport bottom (%s)" % [start_button_bottom, viewport_bottom])
+
+## 本物のマウス移動の入力を画面へ流す（画面の座標）。
+func _point(at: Vector2) -> void:
+	var ev := InputEventMouseMotion.new()
+	ev.position = at
+	ev.global_position = at
+	get_tree().root.push_input(ev, true)

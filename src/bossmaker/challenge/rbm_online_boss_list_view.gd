@@ -56,6 +56,7 @@ const LOADING_OP_MORE := "online_boss_list_more"
 const PAGE_SIZE := 20
 
 const S := preload("res://src/bossmaker/challenge/rbm_challenge_list_style.gd")
+const M := preload("res://src/bossmaker/challenge/rbm_menu_ui.gd")
 const WorldUi := preload("res://src/bossmaker/rbm_world_ui.gd")
 const LIST_RECT := Rect2(24, 92, 444, 612)
 const DETAIL_RECT := Rect2(484, 92, 772, 612)
@@ -148,20 +149,8 @@ func _build_ui() -> void:
 	# なって行が1つも見えなかった(2026-10に実画面で確認して修正)。
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	# 地: 挑戦ハブと同じ城の広間を、ほぼ黒まで沈めて奥行きだけ残す(既存の背景画像)。
-	var background := TextureRect.new()
-	background.name = "OnlineListBackground"
-	background.texture = load(S.SCREEN_BACKGROUND_PATH)
-	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(background)
-	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var shade := ColorRect.new()
-	shade.color = Color(S.BG, 0.9)
-	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(shade)
-	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# 地: 城の広間の絵は使わず、挑戦ハブ・保存したボス戦の一覧と同じ図形だけの地(RBMMenuUi.Backdrop)に置く。
+	M.add_backdrop(self, "OnlineListBackground")
 
 	_build_header()
 	_build_list_panel()
@@ -534,6 +523,10 @@ func _fetch_detail(boss_id: String, summary: Dictionary) -> void:
 	_detail.show_boss(shown, draft)
 	# 「挑戦する」(challenge_requested)と同じく、選んだカードのboss_idで知らせる。
 	boss_selected.emit(boss_id, draft, str(shown.get("boss_name", "")), str(shown.get("author_name", "")))
+
+## 一覧の行の情報（挑戦者数・クリアした人数を含む。討伐記録が、挑戦を始めた時の正式なクリア率に使う）。無ければ空。
+func summary_for(boss_id: String) -> Dictionary:
+	return (_summaries.get(boss_id, {}) as Dictionary).duplicate()
 
 func _on_challenge_pressed() -> void:
 	if _selected_draft == null or _selected_id.is_empty():

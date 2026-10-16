@@ -108,11 +108,6 @@ func menu_frame(fill: Color, edge := GOLD, padding := Vector4(24,16,24,16)) -> S
 		s.set_content_margin(side,padding[side])
 	return s
 
-func menu_button(b: Button, primary := false) -> void:
-	button_style(b,primary)
-	for state in ["normal","hover","pressed","hover_pressed"]:
-		b.add_theme_stylebox_override(state,menu_frame(Color("253348") if state in ["hover","pressed","hover_pressed"] else INK, IVORY if state == "hover" else GOLD))
-
 func convert_theme(original: Theme) -> Theme:
 	var key := original.get_instance_id()
 	if theme_cache.has(key): return theme_cache[key]
@@ -189,6 +184,10 @@ func creator_button_style(b: Button, primary := false, destructive := false) -> 
 ## すべて無改修のまま従来のGOLD配色を維持する。RBMCreatorMain._refresh_
 ## world_ui()だけがtrueを渡す。
 func walk(node: Node, creator_mode: bool = false) -> void:
+	## 挑戦ハブ・ボス戦作成の入口・作成方法の選択・保存したボス戦の一覧（2026-10 刷新、
+	## RBMMenuUi）は紺＋水色の見た目を自分で持つ。金への再配色・枠の差し替えを受けない。
+	if node.has_meta("world_skip"):
+		return
 	## UI再配色パス: TEST BATTLE/Clear Check/保存/外見選択ピッカーは
 	## RBMCreatorMainの子として一時的にreparentされる(既存仕様)ため、単純に
 	## 「RBMCreatorMain配下=creator_mode」にすると巻き込んでしまう——
@@ -257,19 +256,6 @@ func order_confirmation(row: HBoxContainer) -> void:
 		row.alignment = BoxContainer.ALIGNMENT_END
 		row.set_meta("world_ordered", true)
 
-func label(parent: Control, text: String, rect: Rect2, size := 16, color := IVORY, centered := false) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.position = rect.position
-	l.size = rect.size
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", color)
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	if centered: l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(l)
-	return l
-
 func panel(parent: Control, rect: Rect2, menu := false) -> Panel:
 	var p := Panel.new()
 	p.position = rect.position
@@ -278,82 +264,6 @@ func panel(parent: Control, rect: Rect2, menu := false) -> Panel:
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(p)
 	return p
-
-func nav(parent: Control, text: String, rect: Rect2, callback: Callable, name: String, forward := false) -> Button:
-	var b := Button.new()
-	b.name = name
-	b.text = text
-	b.position = rect.position
-	b.size = rect.size
-	b.custom_minimum_size = rect.size
-	b.add_theme_font_size_override("font_size", 16)
-	button_style(b, forward)
-	b.icon = icon("right" if forward else "left")
-	b.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT if forward else HORIZONTAL_ALIGNMENT_LEFT
-	b.pressed.connect(callback)
-	parent.add_child(b)
-	return b
-
-func entry_layout(entry: RBMCreatorEntry) -> void:
-	if entry._top_panel.has_meta("world_layout"): return
-	entry._top_panel.set_meta("world_layout", true)
-	for key in ["NewBossButton", "EditSavedBossButton"]:
-		var b: Button = entry._top_panel.find_child(key, true, false)
-		if b:
-			for child in b.get_children():
-				if child is Control: child.hide()
-			menu_button(b, key == "NewBossButton")
-			b.text = tr("新しいボス戦を作る") if key == "NewBossButton" else tr("保存したボス戦を編集")
-			b.add_theme_font_size_override("font_size", 24)
-			b.icon = icon("right")
-			b.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	# ボタンのtext内容ではなく、安定したノード名(BackToRootButton)で検索
-	# する——言語切替でtextが変わっても(戻る/Back)見失わないようにする。
-	var back: Button = entry._top_panel.find_child("BackToRootButton", true, false) as Button
-	if back:
-		for child in back.get_children():
-			if child is Control: child.hide()
-		button_style(back)
-		back.text = tr("戻る")
-		back.icon = icon("left")
-		back.reparent(entry._top_panel)
-		back.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-		back.position = Vector2(56, 636)
-		back.size = Vector2(150, 44)
-		back.custom_minimum_size = Vector2(150, 44)
-
-func method_layout(entry: RBMCreatorEntry) -> void:
-	var base: Control = entry._mode_choice_panel
-	if base.has_meta("world_layout"): return
-	base.set_meta("world_layout", true)
-	var hint := tr("作成開始後はモードを変更できません")
-	# Preserve background and referenced asset files. Remove only this screen's character node.
-	for child in base.get_children():
-		if str(child.name) != "Background":
-			base.remove_child(child)
-			child.queue_free()
-	entry._guide_character = null
-	panel(base, Rect2(240, 64, 800, 128), true).name = "MethodHeadingPanel"
-	label(base, tr("ボスを作る方法を選択"), Rect2(260, 80, 760, 48), 32, IVORY, true)
-	label(base, hint, Rect2(260, 139, 760, 26), 15, MUTED, true).name = "ModeChoiceHintLabel"
-	for i in range(2):
-		var b := Button.new()
-		b.name = "ChooseSimpleModeButton" if i == 0 else "ChooseAdvancedModeButton"
-		b.position = Vector2(176 + i * 480, 248)
-		b.size = Vector2(448, 244)
-		menu_button(b)
-		base.add_child(b)
-		b.pressed.connect(entry._on_choose_simple_mode_pressed if i == 0 else entry._on_choose_advanced_mode_pressed)
-		label(b, "SIMPLE" if i == 0 else "HARDCORE", Rect2(32, 24, 384, 46), 32, IVORY).name = "CategoryLabel"
-		label(b, tr("シンプルで作る") if i == 0 else tr("ハードコアで作る"), Rect2(32, 72, 384, 30), 19, GOLD).name = "TitleLabel"
-		label(b, tr("基本的な設定だけで\nすぐにボス戦を作成できます。") if i == 0 else tr("行動条件などを細かく設定して\nボス戦を作り込めます。"), Rect2(32, 119, 384, 61), 17, IVORY).name = "DescriptionLabel"
-		label(b, tr("この方法で作成を始める"), Rect2(32, 199, 350, 24), 15, MUTED)
-		var arrow := TextureRect.new()
-		arrow.texture = icon("right")
-		arrow.position = Vector2(394, 205)
-		arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		b.add_child(arrow)
-	nav(base, tr("戻る"), Rect2(56,636,150,44), entry._on_mode_choice_back_pressed, "ModeChoiceBackButton")
 
 func creator_layout(main: RBMCreatorMain) -> void:
 	if not main.has_meta("world_layout"):
@@ -521,42 +431,3 @@ func center_exit_dialog(main: RBMCreatorMain) -> void:
 		if b is Button: b.size_flags_vertical = Control.SIZE_SHRINK_END
 	overlay.visible = p.visible
 	p.visibility_changed.connect(func(): overlay.visible = p.visible)
-
-func challenge_layout(hub: RBMChallengeHubView) -> void:
-	if hub.has_meta("world_layout"): return
-	hub.set_meta("world_layout", true)
-	# Reuse a currently adopted room, no new world or environment art.
-	var bg := TextureRect.new()
-	bg.texture = load("res://assets_bossmaker/art/creator_top_background.png")
-	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	hub.add_child(bg)
-	hub.move_child(bg, 0)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var old: Control = hub.find_child("HubColumn", true, false)
-	old.hide()
-	panel(hub, Rect2(144, 64, 992, 504),true)
-	label(hub, tr("挑戦"), Rect2(184, 84, 920, 54), 36)
-	label(hub, tr("遊びたいボスを選んでください"), Rect2(184, 143, 920, 28), 16, MUTED)
-	label(hub, tr("モードから探す"), Rect2(184, 197, 400, 22), 15, GOLD)
-	var names := ["SimpleCategoryButton", "HardcoreCategoryButton", "FeaturedCategoryButton", "NewCategoryButton", "UnchallengedCategoryButton", "PopularCategoryButton", "HighDifficultyCategoryButton", "RandomChallengeButton", "SearchBossButton"]
-	var positions := [Rect2(184,232,440,76), Rect2(648,232,440,76), Rect2(184,374,164,58), Rect2(369,374,164,58), Rect2(554,374,164,58), Rect2(739,374,164,58), Rect2(924,374,164,58), Rect2(648,478,208,48), Rect2(880,478,208,48)]
-	label(hub, tr("ボスを見つける"), Rect2(184,334,400,22), 15, GOLD)
-	for i in range(names.size()):
-		var b: Button = old.find_child(names[i], true, false)
-		b.reparent(hub)
-		b.position = positions[i].position
-		b.size = positions[i].size
-		button_style(b, i == 8)
-		if i < 2:
-			menu_button(b)
-			b.add_theme_font_size_override("font_size", 24)
-	var back: Button = old.find_child("BackToRootButton", true, false)
-	back.reparent(hub)
-	back.text = tr("戻る")
-	back.icon = icon("left")
-	back.position = Vector2(56,636)
-	back.size = Vector2(150,44)
-	button_style(back)
-

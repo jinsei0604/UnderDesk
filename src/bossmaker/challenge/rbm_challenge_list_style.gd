@@ -23,9 +23,11 @@ const MUTED := Color("93a7ac")          # RBMWorldUi.CREATOR_MUTED
 const DIM := Color("5d6f76")
 const HARD := Color("d08a78")
 const HARD_EDGE := Color("7d4337")
+## 金色のアクセント（挑戦トップの「難関ボス討伐」）。紺の上で読める明るさ。
+const GOLD := Color("e2bb63")
+const GOLD_EDGE := Color("6f5a2c")
 
 const NUMBER_FONT_PATH := "res://assets_bossmaker/fonts/Oxanium-SemiBold.ttf"
-const SCREEN_BACKGROUND_PATH := "res://assets_bossmaker/art/creator_top_background.png"
 
 static var _number_font: Font
 ## asset_id+大きさ -> 切り出し・縮小済みのTexture2D(同じ絵を何度も縮小しない)。

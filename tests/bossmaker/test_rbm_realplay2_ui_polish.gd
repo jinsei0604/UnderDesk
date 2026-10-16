@@ -264,8 +264,13 @@ func test_editing_a_saved_stage_starts_on_the_final_step_and_its_back_button_rea
 	await get_tree().process_frame
 	assert_true(root.creator_entry._list_panel.visible, "sanity: must be on the saved-stage list")
 	assert_eq(root.creator_entry._list_rows.get_child_count(), 1, "sanity: exactly the one just-saved stage must be listed")
-	var row: HBoxContainer = root.creator_entry._list_rows.get_child(0)
-	_btn(row, "OpenButton").pressed.emit()
+	# 見た目の刷新（2026-10）: 一覧はカード（押すと右に詳細）になり、「編集」は詳細の「編集する」へ移った。
+	# 実際のプレイヤーと同じく、カードを押してから詳細の本物のボタンを押す。
+	var row: RBMSavedBossCard = root.creator_entry._list_rows.get_child(0)
+	assert_eq(row.stage_id, stage_id)
+	row.pressed.emit()
+	await get_tree().process_frame
+	_btn(root.creator_entry, "DetailEditButton").pressed.emit()
 	await get_tree().process_frame
 
 	assert_true(main.visible, "sanity: the real Creator STEP screens must be showing again")

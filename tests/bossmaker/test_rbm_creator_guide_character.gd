@@ -36,12 +36,16 @@ func _open_mode_choice(entry: RBMCreatorEntry, with_retained_character := true) 
 		layer.add_child(character)
 
 
-func test_background_image_displays() -> void:
+## 見た目の刷新（2026-10、ユーザー承認）: 工房の背景画像をやめ、ホームのモニターの「中の画面」のような
+## 図形だけの地（RBMMenuUi.Backdrop）にした。地がこの画面の一番下の層として画面全体を覆うこと。
+func test_background_is_the_drawn_monitor_backdrop() -> void:
 	var entry := await _new_entry()
 	await _open_mode_choice(entry)
-	var background: TextureRect = entry.find_child("Background", true, false)
-	assert_not_null(background, "Background TextureRect should exist")
-	assert_not_null(background.texture, "Background should have a loaded texture (the room art)")
+	var background: Control = entry._mode_choice_panel.find_child("Background", true, false)
+	assert_not_null(background, "Background should exist")
+	assert_true(background is RBMMenuUi.Backdrop, "the mode choice screen must use the drawn backdrop, not a room image")
+	assert_eq(background.get_index(), 0, "the backdrop must be the bottom layer of the screen")
+	assert_eq(background.mouse_filter, Control.MOUSE_FILTER_IGNORE)
 
 func test_method_screen_has_no_guide_but_retains_original_asset() -> void:
 	var entry := await _new_entry()
@@ -75,11 +79,10 @@ func test_choice_buttons_and_back_button_exist_and_are_enabled() -> void:
 	assert_false(back_btn.disabled)
 	assert_eq(simple_btn.find_child("TitleLabel", true, false).text, "シンプルで作る")
 	assert_eq(advanced_btn.find_child("TitleLabel", true, false).text, "ハードコアで作る")
-	# 右側UI仕上げ（2026-09-04）: 他の主要ボタンと同じく、テキストはButton
-	# 自身のtextではなく専用のLabel子ノードで描画するようになった
-	# （ModeChoiceBackButtonFrameが描画するフレームが、button.textを残すと
-	# それを覆い隠してしまうため）。
-	assert_eq(back_btn.text, "戻る")
+	# 見た目の刷新（2026-10、ユーザー承認）: 戻るボタンは挑戦側のオンライン一覧（「挑戦ハブ」）と同じく、
+	# 戻り先の画面の名前を出す。
+	assert_eq(back_btn.text, "ボス戦を作成")
+	assert_not_null(back_btn.icon, "戻る矢印は共通ピクセルアイコンで表示")
 
 func test_method_ui_layout_and_text_fit_at_1280_by_720() -> void:
 	var entry := await _new_entry()
@@ -89,13 +92,19 @@ func test_method_ui_layout_and_text_fit_at_1280_by_720() -> void:
 	var simple: Button = entry.find_child("ChooseSimpleModeButton",true,false)
 	var hardcore: Button = entry.find_child("ChooseAdvancedModeButton",true,false)
 	var back: Button = entry.find_child("ModeChoiceBackButton",true,false)
-	assert_eq(simple.size,Vector2(448,244))
+	# 見た目の刷新（2026-10、ユーザー承認の完成イメージ）: 上に見出しと注意の帯、その下に同じ大きさの2枚のカード。
+	# 戻るは左上（挑戦側のオンライン一覧と同じ位置・高さ）。
+	assert_eq(simple.size,RBMCreatorEntry.MODE_CARD_SIZE)
 	assert_eq(hardcore.size,simple.size)
-	assert_eq(simple.position,Vector2(176,248))
-	assert_eq(hardcore.position,Vector2(656,248))
-	assert_eq(back.position,Vector2(56,636))
-	assert_eq(back.size,Vector2(150,44))
+	assert_eq(simple.position,Vector2(24,156))
+	assert_eq(hardcore.position,Vector2(656,156))
+	assert_eq(back.position,Vector2(24,20))
+	assert_eq(back.size.y,42.0)
+	assert_gte(back.size.x,150.0)
 	assert_eq(simple.position.x,1280.0-hardcore.get_rect().end.x,"balanced margins with no guide-sized blank area")
+	var notice: Control = entry.find_child("MethodHeadingPanel",true,false)
+	assert_true(notice.get_global_rect().end.y <= simple.global_position.y, "the notice must sit above the cards")
+	assert_true(back.get_global_rect().end.y <= notice.global_position.y, "the header must sit above the notice")
 	for region in [simple,hardcore,back]:
 		assert_true(Rect2(0,0,1280,720).encloses(region.get_global_rect()))
 		for child in region.find_children("*","Label",true,false):
@@ -118,14 +127,19 @@ func test_method_cards_focus_press_and_release_feedback() -> void:
 		assert_eq(button.focus_mode,Control.FOCUS_ALL)
 		for child in button.get_children():
 			if child is Control: assert_eq(child.mouse_filter,Control.MOUSE_FILTER_IGNORE)
+		var cta: RBMMenuUi.CtaStrip = button.find_child("CtaStrip",true,false)
+		assert_eq(cta.lit,0.0,"the start strip is quiet until the card is chosen")
 		button.grab_focus()
 		assert_true(button.has_focus())
-		assert_true(button.get_theme_stylebox("normal") is StyleBoxTexture)
+		# 見た目の刷新（2026-10）: 挑戦側のオンライン一覧と同じ平らな枠（StyleBoxFlat）。ふつう／マウス／押した時で変わる。
+		assert_true(button.get_theme_stylebox("normal") is StyleBoxFlat)
 		assert_ne(button.get_theme_stylebox("normal"),button.get_theme_stylebox("hover"))
 		assert_ne(button.get_theme_stylebox("normal"),button.get_theme_stylebox("pressed"))
 		assert_not_null(button.get_theme_stylebox("focus"))
+		assert_eq(cta.lit,1.0,"keyboard focus must light the start strip like hover")
 		button.release_focus()
 		assert_false(button.has_focus())
+		assert_eq(cta.lit,0.0)
 
 func test_choose_simple_mode_transitions_to_creator_in_simple_mode() -> void:
 	var entry := await _new_entry()
@@ -158,7 +172,7 @@ func test_back_button_returns_to_top_screen() -> void:
 func test_background_does_not_move_while_character_animates() -> void:
 	var entry := await _new_entry()
 	await _open_mode_choice(entry)
-	var background: TextureRect = entry.find_child("Background", true, false)
+	var background: Control = entry.find_child("Background", true, false)
 	var before_pos := background.position
 	var before_size := background.size
 	var guide_character: RBMCreatorGuideCharacter = entry.find_child("GuideCharacter", true, false)
@@ -313,43 +327,31 @@ func test_animating_does_not_create_new_nodes_per_frame() -> void:
 		guide_character._process(1.0 / 60.0)
 	assert_eq(guide_character.get_child_count(), before_count, "no nodes should be created during animation")
 
-## §5/§6（修正パス2026-09-03）: プロジェクトのネイティブ解像度は1280×720
-## ——背景はSTRETCH_KEEP_ASPECT_COVEREDで画面全体を覆いつつアスペクト比は
-## 保つ（=変形はしない、はみ出た分だけ上下がcropされる）設定になっている
-## ことを確認する。旧STRETCH_KEEP_ASPECT_CENTEREDだと4:3画像が960×720で
-## 画面中央表示になり左右に黒帯が出ていた（実機で確認・報告済みのバグ）
-## ——COVEREDへの変更自体がその修正。実際のピクセルサイズは実行時の
-## Window/content_scale解決に依存するため、ここでは構造上の設定を検証
-## する。1280×720ネイティブでの実際の見た目は実GPUスクリーンショットで
-## 別途確認済み——最終報告参照。
+## プロジェクトのネイティブ解像度は1280×720。見た目の刷新（2026-10、ユーザー承認）で背景は画像ではなく
+## 図形だけの地になった——画面全体へアンカーし、1280×720で隙間なく覆うこと（黒帯が出ないこと）を確かめる。
+## 1280×720以外のウィンドウでの見た目は実GPUのスクリーンショットで別途確認する。
 func test_screen_uses_the_project_native_1280x720_resolution_and_covers_without_bars() -> void:
 	assert_eq(ProjectSettings.get_setting("display/window/size/viewport_width"), 1280)
 	assert_eq(ProjectSettings.get_setting("display/window/size/viewport_height"), 720)
 	var entry := await _new_entry()
+	entry.size = Vector2(1280, 720)
 	await _open_mode_choice(entry)
-	var background: TextureRect = entry.find_child("Background", true, false)
+	await get_tree().process_frame
+	var background: Control = entry._mode_choice_panel.find_child("Background", true, false)
 	assert_eq(background.anchor_right, 1.0, "background should be anchored to fill its parent's full width")
 	assert_eq(background.anchor_bottom, 1.0, "background should be anchored to fill its parent's full height")
-	assert_eq(background.stretch_mode, TextureRect.STRETCH_KEEP_ASPECT_COVERED, "background must cover the full screen with no side bars, while still preserving aspect ratio (§5/§6)")
+	assert_eq(background.get_global_rect(), Rect2(0, 0, 1280, 720), "the backdrop must cover the whole 1280x720 screen with no bars")
 
-## §5/§6の数値的な裏付け: 部屋画像のネイティブアスペクト比のまま、
-## 1280×720のビューポート全体を覆えるだけの倍率を持つことを確認する
-## （STRETCH_KEEP_ASPECT_COVEREDが実際に機能するための前提条件）。
-func test_background_native_aspect_can_cover_the_viewport_with_no_gaps() -> void:
-	var tex: Texture2D = load(RBMCreatorEntry.MODE_CHOICE_BACKGROUND_PATH)
-	var img := tex.get_image()
-	var native_w := float(img.get_width())
-	var native_h := float(img.get_height())
-	var viewport_w := 1280.0
-	var viewport_h := 720.0
-	# COVEREDは縦横どちらか大きい方の倍率を採用する。
-	var cover_scale: float = max(viewport_w / native_w, viewport_h / native_h)
-	var displayed_w := native_w * cover_scale
-	var displayed_h := native_h * cover_scale
-	assert_true(displayed_w >= viewport_w - 0.01, "covered background must be at least as wide as the viewport (no side bars)")
-	assert_true(displayed_h >= viewport_h - 0.01, "covered background must be at least as tall as the viewport (no top/bottom bars)")
-	# アスペクト比自体は変形していない（幅/高さの比率が元画像と一致）ことを確認する。
-	assert_almost_eq(displayed_w / displayed_h, native_w / native_h, 0.001, "covering must not distort the aspect ratio")
+## 城・工房の背景画像は、作成方法の選択画面ではもう使わない（ユーザーの判断、2026-10）。
+func test_mode_choice_screen_no_longer_uses_the_room_background_images() -> void:
+	var entry := await _new_entry()
+	await _open_mode_choice(entry, false)
+	for node in entry._mode_choice_panel.find_children("*", "TextureRect", true, false):
+		var texture: Texture2D = (node as TextureRect).texture
+		if texture == null:
+			continue
+		assert_false(texture.resource_path.ends_with("creator_method_select_background.png"), "workshop art must not be used")
+		assert_false(texture.resource_path.ends_with("creator_top_background.png"), "castle art must not be used")
 
 ## §24: キャラクター全体のscaleは常に一定（0以外の固定値）、rotationは
 ## 常に0——「Characterの全体scaleが常に一定」「rotationが常に0」の

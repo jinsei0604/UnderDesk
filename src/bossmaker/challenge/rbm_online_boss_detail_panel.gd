@@ -65,7 +65,7 @@ func show_empty(with_hint: bool) -> void:
 	S.rect(_content, Rect2(1, 1, _width() - 2, STAGE_HEIGHT), S.INSET)
 	S.corner_marks(_content, Rect2(14, 14, _width() - 28, STAGE_HEIGHT - 32), Color(S.SILVER, 0.35))
 	if with_hint:
-		var hint := S.label(_content, tr("左の一覧からボスを選択してください"), Rect2(0, 136, _width(), 30), 15, S.MUTED, "DetailHint")
+		var hint := S.label(_content, _empty_hint_text(), Rect2(0, 136, _width(), 30), 15, S.MUTED, "DetailHint")
 		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 ## 選んだボスの詳細を取得している間。一覧の行に入っている名前・作者・モードはすぐ出す。
@@ -111,23 +111,18 @@ func show_boss(summary: Dictionary, draft: RBMCreatorDraft) -> void:
 	_clear()
 	_build_stage(draft)
 	_build_header(summary)
-	var values := [
-		S.local_published_date_text(str(summary.get("published_at", ""))),
-		tr("ボスのHPを0にする") if draft.is_challenge_info_visible("win_condition") else tr("非公開"),
-		str(draft.hp) if draft.is_challenge_info_visible("hp") else tr("？？？"),
-		_weak_text(draft),
-	]
-	var names := ["DetailPublishedValue", "DetailWinConditionValue", "DetailBossHpValue", "DetailWeakValue"]
-	var captions := _row_captions()
+	_build_header_extras(summary, draft)
 	var y := 146.0
-	for i in range(captions.size()):
-		S.label(_content, captions[i], Rect2(INFO_X, y, _caption_width(), 26), 13, S.DIM)
-		var value := S.label(_content, values[i], Rect2(INFO_X + _caption_width() + 4, y, _width() - INFO_X - 20 - _caption_width() - 4, 26), 15, S.SILVER, names[i])
+	for row in _detail_rows(summary, draft):
+		S.label(_content, row["caption"], Rect2(INFO_X, y, _caption_width(), 26), 13, _caption_color())
+		var value := S.label(_content, row["value"], Rect2(INFO_X + _caption_width() + 4, y, _width() - INFO_X - 20 - _caption_width() - 4, 26), 15, row.get("color", S.SILVER), row["name"])
 		value.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		value.clip_text = true
+		if bool(row.get("latin", false)):
+			value.add_theme_font_override("font", S.number_font())
 		y += 32
-	var checked := draft.is_clear_check_currently_valid()
-	S.label(_content, tr("✓ クリアチェック済み") if checked else tr("このボス戦はクリアチェックされていません"), Rect2(INFO_X, y + 6, _width() - INFO_X - 20, 24), 13, S.ACCENT_SOFT.lightened(0.25) if checked else S.MUTED, "DetailClearCheck")
+	var status := _status_line(summary, draft)
+	S.label(_content, status[0], Rect2(INFO_X, y + 6, _width() - INFO_X - 20, 24), 13, status[1], "DetailClearCheck")
 
 	S.section_title(_content, tr("作者メッセージ"), Vector2(16, 310))
 	var message_box := _message_box()
@@ -140,6 +135,48 @@ func show_boss(summary: Dictionary, draft: RBMCreatorDraft) -> void:
 	for character_id in draft.party_character_ids:
 		_party_chip(str(character_id), draft, Vector2(x, 440))
 		x += PARTY_CHIP_STEP
+	if draft.party_character_ids.is_empty():
+		_build_empty_party()
+	_build_actions()
+
+# ---------------------------------------------------------------------------
+# 保存したボス戦の一覧（RBMSavedBossDetailPanel、2026-10）が同じ詳細の形のまま差し替える部分。
+# ここにある既定の内容が、挑戦側のオンライン一覧の表示そのもの。
+
+func _empty_hint_text() -> String:
+	return tr("左の一覧からボスを選択してください")
+
+## モードの札の右に足す札（オンライン一覧では無し）。
+func _build_header_extras(_summary: Dictionary, _draft: RBMCreatorDraft) -> void:
+	pass
+
+## 右側の行: caption（見出し）・value（値）・name（値のノード名）、任意で color・latin（数字の書体）。
+func _detail_rows(summary: Dictionary, draft: RBMCreatorDraft) -> Array:
+	var captions := _row_captions()
+	return [
+		{"caption": captions[0], "value": S.local_published_date_text(str(summary.get("published_at", ""))), "name": "DetailPublishedValue"},
+		{"caption": captions[1], "value": tr("ボスのHPを0にする") if draft.is_challenge_info_visible("win_condition") else tr("非公開"), "name": "DetailWinConditionValue"},
+		{"caption": captions[2], "value": str(draft.hp) if draft.is_challenge_info_visible("hp") else tr("？？？"), "name": "DetailBossHpValue"},
+		{"caption": captions[3], "value": _weak_text(draft), "name": "DetailWeakValue"},
+	]
+
+func _caption_color() -> Color:
+	return S.DIM
+
+## 行の下の一行（文字・色）。
+func _status_line(_summary: Dictionary, draft: RBMCreatorDraft) -> Array:
+	var checked := draft.is_clear_check_currently_valid()
+	return [tr("✓ クリアチェック済み") if checked else tr("このボス戦はクリアチェックされていません"), S.ACCENT_SOFT.lightened(0.25) if checked else S.MUTED]
+
+func _party_note_text() -> String:
+	return tr("作者が決めた固定メンバーで挑戦します")
+
+## 攻略パーティが空の時（オンラインの公開ボスは必ずパーティを持つので何も出さない）。
+func _build_empty_party() -> void:
+	pass
+
+## 下の操作（オンライン一覧では「挑戦する」）。
+func _build_actions() -> void:
 	_build_challenge_button()
 
 # ---------------------------------------------------------------------------
@@ -224,7 +261,7 @@ func _message_box() -> Panel:
 
 func _build_party_title() -> void:
 	S.section_title(_content, tr("攻略パーティ"), Vector2(16, 408))
-	S.label(_content, tr("作者が決めた固定メンバーで挑戦します"), Rect2(150, 408, _width() - 166, 28), 12, S.DIM)
+	S.label(_content, _party_note_text(), Rect2(150, 408, _width() - 166, 28), 12, _caption_color(), "DetailPartyNote")
 
 func _party_chip(character_id: String, draft: RBMCreatorDraft, at: Vector2) -> void:
 	var chip := Panel.new()
@@ -250,16 +287,20 @@ func _party_chip(character_id: String, draft: RBMCreatorDraft, at: Vector2) -> v
 	name_label.clip_text = true
 
 func _build_challenge_button() -> Button:
+	return _build_primary_button(tr("挑戦する"), "DetailChallengeButton", func(): challenge_pressed.emit())
+
+## 下の中央の主な行動のボタン（区切り線の下、青い枠）。
+func _build_primary_button(text: String, node_name: String, on_pressed: Callable) -> Button:
 	S.rect(_content, Rect2(16, 536, _width() - 32, 1), S.PANEL_EDGE)
 	var button := Button.new()
-	button.name = "DetailChallengeButton"
-	button.text = tr("挑戦する")
+	button.name = node_name
+	button.text = text
 	button.icon = preload("res://src/bossmaker/rbm_world_ui.gd").new().icon("right", S.ACCENT)
 	button.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	button.size = CTA_SIZE
 	button.position = Vector2((_width() - CTA_SIZE.x) / 2.0, _height() - 66)
 	button.add_theme_font_size_override("font_size", 20)
 	S.button_style(button, true)
-	button.pressed.connect(func(): challenge_pressed.emit())
+	button.pressed.connect(on_pressed)
 	_content.add_child(button)
 	return button

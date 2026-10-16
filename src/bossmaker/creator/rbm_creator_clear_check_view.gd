@@ -80,11 +80,25 @@ var _log_window_body_label: Label
 var _ally_detail_overlay: Dictionary = {}
 var _boss_detail_overlay: Dictionary = {}
 
+## 戦闘開始前の登場演出と勝利演出（RBMEncounterDirector）。この画面の操作の流れ（「開始」・「もう一度挑戦」・
+## 「最初からやり直す」）で始めた戦闘だけで使う。start_battle() を直接呼んだ戦闘では今までどおり出さない。
+const ScreenClose = preload("res://src/bossmaker/visuals/encounter/rbm_screen_close.gd")
+var _encounter: RBMEncounterDirector
+## 次の start_battle()／_do_restart() で登場・勝利の演出を使う時の情報 {boss_name, author}。
+var _encounter_request: Dictionary = {}
+
 func setup(p_main: Node) -> void:
 	main = p_main
 	_build_ui()
 	_world_battle.setup(self)
 	visibility_changed.connect(_on_presentation_visibility_changed)
+	_encounter = RBMEncounterDirector.new()
+	_encounter.setup(self)
+	add_child(_encounter)
+	var visual_stage = _battlefield_ally_row.get_meta("visual_stage", null) if is_instance_valid(_battlefield_ally_row) else null
+	if is_instance_valid(visual_stage):
+		# 事前読み込みが登場・勝利の演出の素材も読むように(rbm_presentation_warmup.gd)
+		visual_stage.set_meta("encounter_presentations", true)
 
 func _build_ui() -> void:
 	# Phase 3.5 タイトル画面UI新設 §8/§9/§10: RBMCreatorTestBattleViewと同じ
@@ -190,6 +204,21 @@ func release_presentations() -> void:
 		visual_stage.call("release_presentations")
 
 func _on_confirm_start_pressed() -> void:
+	# 戦闘開始前の登場演出（2026-10-16）: 実際の画面（演出を見せる窓）では、設定を確かめてから、この確認画面が古いモニターの
+	# 電源を切るように閉じ、今までと同じ手順で戦闘を始めて登場演出を頼む（rbm_screen_close.gd → RBMEncounterDirector）。
+	if presentation_enabled and is_visible_in_tree() and draft != null and main != null:
+		if not bool(RBMDefinitionLoader.resolve(draft.to_definition()).get("ok", false)):
+			_confirm_error_label.text = tr("クリアチェックを開始できません（設定を確認してください）")
+			return
+		var info := {"boss_name": draft.boss_name, "author": draft.author_name}
+		ScreenClose.start(self, func():
+			_encounter_request = info
+			var started: Dictionary = main.press_clear_check_start()
+			if not bool(started.get("ok", false)):
+				_encounter_request = {}
+				ScreenClose.release_all(get_tree())
+				_confirm_error_label.text = tr("クリアチェックを開始できません（設定を確認してください）"))
+		return
 	var result: Dictionary = main.press_clear_check_start()
 	if not bool(result.get("ok", false)):
 		_confirm_error_label.text = tr("クリアチェックを開始できません（設定を確認してください）")
@@ -215,8 +244,28 @@ func start_battle(definition: Dictionary, rng_seed: int = -1) -> void:
 	_confirm_panel.visible = false
 	_battle_panel.visible = true
 	refresh()
-	_present_session_opening()
+	_start_encounter_or_opening()
 	_check_clear_check_success()
+
+## 次の start_battle()（「開始」）で登場・勝利の演出を使う（_on_confirm_start_pressed が、前の画面が閉じた後に頼む）。
+func request_encounter(info: Dictionary) -> void:
+	_encounter_request = info.duplicate()
+
+## 頼まれていれば登場を流してから、頼まれていなければすぐに、開幕の演出（最初の行動）へ進む。
+func _start_encounter_or_opening() -> void:
+	var request := _encounter_request
+	_encounter_request = {}
+	if request.is_empty() or not presentation_enabled or not is_instance_valid(_encounter):
+		if is_instance_valid(_encounter):
+			_encounter.deactivate()
+		_present_session_opening()
+		return
+	_encounter.begin_battle(request)
+	_encounter.play_intro(_present_session_opening)
+
+## 演出（行動の演出・登場・勝利）の最中か。この間は行動を受け付けない。
+func _is_busy() -> bool:
+	return _is_presenting() or (is_instance_valid(_encounter) and _encounter.is_playing())
 
 # ---------------------------------------------------------------------------
 # battle screen — RBMCreatorTestBattleViewと同じ構造
@@ -482,7 +531,7 @@ func act_defend(unit_id: int) -> void:
 	_resolve_and_refresh({"type": "defend"})
 
 func act_skill(unit_id: int, skill_id: String) -> void:
-	if _is_presenting():
+	if _is_busy():
 		return
 	var unit := _unit_by_id(unit_id)
 	if unit == null:
@@ -501,7 +550,7 @@ func act_skill_with_target(unit_id: int, skill_id: String, target_id: int) -> vo
 	_resolve_and_refresh({"type": "skill", "skill_id": skill_id, "target_id": target_id})
 
 func _open_skill_list() -> void:
-	if _is_presenting():
+	if _is_busy():
 		return
 	_main_command_row.visible = false
 	_skill_list_panel.visible = true
@@ -549,7 +598,7 @@ func _unit_by_id(unit_id: int) -> RBMUnit:
 ## §1/§6: コマンド／対象が確定した「その瞬間」に解決し、HP/SP/状態/ログを
 ## その場で反映してから次の行動者へ進む。
 func _resolve_and_refresh(action: Dictionary) -> void:
-	if _is_presenting():
+	if _is_busy():
 		return
 	if session == null or session.battle == null or session.battle.battle_over:
 		return
@@ -585,9 +634,20 @@ func _on_restart_cancel_pressed() -> void:
 	_restart_confirm.visible = false
 
 func _on_restart_confirmed() -> void:
-	_do_restart()
+	_restart_from_ui()
 
 func _on_retry_pressed() -> void:
+	_restart_from_ui()
+
+## 画面の操作でやり直す時: 登場・勝利の演出を使っている戦闘なら、今の画面が閉じてから、もう一度登場から始める。
+func _restart_from_ui() -> void:
+	if is_instance_valid(_encounter) and _encounter.active and presentation_enabled and is_visible_in_tree():
+		var info := {"boss_name": _encounter.boss_name, "author": _encounter.author}
+		_restart_confirm.visible = false
+		ScreenClose.start(self, func():
+			_encounter_request = info
+			_do_restart())
+		return
 	_do_restart()
 
 func _do_restart() -> void:
@@ -601,7 +661,7 @@ func _do_restart() -> void:
 	_outcome_area.visible = false
 	_restart_confirm.visible = false
 	refresh()
-	_present_session_opening()
+	_start_encounter_or_opening()
 	_check_clear_check_success()
 
 # ---------------------------------------------------------------------------
@@ -649,7 +709,11 @@ func _refresh_rewind_list() -> void:
 # ---------------------------------------------------------------------------
 
 func refresh() -> void:
-	_world_battle.update.call_deferred()
+	# 勝利演出の間（結果パネルを出すまで）は、HUD を薄くしているので、味方のカード・行動順・全画面の配置の作り直し
+	# （合わせて約40ms）はせず、値だけを更新する（決着の瞬間に倒れ始めるボスの動きを止めないため）。
+	var hold_outcome := is_instance_valid(_encounter) and _encounter.holds_outcome()
+	if not hold_outcome:
+		_world_battle.update.call_deferred()
 	if _is_presenting():
 		return
 	if session == null or session.battle == null:
@@ -657,28 +721,38 @@ func refresh() -> void:
 	var battle := session.battle
 	_boss_label.text = tr("%s　（ターン%d）") % [battle.boss.display_name, battle.current_turn]
 
-	RBMBattleUiKit.clear_children_safely(_party_rows)
-	for unit in battle.party:
-		_party_rows.add_child(RBMBattleUiKit.build_party_card(unit, open_ally_detail))
+	if hold_outcome:
+		RBMBattlePresenter.apply_status_snapshot(self, battle.presentation_state())
+	else:
+		RBMBattleUiKit.clear_children_safely(_party_rows)
+		for unit in battle.party:
+			_party_rows.add_child(RBMBattleUiKit.build_party_card(unit, open_ally_detail))
 	RBMBattleUiKit.refresh_battlefield_ally_row(_battlefield_ally_row, battle, open_ally_detail)
 	_configure_presentation()
 
-	RBMBattleUiKit.refresh_turn_order_panel(_turn_order_panel, battle)
+	if not hold_outcome:
+		RBMBattleUiKit.refresh_turn_order_panel(_turn_order_panel, battle)
 	_refresh_command_area()
 	_refresh_rewind_list()
 
+	# 勝利演出の間は、結果パネルを隠し、決着の音は鳴らさない（とどめの音→ファンファーレにする。ユーザーの決定 2026-10-16）。
+	# クリアチェックの成功の記録（_check_clear_check_success）は今までと同じ瞬間に行う。
 	if battle.battle_over and not _se_outcome_played and is_visible_in_tree():
-		preload("res://src/bossmaker/rbm_audio.gd").cue(self, "ui_clear_check_success" if battle.winner == "ally" else "defeat")
+		if not hold_outcome:
+			preload("res://src/bossmaker/rbm_audio.gd").cue(self, "ui_clear_check_success" if battle.winner == "ally" else "defeat")
 		_se_outcome_played = true
 	elif not battle.battle_over:
 		_se_outcome_played = false
-	_outcome_area.visible = battle.battle_over
+	_outcome_area.visible = battle.battle_over and not hold_outcome
 	if battle.battle_over:
 		var won := battle.winner == "ally"
 		# §14: success screen shows ONLY Creatorに戻る. §15: failure screen
 		# shows もう一度挑戦 + Creatorに戻る.
 		_outcome_label.text = tr("クリアチェック成功") if won else tr("クリアチェック失敗")
 		_retry_button.visible = not won
+	# 登場・勝利演出の間は、作り直したコマンドのボタンも押せないようにする（戦闘画面が表示された時の作り直しなど）
+	if is_instance_valid(_encounter) and _encounter.is_playing():
+		_set_presentation_input_locked(true)
 
 ## 実機プレイ改善①§1/§13/Phase 3.5 Step 4 §14/§15: SPD順で入力待ちの味方
 ## 1人だけのコマンドを表示する（通常攻撃／スキル／防御の3ボタン。スキル
@@ -771,6 +845,12 @@ func set_boss_appearance(appearance_id: String) -> void:
 func _is_presenting() -> bool:
 	return is_instance_valid(_presenter) and _presenter.is_playing()
 
+## 勝利演出が結果パネルを出す時に呼ばれる（RBMEncounterDirector）。
+func _on_encounter_result_shown() -> void:
+	if session != null and session.battle != null and session.battle.battle_over:
+		RBMBattleUiKit.refresh_turn_order_panel(_turn_order_panel, session.battle)
+		_outcome_area.visible = true
+
 func _configure_presentation() -> void:
 	if not is_instance_valid(_battlefield_ally_row):
 		return
@@ -821,14 +901,21 @@ func _on_presentation_impact(entry: Dictionary) -> void:
 		_log_label.text = RBMBattleUiKit.format_latest_info([entry], session.battle)
 	if is_instance_valid(_log_window_body_label):
 		_log_window_body_label.text = RBMBattleUiKit.format_log_window_text(_battle_log_history, session.battle)
+	if is_instance_valid(_encounter):
+		_encounter.on_impact(entry)
 
 func _on_presentation_finished() -> void:
-	_set_presentation_input_locked(false)
+	# 勝利演出を始めた時は、入力を止めたまま（勝利演出が結果パネルを出す時に戻す）
+	var victory := is_instance_valid(_encounter) and _encounter.on_presentation_finished()
+	if not victory:
+		_set_presentation_input_locked(false)
 	refresh()
 
 func _cancel_presentation() -> void:
 	if is_instance_valid(_presenter):
 		_presenter.cancel()
+	if is_instance_valid(_encounter):
+		_encounter.cancel()
 	_set_presentation_input_locked(false)
 
 func _set_presentation_input_locked(locked: bool) -> void:

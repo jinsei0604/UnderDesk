@@ -515,3 +515,79 @@ HPの範囲条件は「下限 ≦ 上限」（0〜100%）で指定してくだ�
 侍,Samurai
 ハンマー使い,Titan
 異形紳士,Faceless Gentleman
+%d件 / 更新が新しい順,%d saved / Newest first
+%d件が一致 / 全%d件,%d match / %d total
+"SIMPLE か HARDCORE を選んで、
+最初から作ります。","Choose SIMPLE or HARDCORE
+and build it from scratch."
+SIMPLE で設定できることすべて,Everything you can set in SIMPLE
+✓ クリアチェック済み %d,✓ Clear Checked %d
+"「ボス戦を作成」の「新しいボス戦を作る」から作成し、
+保存するとここに並びます。","Make one with Create New Boss Battle.
+Saved boss battles appear here."
+このボス戦を削除しますか？,Delete this boss battle?
+"このボス戦を開けませんでした。
+ファイルが壊れている可能性があります。","This boss battle couldn't be opened.
+The file may be damaged."
+この操作は取り消せません。保存したデータは元に戻せなくなります。,This can't be undone. The saved data will be gone for good.
+そのほかの探し方,Other Ways to Find
+まだ挑戦していないボス,Bosses you haven't tried yet
+クリア率が低い順,Lowest clear rate first
+シンプルなボス戦,Simple boss battles
+ステージID,Stage ID
+ステージID %s,Stage ID %s
+"ボス名は一部だけでも探せます。
+ステージIDは10桁すべてを入力してください。","Part of a boss name is enough.
+Enter all 10 digits of a stage ID."
+ボス名・外見・能力（HP・ATK・SPD）・弱点・耐性,"Name, look, stats (HP/ATK/SPD), weaknesses, resistances"
+一覧を見る,View List
+一覧を開く,Open List
+下書き,Draft
+下書き（未完成の項目があります）,Draft (some items are unfinished)
+件　（うち下書き %d件）, (%d drafts)
+作り方は次の画面で選びます,You'll choose how on the next screen
+作り込まれたボス戦,Elaborate boss battles
+作成を始める,Start Creating
+保存したボス戦,Saved Boss Battles
+保存したボス戦はまだありません,No saved boss battles yet
+"保存したボス戦を選んで、
+続きを作ったり直したりします。","Pick a saved boss battle
+to continue or revise it."
+保存済み,Saved
+公開中 %d,Published %d
+公開中のすべてのボス,All published bosses
+公開状態,Visibility
+味方の能力・技の調整,Tune allies' stats and skills
+基本の設定で作られたボス戦から探します,Boss battles made with the basic settings
+基本的な設定だけで、すぐにボス戦を作成できます。,Make a boss battle quickly with just the basics.
+左の一覧から編集するボス戦を選んでください,Choose a boss battle to edit from the list
+技を作り、使う割合を決める,Make skills and set how often each is used
+技を割合で使い分ける,Skills used by percentage
+挑戦した人が多い順,Most challengers first
+挑戦する人が使う固定メンバー,Fixed members the challenger will use
+挑戦可能,Playable
+挑戦可能 %d,Playable %d
+挑戦可能（クリアチェック前）,Playable (not yet Clear Checked)
+新しく作るか、保存したボス戦を編集します,Make a new one or edit a saved boss battle
+新しく公開されたボス,Recently published bosses
+最終更新,Last Updated
+条件に合うボス戦はありません,No boss battles match
+検索をクリア,Clear Search
+編集する,Edit
+行動の順番と条件,Action order & conditions
+行動の順番と条件（ボスHP・ターン・味方の状態など）,"Action order & conditions (boss HP, turns, ally status, etc.)"
+行動の順番や条件まで作り込まれたボス戦から探します,Boss battles built down to action order and conditions
+行動条件などを細かく設定して、ボス戦を作り込めます。,Fine-tune action conditions to build a detailed boss battle.
+覚醒,Awakening
+覚醒あり,Awakens
+覚醒することも,May awaken
+覚醒（対応する外見のボスのみ）,Awakening (supported looks only)
+設定できること,What you can set
+読み込めないボス戦が%d件あります（ファイルが壊れている可能性）,%d boss battle(s) couldn't be read (the file may be damaged)
+迷ったら SIMPLE から始めるのがおすすめです,Not sure? SIMPLE is a good place to start
+（まだ選ばれていません）,(None chosen yet)
+（名前未設定）,(No name)
+
+制作,Created by
+%s を倒した！,%s defeated!
+撃破ターン %d　｜　クリアタイム %s,Turns %d　|　Clear Time %s

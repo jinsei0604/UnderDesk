@@ -125,23 +125,37 @@ func test_player_facing_name_is_hardcore_while_internal_identifier_stays_advance
 	# 既知の1箇所だけを正確に除外する形にした。禁止すべき内部識別子の生
 	# 表記（"ADVANCED"の英語表記・「アドバンスド」のカタカナ表記）は
 	# どの画面にも実際に登場しない（実装側もgrep済み）。
+	# 見た目の刷新（2026-10、ユーザー承認の完成イメージ）で、ボス戦作成の入口にも、挑戦側の一覧と同じ
+	# モードの札（RBMChallengeListStyle.mode_tag、表示名は RBMChallengeUiKit.mode_display_text の「SIMPLE」「HARDCORE」）と、
+	# 「SIMPLE か HARDCORE を選んで、最初から作ります。」という説明が加わった。これも意図した正式な表示なので、
+	# 「HARDCORE」の検査から除くのは、その札と、その説明の Label そのもの（同じ名前の別の Label は除かない）だけ。
+	# 内部識別子の生の表記（"ADVANCED"／「アドバンスド」）は、除いた Label も含めて引き続きすべて検査する。
+	var mode_tags: Array[Node] = entry.find_children("ModeTag*", "Label", true, false)
+	assert_gt(mode_tags.size(), 0, "sanity: the entry's new-boss card shows the SIMPLE/HARDCORE mode tags")
+	var new_card_description: Label = entry.find_child("NewBossButton", true, false).find_child("DescriptionLabel", true, false)
+	assert_true(new_card_description.text.contains("HARDCORE"), "sanity: the approved description names the HARDCORE mode")
+	var design_labels: Array[Node] = []
+	design_labels.append_array(mode_tags)
+	design_labels.append(new_card_description)
 	var player_text := " ".join(
-		_all_control_texts(entry, ["CategoryLabel"]) + _all_control_texts(summary, ["CategoryLabel"])
+		_all_control_texts(entry, ["CategoryLabel"], design_labels) + _all_control_texts(summary, ["CategoryLabel"])
 	)
-	for forbidden in ["HARDCORE", "ADVANCED", "アドバンスド"]:
-		assert_false(player_text.contains(forbidden), "プレイヤー向け表記に%sを残さない" % forbidden)
+	assert_false(player_text.contains("HARDCORE"), "プレイヤー向け表記にHARDCOREを残さない")
+	var all_text := " ".join(_all_control_texts(entry) + _all_control_texts(summary))
+	for forbidden in ["ADVANCED", "アドバンスド"]:
+		assert_false(all_text.contains(forbidden), "プレイヤー向け表記に%sを残さない" % forbidden)
 
-func _all_label_texts(node: Node, exclude_names: Array[String] = []) -> Array[String]:
+func _all_label_texts(node: Node, exclude_names: Array[String] = [], exclude_nodes: Array[Node] = []) -> Array[String]:
 	var out: Array[String] = []
 	for label_variant in node.find_children("*", "Label", true, false):
 		var label := label_variant as Label
-		if exclude_names.has(label.name):
+		if exclude_names.has(label.name) or exclude_nodes.has(label):
 			continue
 		out.append(label.text)
 	return out
 
-func _all_control_texts(node: Node, exclude_names: Array[String] = []) -> Array[String]:
-	var out := _all_label_texts(node, exclude_names)
+func _all_control_texts(node: Node, exclude_names: Array[String] = [], exclude_nodes: Array[Node] = []) -> Array[String]:
+	var out := _all_label_texts(node, exclude_names, exclude_nodes)
 	for button_variant in node.find_children("*", "Button", true, false):
 		var button := button_variant as Button
 		if exclude_names.has(button.name):

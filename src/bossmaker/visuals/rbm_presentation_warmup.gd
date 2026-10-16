@@ -32,6 +32,8 @@ extends Node
 ## 読み込みは1件ずつ頼む(読み終えた画像をGPUへ送る処理が1フレームに重ならないように)。
 ## 戦闘の状態・乱数・行動順・保存データは読むだけで変えない。
 const Assets = preload("res://src/bossmaker/visuals/rbm_visual_assets.gd")
+## 戦闘開始前の登場演出・勝利演出の素材の宣言（挑戦・クリアチェックの画面のステージにだけ "encounter_presentations" の印がある）。
+const EncounterAssets = preload("res://src/bossmaker/visuals/encounter/rbm_encounter_assets.gd")
 ## 味方の防御・かばう(10)と被弾(11)の姿勢。
 const REACTION_POSES := [10, 11]
 ## rbm_battle_stage.gd の振り分けと同じ分け方: 回復・強化は支援、全体を狙う技は全体、それ以外は単体。
@@ -151,6 +153,13 @@ func plan_from(source: Dictionary) -> Array[String]:
 	var awakening: Dictionary = battle.awakening
 	var awakening_script = null if boss_id.ends_with(Assets.AWAKENED_SUFFIX) else _stage.BOSS_AWAKENING_PRESENTATIONS.get(boss_id)
 	var can_awaken := awakening_script != null and not awakening.is_empty()
+	var encounter := bool(_stage.get_meta("encounter_presentations", false))
+	# 0. 戦闘を開くと同時に再生される登場演出（挑戦・クリアチェックだけ）と、とどめの瞬間に使う物
+	if encounter:
+		_ask(out, EncounterAssets, boss_id, "intro")
+		for character_id in party:
+			_ask(out, EncounterAssets, str(character_id), "intro_ally")
+		_ask(out, EncounterAssets, boss_id, "final_blow")
 	# 1. 戦闘を開くと同時に再生されうる物
 	for kind in _scripted_kinds(battle, "turn_start_interrupt"):
 		_ask(out, tables[kind].get(boss_id), boss_id, kind)
@@ -182,6 +191,11 @@ func plan_from(source: Dictionary) -> Array[String]:
 		_ask(out, awakening_script, boss_id, "awakening")
 	for entry in later_skills:
 		_ask(out, entry.get("script"), str(entry.get("actor", "")), str(entry.get("kind", "")))
+	# 5. 勝利演出（挑戦・クリアチェックだけ。決着の後に使う）
+	if encounter:
+		_ask(out, EncounterAssets, boss_id, "victory")
+		for character_id in party:
+			_ask(out, EncounterAssets, str(character_id), "victory_ally")
 	return out
 
 ## 演出を始める境界(ステージの _start_dedicated())から呼ぶ。その演出が宣言した素材のうち、まだ読み終えて

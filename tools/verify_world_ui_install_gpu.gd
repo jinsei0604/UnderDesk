@@ -201,7 +201,7 @@ func run_gpu_verification(tree: SceneTree, output_dir_override: String = "", rec
 	for mode in ["test","clear_check","challenge"]:
 		for winner in ["ally","boss"]:
 			var definition := _definition_for("samurai")
-			definition.boss.hp = 1 if winner == "ally" else 100000
+			definition.boss.hp = 1 if winner == "ally" else RBMDefinitionLoader.BOSS_HP_MAX   # ボスが勝つ場面（上限 99,999。100000 は G8 以降は設定エラーで戦闘が始まらなかった）
 			definition.boss.atk = 1 if winner == "ally" else 9999
 			definition.boss.spd = 1 if winner == "ally" else 500
 			definition.boss.skills[0].target = "all"
