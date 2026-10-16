@@ -10,6 +10,7 @@ extends GutTest
 const IntroPlayer = preload("res://src/bossmaker/visuals/encounter/rbm_intro_player.gd")
 const VictoryPlayer = preload("res://src/bossmaker/visuals/encounter/rbm_victory_player.gd")
 const EncounterAssets = preload("res://src/bossmaker/visuals/encounter/rbm_encounter_assets.gd")
+const AllyFrames = preload("res://src/bossmaker/visuals/encounter/rbm_encounter_ally_frames.gd")
 const Overlay = preload("res://src/bossmaker/visuals/encounter/rbm_encounter_overlay.gd")
 const Banner = preload("res://src/bossmaker/visuals/encounter/rbm_victory_banner.gd")
 const ScreenClose = preload("res://src/bossmaker/visuals/encounter/rbm_screen_close.gd")
@@ -45,6 +46,11 @@ func test_every_declared_encounter_asset_exists() -> void:
 	for ally in ALLIES:
 		for kind in ["intro_ally", "victory_ally"]:
 			var paths := EncounterAssets.warm_paths(ally, kind)
+			# 勝利の動きの中割りのコマは、味方の技の演出のスクリプト（中割りのコマの定義）がある時だけ使う。
+			# 無い版では1枚絵の場所が空で、その味方は本番の見た目のまま動かない（rbm_encounter_ally_frames.gd）。
+			if kind == "victory_ally" and not ResourceLoader.exists(str(AllyFrames.CODEX_SCRIPTS[ally])):
+				assert_eq(AllyFrames.sheet_path(ally), "", "%s: no intermediate frames without the definitions" % ally)
+				continue
 			assert_false(paths.is_empty(), "%s %s declares its frames" % [ally, kind])
 			for path in paths:
 				assert_true(ResourceLoader.exists(path), "%s %s: %s" % [ally, kind, path])
