@@ -1,48 +1,41 @@
 class_name RBMCreatorStep5Party
 extends Control
 
-## Creator UI改修（STEP4統合+最終確認再設計、2026-09-05）§4/§9/§10/§12〜§17:
-## 新STEP4「攻略パーティ」——上段にパーティメンバーのカード列（クリックで
-## 編集対象として選択、「外す」はカード上の小さな操作）、その下に「選択
-## キャラクター設定」（[使用可能スキル]既定/[性能調整]の2タブ）を持つ。
+## STEP4「攻略パーティ」。
 ##
-## §13/§17: 旧・独立STEP「使用可能スキル」（RBMCreatorStep6PartySkills、
-## Creatorのナビゲーションからは撤去）のロジックをそのままこの画面の
-## [使用可能スキル]タブへ移設した——draft.is_ally_skill_allowed()/
-## set_ally_skill_allowed()/set_all_ally_skills_allowed()自体は無改修、
-## 「全キャラを同時に並べて編集する」UIから「選択中の1人だけを編集する」
-## UIへ作り直した（旧・複数キャラ同時編集用の_editing_ids/_staged_allowed
-## Dictionaryは、選択が常に1人になったことで単一のstaged Dictionaryへ
-## 単純化できた）。
+## 2026-10-17 UI 刷新（ユーザーが案C「RPG風の編成」を採用。プレビュー prototypes/step4_party_2026-10-17）:
+##   上   = 戦場の床に並ぶパーティ（最大 MAX_PARTY_SIZE=4 の枠。空きは影の枠）。並んだキャラクターを押すと選べる。
+##   中   = 5人の仲間の札（ドット絵・名前・役割。編成中は ✓、CUSTOM の印）。押すと下の人物の札が変わる。
+##   下   = 人物の札（名前・属性・役割・説明・能力のバー・得意技・ほかの技）と「編成に入れる／編成から外す」
+##          「ステータス編集」。
+##   「ステータス編集」で、選んだキャラクターの[使用可能スキル]／[性能調整]を重ねて開く（中身・操作は以前と同じ:
+##   使用可能スキルは「編集→決定／キャンセル」、性能調整は SIMPLE は表示だけ・HARDCORE は値の編集）。
+##   「全員を標準に戻す」（HARDCORE）は舞台の見出しの右。
+## 編成の仕様（候補5人から1〜4人、重複なし）・保存の形・draft の API は変えていない。
+## 役割・説明・技の短い説明は RBMPartyRosterKit（マスターデータと戦闘の処理から決めた）。
 ##
-## §14/§15: 旧「性能を見る」ボタン（ViewPerformanceButton_%s）は廃止し、
-## カード自体をクリックして選択する方式へ変更した。カスタム化されている
-## （draft.is_ally_customized()）キャラクターのカードには「CUSTOM」表示を
-## 追加する——新しい概念ではなく、既存のally_overrides/ally_allowed_skill_ids
-## の状態を都度比較する読み取り専用の判定（RBMCreatorDraft.is_ally_customized()
-## 参照）。
-##
-## §16: 旧・画面全体を覆う大きな「攻略側カスタム設定をすべて標準値へ戻す」
-## ボタンは、機能（draft.reset_all_ally_overrides()、ADVANCED専用）を一切
-## 変更せず、コンパクトな「全員を標準に戻す」として画面上部へ配置し直した。
+## 以前の作り（2026-09-05、カード列＋「＋キャラクターを追加」の候補一覧＋選択キャラクター設定）から引き継いだもの:
+##   §13/§17 使用可能スキル（旧 RBMCreatorStep6PartySkills から移設したロジック）、§15 CUSTOM の印
+##   （draft.is_ally_customized()）、§16 全員を標準に戻す（draft.reset_all_ally_overrides()、ADVANCED 専用）。
 
 const CONTENT_SIDE_MARGIN_PX := 40.0
 const CONTENT_TOP_MARGIN_PX := 24.0
-## タブ領域が下部の「戻る/次へ/作成を終了」の帯へ貼り付かないための余白。
+## 中身が下部の「戻る/次へ/作成を終了」の帯へ貼り付かないための余白。
 const CONTENT_BOTTOM_MARGIN_PX := 12.0
-## タブ領域(使用可能スキル/性能調整)は画面の残りの高さいっぱいに広がり、
-## 中身が長ければ内部で縦スクロールする。追加欄を開いた時など残りが足りない
-## 時もこの高さは確保し、STEP4全体の縦スクロールで下まで届くようにする。
-## 使用可能スキルタブでは、下の操作ボタン行(編集/決定・キャンセル)まで含めた
-## 高さをこの最小値にする(_refresh_selected_settings参照)。
+## ステータス編集のタブ領域の最小の高さ。中身が長ければ内部で縦スクロールする。
 const TAB_SCROLL_MIN_HEIGHT_PX := 160.0
-## タブ領域のホイール1刻み。Godotの既定(表示の高さの1/8)だと160〜180pxの領域
-## では約20pxしか動かず長い性能調整を送りにくいため、以前の320px時と同程度にする
-## (_on_tab_scroll_gui_input参照)。
+## タブ領域のホイール1刻み（Godot の既定では約20pxしか動かず、長い性能調整を送りにくいため）。
 const TAB_SCROLL_WHEEL_STEP_PX := 40.0
+## 中央の欄の大きさがまだ決まっていない時（画面に出す前）に使う大きさ（1280×720 の本番の欄と同じ）。
+const FALLBACK_AREA := Vector2(644, 503)
+const GAP := 8.0
+const BACKGROUND := "res://assets_bossmaker/art/battle_courtyard_night.png"
 
 const TAB_SKILLS := "skills"
 const TAB_PERFORMANCE := "performance"
+
+const K := preload("res://src/bossmaker/creator/rbm_party_roster_kit.gd")
+const S := preload("res://src/bossmaker/challenge/rbm_challenge_list_style.gd")
 
 ## 値は表示用文字列——キー(effect_id/target_id)はスキル定義の内部IDで
 ## あり翻訳対象ではない。呼び出し側で.get()の結果へtr()を適用する。
@@ -69,19 +62,22 @@ const SKILL_TARGET_LABELS := {
 var draft: RBMCreatorDraft
 var main: Node
 
-var _party_card_list: HBoxContainer
-var _add_button: Button
+## 編成の画面（舞台・仲間の札・人物の札）。中身は refresh() のたびに作り直す。
+var _canvas: Control
 var _count_label: Label
 var _reset_all_button: Button
-var _add_candidates_panel: VBoxContainer
-var _candidate_buttons: Dictionary = {}  # character_id -> CheckBox
-var _pending_party_selection: Array[String] = []
+## 人物の札の「編成に入れる」（見ているキャラクターが編成に入っていない時だけある）。
+var _add_button: Button
+var _status_button: Button
 
-## §12: 現在「選択キャラクター設定」に表示中のキャラクター。空文字列は
-## パーティが空である状態のみを表す。
+## 見ているキャラクター（5人のだれでも）。ステータス編集の対象は、この人が編成に入っている時だけ。
 var _selected_character_id: String = ""
 var _selected_tab: String = TAB_SKILLS
+## ステータス編集を開いているか。
+var _status_sheet_open := false
 
+## ステータス編集（重ねて開く）。中のタブ・技の一覧・操作ボタンの作りは以前のまま。
+var _sheet_layer: Control
 var _selected_settings_panel: VBoxContainer
 var _selected_empty_label: Label
 var _selected_header_label: Label
@@ -90,13 +86,11 @@ var _skills_tab_button: Button
 var _performance_tab_button: Button
 var _tab_content: VBoxContainer
 var _tab_scroll: ScrollContainer
-## 使用可能スキルタブの操作ボタン行(編集 / 決定・キャンセル)。一覧のスクロール
-## にもSTEP4全体のスクロールにも入れず、STEP4の下端(タブ領域のすぐ下)に常に表示する。
+## 使用可能スキルタブの操作ボタン行(編集 / 決定・キャンセル)。一覧のスクロールに入れず、タブ領域のすぐ下に常に出す。
 var _skills_actions_bar: MarginContainer
 var _skills_actions: HBoxContainer
 
-## §13相当（旧RBMCreatorStep6PartySkillsから移設）——選択中の1人分のみ
-## 保持すればよいため、character_id -> Dictionaryだった旧構造から単純化した。
+## §13相当（旧RBMCreatorStep6PartySkillsから移設）——選択中の1人分のみ保持する。
 var _skills_editing := false
 var _staged_allowed: Dictionary = {}  # skill_id -> bool
 
@@ -106,99 +100,100 @@ func setup(p_draft: RBMCreatorDraft, p_main: Node) -> void:
 	_build_ui()
 
 func _build_ui() -> void:
-	## STEP4をステップ表示領域の高さに収める。通常はタブ領域が残りの高さを
-	## 使って全体は動かず、追加欄を開いた時など収まらない時だけ全体が縦に
-	## スクロールする(以前は上端だけ固定で下へ伸び、下部の帯に重なっていた)。
-	## 横スクロールは無し(G3と同じ)。使用可能スキルタブの操作ボタン行だけは
-	## このスクロールの外(STEP4の下端)に置く。
-	var page_root := VBoxContainer.new()
-	page_root.name = "PartyStepRoot"
-	page_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	page_root.add_theme_constant_override("separation", 0)
-	add_child(page_root)
-	var page_scroll := ScrollContainer.new()
-	page_scroll.name = "PartyStepScroll"
-	page_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	page_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	page_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	page_root.add_child(page_scroll)
-	var margin := MarginContainer.new()
-	margin.name = "PartyStepMargin"
-	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	margin.add_theme_constant_override("margin_left", int(CONTENT_SIDE_MARGIN_PX))
-	margin.add_theme_constant_override("margin_right", int(CONTENT_SIDE_MARGIN_PX))
-	margin.add_theme_constant_override("margin_top", int(CONTENT_TOP_MARGIN_PX))
-	margin.add_theme_constant_override("margin_bottom", int(CONTENT_BOTTOM_MARGIN_PX))
-	page_scroll.add_child(margin)
-	var column := VBoxContainer.new()
-	column.name = "PartyStepColumn"
-	column.add_theme_constant_override("separation", 12)
-	margin.add_child(column)
+	_canvas = Control.new()
+	_canvas.name = "PartyStepCanvas"
+	_canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_canvas.offset_left = CONTENT_SIDE_MARGIN_PX
+	_canvas.offset_right = -CONTENT_SIDE_MARGIN_PX
+	_canvas.offset_top = CONTENT_TOP_MARGIN_PX
+	_canvas.offset_bottom = -CONTENT_BOTTOM_MARGIN_PX
+	_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 紺＋水色の新しい見た目（RBMChallengeListStyle）。作成画面の共通の再配色（RBMWorldUi.walk）を受けない。
+	# ステータス編集の中身（以前からの部品）は今までどおり共通の見た目にする。
+	_canvas.set_meta("world_skip", true)
+	add_child(_canvas)
+	# 中央の欄の大きさが決まった・変わった時に作り直す（ウィンドウの大きさを変えた時など）。
+	_canvas.resized.connect(func(): _rebuild_canvas())
+	# この画面は別のボスを作る・開く時も使い回す（draft の中身だけが入れ替わる）。
+	visibility_changed.connect(_on_visibility_changed)
+	_build_status_sheet()
+	refresh()
 
-	var header_row := HBoxContainer.new()
-	header_row.name = "PartyHeaderRow"
-	column.add_child(header_row)
-	var header := Label.new()
-	header.text = tr("攻略パーティ")
-	header.theme_type_variation = RBMCreatorUiKit.VARIATION_SECTION_LABEL
-	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header_row.add_child(header)
+## STEP4 を開いた時（ほかの STEP・別のボスから来た時）は、重ねたステータス編集を閉じ、
+## 編成に入っていない人を見ていれば編成の1人目を見せる。編成の中で選んでいた人はそのまま。
+## 表示は直後の refresh()（RBMCreatorMain._refresh()）で作り直す。
+func _on_visibility_changed() -> void:
+	if not visible or draft == null:
+		return
+	_status_sheet_open = false
+	_skills_editing = false
+	_staged_allowed.clear()
+	if not draft.party_character_ids.is_empty() and not draft.party_character_ids.has(_selected_character_id):
+		_selected_character_id = draft.party_character_ids[0]
 
-	## §16: 旧・大きな全幅ボタンから、右上へ寄せたコンパクトな二次操作へ。
-	_reset_all_button = Button.new()
-	_reset_all_button.name = "ResetAllAllyOverridesButton"
-	_reset_all_button.text = tr("全員を標準に戻す")
-	_reset_all_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
-	_reset_all_button.pressed.connect(_on_reset_all_overrides_pressed)
-	header_row.add_child(_reset_all_button)
+# ---------------------------------------------------------------------------
+# ステータス編集（重ねて開く）
+# ---------------------------------------------------------------------------
 
-	var card_scroll := ScrollContainer.new()
-	card_scroll.name = "PartyCardScroll"
-	card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	## パーティは最大MAX_PARTY_SIZE(4)人で、カードは表示幅を等分して収める
-	## (下の_build_party_card()参照)——横スクロールは不要。
-	card_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	column.add_child(card_scroll)
-	_party_card_list = HBoxContainer.new()
-	_party_card_list.name = "PartyCardList"
-	_party_card_list.add_theme_constant_override("separation", 10)
-	_party_card_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card_scroll.add_child(_party_card_list)
-
-	var add_row := HBoxContainer.new()
-	column.add_child(add_row)
-	_add_button = Button.new()
-	_add_button.name = "AddCharacterButton"
-	_add_button.text = tr("＋ キャラクターを追加")
-	_add_button.pressed.connect(_on_add_button_pressed)
-	add_row.add_child(_add_button)
-	_count_label = Label.new()
-	_count_label.name = "PartyCountLabel"
-	add_row.add_child(_count_label)
-
-	_add_candidates_panel = VBoxContainer.new()
-	_add_candidates_panel.name = "AddCandidatesPanel"
-	_add_candidates_panel.visible = false
-	column.add_child(_add_candidates_panel)
-
-	column.add_child(HSeparator.new())
+func _build_status_sheet() -> void:
+	_sheet_layer = Control.new()
+	_sheet_layer.name = "StatusEditLayer"
+	_sheet_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_sheet_layer.offset_left = CONTENT_SIDE_MARGIN_PX
+	_sheet_layer.offset_right = -CONTENT_SIDE_MARGIN_PX
+	_sheet_layer.offset_top = CONTENT_TOP_MARGIN_PX
+	_sheet_layer.offset_bottom = -CONTENT_BOTTOM_MARGIN_PX
+	_sheet_layer.visible = false
+	add_child(_sheet_layer)
+	# 後ろの編成の画面を暗くし、押せないようにする。
+	var dim := ColorRect.new()
+	dim.name = "StatusEditDim"
+	dim.color = Color(0, 0, 0, 0.55)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	_sheet_layer.add_child(dim)
+	var sheet := PanelContainer.new()
+	sheet.name = "StatusEditSheet"
+	sheet.set_anchors_preset(Control.PRESET_FULL_RECT)
+	sheet.offset_left = 12
+	sheet.offset_right = -12
+	sheet.offset_top = 8
+	sheet.offset_bottom = -8
+	var style := S.box(Color("0a1218"), S.ACCENT_SOFT)
+	style.content_margin_left = 16
+	style.content_margin_right = 16
+	style.content_margin_top = 12
+	style.content_margin_bottom = 12
+	sheet.add_theme_stylebox_override("panel", style)
+	_sheet_layer.add_child(sheet)
 
 	_selected_settings_panel = VBoxContainer.new()
 	_selected_settings_panel.name = "SelectedCharacterSettingsPanel"
 	_selected_settings_panel.add_theme_constant_override("separation", 8)
-	_selected_settings_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	column.add_child(_selected_settings_panel)
+	sheet.add_child(_selected_settings_panel)
 
-	_selected_empty_label = Label.new()
-	_selected_empty_label.name = "SelectedCharacterEmptyLabel"
-	_selected_empty_label.text = tr("攻略パーティにキャラクターがいません。先に攻略パーティを選んでください。")
-	_selected_settings_panel.add_child(_selected_empty_label)
-
+	var head := HBoxContainer.new()
+	head.name = "StatusEditHeader"
+	_selected_settings_panel.add_child(head)
 	_selected_header_label = Label.new()
 	_selected_header_label.name = "SelectedCharacterHeaderLabel"
 	_selected_header_label.theme_type_variation = RBMCreatorUiKit.VARIATION_SECTION_LABEL
-	_selected_settings_panel.add_child(_selected_header_label)
+	_selected_header_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_selected_header_label.clip_text = true
+	head.add_child(_selected_header_label)
+	var close := Button.new()
+	close.name = "StatusEditCloseButton"
+	close.text = tr("閉じる")
+	close.add_theme_font_size_override("font_size", 14)
+	S.button_style(close)
+	close.pressed.connect(close_status_sheet)
+	head.add_child(close)
+
+	_selected_empty_label = Label.new()
+	_selected_empty_label.name = "SelectedCharacterEmptyLabel"
+	_selected_empty_label.text = tr("編成に入れると、ステータスを編集できます")
+	_selected_empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_selected_settings_panel.add_child(_selected_empty_label)
 
 	_tab_row = HBoxContainer.new()
 	_tab_row.name = "SelectedCharacterTabRow"
@@ -223,6 +218,7 @@ func _build_ui() -> void:
 	tab_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tab_scroll.gui_input.connect(_on_tab_scroll_gui_input.bind(tab_scroll))
 	tab_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	S.style_scrollbar(tab_scroll.get_v_scroll_bar())
 	_selected_settings_panel.add_child(tab_scroll)
 	_tab_scroll = tab_scroll
 	_tab_content = VBoxContainer.new()
@@ -232,18 +228,13 @@ func _build_ui() -> void:
 
 	_skills_actions_bar = MarginContainer.new()
 	_skills_actions_bar.name = "SkillsTabActionsBar"
-	_skills_actions_bar.add_theme_constant_override("margin_left", int(CONTENT_SIDE_MARGIN_PX))
-	_skills_actions_bar.add_theme_constant_override("margin_right", int(CONTENT_SIDE_MARGIN_PX))
-	_skills_actions_bar.add_theme_constant_override("margin_top", 0)
-	_skills_actions_bar.add_theme_constant_override("margin_bottom", int(CONTENT_BOTTOM_MARGIN_PX))
 	_skills_actions_bar.visible = false
-	page_root.add_child(_skills_actions_bar)
+	_selected_settings_panel.add_child(_skills_actions_bar)
 	_skills_actions = HBoxContainer.new()
 	_skills_actions.name = "SkillsTabActions"
 	_skills_actions_bar.add_child(_skills_actions)
 
-## タブ領域のホイールをTAB_SCROLL_WHEEL_STEP_PXずつ動かす。端に着いて動かない
-## 時は受け取らず、Godot既定の処理を経てSTEP4全体の縦スクロールへそのまま渡す。
+## タブ領域のホイールをTAB_SCROLL_WHEEL_STEP_PXずつ動かす。端に着いて動かない時は受け取らない。
 func _on_tab_scroll_gui_input(event: InputEvent, tab_scroll: ScrollContainer) -> void:
 	var wheel := event as InputEventMouseButton
 	if wheel == null or not wheel.pressed:
@@ -262,13 +253,28 @@ func _on_tab_scroll_gui_input(event: InputEvent, tab_scroll: ScrollContainer) ->
 	if tab_scroll.scroll_vertical != before:
 		tab_scroll.accept_event()
 
+## 「ステータス編集」: 見ているキャラクター（編成に入っている人）の使用可能スキル・性能調整を開く。
+func open_status_sheet() -> void:
+	if not draft.party_character_ids.has(_selected_character_id):
+		return
+	_status_sheet_open = true
+	refresh()
+
+func close_status_sheet() -> void:
+	_status_sheet_open = false
+	_skills_editing = false
+	_staged_allowed.clear()
+	refresh()
+
+func is_status_sheet_open() -> bool:
+	return _sheet_layer.visible
+
 # ---------------------------------------------------------------------------
-# パーティ追加/削除（既存API、無改修）
+# パーティ追加/削除（既存API）
 # ---------------------------------------------------------------------------
 
-## 既存プログラム的API（テスト/呼び出し元向け）——「外す」/候補ボタン、
-## いずれから呼ばれても同じ経路。add_party_character()/remove_party_character()
-## 自体の重複禁止・上限判定は無改修。
+## 既存プログラム的API（テスト/呼び出し元向け）——「編成に入れる」「編成から外す」も同じ経路。
+## add_party_character()/remove_party_character() 自体の重複禁止・上限判定は無改修。
 func toggle_character(character_id: String) -> void:
 	if draft.party_character_ids.has(character_id):
 		draft.remove_party_character(character_id)
@@ -277,42 +283,17 @@ func toggle_character(character_id: String) -> void:
 	refresh()
 	main.on_party_changed()
 
-func _on_add_button_pressed() -> void:
-	_pending_party_selection.assign(draft.party_character_ids)
-	_add_candidates_panel.visible = true
-	_rebuild_add_candidates()
-
-func _on_candidate_toggled(pressed: bool, character_id: String) -> void:
-	if pressed:
-		if _pending_party_selection.size() >= RBMDefinitionLoader.MAX_PARTY_SIZE:
-			var checkbox := _candidate_buttons.get(character_id) as CheckBox
-			if checkbox != null:
-				checkbox.set_pressed_no_signal(false)
-			return
-		if not _pending_party_selection.has(character_id):
-			_pending_party_selection.append(character_id)
-	else:
-		_pending_party_selection.erase(character_id)
-	_refresh_candidate_availability()
-
-func _on_confirm_candidates_pressed() -> void:
-	for character_id in _pending_party_selection:
-		if not draft.party_character_ids.has(character_id):
-			draft.add_party_character(character_id)
-	_pending_party_selection.clear()
-	_add_candidates_panel.visible = false
-	main.on_party_changed()
-	refresh()
-
-func _on_cancel_candidates_pressed() -> void:
-	_pending_party_selection.clear()
-	_add_candidates_panel.visible = false
+## 人物の札の「編成に入れる」（見ているキャラクターを入れる）。4人そろっていれば何もしない。
+func _on_add_pressed() -> void:
+	if draft.party_character_ids.has(_selected_character_id) or draft.party_character_ids.size() >= RBMDefinitionLoader.MAX_PARTY_SIZE:
+		return
+	toggle_character(_selected_character_id)
 
 func _on_remove_pressed(character_id: String) -> void:
 	toggle_character(character_id)
 
 # ---------------------------------------------------------------------------
-# キャラクター選択（§12/§14）
+# キャラクターを選ぶ（仲間の札・並んだキャラクター）
 # ---------------------------------------------------------------------------
 
 func select_character(character_id: String) -> void:
@@ -322,6 +303,9 @@ func select_character(character_id: String) -> void:
 	_skills_editing = false
 	_staged_allowed.clear()
 	refresh()
+
+func selected_character_id() -> String:
+	return _selected_character_id
 
 func _on_reset_all_overrides_pressed() -> void:
 	draft.reset_all_ally_overrides()
@@ -334,120 +318,191 @@ func _on_tab_selected(tab: String) -> void:
 	refresh()
 
 # ---------------------------------------------------------------------------
-# refresh — パーティカード列
+# refresh — 編成の画面とステータス編集
 # ---------------------------------------------------------------------------
 
 func refresh() -> void:
+	if not K.IDS.has(_selected_character_id):
+		_selected_character_id = draft.party_character_ids[0] if not draft.party_character_ids.is_empty() else str(K.IDS[0])
+	# 編成から外れた人のステータス編集は閉じる。
 	if not draft.party_character_ids.has(_selected_character_id):
-		_selected_character_id = draft.party_character_ids[0] if not draft.party_character_ids.is_empty() else ""
+		_status_sheet_open = false
 		_skills_editing = false
 		_staged_allowed.clear()
-
-	# queue_free()だけだと実際のツリー離脱は次のアイドルフレームまで遅延する
-	# ため、同一フレーム内で「まだ残っている旧ノードと同じname」を持つ新規
-	# ノードをadd_child()すると、Godotが名前衝突を検知して新ノードを
-	# 自動リネームしてしまう——remove_child()でツリーから即座に切り離して
-	# からqueue_free()することで名前衝突だけを確実に解消する。
-	for child in _party_card_list.get_children():
-		_party_card_list.remove_child(child)
-		child.queue_free()
-	for character_id in draft.party_character_ids:
-		_build_party_card(character_id)
-
-	var at_cap := draft.party_character_ids.size() >= RBMDefinitionLoader.MAX_PARTY_SIZE
-	_add_button.disabled = at_cap
-	_count_label.text = tr("%d / %d人") % [draft.party_character_ids.size(), RBMDefinitionLoader.MAX_PARTY_SIZE]
-	if _add_candidates_panel.visible:
-		_rebuild_add_candidates()
-
-	_reset_all_button.visible = draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED
-
+	_rebuild_canvas()
 	_refresh_selected_settings()
 
-func _build_party_card(character_id: String) -> void:
-	var master := draft.master_character_def(character_id)
-	var card := PanelContainer.new()
-	card.name = "PartyCard_%s" % character_id
-	## 全カードが同じ幅で表示幅を等分する(名前の長さでカード列の最小幅が
-	## 押し広がって、横スクロールが必要になることが無いように)。
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_party_card_list.add_child(card)
-	var column := VBoxContainer.new()
-	card.add_child(column)
+func _area() -> Vector2:
+	return _canvas.size if _canvas.size.x > 1.0 and _canvas.size.y > 1.0 else FALLBACK_AREA
 
-	var select_button := Button.new()
-	select_button.name = "SelectCharacterButton_%s" % character_id
-	select_button.text = tr(str(master.get("display_name", character_id)))
-	select_button.toggle_mode = true
-	## 等分した幅に収まらない長い名前は、切らずにボタン内で折り返す。
-	select_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	select_button.button_pressed = (character_id == _selected_character_id)
-	select_button.pressed.connect(select_character.bind(character_id))
-	column.add_child(select_button)
-
-	## §15: 既存のCUSTOM/性能・使用可能スキルいずれかがカスタム化されている
-	## 場合のみコンパクトに表示する（draft.is_ally_customized()、新しい
-	## ゲームデータではなく既存の2状態を都度比較する読み取り専用の判定）。
-	if draft.is_ally_customized(character_id):
-		var custom_badge := Label.new()
-		custom_badge.name = "CustomBadgeLabel_%s" % character_id
-		custom_badge.text = "CUSTOM"
-		custom_badge.theme_type_variation = RBMCreatorUiKit.VARIATION_SMALL_LABEL
-		column.add_child(custom_badge)
-
-	var remove_button := Button.new()
-	remove_button.name = "RemoveCharacterButton_%s" % character_id
-	remove_button.text = tr("外す")
-	remove_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
-	remove_button.pressed.connect(_on_remove_pressed.bind(character_id))
-	column.add_child(remove_button)
-
-func _rebuild_add_candidates() -> void:
-	for child in _add_candidates_panel.get_children():
-		_add_candidates_panel.remove_child(child)
+func _rebuild_canvas() -> void:
+	if _canvas == null or draft == null:
+		return
+	# queue_free()だけだと同じフレームで同じ名前の新しい部品が自動で改名されるため、先にツリーから外す。
+	for child in _canvas.get_children():
+		_canvas.remove_child(child)
 		child.queue_free()
-	_candidate_buttons.clear()
-	var caption := Label.new()
-	caption.text = tr("攻略パーティを選ぶ")
-	_add_candidates_panel.add_child(caption)
-	for character_id in RBMDefinitionLoader.KNOWN_ALLY_PATHS.keys():
-		if draft.party_character_ids.has(character_id):
-			continue
-		var master := draft.master_character_def(character_id)
-		var checkbox := CheckBox.new()
-		checkbox.name = "AddCandidateButton_%s" % character_id
-		checkbox.text = tr(str(master.get("display_name", character_id)))
-		checkbox.button_pressed = _pending_party_selection.has(character_id)
-		checkbox.toggled.connect(_on_candidate_toggled.bind(character_id))
-		_add_candidates_panel.add_child(checkbox)
-		_candidate_buttons[character_id] = checkbox
-	var actions := HBoxContainer.new()
-	_add_candidates_panel.add_child(actions)
-	var confirm_button := Button.new()
-	confirm_button.name = "ConfirmAddCandidatesButton"
-	confirm_button.text = tr("決定")
-	confirm_button.pressed.connect(_on_confirm_candidates_pressed)
-	actions.add_child(confirm_button)
-	var cancel_button := Button.new()
-	cancel_button.name = "CancelAddCandidatesButton"
-	cancel_button.text = tr("キャンセル")
-	cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
-	cancel_button.pressed.connect(_on_cancel_candidates_pressed)
-	actions.add_child(cancel_button)
-	_refresh_candidate_availability()
+	_add_button = null
+	_status_button = null
+	var area := _area()
+	var stage_h := clampf(area.y * 0.38, 170.0, 196.0)
+	var bench_h := 92.0
+	var sheet_y := stage_h + GAP + bench_h + GAP
+	_build_stage(Rect2(0, 0, area.x, stage_h))
+	_build_bench(Rect2(0, stage_h + GAP, area.x, bench_h))
+	_build_character_sheet(Rect2(0, sheet_y, area.x, area.y - sheet_y))
 
-func _refresh_candidate_availability() -> void:
-	var at_cap := _pending_party_selection.size() >= RBMDefinitionLoader.MAX_PARTY_SIZE
-	for character_id in _candidate_buttons:
-		var checkbox := _candidate_buttons[character_id] as CheckBox
-		checkbox.disabled = at_cap and not checkbox.button_pressed
+## 戦場の床に並ぶパーティ（4つの枠）。
+func _build_stage(rect: Rect2) -> void:
+	var stage := Control.new()
+	stage.name = "PartyFormationStage"
+	stage.position = rect.position
+	stage.size = rect.size
+	stage.clip_contents = true
+	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_canvas.add_child(stage)
+	var bg := TextureRect.new()
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.texture = load(BACKGROUND)
+	bg.size = rect.size
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	bg.modulate = Color(0.55, 0.62, 0.7)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stage.add_child(bg)
+	S.gradient_rect(stage, Rect2(0, 0, rect.size.x, rect.size.y), Color(S.BG, 0.55), Color(S.BG, 0.15))
+	# 見出し（絵の上なので暗い帯を敷く）
+	K.panel(stage, Rect2(0, 0, rect.size.x, 34), Color(S.BG, 0.82), Color(0, 0, 0, 0))
+	K.label(stage, tr("パーティ編成"), Rect2(14, 3, 220, 28), 17, S.TEXT, "PartyStageTitle")
+	_count_label = K.label(stage, tr("%d / %d人") % [draft.party_character_ids.size(), RBMDefinitionLoader.MAX_PARTY_SIZE], Rect2(rect.size.x - 120, 3, 106, 28), 18, S.TEXT, "PartyCountLabel")
+	_count_label.add_theme_font_override("font", S.number_font())
+	_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	# §16 全員を標準に戻す（HARDCORE のみ）
+	_reset_all_button = K.button(stage, tr("全員を標準に戻す"), Rect2(0, 3, 0, 28), false, "ResetAllAllyOverridesButton", _on_reset_all_overrides_pressed, 13)
+	_reset_all_button.position.x = rect.size.x - 128 - _reset_all_button.size.x
+	_reset_all_button.visible = draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED
+	S.rect(stage, Rect2(0, 34, rect.size.x, 1), S.PANEL_EDGE)
+	var slot_w := rect.size.x / float(RBMDefinitionLoader.MAX_PARTY_SIZE)
+	var floor_y := rect.size.y - 42
+	for i in RBMDefinitionLoader.MAX_PARTY_SIZE:
+		var sx := i * slot_w
+		if i < draft.party_character_ids.size():
+			var id: String = draft.party_character_ids[i]
+			var focused := id == _selected_character_id
+			var hit := K.card_button(stage, Rect2(sx + 8, 42, slot_w - 16, rect.size.y - 48), focused, "FormationSlot_%d" % i, select_character.bind(id))
+			hit.self_modulate = Color(1, 1, 1, 0.55 if focused else 0.0)
+			RBMMenuUi.accessible_name(hit, K.name_of(id))
+			var ring := K.Ring.new()
+			ring.color = K.attribute_color(str(draft.master_character_def(id).get("attribute", "NEUTRAL")))
+			ring.position = Vector2(sx + slot_w * 0.5 - 44, floor_y - 10)
+			ring.size = Vector2(88, 20)
+			stage.add_child(ring)
+			K.sprite(stage, id, Rect2(sx + slot_w * 0.5 - 60, floor_y - 100, 120, 100), false, "FormationSprite_%d" % i)
+			var plate := K.panel(stage, Rect2(sx + 10, floor_y + 6, slot_w - 20, 32), Color(S.BG, 0.88), Color(K.role_color(id), 0.7), "FormationPlate_%d" % i)
+			var icon := K.RoleIcon.new()
+			icon.kind = K.role_kind(id)
+			icon.color = K.role_color(id)
+			icon.position = Vector2(8, 9)
+			icon.size = Vector2(14, 14)
+			plate.add_child(icon)
+			K.label(plate, K.name_of(id), Rect2(28, 3, slot_w - 56, 26), 14, S.TEXT)
+		else:
+			var empty := K.panel(stage, Rect2(sx + 18, 52, slot_w - 36, rect.size.y - 62), Color(S.BG, 0.35), Color(S.SILVER, 0.28), "EmptySlot_%d" % i)
+			var t := K.label(empty, tr("空き"), Rect2(0, 0, empty.size.x, empty.size.y), 14, S.MUTED)
+			t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+## 5人の仲間の札（押すと下の人物の札が変わる）。縦に「絵・名前・役割」。編成中は ✓、調整済みは CUSTOM。
+func _build_bench(rect: Rect2) -> void:
+	var tile_w := (rect.size.x - GAP * 4) / 5.0
+	for i in K.IDS.size():
+		var id: String = K.IDS[i]
+		var focused := id == _selected_character_id
+		var joined := draft.party_character_ids.has(id)
+		var r := Rect2(rect.position.x + i * (tile_w + GAP), rect.position.y, tile_w, rect.size.y)
+		var b := K.card_button(_canvas, r, focused, "SelectCharacterButton_%s" % id, select_character.bind(id))
+		RBMMenuUi.accessible_name(b, K.name_of(id))
+		K.sprite(b, id, Rect2(tile_w * 0.5 - 26, 4, 52, 44), not joined and not focused, "Sprite")
+		var name_label := K.label(b, K.name_of(id), Rect2(4, 49, tile_w - 8, 20), 14, S.TEXT, "Name")
+		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var role := K.label(b, K.role_text(id), Rect2(4, 69, tile_w - 8, 18), 12, K.role_color(id), "Role")
+		role.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var icon := K.RoleIcon.new()
+		icon.kind = K.role_kind(id)
+		icon.color = K.role_color(id)
+		icon.size = Vector2(11, 11)
+		var role_w := role.get_theme_font("font").get_string_size(role.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+		icon.position = Vector2(tile_w * 0.5 - role_w * 0.5 - 15, 72)
+		b.add_child(icon)
+		if joined:
+			var tag := K.label(b, "✓", Rect2(tile_w - 24, 4, 20, 20), 15, S.ACCENT, "InPartyTag")
+			tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		# §15: 性能・使用可能スキルのどちらかを調整している時だけ
+		if draft.is_ally_customized(id):
+			var custom := K.label(b, "CUSTOM", Rect2(4, 4, 60, 18), 12, S.GOLD, "CustomBadgeLabel_%s" % id)
+			custom.add_theme_font_override("font", S.number_font())
+
+## 人物の札: 名前・属性・役割・説明・能力（左）、得意技・ほかの技・操作（右）。
+func _build_character_sheet(rect: Rect2) -> void:
+	var id := _selected_character_id
+	var def := draft.effective_character_def(id)
+	var p := K.panel(_canvas, rect, S.PANEL, S.PANEL_EDGE, "CharacterSheet")
+	S.rect(p, Rect2(0, 0, 3, rect.size.y), K.role_color(id))
+	var w := rect.size.x
+	var left_w := w * 0.5
+	K.label(p, K.name_of(id), Rect2(16, 8, left_w - 24, 28), 19, S.TEXT, "SheetName")
+	var x := 16.0
+	x += K.attribute_chip(p, str(def.get("attribute", "NEUTRAL")), Vector2(x, 42)) + 6
+	K.role_chip(p, id, Vector2(x, 42), 14, true, left_w - 8 - x)
+	K.wrap_label(p, K.description(id), Rect2(16, 70, left_w - 28, 58), 14, S.MUTED, "SheetDescription")
+	for i in K.STAT_KEYS.size():
+		K.stat_bar(p, def, K.STAT_KEYS[i], Rect2(16 + (i % 2) * (left_w - 28) * 0.5, 134 + (i / 2) * 20, (left_w - 28) * 0.5 - 10, 18), "SheetStat_%s" % K.STAT_KEYS[i])
+	# 右: 得意技とほかの技（使わない設定の技には印）
+	var rx := left_w + 8
+	var rw := w - rx - 16
+	K.label(p, tr("得意技"), Rect2(rx, 10, rw, 20), 13, S.GOLD)
+	var sig := K.skill_by_id(def, str(K.SIGNATURE.get(id, "")))
+	var sig_panel := K.panel(p, Rect2(rx, 32, rw, 50), Color("15130d", 0.9), S.GOLD_EDGE, "SignatureSkill")
+	K.label(sig_panel, _skill_label(id, sig), Rect2(10, 3, rw - 70, 24), 15, S.TEXT, "SignatureName")
+	var sp := K.label(sig_panel, K.sp_text(sig), Rect2(rw - 62, 3, 52, 24), 12, S.GOLD)
+	sp.add_theme_font_override("font", S.number_font())
+	sp.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	K.label(sig_panel, K.skill_effect(sig), Rect2(10, 25, rw - 20, 22), 13, S.MUTED, "SignatureEffect")
+	var others: Array[String] = []
+	for skill in def.get("skills", []):
+		if skill is Dictionary and str((skill as Dictionary).get("id", "")) != str(K.SIGNATURE.get(id, "")):
+			others.append(_skill_label(id, skill))
+	K.wrap_label(p, tr("ほかの技：%s") % tr("・").join(others), Rect2(rx, 88, rw, 40), 13, S.MUTED, "OtherSkills")
+	# 操作: 編成に入れる／外す（左）、ステータス編集（右）
+	var by := rect.size.y - 44
+	var joined := draft.party_character_ids.has(id)
+	var main_button: Button
+	if joined:
+		main_button = K.button(p, tr("編成から外す"), Rect2(rx, by, rw * 0.5, 36), false, "RemoveCharacterButton_%s" % id, _on_remove_pressed.bind(id), 14)
+	else:
+		var full := draft.party_character_ids.size() >= RBMDefinitionLoader.MAX_PARTY_SIZE
+		main_button = K.button(p, tr("4人そろっています") if full else tr("編成に入れる"), Rect2(rx, by, rw * 0.5, 36), true, "AddCharacterButton", _on_add_pressed, 15)
+		main_button.disabled = full
+		_add_button = main_button
+	var sx := rx + main_button.size.x + 8
+	_status_button = K.button(p, tr("ステータス編集"), Rect2(sx, by, w - 16 - sx, 36), joined, "StatusEditButton", open_status_sheet, 14)
+	_status_button.disabled = not joined
+	if not joined:
+		_status_button.tooltip_text = tr("編成に入れると、ステータスを編集できます")
+
+## 技の名前（編成の人で、使わない設定にした技には印を添える。使える技の設定は編成の人にだけある）。
+func _skill_label(character_id: String, skill: Dictionary) -> String:
+	var text := K.skill_name(skill)
+	if draft.party_character_ids.has(character_id) and not draft.is_ally_skill_allowed(character_id, str(skill.get("id", ""))):
+		text += tr("（使わない）")
+	return text
 
 # ---------------------------------------------------------------------------
-# 選択キャラクター設定（§12〜§17）
+# ステータス編集の中身（§12〜§17。タブ・使用可能スキル・性能調整の作りは以前のまま）
 # ---------------------------------------------------------------------------
 
 func _refresh_selected_settings() -> void:
-	var has_selection := not _selected_character_id.is_empty()
+	var has_selection := draft.party_character_ids.has(_selected_character_id)
+	_sheet_layer.visible = _status_sheet_open and has_selection
 	_selected_empty_label.visible = not has_selection
 	_selected_header_label.visible = has_selection
 	_tab_row.visible = has_selection
@@ -463,7 +518,7 @@ func _refresh_selected_settings() -> void:
 		return
 
 	var master := draft.master_character_def(_selected_character_id)
-	_selected_header_label.text = tr(str(master.get("display_name", _selected_character_id)))
+	_selected_header_label.text = "%s　%s" % [tr("ステータス編集"), K.name_of(_selected_character_id)]
 	_skills_tab_button.button_pressed = (_selected_tab == TAB_SKILLS)
 	_performance_tab_button.button_pressed = (_selected_tab == TAB_PERFORMANCE)
 
@@ -472,8 +527,6 @@ func _refresh_selected_settings() -> void:
 		child.queue_free()
 	if _selected_tab == TAB_SKILLS:
 		_build_skills_tab(_selected_character_id, master)
-		## 一覧(スクロール)と下の操作ボタン行を合わせてTAB_SCROLL_MIN_HEIGHT_PXにする
-		## (一覧とボタン行の間はCONTENT_BOTTOM_MARGIN_PX)。
 		_skills_actions_bar.visible = true
 		_tab_scroll.custom_minimum_size.y = max(0.0, TAB_SCROLL_MIN_HEIGHT_PX - CONTENT_BOTTOM_MARGIN_PX - _skills_actions.get_combined_minimum_size().y)
 	else:
@@ -544,7 +597,7 @@ func _build_skills_edit_panel(character_id: String, master: Dictionary) -> void:
 		var target_text := tr(str(SKILL_TARGET_LABELS.get(target_id, target_id))) if not target_id.is_empty() else "-"
 		label.text = tr("%s（%s、対象:%s、SP消費%s）") % [
 			tr(str(skill.get("display_name", skill_id))), tr(str(SKILL_EFFECT_LABELS.get(effect_id, effect_id))),
-			target_text, str(skill.get("sp_cost", 0)),
+			target_text, str(int(skill.get("sp_cost", 0))),
 		]
 		row.add_child(label)
 

@@ -118,19 +118,26 @@ func test_steps_1_to_5_fit_in_both_modes_with_long_names() -> void:
 		root.free()
 		await _frames(1)
 
-func test_step4_party_cards_share_the_width_without_a_horizontal_scroll() -> void:
+## 2026-10-17 STEP4 刷新（案C）: 編成の4つの枠と5人の仲間の札が、中央の欄の幅に収まる（横スクロール無し）。
+func test_step4_formation_and_bench_share_the_width_without_a_horizontal_scroll() -> void:
 	var root := await _make_root("advanced")
 	var main: RBMCreatorMain = root.creator_entry.main
 	main.go_to_step(4)
 	await _frames()
-	var scroll := main.find_child("PartyCardScroll", true, false) as ScrollContainer
-	assert_eq(scroll.horizontal_scroll_mode, ScrollContainer.SCROLL_MODE_DISABLED)
-	var list := main.find_child("PartyCardList", true, false) as HBoxContainer
-	assert_eq(list.get_child_count(), 4)
-	for card in list.get_children():
-		assert_gte((card as Control).get_global_rect().position.x, scroll.get_global_rect().position.x - 0.5, "card starts inside the visible area")
-		assert_lte((card as Control).get_global_rect().end.x, scroll.get_global_rect().end.x + 0.5, "card %s ends inside the visible area" % card.name)
 	var party := main._step_views[3] as RBMCreatorStep5Party
+	var canvas := party.find_child("PartyStepCanvas", true, false) as Control
+	var area := canvas.get_global_rect()
+	assert_eq(main.draft.party_character_ids.size(), 4, "sanity: 4人の編成")
+	for i in range(4):
+		var slot := party.find_child("FormationSlot_%d" % i, true, false) as Control
+		assert_not_null(slot)
+		assert_gte(slot.get_global_rect().position.x, area.position.x - 0.5, "slot %d starts inside the visible area" % i)
+		assert_lte(slot.get_global_rect().end.x, area.end.x + 0.5, "slot %d ends inside the visible area" % i)
+	for id in RBMDefinitionLoader.KNOWN_ALLY_PATHS.keys():
+		var tile := party.find_child("SelectCharacterButton_%s" % id, true, false) as Control
+		assert_not_null(tile)
+		assert_lte(tile.get_global_rect().end.x, area.end.x + 0.5, "bench %s ends inside the visible area" % id)
+	await _press(party, "StatusEditButton")
 	await _press(party, "PerformanceTabButton")
 	await _assert_fits(root, "party performance tab")
 	await _press(party, "SkillsTabButton")

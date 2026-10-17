@@ -145,9 +145,9 @@ func _build_composite_advanced_draft(creator: RBMCreatorMain) -> Dictionary:
 
 	creator.go_to_step(4)
 	var step4_party: RBMCreatorStep5Party = creator._step_views[3]
+	# 2026-10-17 STEP4 刷新（案C）: 仲間の札で選んで「編成に入れる」。
+	_btn(step4_party, "SelectCharacterButton_hero").pressed.emit()
 	_btn(step4_party, "AddCharacterButton").pressed.emit()
-	(_btn(step4_party, "AddCandidateButton_hero") as CheckBox).button_pressed = true
-	_btn(step4_party, "ConfirmAddCandidatesButton").pressed.emit()
 	assert_true(creator.draft.party_character_ids.has("hero"), "sanity: STEP4実UI経由でパーティが反映されること")
 
 	# Creator UI改修（STEP4統合+最終確認再設計、2026-09-05）§23-A: モード切替

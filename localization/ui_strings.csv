@@ -644,3 +644,42 @@ ATK自己強化,Self ATK Buff
 条件に合うボスは見つかりませんでした。,No bosses matched your search.
 抽選できる公開ボスがありません。,There are no published bosses to pick from.
 もう一度引く,Pick Another
+渾身の一撃,All-Out Strike
+攻撃役,Attacker
+魔法攻撃役,Mage
+回復役,Healer
+防御役,Defender
+自己強化,Self-buff
+SP支援,SP support
+一撃・反撃,Big hits & counter
+炎纏いで攻撃力を上げ、炎の剣技で攻め続ける。,"Boosts ATK with Flame Wrap, then keeps striking with fire."
+強力な氷魔法で大ダメージ。仲間のSPも回復するが、HPは最も低い。,"Huge ice magic and SP for allies, but the lowest HP."
+味方のHPを回復し、全員のSPも回復する。攻撃力は最も低い。,Heals allies and restores the party's SP. Lowest ATK.
+攻撃力が最も高い。居合とカウンターの一撃が重いが、最も遅い。,"Highest ATK. Heavy Iaijutsu and Counter blows, but the slowest."
+味方をかばい、防御を固める。HPと速さが最も高い。,Covers allies and hardens defense. Highest HP and speed.
+%s・攻撃力×%s,%s · ATK ×%s
+味方全員のHP+%d,All allies +%d HP
+味方1人のHP+%d,One ally +%d HP
+自分以外の1人のSP+%d,Another ally +%d SP
+自分以外の全員のSP+%d,Other allies +%d SP
+自分の攻撃力×%s（%dターン）,Own ATK ×%s (%d turns)
+次の攻撃×%s,Next attack ×%s
+受けた攻撃を防いで%s・攻撃力×%sで反撃,"Blocks a hit, then counters: %s ATK ×%s"
+選んだ味方への攻撃を代わりに受ける,Takes hits aimed at a chosen ally
+防御の軽減を%d%%に（%dターン）,Defend blocks %d%% (%d turn)
+味方全員の被ダメージ-%d%%（%dターン）,Party takes %d%% less (%d turn)
+パーティ編成,Formation
+空き,Empty
+得意技,Signature
+ほかの技：%s,Also: %s
+・,", "
+編成から外す,Remove
+編成に入れる,Add to Party
+ステータス編集,Edit Status
+4人そろっています,Party Full (4/4)
+編成に入れると、ステータスを編集できます,Add this character to the party to edit their status.
+閉じる,Close
+（使わない）, (off)
+覚醒：%s,Awakening: %s
+未設定,Not Set
+設定済み,Set

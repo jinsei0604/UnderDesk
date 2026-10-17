@@ -52,6 +52,8 @@ func test_only_the_display_name_changed_id_and_skills_are_intact() -> void:
 		assert_true(skill_ids.has(expected), "skill %s is still there" % expected)
 	assert_true(RBMDefinitionLoader.KNOWN_ALLY_PATHS.has("healer"), "still registered under the same id")
 
+## 2026-10-17 STEP4 を案C（短い呼び名＋属性の印）に作り直した。仲間の札・人物の札・ステータス編集の
+## 見出しは「少女」で、役職の「ヒーラー」は付かない。属性は「雷」の印で示す。
 func test_step4_party_card_and_header_use_the_new_name() -> void:
 	get_tree().root.size = Vector2i(1280, 720)
 	var creator := RBMCreatorMain.new()
@@ -61,8 +63,17 @@ func test_step4_party_card_and_header_use_the_new_name() -> void:
 	creator.go_to_step(4)
 	await get_tree().process_frame
 	await get_tree().process_frame
+	var party: RBMCreatorStep5Party = creator._step_views[3]
 	var card_button := creator.find_child("SelectCharacterButton_healer", true, false) as Button
 	assert_not_null(card_button)
-	assert_eq(card_button.text, "雷属性・少女")
+	assert_eq((card_button.find_child("Name", true, false) as Label).text, "少女")
+	assert_eq(party.selected_character_id(), "healer", "the only member is shown on the character sheet")
+	var sheet := creator.find_child("CharacterSheet", true, false) as Control
+	assert_eq((sheet.find_child("SheetName", true, false) as Label).text, "少女")
+	assert_eq((sheet.find_child("AttributeChip", true, false) as Label).text, "雷")
+	party.open_status_sheet()
+	await get_tree().process_frame
 	var header := creator.find_child("SelectedCharacterHeaderLabel", true, false) as Label
-	assert_eq(header.text, "雷属性・少女")
+	assert_eq(header.text, "ステータス編集　少女")
+	for node in party.find_children("*", "Label", true, false):
+		assert_false((node as Label).text.contains("ヒーラー"), "no role suffix in STEP4: %s" % (node as Label).text)

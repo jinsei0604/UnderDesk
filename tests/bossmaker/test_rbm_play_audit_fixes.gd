@@ -661,6 +661,43 @@ func test_repeated_search_and_reroll_while_loading_send_one_request() -> void:
 		await get_tree().process_frame
 	assert_eq(api.random_calls.size(), 1, "抽選中の「更新」は通信を重ねない")
 
+# =============================================================================
+# 2026-10-17 追加: 画面の部品の大きさ・ハンマー使いの技の英語
+# =============================================================================
+
+func test_gradient_and_floor_shadow_keep_the_requested_size() -> void:
+	var holder := Control.new()
+	add_child_autofree(holder)
+	var gradient := RBMChallengeListStyle.gradient_rect(holder, Rect2(0, 230, 770, 70), Color(0, 0, 0, 0), Color(0, 0, 0, 1))
+	assert_eq(gradient.size, Vector2(770, 70), "グラデーションは決めた大きさのまま（以前は画像の512pxまで広がった）")
+	var shadow := RBMChallengeListStyle.floor_shadow(holder, Rect2(100, 247, 240, 30))
+	assert_eq(shadow.size, Vector2(240, 30), "足元の影は決めた大きさのまま（以前は画像の256pxまで広がった）")
+
+func test_every_tank_skill_has_an_english_name() -> void:
+	RBMLocale.set_locale("en")
+	var tank := RBMDataLoader.load_dict(str(RBMDefinitionLoader.KNOWN_ALLY_PATHS["tank"]))
+	for skill in tank.get("skills", []):
+		var ja := str(skill.get("display_name", ""))
+		assert_ne(TranslationServer.translate(ja), ja, "ハンマー使いの技「%s」に英語がある" % ja)
+	assert_eq(TranslationServer.translate("渾身の一撃"), "All-Out Strike")
+
+## 作成画面の右の BOSS PROFILE の「覚醒：未設定／設定済み」は、英語でも日本語のまま出ていた（翻訳の表に無かった）。
+func test_boss_profile_awakening_line_is_translated() -> void:
+	RBMLocale.set_locale("en")
+	var panel := RBMCreatorUiKit.BossProfilePanel.new()
+	add_child_autofree(panel)
+	await get_tree().process_frame
+	var draft := RBMCreatorDraft.new()
+	panel.update(draft)
+	var line := panel.find_child("BossProfileAwakeningLabel", true, false) as Label
+	assert_eq(line.text, "Awakening: Not Set")
+	draft.awakening = {"trigger": "hp_below"}
+	panel.update(draft)
+	assert_eq(line.text, "Awakening: Set", "覚醒を設定した時も英語")
+	RBMLocale.set_locale("ja")
+	panel.update(draft)
+	assert_eq(line.text, "覚醒：設定済み", "日本語は今までどおり")
+
 func _parse_csv(text: String) -> Array:
 	var rows: Array = []
 	var row: Array = []

@@ -514,14 +514,9 @@ func _draw_ink() -> void:
 	if int(slash.index) >= 0:
 		var shape := Timeline.slash_shape(int(slash.index))
 		Ink.slash(_ink, foot + Vector2(shape.offset), shape, float(slash.local), quiet_gate)
-	var edge := Timeline.edge(_event_age)
-	if int(edge.index) >= 0 and quiet_gate > 0.01:
-		var shape := Timeline.edge_shape(int(edge.index), _stage.size)
-		var u: float = edge.u
-		var head := 1.0 - pow(1.0 - clampf(u / 0.40, 0.0, 1.0), 3.0)
-		var tail := 0.9 * smoothstep(0.50, 1.0, u)
-		var alpha := smoothstep(0.0, 0.12, u) * (1.0 - smoothstep(0.80, 1.0, u)) * (0.70 + 0.30 * jolt) * quiet_gate
-		Ink.brush(_ink, shape.base, shape.theta, shape.bend, shape.length, shape.width, shape.seed, head, tail, alpha)
+	# 画面端から入る太い墨筆の掠れ（Timeline.edge）は 2026-10-17 のユーザー判断でやめた（左端に四角い灰色の帯のように
+	# 見えていた）。足元の墨・四隅の墨ビネット・単眼・斬痕はそのまま。時間割の関数（Timeline.edge）と筆の描き方
+	# （Ink.brush）は残してある。
 
 # 単眼: 数秒に一度だけ少し強く赤く光る(加算)。常時は元絵の細い赤線のみ。
 func _draw_eye() -> void:

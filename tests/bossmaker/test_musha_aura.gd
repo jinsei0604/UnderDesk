@@ -108,6 +108,15 @@ func test_edge_ink_enters_from_outside_toward_the_inside() -> void:
 		var direction := Vector2(sin(float(shape.theta)), -cos(float(shape.theta)))
 		assert_gt(direction.dot(size * 0.5 - base), 0.0, "stroke %d points inward" % k)
 
+## 2026-10-17 ユーザー判断: 画面端から入る墨筆は描かない（左端に四角い灰色の帯のように見えていた）。
+## 時間割（Timeline.edge）は残っているが、オーラの描画はそれを使わない。
+func test_the_edge_brush_is_no_longer_drawn() -> void:
+	var source := FileAccess.get_file_as_string("res://src/bossmaker/visuals/rbm_musha_aura.gd")
+	assert_false(source.contains("Ink.brush("), "画面端の墨筆を描く呼び出しが無い")
+	assert_false(source.contains("Timeline.edge("), "画面端の墨筆の時間割を描画に使わない")
+	assert_true(source.contains("Ink.trace("), "足元の墨は残る")
+	assert_true(source.contains("Ink.slash("), "斬痕は残る")
+
 func test_slash_is_a_short_straight_mark_beside_the_body() -> void:
 	for k in range(12):
 		var shape := Timeline.slash_shape(k)

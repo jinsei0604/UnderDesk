@@ -250,105 +250,114 @@ func test_step2_navigation_retains_all_immediate_changes() -> void:
 # §14 新STEP4 攻略パーティ — 必須UIテスト
 # =============================================================================
 
-func test_step4_only_selected_characters_appear_as_cards() -> void:
+## STEP4 UI 刷新（2026-10-17、ユーザーが案C を採用）: 上に編成（戦場に並ぶ最大4人）、中に5人の仲間の札
+## （SelectCharacterButton_%s）、下に人物の札（AddCharacterButton「編成に入れる」／RemoveCharacterButton_%s
+## 「編成から外す」／StatusEditButton「ステータス編集」）。以前の「＋キャラクターを追加 → 候補を選んで決定」の
+## 流れは無くなり、仲間の札で選んで「編成に入れる」でその場で入る。編成の仕様（1〜4人・重複なし）は変えていない。
+func test_step4_only_party_members_stand_in_the_formation_and_all_five_are_on_the_bench() -> void:
 	var main := await _new_creator_main()
+	main.go_to_step(4)
+	await get_tree().process_frame
 	var step4: RBMCreatorStep5Party = main._step_views[3]
 	step4.toggle_character("hero")
 	step4.toggle_character("butler")
 	await get_tree().process_frame
-	assert_not_null(step4._party_card_list.find_child("PartyCard_hero", true, false))
-	assert_not_null(step4._party_card_list.find_child("PartyCard_butler", true, false))
-	assert_null(step4._party_card_list.find_child("PartyCard_healer", true, false), "未選択キャラのカードは表示しないこと")
+	assert_not_null(step4.find_child("FormationSprite_0", true, false), "1人目が編成に並ぶこと")
+	assert_not_null(step4.find_child("FormationSprite_1", true, false), "2人目が編成に並ぶこと")
+	assert_null(step4.find_child("FormationSprite_2", true, false), "編成に入っていない枠には誰も立たないこと")
+	assert_not_null(step4.find_child("EmptySlot_2", true, false), "空きの枠を示すこと")
+	for id in RBMDefinitionLoader.KNOWN_ALLY_PATHS.keys():
+		var tile := _btn(step4, "SelectCharacterButton_%s" % id)
+		assert_eq(tile.find_child("InPartyTag", true, false) != null, main.draft.party_character_ids.has(id), "%s: 編成中の印は編成に入っている人だけ" % id)
+	assert_eq(_label(step4, "PartyCountLabel").text, "2 / 4人")
 
-func test_step4_add_button_reveals_unselected_candidates_only() -> void:
+func test_step4_bench_tile_shows_that_character_in_the_sheet_without_changing_the_draft() -> void:
 	var main := await _new_creator_main()
+	main.go_to_step(4)
+	await get_tree().process_frame
 	var step4: RBMCreatorStep5Party = main._step_views[3]
 	step4.toggle_character("hero")
 	await get_tree().process_frame
-	assert_false(step4._add_candidates_panel.visible, "候補一覧は＋キャラクターを追加を押すまで表示しないこと")
+	var before := main.draft.full_authoring_snapshot()
+	_btn(step4, "SelectCharacterButton_butler").pressed.emit()
+	await get_tree().process_frame
+	assert_eq(_label(step4, "SheetName").text, "老執事")
+	assert_true(_btn(step4, "AddCharacterButton").is_visible_in_tree(), "編成に入っていない人は「編成に入れる」が出ること")
+	assert_true(_btn(step4, "StatusEditButton").disabled, "編成に入っていない人のステータス編集は押せないこと")
+	assert_eq(main.draft.full_authoring_snapshot(), before, "選んで眺めるだけでDraftを変更しないこと")
 
+func test_step4_add_button_adds_the_shown_character_right_away() -> void:
+	var main := await _new_creator_main()
+	main.go_to_step(4)
+	await get_tree().process_frame
+	var step4: RBMCreatorStep5Party = main._step_views[3]
+	_btn(step4, "SelectCharacterButton_hero").pressed.emit()
+	await get_tree().process_frame
+	assert_eq(_btn(step4, "AddCharacterButton").text, "編成に入れる")
 	_btn(step4, "AddCharacterButton").pressed.emit()
 	await get_tree().process_frame
-	assert_true(step4._add_candidates_panel.visible)
-	assert_not_null(step4._add_candidates_panel.find_child("AddCandidateButton_butler", true, false))
-	assert_null(step4._add_candidates_panel.find_child("AddCandidateButton_hero", true, false), "既にパーティへ入っているキャラは候補へ重複表示しないこと")
+	assert_eq(main.draft.party_character_ids, ["hero"], "「編成に入れる」でその場でDraftへ入ること")
+	assert_null(step4.find_child("AddCharacterButton", true, false), "入った人には「編成に入れる」を出さないこと")
+	assert_not_null(step4.find_child("RemoveCharacterButton_hero", true, false), "入った人には「編成から外す」が出ること")
+	assert_false(_btn(step4, "StatusEditButton").disabled, "入った人はステータス編集を押せること")
+	assert_not_null(step4.find_child("FormationSprite_0", true, false), "編成に並ぶこと")
 
-func test_step4_multiple_candidates_are_pending_until_confirm_then_added_together() -> void:
+func test_step4_party_cap_blocks_a_fifth_member_and_says_why() -> void:
 	var main := await _new_creator_main()
-	var step4: RBMCreatorStep5Party = main._step_views[3]
-	_btn(step4, "AddCharacterButton").pressed.emit()
+	main.go_to_step(4)
 	await get_tree().process_frame
-	assert_eq(_btn(step4, "ConfirmAddCandidatesButton").text, "決定")
-	assert_eq(_btn(step4, "CancelAddCandidatesButton").text, "キャンセル")
-	(_btn(step4, "AddCandidateButton_hero") as CheckBox).button_pressed = true
-	(_btn(step4, "AddCandidateButton_butler") as CheckBox).button_pressed = true
-	assert_true(main.draft.party_character_ids.is_empty(), "決定前は候補のON/OFFだけでDraftを変更しないこと")
-	_btn(step4, "ConfirmAddCandidatesButton").pressed.emit()
-	await get_tree().process_frame
-	assert_true(main.draft.party_character_ids.has("hero"), "決定で1人目がDraftへ反映されること")
-	assert_true(main.draft.party_character_ids.has("butler"), "決定で2人目も同時にDraftへ反映されること")
-	assert_false(step4._add_candidates_panel.visible)
-	assert_not_null(step4._party_card_list.find_child("PartyCard_hero", true, false))
-	assert_not_null(step4._party_card_list.find_child("PartyCard_butler", true, false))
-
-func test_step4_candidate_cancel_keeps_the_opening_party_snapshot_unchanged() -> void:
-	var main := await _new_creator_main()
 	var step4: RBMCreatorStep5Party = main._step_views[3]
-	step4.toggle_character("hero")
-	var before := main.draft.party_character_ids.duplicate()
-	_btn(step4, "AddCharacterButton").pressed.emit()
-	(_btn(step4, "AddCandidateButton_butler") as CheckBox).button_pressed = true
-	(_btn(step4, "AddCandidateButton_healer") as CheckBox).button_pressed = true
-	_btn(step4, "CancelAddCandidatesButton").pressed.emit()
-	assert_eq(main.draft.party_character_ids, before, "キャンセルではDraftを一切変更しないこと")
-	assert_false(step4._add_candidates_panel.visible)
-
-func test_step4_multi_select_respects_existing_members_duplicates_and_party_cap() -> void:
-	var main := await _new_creator_main()
-	var step4: RBMCreatorStep5Party = main._step_views[3]
-	step4.toggle_character("hero")
-	_btn(step4, "AddCharacterButton").pressed.emit()
-	assert_null(step4._add_candidates_panel.find_child("AddCandidateButton_hero", true, false), "既存メンバーは候補へ重複表示しないこと")
-	(_btn(step4, "AddCandidateButton_butler") as CheckBox).button_pressed = true
-	(_btn(step4, "AddCandidateButton_healer") as CheckBox).button_pressed = true
-	(_btn(step4, "AddCandidateButton_samurai") as CheckBox).button_pressed = true
-	var tank := _btn(step4, "AddCandidateButton_tank") as CheckBox
-	assert_true(tank.disabled, "既存1人＋新規3人で上限に達したら残り候補を無効化すること")
-	tank.button_pressed = true
-	assert_false(tank.button_pressed, "上限超過の候補は防御的ガードでも選択できないこと")
-	_btn(step4, "ConfirmAddCandidatesButton").pressed.emit()
+	for id in ["hero", "butler", "healer", "samurai"]:
+		_btn(step4, "SelectCharacterButton_%s" % id).pressed.emit()
+		_btn(step4, "AddCharacterButton").pressed.emit()
+		await get_tree().process_frame
 	assert_eq(main.draft.party_character_ids.size(), RBMDefinitionLoader.MAX_PARTY_SIZE)
-	assert_eq(main.draft.party_character_ids.count("hero"), 1)
-	assert_false(main.draft.party_character_ids.has("tank"))
+	_btn(step4, "SelectCharacterButton_tank").pressed.emit()
+	await get_tree().process_frame
+	var add := _btn(step4, "AddCharacterButton")
+	assert_true(add.disabled, "4人そろったら5人目は入れられないこと")
+	assert_eq(add.text, "4人そろっています", "押せない理由を文字で示すこと")
+	add.pressed.emit()
+	await get_tree().process_frame
+	assert_false(main.draft.party_character_ids.has("tank"), "押せない状態で信号が来ても入らないこと（防御的ガード）")
+	assert_eq(main.draft.party_character_ids.count("hero"), 1, "重複しないこと")
 
-func test_step4_multi_selected_party_round_trips_through_real_save_and_load() -> void:
+func test_step4_party_built_in_the_ui_round_trips_through_real_save_and_load() -> void:
 	var main := await _new_creator_main()
+	main.go_to_step(4)
+	await get_tree().process_frame
 	var step4: RBMCreatorStep5Party = main._step_views[3]
-	main.draft.boss_name = "複数選択保存テスト"
+	main.draft.boss_name = "編成保存テスト"
 	main.draft.hp = 100
 	main.draft.atk = 10
 	main.draft.spd = 10
-	_btn(step4, "AddCharacterButton").pressed.emit()
-	(_btn(step4, "AddCandidateButton_hero") as CheckBox).button_pressed = true
-	(_btn(step4, "AddCandidateButton_butler") as CheckBox).button_pressed = true
-	_btn(step4, "ConfirmAddCandidatesButton").pressed.emit()
+	for id in ["hero", "butler"]:
+		_btn(step4, "SelectCharacterButton_%s" % id).pressed.emit()
+		_btn(step4, "AddCharacterButton").pressed.emit()
+		await get_tree().process_frame
 	var save_result := main.press_save_as_new()
-	assert_true(bool(save_result.get("ok", false)), "複数選択したDraftを実ファイル保存できること")
+	assert_true(bool(save_result.get("ok", false)), "画面で編成したDraftを実ファイル保存できること")
 	var loaded := RBMLocalStageRepository.load_stage(str(save_result.get("stage_id", "")))
 	assert_true(bool(loaded.get("ok", false)), "保存した実ファイルを読込できること")
 	var loaded_draft := RBMCreatorDraft.new()
 	loaded_draft.restore_from_saved_dict(loaded.get("draft_data", {}))
-	assert_eq(loaded_draft.party_character_ids, ["hero", "butler"], "保存→読込後も複数選択したparty_character_idsを維持すること")
+	assert_eq(loaded_draft.party_character_ids, ["hero", "butler"], "保存→読込後も編成した順のparty_character_idsを維持すること")
 
 func test_step4_remove_button_removes_from_party() -> void:
 	var main := await _new_creator_main()
+	main.go_to_step(4)
+	await get_tree().process_frame
 	var step4: RBMCreatorStep5Party = main._step_views[3]
 	step4.toggle_character("hero")
 	await get_tree().process_frame
+	_btn(step4, "SelectCharacterButton_hero").pressed.emit()
+	await get_tree().process_frame
+	assert_eq(_btn(step4, "RemoveCharacterButton_hero").text, "編成から外す")
 	_btn(step4, "RemoveCharacterButton_hero").pressed.emit()
 	await get_tree().process_frame
-	assert_false(main.draft.party_character_ids.has("hero"), "外すでDraftへ反映されること")
-	assert_null(step4._party_card_list.find_child("PartyCard_hero", true, false))
+	assert_false(main.draft.party_character_ids.has("hero"), "「編成から外す」でDraftへ反映されること")
+	assert_null(step4.find_child("FormationSprite_0", true, false), "編成から消えること")
+	assert_not_null(step4.find_child("AddCharacterButton", true, false), "外した人には「編成に入れる」が戻ること")
 
 func test_step4_a_character_cannot_appear_twice_in_the_party() -> void:
 	var main := await _new_creator_main()
@@ -359,6 +368,84 @@ func test_step4_a_character_cannot_appear_twice_in_the_party() -> void:
 	main.draft.add_party_character("hero")  # attempt a duplicate add directly on the draft
 	assert_eq(main.draft.party_character_ids.size(), before_count, "重複しないこと（既存のadd_party_character()自身の重複禁止仕様のまま）")
 	assert_eq(main.draft.party_character_ids.count("hero"), 1)
+
+## 人物の札は、マスターデータ（HARDCOREの調整後の値）から役割・属性・能力・得意技を出す。
+func test_step4_character_sheet_shows_role_attribute_stats_and_signature_from_real_data() -> void:
+	var main := await _new_creator_main()
+	main.go_to_step(4)
+	await get_tree().process_frame
+	var step4: RBMCreatorStep5Party = main._step_views[3]
+	var expected := {"hero": ["攻撃役", "炎", "炎纏い"], "butler": ["魔法攻撃役", "氷", "氷属性大魔法"], "healer": ["回復役", "雷", "全体HP回復"], "samurai": ["攻撃役", "風", "カウンター"], "tank": ["防御役", "無", "かばう"]}
+	for id in expected:
+		_btn(step4, "SelectCharacterButton_%s" % id).pressed.emit()
+		await get_tree().process_frame
+		var sheet := step4.find_child("CharacterSheet", true, false) as Control
+		var texts := _all_label_texts(sheet)
+		assert_true(texts.any(func(t: String): return t.begins_with(str(expected[id][0]))), "%s: 役割 %s を出すこと" % [id, expected[id][0]])
+		assert_true(texts.has(str(expected[id][1])), "%s: 属性 %s を出すこと" % [id, expected[id][1]])
+		assert_eq(_label(sheet, "SignatureName").text, str(expected[id][2]), "%s: 得意技" % id)
+		var master := main.draft.master_character_def(id)
+		for key in ["hp", "atk", "spd", "max_sp"]:
+			assert_eq(_label(sheet, "SheetStat_%s" % key).text, str(int(master.get(key, 0))), "%s: %s はマスターデータの値" % [id, key])
+
+## ステータス編集を開く・閉じる。編成に入っていない人では開かない。
+func test_step4_status_edit_opens_over_the_formation_and_closes() -> void:
+	var main := await _new_creator_main()
+	main.go_to_step(4)
+	await get_tree().process_frame
+	var step4: RBMCreatorStep5Party = main._step_views[3]
+	step4.toggle_character("hero")
+	await get_tree().process_frame
+	_btn(step4, "SelectCharacterButton_butler").pressed.emit()
+	step4.open_status_sheet()
+	await get_tree().process_frame
+	assert_false(step4.is_status_sheet_open(), "編成に入っていない人のステータス編集は開かないこと")
+	_btn(step4, "SelectCharacterButton_hero").pressed.emit()
+	_btn(step4, "StatusEditButton").pressed.emit()
+	await get_tree().process_frame
+	assert_true(step4.is_status_sheet_open(), "「ステータス編集」で開くこと")
+	assert_true(_btn(step4, "SkillsTabButton").is_visible_in_tree())
+	assert_true(_btn(step4, "PerformanceTabButton").is_visible_in_tree())
+	_btn(step4, "StatusEditCloseButton").pressed.emit()
+	await get_tree().process_frame
+	assert_false(step4.is_status_sheet_open(), "「閉じる」で閉じること")
+
+## STEP4 の画面は別のボスを作る・開く時も使い回す（draft の中身だけが入れ替わる）。STEP4 を開いた時は、
+## 編成に入っていない人ではなく編成の1人目を見せ、前に開いたままのステータス編集は閉じておく。
+func test_step4_opens_on_the_first_party_member_with_the_status_edit_closed() -> void:
+	var main := await _new_creator_main()
+	var step4: RBMCreatorStep5Party = main._step_views[3]
+	# 画面を作った後で編成が入る（保存したボスを開いた時と同じ順）
+	main.draft.add_party_character("healer")
+	main.draft.add_party_character("tank")
+	main.go_to_step(4)
+	await get_tree().process_frame
+	assert_eq(step4.selected_character_id(), "healer", "編成の1人目を見せること")
+	assert_eq(_label(step4, "SheetName").text, "少女")
+	# 編成の人を選んでステータス編集を開いたまま、ほかの STEP へ行って戻る
+	_btn(step4, "FormationSlot_1").pressed.emit()
+	await get_tree().process_frame
+	_btn(step4, "StatusEditButton").pressed.emit()
+	await get_tree().process_frame
+	assert_true(step4.is_status_sheet_open())
+	main.go_to_step(3)
+	await get_tree().process_frame
+	main.go_to_step(4)
+	await get_tree().process_frame
+	assert_false(step4.is_status_sheet_open(), "STEP4 に戻った時はステータス編集を閉じておくこと")
+	assert_eq(step4.selected_character_id(), "tank", "編成の中で選んでいた人はそのまま")
+	# 編成に入っていない人を眺めたまま離れ、別のボス（編成の違う下書き）を開いた時
+	_btn(step4, "SelectCharacterButton_butler").pressed.emit()
+	await get_tree().process_frame
+	main.go_to_step(3)
+	await get_tree().process_frame
+	main.draft.remove_party_character("healer")
+	main.draft.remove_party_character("tank")
+	main.draft.add_party_character("samurai")
+	main.go_to_step(4)
+	await get_tree().process_frame
+	assert_eq(step4.selected_character_id(), "samurai", "編成に入っていない人を見ていた時は編成の1人目に戻すこと")
+	assert_eq(main.draft.party_character_ids, ["samurai"], "見る人を変えるだけで編成は変えないこと")
 
 ## Creator UI改修（STEP4統合、2026-09-05）: 旧「性能を見る」ボタン
 ## （ViewPerformanceButton_%s、全画面差し替えの_info_panel）は廃止され、
@@ -373,11 +460,13 @@ func test_step4_selected_card_opens_read_only_performance_from_real_master_data(
 	assert_null(step4.find_child("ViewPerformanceButton_hero", true, false), "旧「性能を見る」ボタンは廃止されていること")
 	_btn(step4, "SelectCharacterButton_hero").pressed.emit()
 	await get_tree().process_frame
+	_btn(step4, "StatusEditButton").pressed.emit()
 	_btn(step4, "PerformanceTabButton").pressed.emit()
 	await get_tree().process_frame
 
 	var master := main.draft.master_character_def("hero")
-	assert_eq(step4._selected_header_label.text, str(master.get("display_name", "")))
+	assert_true(step4.is_status_sheet_open(), "「ステータス編集」で開くこと（2026-10-17 案C）")
+	assert_eq(step4._selected_header_label.text, "ステータス編集　勇者")
 	assert_eq(_label(step4._tab_content, "CharacterInfoStatsLabel").text, "HP：%d\nATK：%d\nSPD：%d" % [int(master.get("hp", 0)), int(master.get("atk", 0)), int(master.get("spd", 0))])
 	assert_false(_all_label_texts(step4._tab_content).any(func(text: String): return text.contains("DEF")), "存在しないDEFを表示しないこと")
 	assert_eq(step4._tab_content.find_children("CharacterSkillCard_*", "", true, false).size(), (master.get("skills", []) as Array).size(), "マスターが持つ全スキルだけを表示すること")
@@ -465,7 +554,7 @@ func test_step4_performance_switches_character_shows_real_effects_and_never_chan
 
 	_btn(step4, "SelectCharacterButton_tank").pressed.emit()
 	await get_tree().process_frame
-	assert_eq(step4._selected_header_label.text, str(main.draft.master_character_def("tank").get("display_name", "")), "別カードを押すと内容が正しいキャラクターへ切り替わること")
+	assert_eq(step4._selected_header_label.text, "ステータス編集　ハンマー使い", "別の仲間を選ぶと内容が正しいキャラクターへ切り替わること")
 	assert_eq(_label(step4, "SkillEffectLabel_tank_guard_swap").text, "味方単体への攻撃をかばう")
 	assert_eq(_label(step4, "SkillEffectLabel_tank_guard_boost").text, "防御時の軽減率：60%")
 	assert_eq(_label(step4, "SkillDurationLabel_tank_guard_boost").text, "効果時間：1ターン")
@@ -530,6 +619,7 @@ func test_step4_performance_skill_list_scrolls_to_last_skill_without_overlapping
 		step4.toggle_character("hero")
 		await get_tree().process_frame
 		_btn(step4, "SelectCharacterButton_hero").pressed.emit()
+		_btn(step4, "StatusEditButton").pressed.emit()
 		_btn(step4, "PerformanceTabButton").pressed.emit()
 		await get_tree().process_frame
 		await get_tree().process_frame

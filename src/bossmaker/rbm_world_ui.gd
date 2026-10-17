@@ -324,11 +324,14 @@ func creator_layout(main: RBMCreatorMain) -> void:
 			creator_button_style(b,true)
 		# Reserve a visible gap above the global footer while retaining the existing scroll.
 		main._nav_row.add_theme_constant_override("separation",12)
+		# STEP4（攻略パーティ）は 2026-10-17 に作り直し、余白は画面自身が持つ（以前の部品が無い時は何もしない）。
 		var party_step: Control = main._step_views[3]
-		var party_margin: MarginContainer = party_step.find_child("PartyStepMargin",true,false)
-		party_margin.add_theme_constant_override("margin_top",16)
-		var party_column: VBoxContainer = party_step.find_child("PartyStepColumn",true,false)
-		party_column.add_theme_constant_override("separation",8)
+		var party_margin := party_step.find_child("PartyStepMargin",true,false) as MarginContainer
+		if party_margin != null:
+			party_margin.add_theme_constant_override("margin_top",16)
+		var party_column := party_step.find_child("PartyStepColumn",true,false) as VBoxContainer
+		if party_column != null:
+			party_column.add_theme_constant_override("separation",8)
 	# Refresh rebuilds some controls. Common conversion is applied after each refresh.
 	main._header.get_node("WorldProgressStrip").queue_redraw()
 	if main.current_step == 5: summary_layout(main._step_views[4])

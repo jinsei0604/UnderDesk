@@ -160,10 +160,12 @@ static func gradient_rect(parent: Node, area: Rect2, from: Color, to: Color, hor
 	texture.height = 512
 	texture.fill_to = Vector2(1, 0) if horizontal else Vector2(0, 1)
 	var t := TextureRect.new()
+	# 伸縮の設定を先にする（先に大きさを決めると、その時の最小の大きさ＝画像の大きさまで広がって戻らない。
+	# 以前はグラデーションが512px・影が256pxまで広がり、親の切り取りで隠れていた。2026-10-17）
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.texture = texture
 	t.position = area.position
 	t.size = area.size
-	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	t.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	parent.add_child(t)
@@ -182,10 +184,12 @@ static func floor_shadow(parent: Node, area: Rect2) -> TextureRect:
 	texture.fill_from = Vector2(0.5, 0.5)
 	texture.fill_to = Vector2(1.0, 0.5)
 	var t := TextureRect.new()
+	# 伸縮の設定を先にする（先に大きさを決めると、その時の最小の大きさ＝画像の大きさまで広がって戻らない。
+	# 以前はグラデーションが512px・影が256pxまで広がり、親の切り取りで隠れていた。2026-10-17）
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.texture = texture
 	t.position = area.position
 	t.size = area.size
-	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	t.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	parent.add_child(t)

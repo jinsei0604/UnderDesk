@@ -118,13 +118,12 @@ func test_full_phase1_journey_launch_through_challenge_result() -> void:
 	assert_eq(main.draft.atk, 1)
 	assert_eq(main.draft.spd, 1)
 
-	# 最終テスト補強⑦: STEP4(パーティ)を実カードUI(AddCharacterButton→
-	# AddCandidateButton_hero)経由へ変更した。
+	# 最終テスト補強⑦: STEP4(パーティ)を実UI経由で操作する（2026-10-17 から仲間の札→「編成に入れる」）。
 	main.go_to_step(4)
 	var step4_party: RBMCreatorStep5Party = main._step_views[3]
+	# 2026-10-17 STEP4 刷新（案C）: 仲間の札で選んで「編成に入れる」。
+	_btn(step4_party, "SelectCharacterButton_hero").pressed.emit()
 	_btn(step4_party, "AddCharacterButton").pressed.emit()
-	(_btn(step4_party, "AddCandidateButton_hero") as CheckBox).button_pressed = true
-	_btn(step4_party, "ConfirmAddCandidatesButton").pressed.emit()
 	assert_true(main.draft.party_character_ids.has("hero"), "sanity: STEP4実UI経由でパーティが反映されること")
 
 	# 上のSTEP2/STEP4実UI操作でcurrent_stepが動いているため、後段「5. STEP
