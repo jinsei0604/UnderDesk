@@ -70,7 +70,7 @@ func _build_details(entry: Dictionary, _category: String) -> void:
 
 	var mode_tag := S.mode_tag(self, str(entry.get("creator_mode", RBMCreatorDraft.CREATOR_MODE_SIMPLE)), Vector2(122, 80))
 	var x := 122.0 + mode_tag.get_combined_minimum_size().x + 6
-	if bool(entry.get("published", false)):
+	if bool(entry.get("online_published", false)):
 		var published := M.tag(self, tr("公開中"), Vector2(x, 80), S.EMPHASIS, Color(S.ACCENT_SOFT, 0.9), Color(S.ACCENT, 0.07), false, "PublishedTag")
 		x += published.get_combined_minimum_size().x + 6
 	if bool(entry.get("awakening", false)):

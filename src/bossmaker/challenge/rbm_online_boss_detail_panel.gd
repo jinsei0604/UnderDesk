@@ -102,9 +102,12 @@ func show_error(summary: Dictionary, message: String) -> void:
 	_clear()
 	S.rect(_content, Rect2(1, 1, _width() - 2, STAGE_HEIGHT), S.INSET)
 	S.corner_marks(_content, Rect2(14, 14, 412, STAGE_HEIGHT - 32), Color(S.SILVER, 0.35))
-	var error := S.label(_content, message, Rect2(30, 110, 370, 70), 14, S.HARD, "DetailError")
+	# 折り返しを有効にしてから文を入れる（先に文を入れると幅が1行の長さまで広がり、後から戻せない。
+	# 理由の文が長くても枠の中で折り返す。PX-14）
+	var error := S.label(_content, "", Rect2(30, 92, 370, 116), 14, S.HARD, "DetailError")
 	error.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	error.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	error.text = message
 	_build_header(summary)
 
 func show_boss(summary: Dictionary, draft: RBMCreatorDraft) -> void:
@@ -221,6 +224,12 @@ func _build_stage(draft: RBMCreatorDraft) -> void:
 func _build_header(summary: Dictionary) -> void:
 	var info_width := _width() - INFO_X - 20
 	S.mode_tag(_content, str(summary.get("creator_mode", RBMCreatorDraft.CREATOR_MODE_SIMPLE)), Vector2(INFO_X, 22))
+	# 公開ID（2026-10-17 PX-03）: モードの札の行の右端に小さく。「ボスを検索」に入れるとこのボスを探せる。
+	var public_id := _public_id(summary)
+	if not public_id.is_empty():
+		var id_label := S.label(_content, tr("公開ID %s") % public_id, Rect2(INFO_X, 20, info_width, 26), 13, S.MUTED, "DetailPublicId")
+		id_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		id_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	var title := S.label(_content, str(summary.get("boss_name", "")), Rect2(INFO_X, 50, info_width, 44), 28 if _is_japanese() else 24, S.TEXT, "DetailBossName")
 	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	title.clip_text = true
@@ -232,6 +241,10 @@ func _build_header(summary: Dictionary) -> void:
 
 func _row_captions() -> Array:
 	return [tr("公開日"), tr("勝利条件"), tr("ボスHP"), tr("弱点")]
+
+## 見出しの右上に出す公開ID（オンラインの一覧の行の id から。無ければ出さない）。
+func _public_id(summary: Dictionary) -> String:
+	return RBMPublicBossId.from_boss_id(str(summary.get("id", "")))
 
 func _caption_width() -> float:
 	return 92.0 if _is_japanese() else 112.0

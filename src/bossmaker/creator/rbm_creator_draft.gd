@@ -33,6 +33,12 @@ const MAX_SKILLS := 64
 ## 定義（指示書§11の明示要求）。
 const MAX_AUTHOR_NOTES_LENGTH := 200
 
+## 自己回復・覚醒のHP回復の「固定値」の上限（ボスのHPの上限と同じ 99,999。2026-10-17）。
+## 99,999 は設定できる、100,000 以上は設定できない。行動の入力欄はこの値までしか入らない。
+## 保存済みのデータにこれを超える値があっても、読み込みでは書き換えない（heal_limit_problems() で
+## STEP3（行動）の検証と保存の時に知らせ、作者が自分で直す）。戦闘の計算・定義の読み込みは変えない。
+const HEAL_FIXED_MAX := RBMDefinitionLoader.BOSS_HP_MAX
+
 ## CHALLENGE UI再設計 §10: 作者アカウントシステムは今回作らない——「ボスごとに
 ## 公開時に入力する」名前。表示用の短い名前という性質はboss_nameと同じため、
 ## 独自のポリシー（NGワード等、§10/§24で明示的にClaude Code側の独自判断を
@@ -282,6 +288,8 @@ func action_step_manual_percentage_total(slot: Dictionary) -> float:
 func step4_advanced_is_valid() -> bool:
 	if creator_mode != CREATOR_MODE_ADVANCED:
 		return true
+	if not heal_limit_problems().is_empty():
+		return false
 	if has_awakening() and not conditions_problem(awakening.get("conditions", [])).is_empty():
 		return false
 	for slot in action_sequence:
@@ -958,9 +966,37 @@ func normal_action_percentage_total() -> float:
 	return total
 
 func step4_is_valid() -> bool:
+	if not heal_limit_problems().is_empty():
+		return false
+	# 通常行動があるのに使用率がすべて0%（ボスが通常行動を一度も使わない）状態は通さない
+	# （作った直後の0%のまま先へ進めて、ボスが「行動しなかった」になっていた。プレイ体験監査 PX-02）。
+	if has_zero_percent_normal_actions_only():
+		return false
 	if not normal_actions_enabled:
 		return true
 	return absf(normal_action_percentage_total() - 100.0) < 0.05
+
+## 通常行動が1つ以上あるのに、使用率の合計が0%（どれも使われない）か。
+func has_zero_percent_normal_actions_only() -> bool:
+	var has_entry := false
+	for skill in skills:
+		if normal_action_percentages.has(str(skill.get("skill_id", ""))):
+			has_entry = true
+			break
+	return has_entry and normal_action_percentage_total() < 0.05
+
+## 回復量の上限（HEAL_FIXED_MAX）を超えている所の説明（無ければ空）。自己回復の行動と、覚醒のHP回復。
+## 固定値の時だけ見る（割合の時は最大HP以下になる）。
+func heal_limit_problems() -> Array[String]:
+	var out: Array[String] = []
+	for skill in skills:
+		if str(skill.get("type", "")) == "self_heal" and str(skill.get("heal_mode", "fixed")) == "fixed" 				and float(skill.get("heal_fixed_amount", 0)) > float(HEAL_FIXED_MAX):
+			out.append(TranslationServer.translate("「%s」の回復量が上限（99,999）を超えています。行動を編集して直してください") % str(skill.get("name", "")))
+	if has_awakening():
+		var heal: Dictionary = awakening.get("heal", {})
+		if not heal.is_empty() and str(heal.get("heal_mode", "fixed")) == "fixed" and float(heal.get("heal_fixed_amount", 0)) > float(HEAL_FIXED_MAX):
+			out.append(TranslationServer.translate("覚醒のHP回復量が上限（99,999）を超えています。覚醒を編集して直してください"))
+	return out
 
 ## §4-3: distributes 100.0% evenly across every current skill with no
 ## floating-point drift — computed in integer units of 0.1% (1000 units =

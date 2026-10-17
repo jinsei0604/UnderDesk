@@ -141,7 +141,7 @@ func test_win_condition_off_hides_content_and_on_shows_it_on_confirm_screen() ->
 
 	_btn(root, "ChallengeModeButton").pressed.emit()
 	await get_tree().process_frame
-	_btn(root.challenge_entry._hub_view, "SearchBossButton").pressed.emit()
+	root.challenge_entry._open_local_published_list()  # 手元公開のボスの一覧（2026-10-17 から挑戦トップの「ボスを検索」はオンラインを探す。PX-03）
 	await get_tree().process_frame
 	var row: PanelContainer = root.challenge_entry._list_rows.get_child(0)
 	_click_card(row)

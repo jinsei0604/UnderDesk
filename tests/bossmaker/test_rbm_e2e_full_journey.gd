@@ -280,7 +280,7 @@ func test_full_phase1_journey_launch_through_challenge_result() -> void:
 	#       （いきなり一覧を出さない）——「ボスを検索」で共通一覧画面を開く。
 	# =========================================================================
 	assert_true(root.challenge_entry._hub_view.visible, "entering CHALLENGE must show the hub first, not the list immediately")
-	_btn(root.challenge_entry._hub_view, "SearchBossButton").pressed.emit()
+	root.challenge_entry._open_local_published_list()  # 手元公開のボスの一覧（2026-10-17 から挑戦トップの「ボスを検索」はオンラインを探す。PX-03）
 	await get_tree().process_frame
 
 	# =========================================================================

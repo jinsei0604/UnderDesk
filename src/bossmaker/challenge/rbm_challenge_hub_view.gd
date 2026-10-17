@@ -4,8 +4,8 @@ extends Control
 ## CHALLENGE UI再設計 §2〜§6 — 挑戦ハブ。CHALLENGEへ入って最初に表示される
 ## 画面（RBMChallengeEntry.enter_challenge()の新しい既定表示）。
 ##
-## §7: 検索/ランダムは、RBMChallengeEntry既存の_list_panel（ローカル公開
-## ステージの共通一覧、この画面の外側で構築・保持される）を使う。
+## §7: 検索/ランダムは、2026-10-17（プレイ体験監査 PX-03）からオンライン公開ボスを対象にする
+## （RBMOnlineBossListView の「検索」「ランダム抽選」、RBMChallengeEntry._on_hub_search_requested()参照）。
 ##
 ## 挑戦ハブ オンライン移行(2026-09) — SIMPLE/HARDCORE/オンライン/新着/
 ## 未挑戦/人気/高難度の全7ボタンが、Supabase上の公開ボス一覧
@@ -151,6 +151,11 @@ func _record_card(key: String, caption: String, latin: bool, color: Color, edge:
 	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	if latin:
 		name_label.add_theme_font_override("font", S.number_font())
+	if key == "hard" and not TranslationServer.get_locale().begins_with("ja"):
+		# 英語の「Rare Clears」だけでは基準が分からないので、クリア率5%以下の意味を小さく添える（2026-10-17 ユーザー指定）。
+		var threshold := S.label(card, "≤5%", Rect2(22 + name_label.get_combined_minimum_size().x + 8, 0, 60, area.size.y), 12, Color(color, 0.75), "RareClearThreshold")
+		threshold.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		threshold.add_theme_font_override("font", S.number_font())
 	var value := S.label(card, "0", Rect2(area.size.x * 0.4, 0, area.size.x * 0.6 - 24, area.size.y), 40 if key != "hard" else 34, S.TEXT if key != "hard" else S.GOLD, "ValueLabel")
 	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

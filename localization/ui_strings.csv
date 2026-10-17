@@ -12,7 +12,7 @@ keys,en
 %s  [%s]  外見:%s  ID:%s,%s  [%s]  Appearance: %s  ID: %s
 %s に %d %s,%s: %d %s
 %s に %d SP回復,%s recovers %d SP
-%s に %d ダメージ,%d damage to %s
+%s に %d ダメージ,%s takes %d damage
 %s に %d 回復,%s heals %d
 %s にかばわれている,Protected by %s
 %s の攻撃を防いだ！,Blocked %s's attack!
@@ -224,7 +224,7 @@ This action cannot be undone."
 勝利,Victory
 勝利条件: %s,Win Condition: %s
 単体,Single Target
-反撃！ %s に %d ダメージ,Counter! %d damage to %s
+反撃！ %s に %d ダメージ,Counter! %s takes %d damage
 取得できませんでした（%s）。しばらくしてから「更新」を押してください。,Couldn't fetch the list (%s). Please try Refresh again later.
 取得中...,Fetching...
 "同じ名前のボス戦がすでに保存されています。
@@ -309,7 +309,7 @@ Exiting now will discard them."
 攻撃を作る,Create Attack
 攻撃を無効化して反撃（ATK倍率：%s倍）,Nullifies and counters (ATK ×%s)
 攻撃を追加,Add Attack
-攻撃を防いだ！ 反撃！ %s に %d ダメージ,Blocked! Counter! %d damage to %s
+攻撃を防いだ！ 反撃！ %s に %d ダメージ,Blocked! Counter! %s takes %d damage
 攻略パーティ,Party
 攻略パーティにキャラクターがいません。先に攻略パーティを選んでください。,No characters in the party yet. Please choose your party first.
 攻略パーティを選ぶ,Choose Your Party
@@ -591,3 +591,56 @@ to continue or revise it."
 制作,Created by
 %s を倒した！,%s defeated!
 撃破ターン %d　｜　クリアタイム %s,Turns %d　|　Clear Time %s
+あなたの討伐記録,Clear Record
+難関ボス討伐,Rare Clears
+ボスが毎ターン使う行動です。使用率の割合で選ばれます。,"Actions the boss uses every turn, picked by their usage rate."
+決まったターンに使う行動です。,Actions the boss uses on a specific turn.
+＋ 通常行動を追加する,+ Add Normal Action
+＋ 指定行動を追加する,+ Add Scripted Action
+使用率が0%の行動は使われません,Actions with a 0% usage rate are never used
+いつ：ターン%d・%s,When: Turn %d - %s
+通常行動の代わりに使う,Use instead of a normal action
+ターン開始時に追加で使う,Use additionally at turn start
+ターン終了時に追加で使う,Use additionally at turn end
+通常行動の追加方法を選んでください,Choose how to add a normal action
+指定行動の追加方法を選んでください,Choose how to add a scripted action
+既存の行動から選ぶ,Choose an Existing Action
+新しく行動を作る,Create a New Action
+既存の行動から選んでください,Choose an existing action
+この行動はほかの所でも使われています。性能を変えると、使っている所すべてに反映されます。,This action is also used elsewhere. Changing its performance changes it everywhere it is used.
+■ 使用率,■ Usage Rate
+■ いつ使う？,■ When to Use
+この行動を削除,Delete This Action
+追加すると、通常行動の使用率をすべて均等に分け直します,Adding this re-splits all normal action usage rates evenly
+通常行動の設定,Normal Action Settings
+指定行動の設定,Scripted Action Settings
+行動を追加,Add Action
+行動の性能を編集,Edit Action Performance
+行動名を入力してください,Enter an action name
+使用率の合計: 100.0%,Total usage rate: 100.0%
+通常行動の使用率がすべて0%です。使用率を設定してください,All normal actions have a 0% usage rate. Set a usage rate.
+"「%s」の回復量が上限（99,999）を超えています。行動を編集して直してください","The heal amount of ""%s"" is over the limit (99,999). Edit the action to fix it."
+"覚醒のHP回復量が上限（99,999）を超えています。覚醒を編集して直してください","The awakening HP heal amount is over the limit (99,999). Edit the awakening to fix it."
+保存できません：%s,Cannot save: %s
+確率の合計: 100.0%,Total chance: 100.0%
+確率の合計を100%%にしてください（現在%.1f%%）,Make the chances add up to 100%% (currently %.1f%%)
+　※0%のため使われません, (never used at 0%)
+Steamとの認証に失敗しました。Steamを起動し直して、もう一度お試しください。,Steam authentication failed. Restart Steam and try again.
+サーバーが応答できない状態です。しばらくしてからもう一度お試しください。,The server cannot respond right now. Please try again later.
+見つかりませんでした。公開が取り下げられた可能性があります。,Not found. It may have been unpublished.
+このボスは新しい版のゲームで作られています。ゲームを最新にしてください。,This boss was made with a newer version of the game. Please update the game.
+このボスのデータを読み込めませんでした。,This boss's data could not be read.
+通信できませんでした。インターネットへの接続を確かめて、もう一度お試しください。,Could not connect. Check your internet connection and try again.
+通信がうまくいきませんでした。もう一度お試しください。,Something went wrong with the connection. Please try again.
+（エラー: %s）,(Error: %s)
+続きを取得できませんでした。,Could not load more.
+このボスを取得できませんでした。,Could not load this boss.
+読み込み中...（時間がかかっています）,Loading... (taking a while)
+自己回復,Self Heal
+ATK自己強化,Self ATK Buff
+公開ID %s,Public ID %s
+ボス名・作者名・公開ID,"Boss name, author, or public ID"
+ボス名・作者名・公開IDで探せます。,"Search by boss name, author, or public ID."
+条件に合うボスは見つかりませんでした。,No bosses matched your search.
+抽選できる公開ボスがありません。,There are no published bosses to pick from.
+もう一度引く,Pick Another

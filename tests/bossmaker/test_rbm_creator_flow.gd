@@ -159,6 +159,10 @@ func test_step2_same_attribute_moves_sides_via_ui() -> void:
 # creator_ui.gdで行う）。
 # ---------------------------------------------------------------------------
 
+## 名前で探したボタン（実UIのボタンを押す経路で操作するため）
+func _btn(root: Node, node_name: String) -> Button:
+	return root.find_child(node_name, true, false) as Button
+
 func _new_action_form(draft: RBMCreatorDraft) -> RBMActionEditorForm:
 	var form := RBMActionEditorForm.new()
 	add_child_autofree(form)
@@ -231,7 +235,14 @@ func test_action_editor_form_boundary_values() -> void:
 	assert_eq(form._attack_multiplier_slider.min_value, 0.0)
 	assert_eq(form._attack_multiplier_slider.max_value, 100.0)
 	assert_eq(form._self_heal_fixed_slider.min_value, 0.0)
-	assert_eq(form._self_heal_fixed_slider.max_value, 1000000.0)
+	# 回復量の上限は 99,999（2026-10-17。99,999 は設定できる、100,000 以上は設定できない）
+	assert_eq(form._self_heal_fixed_slider.max_value, 99999.0)
+	assert_eq(form._self_heal_fixed_spin.max_value, 99999.0)
+	form._self_heal_fixed_spin.value = 99999
+	assert_eq(int(form._self_heal_fixed_spin.value), 99999, "99,999 は設定できる")
+	form._self_heal_fixed_spin.value = 100000
+	assert_eq(int(form._self_heal_fixed_spin.value), 99999, "100,000 以上は入らない")
+	form._self_heal_fixed_spin.value = 0
 	assert_eq(form._self_heal_percent_slider.min_value, 0.0)
 	assert_eq(form._self_heal_percent_slider.max_value, 100.0)
 	assert_eq(form._atk_buff_multiplier_slider.min_value, 1.0)
@@ -269,19 +280,28 @@ func test_action_editor_form_atk_buff_preview_recalculates_live() -> void:
 	form._refresh_atk_buff_preview()
 	assert_eq(form._atk_buff_preview_label.text, "強化後ATK: 300")
 
-## §1決定: MAX_SKILLSは64（旧8）。上限へ実際に到達したら「＋通常行動を
-## 作る」ボタンが無効化されること——draft-level(上限そのものの判定)は
-## test_rbm_creator_draft.gdで既に検証済みのため、ここではUI側の
-## disabled連動だけを確認する。
+## §1決定: MAX_SKILLSは64（旧8）。上限へ実際に到達したら、新しく行動を作れないこと——draft-level
+## (上限そのものの判定)は test_rbm_creator_draft.gd で検証済みのため、ここではUI側の連動を確認する。
+## 2026-10-17（HARDCORE と同じ操作の流れ）: 上限でも、まだ通常行動に入っていない既存の行動は選べるので
+## 「＋ 通常行動を追加する」は押せる。押した先の「新しく行動を作る」は押せない。選べる行動も無くなったら
+## 「＋ 通常行動を追加する」自体が押せない。
 func test_step3_add_normal_action_button_disabled_once_max_skills_reached() -> void:
 	var creator := _new_creator()
 	var step3_wrapper: RBMCreatorStep4 = creator._step_views[2]
 	var step3: RBMCreatorStep4Actions = step3_wrapper._simple_view
+	var ids: Array[String] = []
 	for i in range(RBMCreatorDraft.MAX_SKILLS):
-		creator.draft.add_skill({"name": "S%d" % i, "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 1.0})
+		ids.append(creator.draft.add_skill({"name": "S%d" % i, "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 1.0}))
 	step3.refresh()
-	assert_true(step3._add_normal_button.disabled)
 	assert_true(step3._normal_capacity_notice.visible, "「これ以上ボスの行動を追加できません」の案内が出る")
+	assert_false(step3._add_normal_button.disabled, "既存の行動はまだ選べる")
+	step3._add_normal_button.pressed.emit()
+	assert_true(step3._add_choice_view.visible, "追加の方法を選ぶ画面が開く")
+	assert_true(step3._add_choice_create_new_button.disabled, "上限では新しく作れない")
+	for skill_id in ids:
+		creator.draft.normal_action_percentages[skill_id] = 0.0
+	step3.refresh()
+	assert_true(step3._add_normal_button.disabled, "選べる行動も無ければ押せない")
 
 # ---------------------------------------------------------------------------
 # STEP 4
@@ -343,22 +363,27 @@ func test_step4_equalize_via_ui() -> void:
 	step4._on_equalize_pressed()
 	assert_almost_eq(creator.draft.normal_action_percentage_total(), 100.0, 0.0001)
 
-## Creator UI再設計 §7/§8: 「いつ使う？」（ターン＋タイミング）→「何をする？」
-## （共通フォームでその場に新規作成）の2段階フローを、実UIのボタン/シグナル
-## 経由で3回通す——指定行動は既存スキルから選ばない（1回ごとに新しい
-## スキルが作られる）。
+## 2026-10-17（HARDCORE と同じ操作の流れ）: 「＋ 指定行動を追加する」→（既存の行動があれば
+## 「新しく行動を作る」）→ 1つの設定画面（性能のフォーム＋「いつ使う？」）→「行動を追加」を、
+## 実UIのボタン経由で3回通す（1回ごとに新しい行動が作られる）。
 func test_step4_scripted_actions_three_timings_via_ui() -> void:
 	var creator := _new_creator()
 	var step4_wrapper: RBMCreatorStep4 = creator._step_views[2]
 	var step4: RBMCreatorStep4Actions = step4_wrapper._simple_view
 	for timing_index in range(3):
-		step4._on_add_scripted_pressed()
+		_btn(step4, "AddScriptedActionButton").pressed.emit()
+		if step4._add_choice_view.visible:
+			_btn(step4, "AddChoiceCreateNewButton").pressed.emit()
+		assert_true(step4._editor_view.visible, "設定画面が開く")
+		assert_true(step4._form.visible, "新しく作る時は性能のフォームがその場で開く")
+		assert_false(step4._form._actions_row.visible, "確定は外側の1つだけ（フォーム自身の保存/キャンセルは隠す）")
 		step4._scripted_turn_spin.value = timing_index + 1
 		step4._scripted_timing_option.select(timing_index)
-		step4._on_scripted_when_next_pressed()
 		step4._form._name_edit.text = "S%d" % timing_index
-		step4._form._on_save_pressed()
+		_btn(step4, "ActionConfirmButton").pressed.emit()
+		assert_true(step4._list_view.visible, "確定すると一覧へ戻る")
 	assert_eq(creator.draft.scripted_actions.size(), 3)
+	assert_eq(creator.draft.skills.size(), 3)
 	var timings: Array = []
 	for entry in creator.draft.scripted_actions:
 		timings.append(str(entry["timing"]))
@@ -408,10 +433,15 @@ func test_step4_no_action_warning_shows_only_when_normal_off_and_zero_scripted()
 	step4.set_percentage(skill_id, 100.0)
 	assert_ne(step4._percentage_total_label.text, "このボスは行動しません", "normal actions ON with a configured candidate -> no 'boss does nothing' warning")
 
-	# 警告されない例B: 通常行動OFF(全スキルを0%へ戻すと自動的に無効化される)、
-	# 指定行動1件以上 -> 警告なし.
+	# 2026-10-17（PX-02）: 通常行動が全部0%（一度も使われない）のままでは先へ進めない。
 	step4.set_percentage(skill_id, 0.0)
+	assert_false(step4.is_step_valid(), "通常行動があるのに使用率がすべて0%なら無効")
+	assert_true(step4.validation_message().contains("0%"), "理由を出す: %s" % step4.validation_message())
+
+	# 警告されない例B: 通常行動なし（通常行動から外す）、指定行動1件以上 -> 警告なし.
 	creator.draft.add_scripted_action(1, skill_id, "replace")
+	step4._on_delete_normal_pressed(skill_id)
+	assert_false(creator.draft.find_skill(skill_id).is_empty(), "指定行動で使っている行動は消えない")
 	step4.refresh()
 	assert_ne(step4._percentage_total_label.text, "このボスは行動しません", "at least 1 scripted action -> no 'boss does nothing' warning even with normal OFF")
 	assert_true(step4.is_step_valid())

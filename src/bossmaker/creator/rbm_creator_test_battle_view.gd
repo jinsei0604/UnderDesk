@@ -383,6 +383,7 @@ func retry() -> void:
 	_battle_log_history.clear()
 	_close_target_picker()
 	_close_all_overlays()
+	_quit_confirm.visible = false
 	_se_outcome_played = false
 	_outcome_area.visible = false
 	refresh()
@@ -543,6 +544,7 @@ func rewind_to(turn: int) -> void:
 	_battle_log_history = RBMBattleUiKit.history_truncated_for_rewind(_battle_log_history, turn)
 	_close_target_picker()
 	_close_all_overlays()
+	_quit_confirm.visible = false
 	_se_outcome_played = false
 	_outcome_area.visible = false
 	refresh()
@@ -577,6 +579,9 @@ func refresh() -> void:
 		_se_outcome_played = false
 	_outcome_area.visible = battle.battle_over
 	if battle.battle_over:
+		# 決着の結果パネルを出す時は、開いている「テストを終了」の確認を閉じる（結果パネルの暗幕の下に
+		# 確認が残り、その「終了する」が押せないまま重なっていた。プレイ体験監査 PX-01、2026-10-17）
+		_quit_confirm.visible = false
 		var outcome_label: Label = _outcome_area.get_node("OutcomeLabel")
 		outcome_label.text = tr("勝利") if battle.winner == "ally" else tr("敗北")
 

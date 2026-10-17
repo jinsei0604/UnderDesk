@@ -689,6 +689,7 @@ func rewind_to(turn: int) -> void:
 	_battle_log_history = RBMBattleUiKit.history_truncated_for_rewind(_battle_log_history, turn)
 	_close_target_picker()
 	_close_all_overlays()
+	_restart_confirm.visible = false
 	_se_outcome_played = false
 	_outcome_area.visible = false
 	refresh()
@@ -743,6 +744,9 @@ func refresh() -> void:
 	elif not battle.battle_over:
 		_se_outcome_played = false
 	_outcome_area.visible = battle.battle_over and not hold_outcome
+	if _outcome_area.visible:
+		# 結果パネルを出す時は、開いている「最初からやり直す」の確認を閉じる（重なりを防ぐ。PX-01）
+		_restart_confirm.visible = false
 	if battle.battle_over:
 		var won := battle.winner == "ally"
 		# §14: success screen shows ONLY Creatorに戻る. §15: failure screen
@@ -848,6 +852,7 @@ func _is_presenting() -> bool:
 func _on_encounter_result_shown() -> void:
 	if session != null and session.battle != null and session.battle.battle_over:
 		RBMBattleUiKit.refresh_turn_order_panel(_turn_order_panel, session.battle)
+		_restart_confirm.visible = false
 		_outcome_area.visible = true
 
 func _configure_presentation() -> void:

@@ -77,6 +77,9 @@ func _save_mixed_library() -> Dictionary:
 	var checked := _valid_draft("公開したボス")
 	_win_clear_check(checked)
 	assert_true(checked.publish(), "sanity: a clear-checked boss can be published")
+	# 「公開中」の札・公開状態はオンラインの公開状態を見る（2026-10-17、PX-05）。オンライン公開に成功した時と同じ値にする
+	checked.set_online_boss_id("online-boss-1")
+	checked.set_online_published(true)
 	ids["published"] = _save(checked, 1_700_000_200)
 	var awakening := RBMCreatorDraft.new()
 	awakening.boss_name = "覚醒する竜"

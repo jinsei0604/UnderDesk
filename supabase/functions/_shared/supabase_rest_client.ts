@@ -36,7 +36,21 @@ export interface SupabaseRestClient {
   rpc<T>(functionName: string, params: Record<string, unknown>): Promise<RestResult<T>>;
 }
 
-export class RealSupabaseRestClient implements SupabaseRestClient {
+// 条件に合う行の数(2026-10-17、random-boss の抽選のためだけに追加)。行そのものは読まず、
+// PostgRESTの件数(Prefer: count=exact)だけを受け取る。既存のEdge Functionはこれを使わない。
+export interface CountResult {
+  ok: boolean;
+  count: number;
+  status: number;
+  errorMessage?: string;
+}
+
+export interface SupabaseCountingRestClient extends SupabaseRestClient {
+  // queryはselect/orderを含まない絞り込みだけ(例: "is_published=eq.true")。
+  count(table: string, query: string): Promise<CountResult>;
+}
+
+export class RealSupabaseRestClient implements SupabaseCountingRestClient {
   constructor(
     private readonly supabaseUrl: string,
     private readonly serviceRoleKey: string,
@@ -85,6 +99,26 @@ export class RealSupabaseRestClient implements SupabaseRestClient {
       headers: this.headers({ Prefer: "return=representation" }),
       body: JSON.stringify(params),
     });
+  }
+
+  // HEADで件数だけを受け取る(応答の本文は無い)。件数は Content-Range の "/" の後ろ(例: "0-0/42"、"*/0")。
+  async count(table: string, query: string): Promise<CountResult> {
+    const url = `${this.supabaseUrl}/rest/v1/${table}?${query}`;
+    try {
+      const response = await fetch(url, { method: "HEAD", headers: this.headers({ Prefer: "count=exact" }) });
+      const status = response.status;
+      await response.body?.cancel();
+      if (status >= 400) {
+        return { ok: false, count: 0, status, errorMessage: `HTTP ${status}` };
+      }
+      const total = Number((response.headers.get("content-range") ?? "").split("/")[1]);
+      if (!Number.isInteger(total) || total < 0) {
+        return { ok: false, count: 0, status, errorMessage: "missing Content-Range count" };
+      }
+      return { ok: true, count: total, status };
+    } catch (error) {
+      return { ok: false, count: 0, status: 0, errorMessage: error instanceof Error ? error.message : String(error) };
+    }
   }
 
   private async request<T>(url: string, init: RequestInit): Promise<RestResult<T>> {

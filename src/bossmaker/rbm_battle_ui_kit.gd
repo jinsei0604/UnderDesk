@@ -274,11 +274,41 @@ static func format_latest_info(entries: Array, battle: RBMBattle) -> String:
 	var described := describe_entry(chosen, battle)
 	var lines: Array[String] = []
 	lines.append(TranslationServer.translate("%s：%s") % [described["actor_name"], described["headline"]])
-	if not (described["result_lines"] as Array).is_empty():
-		lines.append("")
-		for line in described["result_lines"]:
-			lines.append(str(line))
+	var result_rows := _pack_result_lines(described["result_lines"] as Array)
+	if not result_rows.is_empty():
+		# 見出しと結果の間の空行は、結果が2行以内の時だけ（欄の高さ112pxに全員分が収まるように。QA-07）
+		if result_rows.size() <= 2:
+			lines.append("")
+		lines.append_array(result_rows)
 	return "\n".join(lines)
+
+## 最新の行動の結果の欄（高さ112px、約4行）に全員分が収まるよう、短い結果の行は2つずつ1行に並べる
+## （QA-07・プレイ体験監査 PX-06: 全体攻撃で4人に当たると、3人目以降の結果が欄の外へ隠れていた）。
+## 並べた時の幅は文字の数で見積もる（日本語などの全角は2、半角は1。欄の幅700pxに収まる目安）。
+## 文の中身・順番は変えない。全行は LOG（戦闘記録）でも読める。
+const LATEST_INFO_PAIR_WIDTH_UNITS := 74
+const LATEST_INFO_PAIR_SEPARATOR := "　　"
+
+static func _pack_result_lines(result_lines: Array) -> Array[String]:
+	var out: Array[String] = []
+	var i := 0
+	while i < result_lines.size():
+		var a := str(result_lines[i])
+		if i + 1 < result_lines.size():
+			var b := str(result_lines[i + 1])
+			if _text_width_units(a) + _text_width_units(b) + 4 <= LATEST_INFO_PAIR_WIDTH_UNITS:
+				out.append(a + LATEST_INFO_PAIR_SEPARATOR + b)
+				i += 2
+				continue
+		out.append(a)
+		i += 1
+	return out
+
+static func _text_width_units(text: String) -> int:
+	var units := 0
+	for i in range(text.length()):
+		units += 1 if text.unicode_at(i) < 0x2E80 else 2
+	return units
 
 ## §10/§11: 累積ログ——1バッチに含まれる全entryを、行動宣言＋"→"付き結果行
 ## の並びとして整形する（履歴ウィンドウが複数バッチ分をそのまま連結して
@@ -902,6 +932,9 @@ static func build_battle_message(parent: Control) -> Label:
 	label.name = "LogLabel"
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# 戦場の床の上に直接乗る文字なので、縁取りを付けて明るい床でも読めるようにする（UI_UX §2。QA-07）
+	label.add_theme_constant_override("outline_size", 4)
+	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
 	scroll.add_child(label)
 	return label
 

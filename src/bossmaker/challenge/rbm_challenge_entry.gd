@@ -87,6 +87,10 @@ var _injected_online_api_adapter_for_testing: RBMBossApiAdapter = null
 ## 兼ねる(実運用でも同じインスタンスを共有する、下記_online_recorder()参照)。
 var _injected_online_recorder_for_testing: RBMOnlineChallengeRecorder = null
 var _online_recorder_instance: RBMOnlineChallengeRecorder = null
+## Steam の準備を前もって済ませたか（_warm_online_recorder_soon()）
+var _online_recorder_warm_requested := false
+## オンライン一覧を開いてから Steam の準備を始めるまでの秒数（一覧の読み込み中の画面を先に出す）
+const ONLINE_RECORDER_WARM_DELAY := 0.2
 var _list_panel: VBoxContainer
 var _category_title_label: Label
 var _name_search_field: LineEdit
@@ -326,7 +330,7 @@ func _build_list_panel() -> void:
 ## (_online_list_view)へ接続する。ローカルの共通一覧(_list_panel/
 ## _refresh_list()/RBMLocalStageRepository)には一切触れない——それらの
 ## 関数・データ自体は削除せず維持するが、この7カテゴリからは到達しなく
-## なる（検索・ランダムは今回変更していないため引き続きローカルを使う、
+## なる（検索・ランダムも 2026-10-17 からオンライン一覧の「検索」「ランダム抽選」を使う、
 ## 下の_on_hub_search_requested()/_on_hub_random_requested()参照）。
 ##
 ## §11(ユーザー確定仕様)「SIMPLE + 未挑戦 → 未挑戦SIMPLEだけ」: モードと
@@ -365,8 +369,44 @@ func _open_online_category(mode: String, online_category: String, _hub_category:
 	_confirm_view.clear_selection()
 	_show_online_browse()
 	_online_list_view.refresh_with(mode, online_category, RBMOnlineBossListView.category_title(online_category))
+	_warm_online_recorder_soon()
 
+## 挑戦の記録係（Steam）の準備を、オンライン一覧を開いて読み込み中の間に済ませる（最初の1回だけ）。
+## Steam の初期化は本体の処理で約0.12秒止まる。以前は最初の「挑戦する」で戦闘が始まる瞬間（挑戦の記録の
+## 最初の呼び出し）に行われ、そのフレームが約0.2秒止まっていた（プレイ体験監査 PX-27、2026-10-17）。
+## 一覧は通信の結果を待っている画面なので、ここで止まっても目立たない。記録の中身・Steam の使い方は変えない。
+func _warm_online_recorder_soon() -> void:
+	if _online_recorder_warm_requested:
+		return
+	_online_recorder_warm_requested = true
+	var timer := Timer.new()
+	timer.name = "OnlineRecorderWarmTimer"
+	timer.one_shot = true
+	timer.wait_time = ONLINE_RECORDER_WARM_DELAY
+	add_child(timer)
+	timer.timeout.connect(_on_online_recorder_warm_timeout.bind(timer))
+	timer.start()
+
+func _on_online_recorder_warm_timeout(timer: Timer) -> void:
+	timer.queue_free()
+	_online_recorder().account_id()  # 記録係の Steam の初期化（RBMOnlineChallengeRecorder._ensure_setup()）を行う
+
+## 挑戦トップの「ボスを検索」（2026-10-17 プレイ体験監査 PX-03、ユーザー確定仕様）: オンライン公開ボスを、ボス名・
+## 作者名・公開IDで探す（オンライン一覧の「検索」。サーバー側で探す、search-bosses）。モードは一覧で今選んでいるもの。
 func _on_hub_search_requested() -> void:
+	_open_online_category(_online_list_view.current_mode(), RBMOnlineBossListView.CATEGORY_SEARCH, "")
+
+## 挑戦トップの「ランダムで挑戦」（PX-03、ユーザー確定仕様）: 選択中のモード（オンライン一覧の右上の切替。
+## すべて/SIMPLE/HARDCORE）の公開ボス全体から1件引き（未挑戦に限らない。サーバー側で抽選、random-boss）、
+## そのボスを選んだ状態で詳細を出す。戦闘は始めない。
+func _on_hub_random_requested() -> void:
+	_open_online_category(_online_list_view.current_mode(), RBMOnlineBossListView.CATEGORY_RANDOM, "")
+
+## 手元の「手元公開」の印のボスの一覧（旧: 挑戦トップの「ボスを検索」）。2026-10-17 から挑戦トップからは
+## 開かない（手元のボスの専用の入口は作らない、ユーザー確定仕様）。以前の版で手元公開した保存データ
+## （published=true、手元の挑戦回数・クリア回数）は書き換えずにそのまま読めるよう、一覧・挑戦・記録の処理は残す
+## （テストはここから手元の戦闘の流れを確かめる）。
+func _open_local_published_list() -> void:
 	_current_category = ""
 	_category_title_label.text = tr("検索")
 	_selected_stage_id = ""
@@ -376,10 +416,10 @@ func _on_hub_search_requested() -> void:
 	_refresh_list()
 	_show_browse()
 
-## §5: ランダムはカテゴリではない——published=trueかつ実際に挑戦可能な
-## 全ボスから完全ランダムで1件選び、共通一覧/詳細画面をその1件が選択された
-## 状態で開く。抽選後に戦闘を自動開始しない（§5末尾）。
-func _on_hub_random_requested() -> void:
+## 手元公開のボスからのランダム（旧: 挑戦トップの「ランダムで挑戦」）。挑戦トップからは開かない（上と同じ理由で残す）。
+## §5: published=trueかつ実際に挑戦可能な全ボスから完全ランダムで1件選び、共通一覧/詳細画面をその1件が
+## 選択された状態で開く。抽選後に戦闘を自動開始しない（§5末尾）。
+func _open_local_random() -> void:
 	var candidates := _base_published_playable_entries()
 	if candidates.is_empty():
 		return

@@ -212,7 +212,8 @@ func test_step3_percentage_slider_is_draggable() -> void:
 	_btn(step3, "AddNormalActionButton").pressed.emit()
 	await get_tree().process_frame
 	step3._form._name_edit.text = "テスト攻撃スキル"
-	_btn(step3._form, "SaveActionButton").pressed.emit()
+	# 2026-10-17: 確定は設定画面の「行動を追加」1つ（HARDCORE と同じ流れ）
+	_btn(step3, "ActionConfirmButton").pressed.emit()
 	await get_tree().process_frame
 
 	# UI改善①: 「通常行動を使用する」チェックボックス自体を削除し、%スライダー
@@ -318,7 +319,7 @@ func test_challenge_battle_view_uses_the_same_compact_party_card_layout() -> voi
 	await get_tree().process_frame
 	# CHALLENGE UI再設計: 「挑戦」は必ず挑戦ハブを経由する——「ボスを検索」で
 	# 共通一覧画面を開く。
-	_btn(root.challenge_entry._hub_view, "SearchBossButton").pressed.emit()
+	root.challenge_entry._open_local_published_list()  # 手元公開のボスの一覧（2026-10-17 から挑戦トップの「ボスを検索」はオンラインを探す。PX-03）
 	await get_tree().process_frame
 	var row: PanelContainer = root.challenge_entry._list_rows.get_child(0)
 	_click_card(row)
@@ -469,7 +470,7 @@ func test_challenge_confirm_gets_horizontal_margin_without_shrinking_the_scroll_
 	await get_tree().process_frame
 	_btn(root, "ChallengeModeButton").pressed.emit()
 	await get_tree().process_frame
-	_btn(root.challenge_entry._hub_view, "SearchBossButton").pressed.emit()
+	root.challenge_entry._open_local_published_list()  # 手元公開のボスの一覧（2026-10-17 から挑戦トップの「ボスを検索」はオンラインを探す。PX-03）
 	await get_tree().process_frame
 	var row: PanelContainer = root.challenge_entry._list_rows.get_child(0)
 	_click_card(row)

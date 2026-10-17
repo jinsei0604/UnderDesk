@@ -138,7 +138,8 @@ func _notify_exit_requested() -> void:
 ## で別途検証済み)。人気/高難度は今回未実装で、押しても_list_rowsへは
 ## 到達しない(test_disabled_categories_do_nothing_and_never_reach_any_list()
 ## で検証)。ローカルの一覧が「未公開ボスを一切含まない」という保証は、
-## 今回もローカルを使い続ける検索・ランダムの2経路についてのみ意味を持つ。
+## 手元公開のボスの一覧・ランダム（2026-10-17 から挑戦トップからは開かない。旧データの互換のために
+## 残す RBMChallengeEntry._open_local_published_list()/_open_local_random()）についてのみ意味を持つ。
 func test_unpublished_stage_never_appears_in_search_or_random() -> void:
 	_save_unpublished("未公開のみボス")
 	_publish("公開済みボス")
@@ -146,7 +147,7 @@ func test_unpublished_stage_never_appears_in_search_or_random() -> void:
 	var entry := _new_entry()
 	entry.enter_challenge()
 
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	assert_eq(entry._list_rows.get_child_count(), 1, "search (no filter) must show only the published stage")
 
 	var candidates := entry._base_published_playable_entries()
@@ -157,7 +158,7 @@ func test_search_excludes_unpublished_stages_by_name() -> void:
 	_save_unpublished("検索対象未公開ボス")
 	var entry := _new_entry()
 	entry.enter_challenge()
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	entry._name_search_field.text = "検索対象"
 	entry._refresh_list()
 	assert_eq(entry._list_rows.get_child_count(), 0, "search must never surface an unpublished stage even when the name matches")
@@ -514,11 +515,11 @@ func test_random_pool_is_published_playable_only_and_ignores_mode_and_stats() ->
 	assert_true(picked_ids.has(uniform_b), "no weighting: HARDCORE must not be excluded/favored")
 	assert_true(picked_ids.has(uniform_c), "sanity: the highest-stat stage must also be reachable")
 
-func test_random_button_opens_the_common_list_with_the_picked_boss_selected_and_does_not_start_battle() -> void:
+func test_local_random_opens_the_common_list_with_the_picked_boss_selected_and_does_not_start_battle() -> void:
 	_publish("ランダム抽選対象ボス")
 	var entry := _new_entry()
 	entry.enter_challenge()
-	entry._on_hub_random_requested()
+	entry._open_local_random()
 
 	assert_true(entry._list_panel.visible, "random must open the common list+detail screen")
 	assert_false(entry._battle_view.visible, "random must never auto-start a battle")
@@ -529,7 +530,7 @@ func test_random_button_opens_the_common_list_with_the_picked_boss_selected_and_
 func test_random_with_no_published_stages_does_nothing_safely() -> void:
 	var entry := _new_entry()
 	entry.enter_challenge()
-	entry._on_hub_random_requested()
+	entry._open_local_random()
 	assert_true(entry._hub_view.visible, "with nothing to pick, the hub must simply stay put (no crash, no broken transition)")
 
 # ---------------------------------------------------------------------------
@@ -540,7 +541,7 @@ func test_detail_panel_shows_empty_state_until_a_card_is_selected() -> void:
 	_publish("詳細未選択確認ボス")
 	var entry := _new_entry()
 	entry.enter_challenge()
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	assert_true(entry._confirm_view._empty_state_label.visible, "before any selection, the detail panel must show its empty state")
 	assert_false(entry._confirm_view._detail_content.visible)
 
@@ -554,7 +555,7 @@ func test_detail_panel_never_repeats_challenge_count_or_clear_rate() -> void:
 	RBMLocalStageRepository.record_challenge_attempt(stage_id)
 	var entry := _new_entry()
 	entry.enter_challenge()
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	_click_card(entry._list_rows.get_child(0))
 
 	# §13: 挑戦回数・クリア率は一覧カード側にのみ表示する——確認画面
@@ -577,7 +578,7 @@ func test_detail_panel_shows_large_image_author_and_mode() -> void:
 	_publish("詳細表示確認ボス", RBMCreatorDraft.CREATOR_MODE_ADVANCED, "テスト作者")
 	var entry := _new_entry()
 	entry.enter_challenge()
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	_click_card(entry._list_rows.get_child(0))
 
 	assert_not_null(entry._confirm_view.find_child("ConfirmBossImage", true, false), "detail panel must show a large boss image area")
@@ -588,7 +589,7 @@ func test_author_name_defaults_to_placeholder_when_empty() -> void:
 	_publish("作者名未設定ボス")
 	var entry := _new_entry()
 	entry.enter_challenge()
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	_click_card(entry._list_rows.get_child(0))
 	assert_true(entry._confirm_view._author_label.text.contains("（未設定）"))
 
@@ -600,7 +601,7 @@ func test_challenge_start_from_detail_panel_immediately_begins_battle_with_no_ex
 	_publish("即戦闘開始ボス")
 	var entry := _new_entry()
 	entry.enter_challenge()
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	_click_card(entry._list_rows.get_child(0))
 	assert_false(entry._battle_view.visible, "sanity: selecting alone must not start battle")
 
@@ -614,7 +615,7 @@ func test_challenge_attempt_is_recorded_exactly_once_per_battle_start_not_per_re
 	var stage_id := _publish("挑戦回数記録確認ボス")
 	var entry := _new_entry()
 	entry.enter_challenge()
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	_click_card(entry._list_rows.get_child(0))
 	entry._confirm_view._on_challenge_pressed()
 	assert_eq(int(RBMLocalStageRepository.read_stage_stats(stage_id).get("challenge_count", 0)), 1)
@@ -642,7 +643,7 @@ func test_challenging_the_same_boss_again_after_returning_to_the_list_increments
 
 	var entry := _new_entry()
 	entry.enter_challenge()
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	_click_card(entry._list_rows.get_child(0))
 	entry._confirm_view._on_challenge_pressed()
 	entry._battle_view.act_attack(0)
@@ -650,7 +651,7 @@ func test_challenging_the_same_boss_again_after_returning_to_the_list_increments
 	assert_eq(int(RBMLocalStageRepository.read_stage_stats(stage_id).get("challenge_count", 0)), 1)
 
 	entry._battle_view._on_return_pressed()
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	_click_card(entry._list_rows.get_child(0))
 	entry._confirm_view._on_challenge_pressed()
 	assert_eq(int(RBMLocalStageRepository.read_stage_stats(stage_id).get("challenge_count", 0)), 2, "challenging the same boss again from the hub (after returning to the list) must increment challenge_count further")
@@ -670,7 +671,7 @@ func test_challenge_clear_is_recorded_exactly_once_on_win() -> void:
 
 	var entry := _new_entry()
 	entry.enter_challenge()
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	_click_card(entry._list_rows.get_child(0))
 	entry._confirm_view._on_challenge_pressed()
 	entry._battle_view.act_attack(0)
@@ -700,7 +701,7 @@ func test_losing_a_battle_does_not_increment_clear_count() -> void:
 
 	var entry := _new_entry()
 	entry.enter_challenge()
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	_click_card(entry._list_rows.get_child(0))
 	entry._confirm_view._on_challenge_pressed()
 	entry._battle_view.act_attack(0)
@@ -718,7 +719,7 @@ func test_card_challenge_count_reads_as_a_count_of_times_not_a_headcount() -> vo
 	RBMLocalStageRepository.record_challenge_attempt(stage_id)
 	var entry := _new_entry()
 	entry.enter_challenge()
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	var card: PanelContainer = entry._list_rows.get_child(0)
 	var challenge_count_label: Label = card.find_children("*", "Label", true, false).filter(func(l): return str(l.name).begins_with("BossCardChallengeCountLabel_"))[0]
 	assert_true(challenge_count_label.text.contains("2"), "sanity: 2 recorded attempts")
@@ -769,7 +770,7 @@ func test_starting_a_local_challenge_never_calls_the_online_record_attempt_api()
 	var browse_api := _fake_online_api()
 	var entry := _entry_with_online_api_and_recorder(browse_api, recorder)
 	entry.enter_challenge()
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	_click_card(entry._list_rows.get_child(0))
 	entry._confirm_view._on_challenge_pressed()
 	await wait_process_frames(2)

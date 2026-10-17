@@ -827,6 +827,12 @@ static func list() -> Array[Dictionary]:
 			"appearance_id": draft.appearance_id,
 			"status": status,
 			"published": draft.is_published(),
+			## オンラインに公開しているか（保存済みの値。最終確認を開いた時にサーバーと照らし合わせて更新される）。
+			## 保存したボス戦の一覧の「公開中」の札・詳細の公開状態はこちらを見る（2026-10-17、プレイ体験監査 PX-05:
+			## 上の published は今の画面からは付けられない手元だけの印で、オンライン公開しても「非公開」と出ていた）。
+			"online_published": draft.is_online_published(),
+			## オンラインの公開ボスのid（保存済みの値）。詳細に公開ID（RBMPublicBossId）を出すため（2026-10-17 PX-03）。
+			"online_boss_id": draft.online_boss_id(),
 			"created_unix_time": int(result.get("created_unix_time", 0)),
 			"updated_unix_time": int(result.get("updated_unix_time", 0)),
 			"author_name": draft.author_name,

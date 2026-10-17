@@ -196,7 +196,7 @@ func _do_save_new() -> void:
 	if not bool(result.get("ok", false)):
 		_choice_panel.visible = true
 		preload("res://src/bossmaker/rbm_audio.gd").cue(self, "ui_error")
-		_error_label.text = tr("保存に失敗しました")
+		_error_label.text = _failure_text(result)
 		return
 	_show_success(str(result.get("stage_id", "")))
 
@@ -206,9 +206,14 @@ func _on_overwrite_pressed() -> void:
 	var result: Dictionary = main.press_overwrite_save()
 	if not bool(result.get("ok", false)):
 		preload("res://src/bossmaker/rbm_audio.gd").cue(self, "ui_error")
-		_error_label.text = tr("保存に失敗しました")
+		_error_label.text = _failure_text(result)
 		return
 	_show_success(main.current_stage_id)
+
+## 保存できなかった理由（回復量の上限など、理由の文があればそれを出す）。
+func _failure_text(result: Dictionary) -> String:
+	var message := str(result.get("message", ""))
+	return tr("保存に失敗しました") if message.is_empty() else tr("保存できません：%s") % message
 
 func _show_success(stage_id: String) -> void:
 	preload("res://src/bossmaker/rbm_audio.gd").cue(self, "ui_save")

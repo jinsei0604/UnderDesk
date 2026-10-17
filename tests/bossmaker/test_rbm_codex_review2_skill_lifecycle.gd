@@ -445,9 +445,10 @@ func test_simple_normal_action_delete_removes_unreferenced_skill() -> void:
 	var creator := _new_creator()
 	var step3 := _step3(creator)
 	var simple: RBMCreatorStep4Actions = step3._simple_view
+	# 2026-10-17: SIMPLE も HARDCORE と同じ流れ（設定画面の確定ボタン1つ）
 	_btn(simple, "AddNormalActionButton").pressed.emit()
 	simple._form._name_edit.text = "通常行動"
-	simple._form._on_save_pressed()
+	_btn(simple, "ActionConfirmButton").pressed.emit()
 	assert_eq(creator.draft.normal_action_percentages.size(), 1, "sanity")
 	var skill_id := str(creator.draft.normal_action_percentages.keys()[0])
 	assert_false(creator.draft.find_skill(skill_id).is_empty(), "sanity")
@@ -462,10 +463,10 @@ func test_simple_scripted_action_delete_removes_unreferenced_skill() -> void:
 	var creator := _new_creator()
 	var step3 := _step3(creator)
 	var simple: RBMCreatorStep4Actions = step3._simple_view
+	# 2026-10-17: SIMPLE も HARDCORE と同じ流れ（性能と「いつ使う？」を1つの設定画面で、確定ボタン1つ）
 	_btn(simple, "AddScriptedActionButton").pressed.emit()
-	_btn(simple, "ScriptedWhenNextButton").pressed.emit()
 	simple._form._name_edit.text = "指定行動"
-	simple._form._on_save_pressed()
+	_btn(simple, "ActionConfirmButton").pressed.emit()
 	assert_eq(creator.draft.scripted_actions.size(), 1, "sanity")
 	var skill_id := str(creator.draft.scripted_actions[0].get("skill_id", ""))
 	assert_false(creator.draft.find_skill(skill_id).is_empty(), "sanity")
@@ -697,9 +698,12 @@ func test_same_name_actions_in_different_places_are_independent() -> void:
 	var step3 := _step3(creator)
 	var simple: RBMCreatorStep4Actions = step3._simple_view
 	_btn(simple, "AddNormalActionButton").pressed.emit()
+	# 既存の行動がある時は、追加の方法（既存から選ぶ／新しく作る）を選ぶ画面が先に出る（HARDCORE と同じ流れ）
+	if simple._add_choice_view.visible:
+		_btn(simple, "AddChoiceCreateNewButton").pressed.emit()
 	simple._form._name_edit.text = "炎"
 	simple._form._attack_multiplier_spin.value = 1.0
-	simple._form._on_save_pressed()
+	_btn(simple, "ActionConfirmButton").pressed.emit()
 	var normal_skill_id := ""
 	for id in creator.draft.normal_action_percentages.keys():
 		normal_skill_id = str(id)

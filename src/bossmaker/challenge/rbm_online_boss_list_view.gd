@@ -43,6 +43,17 @@ const CATEGORY_NEW := "new"
 const CATEGORY_UNCHALLENGED := "unchallenged"
 const CATEGORY_POPULAR := "popular"
 const CATEGORY_HIGH_DIFFICULTY := "high_difficulty"
+## 挑戦トップの「ボスを検索」「ランダムで挑戦」（2026-10-17 プレイ体験監査 PX-03、ユーザー確定仕様）。
+## 以前は手元の保存のうち「手元公開」の印のボスだけを対象にしていて、今の画面ではその印を付けられないため
+## 使えなかった。今はオンライン公開ボスを対象に、サーバー側で探す・抽選する（search-bosses・random-boss）。
+##   検索: ボス名・作者名・公開ID（RBMPublicBossId）。検索ボタン・Enterの時だけ通信する（文字を打つたびには
+##         通信しない）。続きは「さらに表示」。モードの切替（すべて/SIMPLE/HARDCORE）で絞れる。
+##   ランダム: 今のモード（すべて/SIMPLE/HARDCORE）の公開ボス全体から1件（未挑戦に限らない）。引いたボスを
+##         選んだ状態で詳細を出す（戦闘は始めない）。「もう一度引く」で今のボス以外から引き直す。
+const CATEGORY_SEARCH := "search"
+const CATEGORY_RANDOM := "random"
+## 検索語の長さの上限（search-bosses と同じ）。
+const SEARCH_MAX_LENGTH := 50
 
 ## Phase 7 共通ロード表示(ロジックのみ) — オンライン/新着/未挑戦/人気/
 ## 高難度は全てこの画面のrefresh()を経由する1本の通信なので、まとめて
@@ -79,6 +90,14 @@ var _rows_container: VBoxContainer
 var _more_error_label: Label
 var _load_more_button: Button
 var _detail: RBMOnlineBossDetailPanel
+# 検索（PX-03）: 一覧の欄の上の検索の行、今の検索語（検索した時の文字。打っている途中の文字ではない）。
+var _search_row: Control
+var _search_edit: LineEdit
+var _search_query := ""
+# ランダム（PX-03）: 「もう一度引く」、今出しているボス、次の抽選で除くボス。
+var _reroll_button: Button
+var _random_shown_id := ""
+var _random_exclude_id := ""
 
 var _current_mode: String = ""
 var _current_category: String = CATEGORY_ONLINE
@@ -92,8 +111,17 @@ var _shown_ids: Dictionary = {}
 # 一覧の取り直し(refresh)のたびに進む番号。取得中にモード/カテゴリが変わったら、
 # 古い要求の結果をこの番号で見分けて捨てる。
 var _list_token := 0
-# 一覧の通信が進行中か。HTTPRequestは同時に1本しか使えないので、通信は1本ずつ行う。
-var _list_busy := false
+# 進行中の通信の数（一覧の取り直し・さらに表示・詳細）。2026-10-17（プレイ体験監査 PX-04）から、
+# 通信は1本ごとに別の HTTPRequest を使い（RBMBossApiAdapter）、待ち時間に上限がある。一覧の取り直し
+# （カテゴリ・モードの切り替え・もう一度読み込む）は前の通信を待たずに始める——以前は返らない通信が1本
+# あると、ほかのカテゴリ・「更新」まですべて読み込み中のまま止まっていた。古い結果は今と同じく token で捨てる。
+# さらに表示・詳細は、今までどおり進行中の通信が終わってから行う。
+var _requests_in_flight := 0
+var _list_busy: bool:
+	get:
+		return _requests_in_flight > 0
+## 読み込みに時間がかかっている時に一言出すまでの秒数
+const SLOW_NOTICE_SECONDS := 4.0
 
 # 選択(2026-10): 選んだボス、その詳細(取得済みなら)、一覧の行(boss_id -> 行の内容)。
 # 詳細の取得もtokenで見分け、別のボスを選び直したら古い結果は捨てる。
@@ -131,8 +159,16 @@ static func category_title(category: String) -> String:
 			return TranslationServer.translate("人気")
 		CATEGORY_HIGH_DIFFICULTY:
 			return TranslationServer.translate("高難度")
+		CATEGORY_SEARCH:
+			return TranslationServer.translate("検索")
+		CATEGORY_RANDOM:
+			return TranslationServer.translate("ランダム抽選")
 		_:
 			return TranslationServer.translate("オンライン")
+
+## 今の検索語（検索した時の文字）。
+func search_query() -> String:
+	return _search_query
 
 func _ready() -> void:
 	if _api_adapter == null:
@@ -217,12 +253,14 @@ func _build_list_panel() -> void:
 	refresh_button.text = tr("更新")
 	refresh_button.add_theme_font_size_override("font_size", 13)
 	S.button_style(refresh_button)
-	refresh_button.pressed.connect(func(): refresh())
+	refresh_button.pressed.connect(_on_refresh_pressed)
 	panel.add_child(refresh_button)
 	refresh_button.size = Vector2(maxf(76.0, refresh_button.get_combined_minimum_size().x), 32)
 	refresh_button.position = Vector2(LIST_RECT.size.x - 16 - refresh_button.size.x, 10)
 	_count_label = S.label(panel, "", Rect2(150, 12, refresh_button.position.x - 162, 28), 12, S.MUTED, "OnlineListCountLabel")
 	_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+	_build_search_row(panel)
 
 	var area := Rect2(8, 52, LIST_RECT.size.x - 12, LIST_RECT.size.y - 60)
 	_scroll = ScrollContainer.new()
@@ -279,6 +317,17 @@ func _build_list_panel() -> void:
 	_load_more_button.visible = false
 	_load_more_button.pressed.connect(func(): load_more())
 	column.add_child(_load_more_button)
+
+	# 「ランダム抽選」で引いたボスの下に出す。押すと今のボス以外から引き直す。
+	_reroll_button = Button.new()
+	_reroll_button.name = "OnlineListRerollButton"
+	_reroll_button.text = tr("もう一度引く")
+	_reroll_button.custom_minimum_size = Vector2(RBMOnlineBossCard.SIZE.x, 48)
+	_reroll_button.add_theme_font_size_override("font_size", 15)
+	S.button_style(_reroll_button)
+	_reroll_button.visible = false
+	_reroll_button.pressed.connect(func(): reroll())
+	column.add_child(_reroll_button)
 	var tail := Control.new()
 	tail.custom_minimum_size = Vector2(0, 6)
 	column.add_child(tail)
@@ -300,6 +349,66 @@ func _build_list_panel() -> void:
 	panel.add_child(_retry_button)
 	_retry_button.size = Vector2(maxf(200.0, _retry_button.get_combined_minimum_size().x), 42)
 	_retry_button.position = Vector2((LIST_RECT.size.x - _retry_button.size.x) / 2.0, 300)
+
+## 「検索」の時だけ出す、一覧の欄の上の検索の行（入力欄＋「検索」）。出す時は一覧を少し下げる（_layout_for_category()）。
+func _build_search_row(panel: Control) -> void:
+	_search_row = Control.new()
+	_search_row.name = "OnlineListSearchRow"
+	_search_row.position = Vector2(16, 50)
+	_search_row.size = Vector2(LIST_RECT.size.x - 32, 40)
+	_search_row.visible = false
+	panel.add_child(_search_row)
+	var button := Button.new()
+	button.name = "OnlineListSearchButton"
+	button.text = tr("検索")
+	button.add_theme_font_size_override("font_size", 14)
+	S.button_style(button)
+	button.pressed.connect(func(): submit_search(_search_edit.text))
+	_search_row.add_child(button)
+	button.size = Vector2(maxf(76.0, button.get_combined_minimum_size().x), 38)
+	button.position = Vector2(_search_row.size.x - button.size.x, 1)
+	_search_edit = LineEdit.new()
+	_search_edit.name = "OnlineListSearchEdit"
+	_search_edit.placeholder_text = tr("ボス名・作者名・公開ID")
+	_search_edit.max_length = SEARCH_MAX_LENGTH
+	_search_edit.clear_button_enabled = true
+	_search_edit.add_theme_font_size_override("font_size", 15)
+	_search_edit.position = Vector2(0, 1)
+	_search_edit.size = Vector2(button.position.x - 8, 38)
+	_search_edit.text_submitted.connect(submit_search)
+	_search_row.add_child(_search_edit)
+
+## 検索の行を出すかどうかで、一覧の欄の上端を決める。
+func _layout_for_category() -> void:
+	var searching := _current_category == CATEGORY_SEARCH
+	_search_row.visible = searching
+	var top := 100.0 if searching else 52.0
+	_scroll.position.y = top
+	_scroll.size.y = LIST_RECT.size.y - 8.0 - top
+
+## 検索ボタン・Enter。今の検索語で一覧を取り直す（空なら案内だけを出し、通信しない）。
+func submit_search(text: String) -> void:
+	if _current_category != CATEGORY_SEARCH:
+		return
+	var query := text.strip_edges().substr(0, SEARCH_MAX_LENGTH)
+	if query == _search_query and _skeleton_container.visible:
+		return # 同じ言葉を読み込み中——Enter の連打で通信を重ねない（サーバーの負荷）
+	_search_query = query
+	refresh()
+
+## 「ランダム抽選」で、今のボス以外から引き直す（ほかに無ければ同じボス）。
+func reroll() -> void:
+	if _current_category != CATEGORY_RANDOM or _skeleton_container.visible:
+		return # 抽選中——「更新」の連打で通信を重ねない（サーバーの負荷）
+	_random_exclude_id = _random_shown_id
+	refresh()
+
+## 一覧の欄の「更新」。ランダムでは引き直し、それ以外は取り直し。
+func _on_refresh_pressed() -> void:
+	if _current_category == CATEGORY_RANDOM:
+		reroll()
+	else:
+		refresh()
 
 func _skeleton_card() -> Control:
 	var card := Panel.new()
@@ -323,12 +432,22 @@ func refresh_with(mode: String, category: String, title_text: String) -> void:
 	_current_category = category
 	_title_label.text = title_text
 	_update_mode_buttons()
+	_layout_for_category()
+	# 挑戦トップから開き直した時は、前の検索語・前に引いたボスを持ち越さない。
+	_search_query = ""
+	_search_edit.text = ""
+	_random_shown_id = ""
+	_random_exclude_id = ""
+	if category == CATEGORY_SEARCH and is_inside_tree():
+		_search_edit.grab_focus.call_deferred()
 	await refresh()
 
-## 右上のモード切替(すべて/SIMPLE/HARDCORE)。カテゴリはそのままで、一覧を先頭から取り直す。
+## 右上のモード切替(すべて/SIMPLE/HARDCORE)。カテゴリはそのままで、一覧を先頭から取り直す
+## (検索は同じ検索語で探し直し、ランダムはそのモードの中から引き直す)。
 func _on_mode_segment_pressed(mode: String) -> void:
 	_current_mode = mode
 	_update_mode_buttons()
+	_random_exclude_id = ""
 	refresh()
 
 func _update_mode_buttons() -> void:
@@ -347,26 +466,27 @@ func refresh() -> void:
 	_clear_selection()
 	_detail.show_empty(false)
 	_more_error_label.visible = false
+	_reroll_button.visible = false
 	_update_load_more_button()
 	_show_list_message("", "", false)
-	_count_label.text = tr("読み込み中...")
-	_skeleton_container.visible = true
 	for child in _rows_container.get_children():
 		_rows_container.remove_child(child)
 		child.queue_free()
 	# 取り直した一覧は先頭から見せる(「さらに表示」で下まで読んだ後にモード/カテゴリを
 	# 切り替えても、新しい一覧の途中から始まらない)。
 	_scroll.scroll_vertical = 0
-	# 前の通信(取り直し・さらに表示・詳細)がまだ終わっていなければ、終わるのを待ってから通信する。
-	# その結果はtokenが変わったので使われない。待つ間にさらに切り替えられたら、
-	# この取り直しはやめて最後の切り替えだけを通信する。
-	while _list_busy:
-		await _list_request_finished
-		if token != _list_token:
-			return
-
+	if _current_category == CATEGORY_SEARCH and _search_query.is_empty():
+		# 検索語が無い——通信せず、探し方だけを出す(PX-03)。
+		_skeleton_container.visible = false
+		_count_label.text = ""
+		_show_list_message("", tr("ボス名・作者名・公開IDで探せます。"), false)
+		return
+	_count_label.text = tr("読み込み中...")
+	_skeleton_container.visible = true
+	# 前の通信を待たずに始める（PX-04）。前の通信の結果は token が変わったので使われない。
+	_start_slow_notice(token)
 	var response: Dictionary
-	_list_busy = true
+	_requests_in_flight += 1
 	RBMLoadingState.begin(LOADING_OP_LIST)
 	match _current_category:
 		CATEGORY_UNCHALLENGED:
@@ -375,6 +495,10 @@ func refresh() -> void:
 			response = await _api_adapter.list_popular_bosses(PAGE_SIZE, _current_mode)
 		CATEGORY_HIGH_DIFFICULTY:
 			response = await _api_adapter.list_hard_bosses(PAGE_SIZE, _current_mode)
+		CATEGORY_SEARCH:
+			response = await _api_adapter.search_bosses(_search_query, PAGE_SIZE, _current_mode)
+		CATEGORY_RANDOM:
+			response = await _api_adapter.random_boss(_current_mode, _random_exclude_id)
 		_:
 			# オンラインも新着も、まずは最新の先頭ページ。続きを読むのはオンラインだけ。
 			response = await _api_adapter.list_bosses(PAGE_SIZE, _current_mode)
@@ -385,26 +509,43 @@ func refresh() -> void:
 	_skeleton_container.visible = false
 	_count_label.text = ""
 	if not bool(response.get("ok", false)):
-		_show_list_message(tr("一覧を取得できませんでした"), tr("通信エラー（%s）") % str(response.get("error_kind", response.get("message", "unknown"))), true)
+		_show_list_message(tr("一覧を取得できませんでした"), RBMOnlineErrorText.full_text(response), true)
 		return
 
-	if _current_category == CATEGORY_ONLINE:
+	if _current_category == CATEGORY_ONLINE or _current_category == CATEGORY_SEARCH:
 		_take_paging(response)
 	var bosses: Array = response.get("bosses", [])
 	if bosses.is_empty():
-		_show_list_message("", tr("公開されているボスはまだありません。"), false)
+		_show_list_message("", _empty_list_text(), false)
 		_update_load_more_button()
 		return
 
 	_append_rows(bosses)
 	_update_load_more_button()
+	if _current_category == CATEGORY_RANDOM:
+		# 引いたボスを選んだ状態で詳細を出す（戦闘は始めない）。
+		_random_shown_id = str((bosses[0] as Dictionary).get("id", "")) if bosses[0] is Dictionary else ""
+		_count_label.text = ""
+		_reroll_button.visible = true
+		if not _random_shown_id.is_empty():
+			_on_card_pressed(_random_shown_id)
+		return
 	_detail.show_empty(true)
+
+## 一覧が空の時の一言（カテゴリごと）。
+func _empty_list_text() -> String:
+	match _current_category:
+		CATEGORY_SEARCH:
+			return tr("条件に合うボスは見つかりませんでした。")
+		CATEGORY_RANDOM:
+			return tr("抽選できる公開ボスがありません。")
+	return tr("公開されているボスはまだありません。")
 
 ## 「オンライン」で、表示中の一覧の続き(次の20件)を末尾へ追加する。続きが無い・取得中・
 ## 別カテゴリなら何もしない。失敗しても表示済みの行と続きの位置は残すので、もう一度押せば
 ## 同じ続きを取り直せる。
 func load_more() -> void:
-	if _current_category != CATEGORY_ONLINE or not _has_more or _next_cursor.is_empty() or _loading_more:
+	if not _pages_more() or not _has_more or _next_cursor.is_empty() or _loading_more:
 		return
 	var token := _list_token
 	_loading_more = true
@@ -417,9 +558,13 @@ func load_more() -> void:
 			_loading_more = false
 			_update_load_more_button()
 			return
-	_list_busy = true
+	_requests_in_flight += 1
 	RBMLoadingState.begin(LOADING_OP_MORE)
-	var response: Dictionary = await _api_adapter.list_bosses(PAGE_SIZE, _current_mode, _next_cursor)
+	var response: Dictionary
+	if _current_category == CATEGORY_SEARCH:
+		response = await _api_adapter.search_bosses(_search_query, PAGE_SIZE, _current_mode, _next_cursor)
+	else:
+		response = await _api_adapter.list_bosses(PAGE_SIZE, _current_mode, _next_cursor)
 	RBMLoadingState.end(LOADING_OP_MORE)
 	_loading_more = false
 	if token == _list_token:
@@ -427,15 +572,29 @@ func load_more() -> void:
 			_take_paging(response)
 			_append_rows(response.get("bosses", []))
 		else:
-			_more_error_label.text = tr("続きを取得できませんでした（%s）") % str(response.get("error_kind", response.get("message", "unknown")))
+			_more_error_label.text = "%s\n%s" % [tr("続きを取得できませんでした。"), RBMOnlineErrorText.full_text(response)]
 			_more_error_label.visible = true
 		_update_load_more_button()
 	_finish_list_request()
 
 ## 通信を1本終えたことにして、待っている取り直しがあれば通信させる。
 func _finish_list_request() -> void:
-	_list_busy = false
+	_requests_in_flight = maxi(0, _requests_in_flight - 1)
 	_list_request_finished.emit()
+
+## 読み込みに時間がかかっている時、件数の欄に一言出す（その取り直しが終わっていなければ）。
+func _start_slow_notice(token: int) -> void:
+	var timer := Timer.new()
+	timer.one_shot = true
+	timer.wait_time = SLOW_NOTICE_SECONDS
+	add_child(timer)
+	timer.timeout.connect(_on_slow_notice_timeout.bind(token, timer))
+	timer.start()
+
+func _on_slow_notice_timeout(token: int, timer: Timer) -> void:
+	timer.queue_free()
+	if token == _list_token and _skeleton_container.visible:
+		_count_label.text = tr("読み込み中...（時間がかかっています）")
 
 ## 続きがあるかと次の位置を、list-bossesの応答から受け取る(古いサーバーで項目が無ければ続き無し)。
 func _take_paging(response: Dictionary) -> void:
@@ -462,8 +621,12 @@ func _append_rows(bosses: Array) -> void:
 		_rows_container.add_child(card)
 	_count_label.text = tr("%d件表示中") % _shown_ids.size() if not _shown_ids.is_empty() else ""
 
+## 「さらに表示」で続きを読むカテゴリ（オンライン・検索）。
+func _pages_more() -> bool:
+	return _current_category == CATEGORY_ONLINE or _current_category == CATEGORY_SEARCH
+
 func _update_load_more_button() -> void:
-	_load_more_button.visible = _current_category == CATEGORY_ONLINE and _has_more
+	_load_more_button.visible = _pages_more() and _has_more
 	_load_more_button.disabled = _loading_more
 	_load_more_button.text = tr("読み込み中...") if _loading_more else tr("さらに表示")
 
@@ -475,6 +638,10 @@ func _show_list_message(title: String, message: String, retry: bool) -> void:
 	_status_label.add_theme_color_override("font_color", S.HARD if retry else S.MUTED)
 	_status_label.add_theme_font_size_override("font_size", 13 if retry else 15)
 	_retry_button.visible = retry
+	# 説明が3行以上になる時（通信の失敗の文＋小さなコードの行。PX-14）は、欄を伸ばし「もう一度読み込む」を下へずらす
+	var needed := float(maxi(1, _status_label.get_line_count()) * _status_label.get_line_height()) + 4.0
+	_status_label.size.y = maxf(48.0, needed)
+	_retry_button.position.y = maxf(300.0, _status_label.position.y + _status_label.size.y + 8.0)
 
 # ---------------------------------------------------------------------------
 # 選択と詳細
@@ -503,7 +670,7 @@ func _fetch_detail(boss_id: String, summary: Dictionary) -> void:
 		await _list_request_finished
 		if token != _detail_token:
 			return
-	_list_busy = true
+	_requests_in_flight += 1
 	RBMLoadingState.begin(LOADING_OP_DETAIL)
 	var result: Dictionary = await RBMOnlineChallengeLoader.load_boss_for_challenge(_api_adapter, boss_id)
 	RBMLoadingState.end(LOADING_OP_DETAIL)
@@ -511,7 +678,7 @@ func _fetch_detail(boss_id: String, summary: Dictionary) -> void:
 	if token != _detail_token:
 		return # 取得中に別のボスを選び直した/一覧を取り直した——古い結果は使わない
 	if not bool(result.get("ok", false)):
-		_detail.show_error(summary, tr("このボスは取得できませんでした（%s）。") % str(result.get("error", "unknown")))
+		_detail.show_error(summary, "%s\n%s" % [tr("このボスを取得できませんでした。"), RBMOnlineErrorText.full_text({"error_kind": str(result.get("error", "unknown")), "message": str(result.get("message", ""))})])
 		return
 	var draft: RBMCreatorDraft = result["draft"]
 	# 名前・作者は詳細の応答に入っていればそちら(最新)、空なら一覧の行のまま。

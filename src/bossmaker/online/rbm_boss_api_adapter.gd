@@ -47,19 +47,33 @@ func _headers() -> PackedStringArray:
 func _function_url(name: String) -> String:
 	return "%s/functions/v1/%s" % [RBMSupabaseConfig.url(), name]
 
+## 1回の通信を待つ上限（秒）。返らない通信で画面が読み込み中のまま止まらないように（2026-10-17、PX-04）。
+const REQUEST_TIMEOUT_SECONDS := 12.0
+
+## 通信ごとに専用の HTTPRequest を作る（同時に複数の通信ができる。以前は1つの HTTPRequest を共有していたので、
+## 返らない通信が1本あると、後の通信がすべて止まっていた。PX-04）。待ち時間の上限を超えたら network_error で返る。
+## 送る内容・受け取った後の解釈（_interpret()）は変えない。
 func _request(url: String, method: HTTPClient.Method, body: String = "") -> Dictionary:
 	_ensure_ready()
 	var config_error := _config_error()
 	if not config_error.is_empty():
 		return config_error
-	var request_error := _http_request.request(url, _headers(), method, body)
+	var http := HTTPRequest.new()
+	http.name = "BossApiRequest"
+	http.timeout = REQUEST_TIMEOUT_SECONDS
+	add_child(http)
+	var request_error := http.request(url, _headers(), method, body)
 	if request_error != OK:
+		http.queue_free()
 		return RBMSupabaseResponse.network_error("HTTPRequest.request() returned error code %d" % request_error)
-	var completed: Array = await _http_request.request_completed
+	var completed: Array = await http.request_completed
+	http.queue_free()
 	return _interpret(completed)
 
 func _interpret(completed: Array) -> Dictionary:
 	var result := int(completed[0])
+	if result == HTTPRequest.RESULT_TIMEOUT:
+		return RBMSupabaseResponse.network_error("timeout (%.0f s)" % REQUEST_TIMEOUT_SECONDS)
 	if result != HTTPRequest.RESULT_SUCCESS:
 		return RBMSupabaseResponse.network_error("HTTPRequest result code %d" % result)
 	var response_code := int(completed[1])
@@ -134,4 +148,27 @@ func list_hard_bosses(limit: int = 20, mode: String = "") -> Dictionary:
 	var url := _function_url("list-hard-bosses") + "?limit=%d" % limit
 	if not mode.is_empty():
 		url += "&mode=%s" % mode.uri_encode()
+	return await _request(url, HTTPClient.METHOD_GET)
+
+## 公開ボスの検索（2026-10-17 PX-03、search-bosses）。query: ボス名・作者名の一部、または公開ID（RBMPublicBossId）。
+## 応答は list_bosses() と同じ形（bosses・has_more・next_cursor）。続きは cursor で読む。
+func search_bosses(query: String, limit: int = 20, mode: String = "", cursor: String = "") -> Dictionary:
+	var url := _function_url("search-bosses") + "?q=%s&limit=%d" % [query.uri_encode(), limit]
+	if not mode.is_empty():
+		url += "&mode=%s" % mode.uri_encode()
+	if not cursor.is_empty():
+		url += "&cursor=%s" % cursor.uri_encode()
+	return await _request(url, HTTPClient.METHOD_GET)
+
+## ランダム挑戦（2026-10-17 PX-03、random-boss）。mode のボス全体（空ならすべて）から1件。exclude_id は今出しているボス
+## （それ以外から選ぶ。ほかに無ければ同じボス）。応答の bosses は0件か1件。
+func random_boss(mode: String = "", exclude_id: String = "") -> Dictionary:
+	var params: Array[String] = []
+	if not mode.is_empty():
+		params.append("mode=%s" % mode.uri_encode())
+	if not exclude_id.is_empty():
+		params.append("exclude=%s" % exclude_id.uri_encode())
+	var url := _function_url("random-boss")
+	if not params.is_empty():
+		url += "?" + "&".join(params)
 	return await _request(url, HTTPClient.METHOD_GET)

@@ -173,7 +173,7 @@ func _counts_of(entries: Array) -> Dictionary:
 		var status := str(entry.get("status", "draft"))
 		if counts.has(status):
 			counts[status] += 1
-		if bool(entry.get("published", false)):
+		if bool(entry.get("online_published", false)):  # オンラインに公開しているボス（PX-05）
 			counts["published"] += 1
 	return counts
 

@@ -550,6 +550,7 @@ func _do_restart() -> void:
 	_se_outcome_played = false
 	_outcome_area.visible = false
 	_restart_confirm.visible = false
+	_quit_confirm.visible = false
 	_outcome_recorded = false
 	refresh()
 	_start_encounter_or_opening()
@@ -626,6 +627,10 @@ func refresh() -> void:
 	elif not battle.battle_over:
 		_se_outcome_played = false
 	_outcome_area.visible = battle.battle_over and not hold_outcome
+	if _outcome_area.visible:
+		# 結果パネルを出す時は、開いている「挑戦をやめる」「最初からやり直す」の確認を閉じる（重なりを防ぐ。PX-01）
+		_quit_confirm.visible = false
+		_restart_confirm.visible = false
 	if battle.battle_over:
 		# §30: RBMBattle.winnerのみを読む。独自のboss.hp判定はしない。
 		var won := battle.winner == "ally"
@@ -808,6 +813,8 @@ func _on_presentation_finished() -> void:
 func _on_encounter_result_shown() -> void:
 	if session != null and session.battle != null and session.battle.battle_over:
 		RBMBattleUiKit.refresh_turn_order_panel(_turn_order_panel, session.battle)
+		_quit_confirm.visible = false
+		_restart_confirm.visible = false
 		_outcome_area.visible = true
 
 func _cancel_presentation() -> void:

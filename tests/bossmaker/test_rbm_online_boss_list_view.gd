@@ -779,7 +779,9 @@ func test_leaving_online_while_show_more_is_loading_drops_its_result() -> void:
 	api.list_delay_frames = 3
 	view.load_more()
 	view.refresh_with("", RBMOnlineBossListView.CATEGORY_NEW, "新着")
-	assert_eq(api.list_calls.size(), 2, "the new category waits for the request in flight instead of overlapping it")
+	# 2026-10-17（PX-04）: カテゴリの切り替えは進行中の通信を待たずに始める（返らない通信で止まらないように）。
+	# 進行中だった「さらに表示」の結果は捨てられる。
+	assert_eq(api.list_calls.size(), 3, "the new category starts right away instead of waiting for the request in flight")
 
 	for i in range(30):
 		if api.list_calls.size() >= 3 and not view._list_busy:
@@ -796,8 +798,10 @@ func test_switching_mode_while_the_first_page_is_loading_never_mixes_modes() -> 
 	var view := _view_with(api)
 	view.refresh_with(RBMCreatorDraft.CREATOR_MODE_SIMPLE, RBMOnlineBossListView.CATEGORY_ONLINE, "オンライン")
 	view.refresh_with(RBMCreatorDraft.CREATOR_MODE_ADVANCED, RBMOnlineBossListView.CATEGORY_ONLINE, "オンライン")
-	assert_eq(api.list_calls.size(), 1, "HARDCORE waits for the SIMPLE request in flight")
-	# SIMPLEの応答が返った直後にHARDCOREの要求が出る。HARDCOREの応答は別のボスにする。
+	# 2026-10-17（PX-04）: HARDCORE は SIMPLE の通信を待たずに始める。偽の通信は返す時に応答を読むので、
+	# ここで応答を HARDCORE のボスに替えると、遅れて返る SIMPLE の結果も同じ中身になる——それでも
+	# SIMPLE の結果は token で捨てられ、表示は HARDCORE の通信の結果だけになることを確かめる。
+	assert_eq(api.list_calls.size(), 2, "HARDCORE starts right away instead of waiting for the SIMPLE request in flight")
 	for i in range(30):
 		if api.list_calls.size() >= 2:
 			break

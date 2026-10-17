@@ -101,6 +101,8 @@ var _random_candidate_list: VBoxContainer
 var _random_condition_uses_slot: Control  # MarginContainer、上のskill_slot_form_slotと同じ理由
 var _random_confirm_button: Button
 var _random_delete_button: Button
+## 「自分で設定」の時の確率の合計（100%でない時は赤字で知らせ、確定させない。2026-10-17）
+var _random_total_label: Label
 
 # --- random_pick_existing_view（§11） ---
 var _random_pick_existing_list: VBoxContainer
@@ -871,6 +873,12 @@ func _build_random_editor_view() -> VBoxContainer:
 	_random_candidate_list.name = "RandomCandidateList"
 	view.add_child(_random_candidate_list)
 
+	_random_total_label = Label.new()
+	_random_total_label.name = "RandomManualTotalLabel"
+	_random_total_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_random_total_label.visible = false
+	view.add_child(_random_total_label)
+
 	var add_candidate_button := Button.new()
 	add_candidate_button.name = "RandomAddCandidateButton"
 	add_candidate_button.text = tr("＋ 攻撃を追加する")
@@ -951,7 +959,45 @@ func _refresh_random_editor_view() -> void:
 
 func _on_random_mode_selected(index: int) -> void:
 	_random_mode = RBMActionPatternRules.RANDOM_MODES[index]
+	# 「自分で設定」へ切り替えた時、どの候補もまだ0%なら均等に分けておく（全部0%のままにしない。PX-02 と同じ問題）
+	if _random_mode == RBMActionPatternRules.RANDOM_MODE_MANUAL and not _random_candidates.is_empty() and _random_manual_total() < 0.05:
+		_equalize_random_candidate_weights()
 	_rebuild_random_candidate_list()
+
+func _random_manual_total() -> float:
+	var total := 0.0
+	for candidate in _random_candidates:
+		total += float((candidate as Dictionary).get("weight", 0.0))
+	return total
+
+## 0.1%単位の整数で分けて、合計が必ず100.0%になるようにする（RBMCreatorDraft の均等にする計算と同じ）。
+func _equalize_random_candidate_weights() -> void:
+	var count := _random_candidates.size()
+	if count == 0:
+		return
+	var base_units := 1000 / count
+	var remainder := 1000 - base_units * count
+	for i in range(count):
+		(_random_candidates[i] as Dictionary)["weight"] = float(base_units + (1 if i < remainder else 0)) / 10.0
+
+## 新しい候補の確率: 「自分で設定」の時は残り（100%−今の合計、0%未満にはしない）。「均等」の時は使わない値。
+func _new_random_candidate_weight() -> float:
+	if _random_mode != RBMActionPatternRules.RANDOM_MODE_MANUAL:
+		return 0.0
+	return clampf(snappedf(100.0 - _random_manual_total(), 0.1), 0.0, 100.0)
+
+func _refresh_random_total_label() -> void:
+	var is_manual := _random_mode == RBMActionPatternRules.RANDOM_MODE_MANUAL
+	_random_total_label.visible = is_manual and not _random_candidates.is_empty()
+	if not _random_total_label.visible:
+		return
+	var total := _random_manual_total()
+	if absf(total - 100.0) < 0.05:
+		_random_total_label.text = tr("確率の合計: 100.0%")
+		_random_total_label.remove_theme_color_override("font_color")
+	else:
+		_random_total_label.text = tr("確率の合計を100%%にしてください（現在%.1f%%）") % total
+		_random_total_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
 
 func _rebuild_random_candidate_list() -> void:
 	for child in _random_candidate_list.get_children():
@@ -965,6 +1011,8 @@ func _rebuild_random_candidate_list() -> void:
 		row.name = "RandomCandidateRow_%d" % i
 		var label := Label.new()
 		label.text = tr("%s（%s）") % [str(skill.get("name", "?")), RBMActionPatternSummary.skill_performance_line(skill)]
+		if is_manual and float(candidate.get("weight", 0.0)) < 0.05:
+			label.text += tr("　※0%のため使われません")
 		## UI再配色パス: 左STEPナビ/右BOSS PROFILE幅の底上げで中央幅が狭く
 		## なった分、性能サマリーの長い文言が横スクロール依存にならないよう、
 		## 残り幅いっぱいへ広げてから折り返す(内容・算出ロジックは無改修)。
@@ -992,11 +1040,13 @@ func _rebuild_random_candidate_list() -> void:
 		delete_button.pressed.connect(_remove_random_candidate.bind(i))
 		row.add_child(delete_button)
 		_random_candidate_list.add_child(row)
+	_refresh_random_total_label()
 
 func _set_random_candidate_weight(index: int, value: float) -> void:
 	if index < 0 or index >= _random_candidates.size():
 		return
 	(_random_candidates[index] as Dictionary)["weight"] = value
+	_refresh_random_total_label()
 
 func _remove_random_candidate(index: int) -> void:
 	if index < 0 or index >= _random_candidates.size():
@@ -1023,6 +1073,10 @@ func _on_random_add_candidate_pressed() -> void:
 
 func _on_random_confirm_pressed() -> void:
 	if _random_candidates.is_empty():
+		return
+	# 「自分で設定」で合計が100%でない時は確定させない（理由は RandomManualTotalLabel に赤字で出ている）
+	if _random_mode == RBMActionPatternRules.RANDOM_MODE_MANUAL and absf(_random_manual_total() - 100.0) >= 0.05:
+		_refresh_random_total_label()
 		return
 	if _pending_conditions_block_save():
 		return
@@ -1167,7 +1221,7 @@ func _rebuild_random_pick_existing_list() -> void:
 	_rebuild_skill_pick_list(_random_pick_existing_list, "RandomPickExistingSkillButton_%d", _on_random_pick_existing_skill_selected)
 
 func _on_random_pick_existing_skill_selected(skill_id: String) -> void:
-	_random_candidates.append({"skill_id": skill_id, "weight": 0.0})
+	_random_candidates.append({"skill_id": skill_id, "weight": _new_random_candidate_weight()})
 	_show_only(_random_editor_view)
 	_rebuild_random_candidate_list()
 
@@ -1203,7 +1257,7 @@ func _on_form_saved(skill_id: String) -> void:
 			_show_only(_skill_slot_view)
 			_refresh_skill_slot_view()
 		"random_candidate_new":
-			_random_candidates.append({"skill_id": skill_id, "weight": 0.0})
+			_random_candidates.append({"skill_id": skill_id, "weight": _new_random_candidate_weight()})
 			_newly_created_skill_ids_this_session.append(skill_id)
 			_form_context = ""
 			main.on_skills_changed()
@@ -1625,6 +1679,9 @@ func is_step_valid() -> bool:
 	return draft.step4_advanced_is_valid()
 
 func validation_message() -> String:
+	var heal_problems := draft.heal_limit_problems()
+	if not heal_problems.is_empty():
+		return heal_problems[0]
 	if not is_step_valid():
 		return tr("攻撃の設定に不備があります（ランダム攻撃の候補が0件、または「自分で設定」の確率合計が100%%になっていないランダム攻撃があります）")
 	return ""

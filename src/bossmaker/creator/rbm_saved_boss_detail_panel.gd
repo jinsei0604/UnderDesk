@@ -30,10 +30,16 @@ func _build_header_extras(summary: Dictionary, _draft: RBMCreatorDraft) -> void:
 func _row_captions() -> Array:
 	return [tr("ステージID"), tr("最終更新"), tr("ボスHP"), tr("公開状態")]
 
+## オンライン公開中なら、挑戦する人が検索に使う公開ID（2026-10-17 PX-03）。手元のステージIDとは別のもの。
+func _public_id(summary: Dictionary) -> String:
+	if not bool(summary.get("online_published", false)):
+		return ""
+	return RBMPublicBossId.from_boss_id(str(summary.get("online_boss_id", "")))
+
 ## 作者自身の保存データなので、挑戦する人への公開設定（？？？）に関係なくHPをそのまま見せる。
 func _detail_rows(summary: Dictionary, draft: RBMCreatorDraft) -> Array:
 	var captions := _row_captions()
-	var published := bool(summary.get("published", false))
+	var published := bool(summary.get("online_published", false))  # オンラインの公開状態（PX-05）
 	return [
 		{"caption": captions[0], "value": str(summary.get("stage_id", "")), "name": "DetailStageIdValue", "latin": true},
 		{"caption": captions[1], "value": RBMSavedBossCard.full_date_text(int(summary.get("updated_unix_time", 0))), "name": "DetailUpdatedValue", "latin": true},

@@ -16,12 +16,10 @@ func before_each() -> void:
 func after_each() -> void:
 	RBMLocale.set_locale(_saved_locale)
 
-## rbm_creator_step4_actions.gd _on_scripted_when_next_pressed(): 既存の
-## 指定行動を編集する際のフォームタイトルが"指定行動を編集"という生の
-## 日本語文字列で渡されており、rbm_action_editor_form.gd open_for_editing()
-## の「titleが空文字でなければそのまま使う」仕様のせいでtr()フォールバック
-## が一切効かず、Englishロケールでも常に日本語のまま表示されていた
-## （新規作成側のopen_for_new(tr("指定行動を作る"))は元から正しかった）。
+## rbm_creator_step4_actions.gd: 既存の指定行動を編集する画面の見出し・性能のフォームの見出しが、
+## English でも日本語のまま出ないこと（旧: _on_scripted_when_next_pressed() のフォームの見出しが
+## 生の日本語だった不具合の回帰テスト）。2026-10-17 から SIMPLE も HARDCORE と同じ流れになり、
+## 指定行動の「編集」は設定画面（見出し「指定行動の設定」）を開き、「性能を編集」で性能のフォームを開く。
 ##
 ## RBMCreatorStep4（_step_views[2]、STEP3「行動」）は入口ラッパーで、
 ## SIMPLEモードの実処理はその_simple_view（RBMCreatorStep4Actions）が
@@ -37,16 +35,11 @@ func test_editing_a_scripted_action_shows_a_translated_title_in_english() -> voi
 	var step: RBMCreatorStep4Actions = wrapper.get("_simple_view")
 	step.refresh()
 
-	# The "編集" button on an existing scripted-action row ultimately sets
-	# _pending_scripted_editing_index then calls this same handler -- calling
-	# it directly here is the same stable access path other Creator tests
-	# already use for private _on_*_pressed handlers rather than re-deriving
-	# the click chain through find_child().
-	step.set("_pending_scripted_editing_index", 0)
-	step.call("_on_scripted_when_next_pressed")
-
+	(step.find_child("EditScriptedActionButton_0", true, false) as Button).pressed.emit()
+	assert_eq((step.get("_editor_title") as Label).text, "Scripted Action Settings")
+	(step.find_child("EditPerformanceButton", true, false) as Button).pressed.emit()
 	var form: RBMActionEditorForm = step.get("_form")
-	assert_eq(form.get("_title_label").text, "Edit Scripted Action")
+	assert_eq(form.get("_title_label").text, "Edit Action Performance")
 	await get_tree().process_frame
 
 func test_editing_a_scripted_action_shows_the_japanese_title_in_japanese() -> void:
@@ -60,11 +53,11 @@ func test_editing_a_scripted_action_shows_the_japanese_title_in_japanese() -> vo
 	var step: RBMCreatorStep4Actions = wrapper.get("_simple_view")
 	step.refresh()
 
-	step.set("_pending_scripted_editing_index", 0)
-	step.call("_on_scripted_when_next_pressed")
-
+	(step.find_child("EditScriptedActionButton_0", true, false) as Button).pressed.emit()
+	assert_eq((step.get("_editor_title") as Label).text, "指定行動の設定")
+	(step.find_child("EditPerformanceButton", true, false) as Button).pressed.emit()
 	var form: RBMActionEditorForm = step.get("_form")
-	assert_eq(form.get("_title_label").text, "指定行動を編集")
+	assert_eq(form.get("_title_label").text, "行動の性能を編集")
 	await get_tree().process_frame
 
 ## rbm_creator_step5_party.gd _add_skill_override_editor(): ADVANCEDモードの

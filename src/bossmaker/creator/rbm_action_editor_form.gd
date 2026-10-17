@@ -282,7 +282,7 @@ func _build_self_heal_fields(parent: Control) -> void:
 	_self_heal_fixed_slider = HSlider.new()
 	_self_heal_fixed_slider.name = "SelfHealFixedSlider"
 	_self_heal_fixed_slider.min_value = 0
-	_self_heal_fixed_slider.max_value = 1000000
+	_self_heal_fixed_slider.max_value = RBMCreatorDraft.HEAL_FIXED_MAX  # 回復量の上限 99,999（2026-10-17）
 	_self_heal_fixed_slider.step = 1
 	_self_heal_fixed_slider.custom_minimum_size = SLIDER_MIN_SIZE
 	_self_heal_fixed_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -290,7 +290,7 @@ func _build_self_heal_fields(parent: Control) -> void:
 	_self_heal_fixed_spin = SpinBox.new()
 	_self_heal_fixed_spin.name = "SelfHealFixedSpin"
 	_self_heal_fixed_spin.min_value = 0
-	_self_heal_fixed_spin.max_value = 1000000
+	_self_heal_fixed_spin.max_value = RBMCreatorDraft.HEAL_FIXED_MAX
 	_self_heal_fixed_spin.step = 1
 	_self_heal_fixed_spin.custom_minimum_size = STAT_SPIN_MIN_SIZE_LARGE
 	fixed_row.add_child(_self_heal_fixed_spin)
@@ -469,7 +469,7 @@ func _build_awakening_fields(parent: Control) -> void:
 	_awakening_heal_fixed_slider = HSlider.new()
 	_awakening_heal_fixed_slider.name = "AwakeningHealFixedSlider"
 	_awakening_heal_fixed_slider.min_value = 0
-	_awakening_heal_fixed_slider.max_value = 1000000
+	_awakening_heal_fixed_slider.max_value = RBMCreatorDraft.HEAL_FIXED_MAX  # 回復量の上限 99,999（2026-10-17）
 	_awakening_heal_fixed_slider.step = 1
 	_awakening_heal_fixed_slider.custom_minimum_size = SLIDER_MIN_SIZE
 	_awakening_heal_fixed_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -477,7 +477,7 @@ func _build_awakening_fields(parent: Control) -> void:
 	_awakening_heal_fixed_spin = SpinBox.new()
 	_awakening_heal_fixed_spin.name = "AwakeningHealFixedSpin"
 	_awakening_heal_fixed_spin.min_value = 0
-	_awakening_heal_fixed_spin.max_value = 1000000
+	_awakening_heal_fixed_spin.max_value = RBMCreatorDraft.HEAL_FIXED_MAX
 	_awakening_heal_fixed_spin.step = 1
 	_awakening_heal_fixed_spin.custom_minimum_size = STAT_SPIN_MIN_SIZE_LARGE
 	heal_fixed_row.add_child(_awakening_heal_fixed_spin)
@@ -704,7 +704,7 @@ func _editor_action_data() -> Dictionary:
 			data["atk_multiplier"] = _attack_multiplier_spin.value
 		SELF_HEAL:
 			data["heal_mode"] = "fixed" if _self_heal_mode_option.selected == 0 else "percent"
-			data["heal_fixed_amount"] = int(_self_heal_fixed_spin.value)
+			data["heal_fixed_amount"] = mini(int(_self_heal_fixed_spin.value), RBMCreatorDraft.HEAL_FIXED_MAX)
 			data["heal_percent"] = _self_heal_percent_spin.value
 		ATK_SELF_BUFF:
 			data["buff_multiplier"] = _atk_buff_multiplier_spin.value
@@ -717,7 +717,7 @@ func _editor_action_data() -> Dictionary:
 			if _awakening_has_heal:
 				data["heal"] = {
 					"heal_mode": "fixed" if _awakening_heal_mode_option.selected == 0 else "percent",
-					"heal_fixed_amount": int(_awakening_heal_fixed_spin.value),
+					"heal_fixed_amount": mini(int(_awakening_heal_fixed_spin.value), RBMCreatorDraft.HEAL_FIXED_MAX),
 					"heal_percent": _awakening_heal_percent_spin.value,
 				}
 			else:

@@ -491,6 +491,9 @@ func press_save() -> void:
 ## current_stage_idを新しいidへ切り替え、未保存変更判定の基準snapshotを
 ## 更新する。
 func press_save_as_new() -> Dictionary:
+	var limit_error := _heal_limit_save_error()
+	if not limit_error.is_empty():
+		return limit_error
 	var result := RBMLocalStageRepository.save_new(draft)
 	if bool(result.get("ok", false)):
 		current_stage_id = str(result.get("stage_id", ""))
@@ -503,10 +506,22 @@ func press_save_as_new() -> Dictionary:
 func press_overwrite_save() -> Dictionary:
 	if current_stage_id.is_empty():
 		return {"ok": false, "error": "no_current_stage"}
+	var limit_error := _heal_limit_save_error()
+	if not limit_error.is_empty():
+		return limit_error
 	var result := RBMLocalStageRepository.overwrite(current_stage_id, draft)
 	if bool(result.get("ok", false)):
 		_reference_authoring_snapshot = draft.full_authoring_snapshot()
 	return result
+
+## 回復量の上限（RBMCreatorDraft.HEAL_FIXED_MAX＝99,999）を超えた値は保存しない（2026-10-17）。
+## 画面の入力では超えられないので、ここに来るのは上限より前に保存されたデータを開いた時だけ。
+## データを書き換えずに理由を返し、作者が行動を編集して直す。
+func _heal_limit_save_error() -> Dictionary:
+	var problems := draft.heal_limit_problems()
+	if problems.is_empty():
+		return {}
+	return {"ok": false, "error": "heal_over_limit", "message": problems[0]}
 
 ## §26: 新規保存/新しいボスとして保存の直前にRBMCreatorSaveViewが呼ぶ同名
 ## 警告用チェック。上書き保存では呼ばれない（自分自身と同名なのは当然の

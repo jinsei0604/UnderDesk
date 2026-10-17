@@ -514,7 +514,7 @@ func test_challenge_confirm_screen_has_real_display_area_and_does_not_overlap_bu
 	await get_tree().process_frame
 	_btn(root, "ChallengeModeButton").pressed.emit()
 	await get_tree().process_frame
-	_btn(root.challenge_entry._hub_view, "SearchBossButton").pressed.emit()
+	root.challenge_entry._open_local_published_list()  # 手元公開のボスの一覧（2026-10-17 から挑戦トップの「ボスを検索」はオンラインを探す。PX-03）
 	await get_tree().process_frame
 
 	assert_eq(root.challenge_entry._list_rows.get_child_count(), 1, "sanity: the just-saved stage must appear in the CHALLENGE list")

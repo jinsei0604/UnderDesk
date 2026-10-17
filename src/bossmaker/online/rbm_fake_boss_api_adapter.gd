@@ -31,6 +31,15 @@ var record_clear_calls: Array[Dictionary] = []
 var list_unchallenged_calls: Array[Dictionary] = []
 var list_popular_calls: Array[Dictionary] = []
 var list_hard_calls: Array[Dictionary] = []
+## 検索・ランダム（2026-10-17 PX-03）。検索は検索語ごと・cursorごとの応答（無ければ _search_response）。
+var _search_response: Dictionary = {"ok": true, "bosses": []}
+var _search_responses: Dictionary = {}
+var _random_responses: Array[Dictionary] = []
+var _random_response: Dictionary = {"ok": true, "bosses": []}
+var search_calls: Array[Dictionary] = []
+var random_calls: Array[Dictionary] = []
+## search_bosses()・random_boss()が応答を返すまで待つフレーム数。
+var search_delay_frames := 0
 
 func _ready() -> void:
 	pass # 実HTTPRequestは作らない。
@@ -106,3 +115,34 @@ func list_popular_bosses(limit: int = 20, mode: String = "") -> Dictionary:
 func list_hard_bosses(limit: int = 20, mode: String = "") -> Dictionary:
 	list_hard_calls.append({"limit": limit, "mode": mode})
 	return _list_hard_response.duplicate(true)
+
+func configure_search_response(response: Dictionary) -> void:
+	_search_response = response
+
+## key は「検索語」または「検索語|cursor」。
+func configure_search_responses(responses: Dictionary) -> void:
+	_search_responses = responses.duplicate(true)
+
+## random_boss() の応答を呼ばれた順に返す（使い切ったら configure_random_response() の応答）。
+func configure_random_sequence(responses: Array[Dictionary]) -> void:
+	_random_responses = responses.duplicate(true)
+
+func configure_random_response(response: Dictionary) -> void:
+	_random_response = response
+
+func search_bosses(query: String, limit: int = 20, mode: String = "", cursor: String = "") -> Dictionary:
+	search_calls.append({"query": query, "limit": limit, "mode": mode, "cursor": cursor})
+	for i in range(search_delay_frames):
+		await get_tree().process_frame
+	var key := query if cursor.is_empty() else "%s|%s" % [query, cursor]
+	if _search_responses.has(key):
+		return (_search_responses[key] as Dictionary).duplicate(true)
+	return _search_response.duplicate(true)
+
+func random_boss(mode: String = "", exclude_id: String = "") -> Dictionary:
+	random_calls.append({"mode": mode, "exclude": exclude_id})
+	for i in range(search_delay_frames):
+		await get_tree().process_frame
+	if not _random_responses.is_empty():
+		return _random_responses.pop_front()
+	return _random_response.duplicate(true)

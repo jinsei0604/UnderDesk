@@ -756,7 +756,7 @@ func test_back_to_hub_button_real_press_returns_to_the_hub_without_starting_a_ba
 	assert_null(entry._battle_view.session, "no battle session must have been started")
 
 	# ハブから同じカテゴリ検索へ戻ると、一覧は健在なまま（無傷）であること。
-	entry._on_hub_search_requested()
+	entry._open_local_published_list()
 	assert_eq(entry._list_rows.get_child_count(), 1, "the stage list must still be intact/populated")
 
 # ---------------------------------------------------------------------------
