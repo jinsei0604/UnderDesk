@@ -13,6 +13,8 @@ config_version=5
 config/name="Makers & Challengers"
 run/main_scene="res://src/bossmaker/rbm_game_root.tscn"
 config/features=PackedStringArray("4.7")
+config/use_custom_user_dir.template=true
+config/custom_user_dir_name.template="MakersAndChallengers"
 
 [autoload]
 

@@ -305,7 +305,8 @@ func refresh() -> void:
 		_appearance_preview_label.text = tr("（未選択）")
 		_appearance_preview_swatch.texture = null
 	else:
-		_appearance_preview_label.text = tr("現在の外見：%s") % RBMCreatorAppearanceCatalog.display_name(draft.appearance_id)
+		# 名前は次の行に出す（幅が狭く、「ゴ／ーレム」と名前の途中で折り返していた。PX-22、2026-10-18）
+		_appearance_preview_label.text = tr("現在の外見：%s") % ("\n" + RBMCreatorAppearanceCatalog.display_name(draft.appearance_id))
 		_appearance_preview_swatch.texture = VisualAssets.texture(VisualAssets.boss_asset(draft.appearance_id), 0)
 	_appearance_preview_surface.get_node("AppearancePreviewPlaceholderCenter").visible = _appearance_preview_swatch.texture == null
 

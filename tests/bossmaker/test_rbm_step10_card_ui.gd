@@ -144,7 +144,8 @@ func test_step1_appearance_card_reflects_the_current_selection() -> void:
 	main._appearance_picker.confirmed.emit("appearance_dragon")
 	await get_tree().process_frame
 	assert_eq(main.draft.appearance_id, "appearance_dragon")
-	assert_eq(step1._appearance_preview_label.text, "現在の外見：%s" % RBMCreatorAppearanceCatalog.display_name("appearance_dragon"), "選択結果がカードへ反映されること")
+	# 2026-10-18: 名前は「現在の外見：」の次の行（PX-22。名前の途中で折り返さないように）
+	assert_eq(step1._appearance_preview_label.text, "現在の外見：%s" % ("\n" + RBMCreatorAppearanceCatalog.display_name("appearance_dragon")), "選択結果がカードへ反映されること")
 	assert_true(step1._appearance_preview_aspect == aspect_before, "外見変更後もプレビュー領域のAspect構造を作り直さないこと")
 	assert_true(step1._appearance_preview_surface == surface_before, "外見変更後も将来の画像差し替え先surfaceを維持すること")
 	assert_not_null(step1._appearance_preview_swatch.texture, "Selected appearance has real sprite artwork")

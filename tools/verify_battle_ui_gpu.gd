@@ -138,8 +138,29 @@ func _check_skills(label: String) -> void:
 	var expected: int = 1 + (unit.skills.size() if unit != null else 4)
 	_ui_check(label + " back plus every skill (%d)" % (expected - 1), count == expected)
 	_ui_check(label + " no skill scroll required", not view._skill_list_panel.get_parent() is ScrollContainer)
+	# どの技の説明を出している時も、「戻る」と全部の技のボタンが、技の一覧の枠（スクロールの見える範囲）の中に
+	# 見えること（2026-10-18。画面の中かどうかだけを見ていたので、枠の下に隠れた「戻る」を見逃していた）
+	var clip := _visible_clip(view._skill_list_panel)
+	if unit != null:
+		for skill in unit.skills:
+			view._show_skill_detail(skill)
+			for i in range(3): await process_frame
+			for child in view._skill_list_panel.get_children():
+				if child is Button:
+					_ui_check("%s %s fully visible while showing %s" % [label, child.name, str(skill.get("id", ""))], clip.encloses(child.get_global_rect()))
+		view._show_skill_detail(unit.skills[0])
+		for i in range(3): await process_frame
 	_layout_checks(label)
 	await _capture(label + "_skills.png")
+
+## 一番近いスクロールの見える範囲（無ければ画面全体）
+func _visible_clip(node: Node) -> Rect2:
+	var n := node.get_parent()
+	while n != null:
+		if n is ScrollContainer:
+			return (n as ScrollContainer).get_global_rect()
+		n = n.get_parent()
+	return Rect2(Vector2.ZERO, Vector2(1280, 720))
 
 func _layout_checks(label: String) -> void:
 	var message: Control = view.find_child("LatestInfoPanel",true,false)

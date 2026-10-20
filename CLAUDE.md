@@ -1,6 +1,6 @@
 # Makers & Challengers 開発ガイド
 
-このリポジトリはMakers & Challengers専用です。Godot 4.7を使用します。
+このリポジトリはMakers & Challengers専用です。Godot 4.7.2（本体・書き出しテンプレートとも 4.7.2.stable）を使用します。
 起動・インポート・全GUTコマンドと構成はREADME.mdを参照してください。作業ディレクトリ基準の`--path .`を優先し、個人の一時フォルダをコードへ固定しないでください。
 品質の作業の入口は docs/quality/PRO_QUALITY_BIBLE.md です（作業の種類ごとに読む章を示します）。
 

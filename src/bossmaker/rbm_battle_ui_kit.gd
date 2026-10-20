@@ -517,6 +517,80 @@ static func skill_detail_lines(skill: Dictionary, is_ally: bool) -> Array[String
 			pass
 	return lines
 
+## 技の一覧の下の説明（3つの戦闘画面で共通）。まず今までどおり1項目1行で出し、技の一覧が見える範囲
+## （戦闘画面の右下の枠）に収まらない時だけ、1行に収まる短い項目を2つずつ並べる（2026-10-18。技が5つの
+## ハンマー使い・説明の長い侍の技で、一覧の一番下の「戻る」が枠の外に隠れていた）。収まる時の見た目は変えない。
+static func show_skill_detail(label: Label, skill: Dictionary) -> void:
+	if label == null:
+		return
+	label.set_meta("skill_detail", skill)
+	label.text = skill_detail_text(skill)
+	fit_skill_detail.call_deferred(label)
+
+static func skill_detail_text(skill: Dictionary) -> String:
+	var lines: Array[String] = [TranslationServer.translate(str(skill.get("display_name", skill.get("id", ""))))]
+	lines.append_array(skill_detail_lines(skill, true))
+	return "\n".join(lines)
+
+## 一覧が枠に収まるかを見て、収まらなければ短い項目を2つずつ1行にまとめる。一覧を開いた時（枠の大きさが
+## 決まった後）にも呼ばれる（rbm_fullscreen_battle_ui.gd）。
+static func fit_skill_detail(label: Label) -> void:
+	if not is_instance_valid(label) or not label.has_meta("skill_detail"):
+		return
+	var skill: Dictionary = label.get_meta("skill_detail")
+	label.text = skill_detail_text(skill)
+	var panel := label.get_parent() as Control
+	var scroll := _enclosing_scroll(panel)
+	if panel == null or scroll == null or not panel.is_visible_in_tree() or label.size.x <= 0.0:
+		return
+	if panel.get_combined_minimum_size().y <= scroll.size.y:
+		return
+	var details := skill_detail_lines(skill, true)
+	label.text = _paired_detail_text(label, skill, details)
+	if panel.get_combined_minimum_size().y <= scroll.size.y:
+		return
+	# まだ収まらなければ、効果の説明の最後の括弧書き（「（鉄壁）」など、すぐ上の行の技の名前と同じことが多い）を省く
+	if skill.has("effect") and not details.is_empty():
+		var last := details[details.size() - 1]
+		for pair in [["（", "）"], [" (", ")"]]:
+			var open_at := last.rfind(pair[0])
+			if open_at > 0 and last.ends_with(pair[1]):
+				details[details.size() - 1] = last.substr(0, open_at)
+				break
+		label.text = _paired_detail_text(label, skill, details)
+	if panel.get_combined_minimum_size().y <= scroll.size.y:
+		return
+	# それでも収まらなければ、一番上の技の名前の行を省く（選んでいるボタンと同じ文字。英語の長い説明の時）
+	var text_lines := label.text.split("\n")
+	if text_lines.size() > 1:
+		text_lines.remove_at(0)
+		label.text = "\n".join(text_lines)
+
+## 名前の行＋項目。1行に収まる短い項目を2つずつ並べる。
+static func _paired_detail_text(label: Label, skill: Dictionary, details: Array[String]) -> String:
+	var font := label.get_theme_font("font")
+	var font_size := label.get_theme_font_size("font_size")
+	var lines: Array[String] = [TranslationServer.translate(str(skill.get("display_name", skill.get("id", ""))))]
+	var i := 0
+	while i < details.size():
+		if i + 1 < details.size():
+			var joined := details[i] + "　" + details[i + 1]
+			if font.get_string_size(joined, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x <= label.size.x:
+				lines.append(joined)
+				i += 2
+				continue
+		lines.append(details[i])
+		i += 1
+	return "\n".join(lines)
+
+static func _enclosing_scroll(node: Node) -> ScrollContainer:
+	var n := node
+	while n != null:
+		if n is ScrollContainer:
+			return n
+		n = n.get_parent()
+	return null
+
 # =============================================================================
 # スキルコマンド行 (§15)
 # =============================================================================

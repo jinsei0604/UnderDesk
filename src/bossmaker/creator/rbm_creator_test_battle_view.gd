@@ -707,12 +707,8 @@ func _build_skill_list(unit: RBMUnit) -> void:
 
 ## §16: 現在のマスターデータに実在する情報だけを表示する（推測・捏造しない）。
 func _show_skill_detail(skill: Dictionary) -> void:
-	if _skill_detail_label == null:
-		return
-	var display_name := tr(str(skill.get("display_name", skill.get("id", ""))))
-	var lines: Array[String] = [display_name]
-	lines.append_array(RBMBattleUiKit.skill_detail_lines(skill, true))
-	_skill_detail_label.text = "\n".join(lines)
+	# 枠に収まらない時は短い項目を2つずつ1行に（RBMBattleUiKit.show_skill_detail、2026-10-18）
+	RBMBattleUiKit.show_skill_detail(_skill_detail_label, skill)
 
 func _refresh_rewind_list() -> void:
 	RBMBattleUiKit.clear_children_safely(_rewind_list)

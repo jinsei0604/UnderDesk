@@ -9,6 +9,9 @@ Thumbs.db
 # Supabase 最小接続PoC — 実値入りのローカル設定ファイル。
 # supabase_poc.local.env.example（テンプレート、値は空）はコミットする。
 supabase_poc.local.env
+# 配布用の公開設定（URL と公開用の鍵）。Git では管理せず、配布版を書き出す時に
+# tools/build_release_windows.sh が写しの中で作る（tools/make_supabase_public_config.gd）。
+supabase_public.env
 
 # Steam認証基盤（Phase 4A-1）— 正式AppID未発行のため、開発確認用の
 # AppID 480はこのローカル専用ファイルにのみ置く。コミットしない

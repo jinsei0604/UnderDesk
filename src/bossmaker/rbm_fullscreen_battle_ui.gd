@@ -177,3 +177,6 @@ func update() -> void:
 	# Content has natural minimum height; the viewport, exit and return controls stay fixed.
 	view._command_area.custom_minimum_size.y = 0
 	walk(view)
+	# 技の一覧を開いた時（枠の大きさが決まった後）に、説明が枠に収まるかを確かめ直す（「戻る」を隠さない、2026-10-18）
+	if view._skill_list_panel.visible and view.get("_skill_detail_label") != null:
+		RBMBattleUiKit.fit_skill_detail.call_deferred(view._skill_detail_label)

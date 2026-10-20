@@ -210,7 +210,7 @@ rbm_battle_stage.gd の行動の進め方を変え、全ボス・全味方・通
 - 大事な契約テストは、必要に応じて単独起動（1ファイルを1回の起動で）・きれいな状態でも通ることを確かめる。
 - 毎回すべてを別々に起動する必要はない。重点を置く時: 実行順への依存が疑われる時、共有の cache・事前読み込み・static・autoload・テストの共有の補助を変えた時。
 - 起動のしかた（リポジトリのルートで）:
-  - 1ファイル: `Godot_v4.7-stable_win64_console.exe --headless --path . -s res://addons/gut/gut_cmdln.gd -gtest=res://tests/bossmaker/<ファイル>.gd -gexit`
+  - 1ファイル: `Godot_v4.7.2-stable_win64_console.exe --headless --path . -s res://addons/gut/gut_cmdln.gd -gtest=res://tests/bossmaker/<ファイル>.gd -gexit`
   - 複数のファイル（1回の起動で）: `-gtest=` を並べる
   - 全GUT: [README.md](../../README.md) の「全テスト」
 

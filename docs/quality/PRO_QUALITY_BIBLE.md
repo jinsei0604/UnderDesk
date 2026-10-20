@@ -121,7 +121,7 @@ G は「1280×720の実画面を、実時間（処理落ち込み）で見て」
 
 ## 4. このプロジェクトの前提（変えない土台）
 
-- 起動ルート `src/bossmaker/rbm_game_root.tscn`。内部識別子 `bossmaker`/`RBM` は残す。Godot 4.7、`gl_compatibility`。
+- 起動ルート `src/bossmaker/rbm_game_root.tscn`。内部識別子 `bossmaker`/`RBM` は残す。Godot 4.7.2、`gl_compatibility`。
 - 論理解像度 1280×720、`window/stretch/mode="canvas_items"`（大きいウィンドウでは拡大、比率が違えば黒帯）。
 - **表示・SEは確定済みの戦闘イベントを読むだけ。** 表示のために戦闘状態や戦闘乱数を進めない。演出は `impact`／`finished` の契約を守る。
 - 演出の構造: `rbm_battle_stage.gd`（振り分け）→ 技ごとの専用スクリプト（固有の時間割）→ 共通部品（揺れ・Hit Stop・残像・衝撃波・破片・移動・SE・Flash・後始末）。**属性が同じでも演出を共有しない**（技・キャラ・ボスごとに固有）。

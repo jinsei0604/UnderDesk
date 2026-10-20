@@ -12,6 +12,10 @@ func _steam() -> Object:
 	return Engine.get_singleton("Steam") if Engine.has_singleton("Steam") else null
 
 func is_available() -> bool:
+	# AppID が無ければ、このゲームは Steam を初期化しない。初期化していない Steam に loggedOn() を聞くと、
+	# GodotSteam が毎回誤り（Steam may not be initialized）をログに出すので、聞かずに「使えない」とする（2026-10-18）
+	if not RBMSteamConfig.is_configured():
+		return false
 	var steam := _steam()
 	if steam == null:
 		return false

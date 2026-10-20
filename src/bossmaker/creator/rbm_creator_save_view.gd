@@ -222,6 +222,7 @@ func open() -> void:
 	_save_new_button.visible = not has_current_stage
 	_overwrite_button.visible = has_current_stage
 	_save_as_new_button.visible = has_current_stage
+	_set_boss_window_title(tr("保存するボス"))
 	_refresh_boss()
 	# 最初のフォーカスは安全な側（上書きは置かない。UI_UX §12/§13）
 	_present(_choice_panel, _back_button if has_current_stage else _save_new_button)
@@ -229,6 +230,10 @@ func open() -> void:
 func _on_back_pressed() -> void:
 	return_to_creator_requested.emit()
 
+func _set_boss_window_title(text: String) -> void:
+	var title := _boss_window.find_child("WindowTitle", false, false) as Label
+	if title != null:
+		title.text = text
 
 ## Esc（PX-13、2026-10-18）: 同じ名前の確認はキャンセル、保存のしかたを選ぶ欄は「戻る」。保存できた画面では何もしない。
 func _unhandled_input(event: InputEvent) -> void:
@@ -306,6 +311,8 @@ func _show_success(stage_id: String) -> void:
 	_same_name_panel.visible = false
 	_success_panel.visible = true
 	_success_stage_id_label.text = tr("ステージID：%s") % stage_id
+	# 保存した後は「保存したボス」（以前は「保存するボス」のままだった、2026-10-18）
+	_set_boss_window_title(tr("保存したボス"))
 	_refresh_boss()
 	_present(_success_panel, _success_return_button)
 

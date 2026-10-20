@@ -1,27 +1,41 @@
 # Makers & Challengers
 
-Godot 4.7製のボス作成・挑戦ゲーム。現在のプロジェクトはこのゲーム専用です。
+Godot 4.7.2製のボス作成・挑戦ゲーム。現在のプロジェクトはこのゲーム専用です。
 
 ## 起動・検証
 
 正式パス：`C:\src\makers-and-challengers`
 
 ```powershell
-& 'C:\src\tools\godot\Godot_v4.7-stable_win64.exe' --path 'C:\src\makers-and-challengers'
+& 'C:\src\tools\godot\Godot_v4.7.2-stable_win64.exe' --path 'C:\src\makers-and-challengers'
 # 初回・素材追加後のインポート
-& 'C:\src\tools\godot\Godot_v4.7-stable_win64_console.exe' --headless --path . --editor --import --quit
+& 'C:\src\tools\godot\Godot_v4.7.2-stable_win64_console.exe' --headless --path . --editor --import --quit
 # リポジトリのルートで全テスト
-& 'C:\src\tools\godot\Godot_v4.7-stable_win64_console.exe' --headless --path . -s res://addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+& 'C:\src\tools\godot\Godot_v4.7.2-stable_win64_console.exe' --headless --path . -s res://addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
 ```
 
-メインシーン：`res://src/bossmaker/rbm_game_root.tscn`。ゲーム名、Godotバージョン、画面設定は変更していません。
+メインシーン：`res://src/bossmaker/rbm_game_root.tscn`。
+
+Godot は本体・書き出しテンプレートとも **4.7.2.stable**（2026-10-20 に 4.7 から統一）。本体は `C:\src\tools\godot\` に置き、テンプレートは `%APPDATA%\Godot\export_templates\4.7.2.stable\`。
+
+### 配布版（Windows）の書き出し
+
+```bash
+# Git Bash、リポジトリのルートで。作業ツリーは変えず、写しの中で取り込み・書き出し・pck の点検までする
+bash tools/build_release_windows.sh <出力フォルダ> release   # 配布版
+bash tools/build_release_windows.sh <出力フォルダ> verify    # 検証版（本物の通信と画面を確かめる道具入り）
+```
+
+- オンラインの接続先（Project URL と公開用の鍵）は、書き出しのたびに写しの中で `supabase_public.env` に書く（`tools/make_supabase_public_config.gd`）。値は環境変数 `SUPABASE_URL`・`SUPABASE_PUBLISHABLE_KEY`、無ければ開発用の `supabase_poc.local.env` から。どちらのファイルも Git では管理しない。秘密の鍵（Secret key・service_role）は道具が拒否する。
+- 配布版の保存先は `%APPDATA%\MakersAndChallengers`（`project.godot` の `config/custom_user_dir_name.template`）。エディター・テストは今までどおり `%APPDATA%\Godot\app_userdata\Makers & Challengers`。
+- 書き出した版はコマンドラインで場面を差し替えられない。検証版は `MakersAndChallengers.console.exe -- --report=<出力> [--ui=1] [--steam=1]` で `tools/verify_export_online.gd` が動く。開発機で動かす時は `APPDATA` を別のフォルダに向けると、保存・ログが分かれる。
 
 ### GPU/Visual検証（正式runner、2026-09-13〜）
 
 `RBMGameRoot`を利用するGPU検証・UIキャプチャ系ツール（`tools/verify_world_ui_install_gpu.gd`、`tools/_ui_pass_shots/capture_*.gd`）は、`tools/gpu_runner.tscn`経由で実行する。
 
 ```powershell
-& 'C:\src\tools\godot\Godot_v4.7-stable_win64.exe' --path 'C:\src\makers-and-challengers' res://tools/gpu_runner.tscn -- `
+& 'C:\src\tools\godot\Godot_v4.7.2-stable_win64.exe' --path 'C:\src\makers-and-challengers' res://tools/gpu_runner.tscn -- `
   --tool=res://tools/verify_world_ui_install_gpu.gd `
   --output=<出力先ディレクトリ> `
   [--record-all]
