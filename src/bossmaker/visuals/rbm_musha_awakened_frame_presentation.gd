@@ -273,6 +273,13 @@ var _flurry_i := 0
 var _cut_i := 0
 
 ## 足す音を鳴らしてよいか(ステージの音と同じ条件: 消音中・ステージが見えていない間は鳴らさない)。
+## 全体攻撃の刀の音(抜刀・振り・連打・ノト)は、ふつうの効果音の基準(RBMAudio の -9dB)を通らない専用の再生器で鳴らすため、
+## ほかの音より約 9dB 大きく、ゲーム全体の音量を +3dB にした時(2026-10-17、ユーザーが B 案に決定)に 0dB を超えて音割れした。
+## 中身と時刻は変えず、音量だけをまとめて下げる(全体の +3dB と合わせて、ここだけ以前より 3dB 小さい)。
+const EXTRA_GAIN_DB := -6.0
+## ノトは全体攻撃の本体の音が一番大きい所に重なるので、さらに 2dB 下げる(全体の +3dB で、リミッターが働かない大きさ)。
+const NOTO_GAIN_DB := 3.0 + EXTRA_GAIN_DB - 2.0
+
 func _audio_ok() -> bool:
 	return is_instance_valid(_stage) and _stage.is_visible_in_tree() and is_instance_valid(_stage._sound) and not bool(_stage._sound.muted)
 
@@ -282,7 +289,7 @@ func _one_shot(path: String, pitch: float, db: float) -> void:
 	var pl := AudioStreamPlayer.new()
 	pl.stream = load(path)
 	pl.pitch_scale = pitch
-	pl.volume_db = db
+	pl.volume_db = db + EXTRA_GAIN_DB
 	add_child(pl)
 	pl.play()
 	pl.finished.connect(pl.queue_free)
@@ -296,10 +303,10 @@ func _slice_shot(path: String, from: float, len: float, pitch: float, db: float)
 	var pl := AudioStreamPlayer.new()
 	pl.stream = load(path)
 	pl.pitch_scale = pitch
-	pl.volume_db = db
+	pl.volume_db = db + EXTRA_GAIN_DB
 	add_child(pl)
 	pl.play(from)
-	_slices.append([pl, from + len, db])
+	_slices.append([pl, from + len, db + EXTRA_GAIN_DB])
 
 func _update_aoe_sound(T: float) -> void:
 	while _cut_i < FLASH_CUT_SOUNDS.size() and T >= float(FLASH_CUT_SOUNDS[_cut_i][0]):
@@ -330,7 +337,7 @@ func _update_aoe_sound(T: float) -> void:
 		_noto_done = true
 		_noto_player = AudioStreamPlayer.new()
 		_noto_player.stream = load("res://assets_bossmaker/audio/musha_aoe.wav")
-		_noto_player.volume_db = 3.0
+		_noto_player.volume_db = NOTO_GAIN_DB
 		add_child(_noto_player)
 		_noto_player.play(NOTO_CLICK_FROM)
 	if is_instance_valid(_noto_player) and _noto_player.playing and _noto_player.get_playback_position() > NOTO_CLICK_FROM + 0.14:
