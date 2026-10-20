@@ -1,9 +1,9 @@
 import { assertEquals } from "jsr:@std/assert";
 import { handleListBosses, ListBossesResponseBody } from "./index.ts";
-import { FakeSupabaseRestClient } from "../_shared/fake_supabase_rest_client.ts";
+import { FakePostgrestClient } from "../_shared/fake_postgrest_client.ts";
 
-function dbWithBosses(): FakeSupabaseRestClient {
-  const db = new FakeSupabaseRestClient();
+function dbWithBosses(): FakePostgrestClient {
+  const db = new FakePostgrestClient();
   db.seed("bosses", [
     { id: "1", boss_name: "古いボス", author_name: "A", published_at: "2026-01-01T00:00:00Z", revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "simple" } } },
     { id: "2", boss_name: "新しいボス", author_name: "B", published_at: "2026-02-01T00:00:00Z", revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "advanced" } } },
@@ -12,8 +12,8 @@ function dbWithBosses(): FakeSupabaseRestClient {
   return db;
 }
 
-function dbWithBossesMissingCreatorMode(): FakeSupabaseRestClient {
-  const db = new FakeSupabaseRestClient();
+function dbWithBossesMissingCreatorMode(): FakePostgrestClient {
+  const db = new FakePostgrestClient();
   db.seed("bosses", [
     // draft_fields自体が無い(旧形式)/creator_modeが無い/payloadが無い、の
     // いずれもSIMPLEへフォールバックすることを確認する。
@@ -99,7 +99,7 @@ Deno.test("an unrecognized mode value is ignored (no filter applied)", async () 
 });
 
 Deno.test("mode filter and limit compose correctly (limit applies after filtering)", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.seed("bosses", [
     { id: "1", boss_name: "S1", author_name: "A", published_at: "2026-01-01T00:00:00Z", revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "advanced" } } },
     { id: "2", boss_name: "S2", author_name: "A", published_at: "2026-02-01T00:00:00Z", revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "simple" } } },
@@ -124,7 +124,7 @@ function isoDay(day: number): string {
 
 // b-0000(最も古い)〜b-NNNN(最も新しい)をcount件公開する。sameTimeなら全部同じ公開日時。
 function seedMany(
-  db: FakeSupabaseRestClient,
+  db: FakePostgrestClient,
   count: number,
   options: { prefix?: string; mode?: string; firstDay?: number; sameTime?: boolean } = {},
 ): string[] {
@@ -149,13 +149,13 @@ function seedMany(
   return ids;
 }
 
-async function page(db: FakeSupabaseRestClient, query: string): Promise<{ status: number; body: ListBossesResponseBody }> {
+async function page(db: FakePostgrestClient, query: string): Promise<{ status: number; body: ListBossesResponseBody }> {
   const res = await handleListBosses(new Request(`http://localhost/list-bosses${query}`, { method: "GET" }), db);
   return { status: res.status, body: await res.json() };
 }
 
 // cursorで最後のページまでたどり、返ったidを順に集める。
-async function walkAllPages(db: FakeSupabaseRestClient, baseQuery: string): Promise<{ ids: string[]; pages: ListBossesResponseBody[] }> {
+async function walkAllPages(db: FakePostgrestClient, baseQuery: string): Promise<{ ids: string[]; pages: ListBossesResponseBody[] }> {
   const ids: string[] = [];
   const pages: ListBossesResponseBody[] = [];
   let cursor = "";
@@ -175,7 +175,7 @@ function base64Url(text: string): string {
 }
 
 Deno.test("the first page without a cursor is still the newest 20, now with has_more and next_cursor", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const ids = seedMany(db, 45);
   const { status, body } = await page(db, "");
   assertEquals(status, 200);
@@ -185,7 +185,7 @@ Deno.test("the first page without a cursor is still the newest 20, now with has_
 });
 
 Deno.test("a cursor returns the next 20, then the last 5 with has_more=false and no next_cursor", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const ids = seedMany(db, 45);
   const first = await page(db, "?limit=20");
   const second = await page(db, `?limit=20&cursor=${first.body.next_cursor}`);
@@ -200,7 +200,7 @@ Deno.test("a cursor returns the next 20, then the last 5 with has_more=false and
 });
 
 Deno.test("more than 100 published bosses (and a server row cap) can all be browsed page by page", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.setMaxRowsPerResponse(1000);
   const ids = seedMany(db, 1234);
   const { ids: seen, pages } = await walkAllPages(db, "?limit=50");
@@ -211,7 +211,7 @@ Deno.test("more than 100 published bosses (and a server row cap) can all be brow
 });
 
 Deno.test("an old HARDCORE boss outside the newest 50 is still listed under mode=advanced", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const old = seedMany(db, 3, { prefix: "old-hc", mode: "advanced", firstDay: 0 });
   seedMany(db, 60, { prefix: "new-simple", mode: "simple", firstDay: 10 });
   const { body } = await page(db, "?mode=advanced");
@@ -220,7 +220,7 @@ Deno.test("an old HARDCORE boss outside the newest 50 is still listed under mode
 });
 
 Deno.test("each mode pages through only its own bosses, and changing mode starts again from the top", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const simple = seedMany(db, 30, { prefix: "s", mode: "simple", firstDay: 0 });
   const advanced = seedMany(db, 25, { prefix: "a", mode: "advanced", firstDay: 100 });
   const simpleWalk = await walkAllPages(db, "?mode=simple&limit=20");
@@ -232,14 +232,14 @@ Deno.test("each mode pages through only its own bosses, and changing mode starts
 });
 
 Deno.test("bosses with the same published_at are ordered by id and split across pages without overlap", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const ids = seedMany(db, 30, { sameTime: true });
   const { ids: seen } = await walkAllPages(db, "?limit=7");
   assertEquals(seen, [...ids].sort(), "same timestamp -> id ascending, every boss exactly once");
 });
 
 Deno.test("a boss published while browsing never duplicates or skips rows on the next page", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const ids = seedMany(db, 30);
   const first = await page(db, "?limit=10");
   seedMany(db, 1, { prefix: "brand-new", firstDay: 999 });
@@ -250,7 +250,7 @@ Deno.test("a boss published while browsing never duplicates or skips rows on the
 });
 
 Deno.test("an invalid cursor is rejected with 400 instead of silently restarting from the top", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedMany(db, 30);
   const badCursors = [
     "not a cursor!",
@@ -274,7 +274,7 @@ Deno.test("an invalid cursor is rejected with 400 instead of silently restarting
 });
 
 Deno.test("limit boundaries: default 20, capped at 50, fractions floored, junk ignored", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedMany(db, 80);
   const cases: [string, number][] = [["?limit=0", 20], ["?limit=-5", 20], ["?limit=abc", 20], ["?limit=51", 50], ["?limit=50", 50], ["?limit=1", 1], ["?limit=2.7", 2], ["", 20]];
   for (const [query, expected] of cases) {
@@ -284,11 +284,13 @@ Deno.test("limit boundaries: default 20, capped at 50, fractions floored, junk i
   }
 });
 
-Deno.test("a failure on any page of the scan returns an error instead of a partial list", async () => {
-  const db = new FakeSupabaseRestClient();
+// 2026-10-18: 公開ボスはDBで絞って1回の問い合わせ(limit+1件)で読むので、その読み取りが失敗した時に
+// 途中までの一覧を返さずエラーを返すことを確かめる(以前は全件のページングの途中の失敗を確かめていた)。
+Deno.test("a failure while reading the bosses returns an error instead of a partial list", async () => {
+  const db = new FakePostgrestClient();
   db.setMaxRowsPerResponse(1000);
   seedMany(db, 1500);
-  db.failSelectCall("bosses", 2);
+  db.failSelectCall("bosses", 1);
   const { status, body } = await page(db, "");
   assertEquals(status, 502);
   assertEquals(body.error_kind, "db_error");
@@ -300,7 +302,7 @@ Deno.test("a failure on any page of the scan returns an error instead of a parti
 // ---------------------------------------------------------------------------
 
 Deno.test("each row carries the appearance id and the challenger/clearer counts for the boss card", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.seed("bosses", [
     { id: "b1", boss_name: "竜", author_name: "A", published_at: isoDay(2), revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "advanced", appearance_id: "appearance_dragon" } } },
     { id: "b2", boss_name: "外見なし", author_name: "A", published_at: isoDay(1), revision: 1, is_published: true, payload: { draft_fields: {} } },
@@ -323,7 +325,7 @@ Deno.test("each row carries the appearance id and the challenger/clearer counts 
 });
 
 Deno.test("only the challenge records of the bosses on the returned page are read", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const ids = seedMany(db, 30);
   db.seed("boss_challenge_records", ids.map((bossId, i) => ({ id: `r-${i}`, boss_id: bossId, challenger_steam_id: `p-${i}`, challenge_count: 1, clear_count: i % 2 })));
 
@@ -339,7 +341,7 @@ Deno.test("only the challenge records of the bosses on the returned page are rea
 });
 
 Deno.test("every record of a page boss counts even beyond the server row cap", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.setMaxRowsPerResponse(1000);
   seedMany(db, 1);
   db.seed("boss_challenge_records", Array.from({ length: 1500 }, (_, i) => ({ id: `r-${String(i).padStart(5, "0")}`, boss_id: "b-0000", challenger_steam_id: `p-${i}`, challenge_count: 1, clear_count: i < 300 ? 1 : 0 })));
@@ -349,14 +351,14 @@ Deno.test("every record of a page boss counts even beyond the server row cap", a
 });
 
 Deno.test("an empty page reads no challenge records", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const { body } = await page(db, "");
   assertEquals(body.bosses, []);
   assertEquals(db.selectCalls.filter((call) => call.table === "boss_challenge_records").length, 0);
 });
 
 Deno.test("a failure while counting challengers returns an error instead of rows showing 0", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedMany(db, 5);
   db.failSelectCall("boss_challenge_records", 1);
   const { status, body } = await page(db, "");

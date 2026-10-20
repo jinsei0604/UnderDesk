@@ -3,14 +3,14 @@
 
 import { assertEquals } from "jsr:@std/assert";
 import { handleListPopularBosses, ListPopularBossesResponseBody } from "./index.ts";
-import { FakeSupabaseRestClient } from "../_shared/fake_supabase_rest_client.ts";
+import { FakePostgrestClient } from "../_shared/fake_postgrest_client.ts";
 
 function req(query = ""): Request {
   return new Request(`http://localhost/list-popular-bosses${query}`, { method: "GET" });
 }
 
 function seedBoss(
-  db: FakeSupabaseRestClient,
+  db: FakePostgrestClient,
   id: string,
   name: string,
   publishedAt: string,
@@ -29,7 +29,7 @@ function seedBoss(
 }
 
 function seedChallengers(
-  db: FakeSupabaseRestClient,
+  db: FakePostgrestClient,
   bossId: string,
   challengers: { steamId: string; challengeCount: number; clearCount?: number }[],
 ): void {
@@ -46,7 +46,7 @@ function seedChallengers(
 }
 
 Deno.test("a boss with more unique challengers ranks higher", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "few", "少数人気ボス", "2026-01-01T00:00:00Z");
   seedChallengers(db, "few", [{ steamId: "1", challengeCount: 1 }]);
   seedBoss(db, "many", "多数人気ボス", "2026-01-02T00:00:00Z");
@@ -58,7 +58,7 @@ Deno.test("a boss with more unique challengers ranks higher", async () => {
 });
 
 Deno.test("a tie on unique challengers is broken by total challenge count", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "low-total", "低総挑戦ボス", "2026-01-01T00:00:00Z");
   seedChallengers(db, "low-total", [{ steamId: "1", challengeCount: 1 }, { steamId: "2", challengeCount: 1 }]);
   seedBoss(db, "high-total", "高総挑戦ボス", "2026-01-02T00:00:00Z");
@@ -70,7 +70,7 @@ Deno.test("a tie on unique challengers is broken by total challenge count", asyn
 });
 
 Deno.test("a full tie falls back to published_at descending", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "older", "先に公開", "2026-01-01T00:00:00Z");
   seedChallengers(db, "older", [{ steamId: "1", challengeCount: 3 }]);
   seedBoss(db, "newer", "後で公開", "2026-02-01T00:00:00Z");
@@ -82,7 +82,7 @@ Deno.test("a full tie falls back to published_at descending", async () => {
 });
 
 Deno.test("one player challenging repeatedly never outranks a boss with more unique challengers", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "grinded", "連続挑戦ボス", "2026-01-01T00:00:00Z");
   seedChallengers(db, "grinded", [{ steamId: "1", challengeCount: 500 }]); // 1 unique challenger, huge total
   seedBoss(db, "wide", "広く遊ばれたボス", "2026-01-02T00:00:00Z");
@@ -94,7 +94,7 @@ Deno.test("one player challenging repeatedly never outranks a boss with more uni
 });
 
 Deno.test("bosses with zero challenge records are included, ranked lowest", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "played", "遊ばれたボス", "2026-01-01T00:00:00Z");
   seedChallengers(db, "played", [{ steamId: "1", challengeCount: 1 }]);
   seedBoss(db, "unplayed", "未挑戦ボス", "2026-01-02T00:00:00Z");
@@ -109,7 +109,7 @@ Deno.test("bosses with zero challenge records are included, ranked lowest", asyn
 });
 
 Deno.test("mode=simple and mode=advanced filter correctly", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "s1", "SIMPLEボス", "2026-01-01T00:00:00Z", "simple");
   seedChallengers(db, "s1", [{ steamId: "1", challengeCount: 1 }]);
   seedBoss(db, "a1", "HARDCOREボス", "2026-01-02T00:00:00Z", "advanced");
@@ -125,7 +125,7 @@ Deno.test("mode=simple and mode=advanced filter correctly", async () => {
 });
 
 Deno.test("unpublished bosses are excluded from the popular ranking", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "hidden", "非公開ボス", "2026-01-01T00:00:00Z", "simple", false);
   seedChallengers(db, "hidden", [{ steamId: "1", challengeCount: 1 }, { steamId: "2", challengeCount: 1 }]);
 
@@ -135,7 +135,7 @@ Deno.test("unpublished bosses are excluded from the popular ranking", async () =
 });
 
 Deno.test("no per-user data (challenger_steam_id or raw counts) ever appears in the response", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "b1", "確認ボス", "2026-01-01T00:00:00Z");
   seedChallengers(db, "b1", [{ steamId: "76561198000000001", challengeCount: 3, clearCount: 1 }]);
 
@@ -151,7 +151,7 @@ Deno.test("no per-user data (challenger_steam_id or raw counts) ever appears in 
 });
 
 Deno.test("non-GET requests are rejected", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const res = await handleListPopularBosses(new Request("http://localhost/list-popular-bosses", { method: "POST" }), db);
   assertEquals(res.status, 405);
 });
@@ -166,7 +166,7 @@ function isoDay(day: number): string {
 }
 
 // boss-0000(最も古い)〜boss-NNNN(最も新しい)をcount件公開する。
-function seedManyBosses(db: FakeSupabaseRestClient, count: number, prefix = "boss", mode = "simple", firstDay = 0): string[] {
+function seedManyBosses(db: FakePostgrestClient, count: number, prefix = "boss", mode = "simple", firstDay = 0): string[] {
   const ids: string[] = [];
   for (let i = 0; i < count; i++) {
     const id = `${prefix}-${String(i).padStart(4, "0")}`;
@@ -177,7 +177,7 @@ function seedManyBosses(db: FakeSupabaseRestClient, count: number, prefix = "bos
 }
 
 // bossIdへ別々のプレイヤーn人分の記録を入れる(idは${idPrefix}-00000形式)。
-function seedUniqueChallengers(db: FakeSupabaseRestClient, bossId: string, n: number, idOf: (i: number) => string): void {
+function seedUniqueChallengers(db: FakePostgrestClient, bossId: string, n: number, idOf: (i: number) => string): void {
   const rows = [];
   for (let i = 0; i < n; i++) {
     rows.push({ id: idOf(i), boss_id: bossId, challenger_steam_id: `${bossId}-p${i}`, challenge_count: 1, clear_count: 0 });
@@ -186,7 +186,7 @@ function seedUniqueChallengers(db: FakeSupabaseRestClient, bossId: string, n: nu
 }
 
 Deno.test("an old popular boss outside the newest 50 is still ranked first", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedManyBosses(db, 60);
   seedChallengers(db, "boss-0000", [{ steamId: "1", challengeCount: 1 }, { steamId: "2", challengeCount: 1 }, { steamId: "3", challengeCount: 1 }]);
 
@@ -196,7 +196,7 @@ Deno.test("an old popular boss outside the newest 50 is still ranked first", asy
 });
 
 Deno.test("the top 20 of the ranking over every published boss is returned", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const ids = seedManyBosses(db, 30);
   ids.forEach((id, i) => seedUniqueChallengers(db, id, i + 1, (n) => `${id}-r${String(n).padStart(3, "0")}`));
 
@@ -207,7 +207,7 @@ Deno.test("the top 20 of the ranking over every published boss is returned", asy
 });
 
 Deno.test("every challenge record counts even when the server returns at most 1000 rows per response", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.setMaxRowsPerResponse(1000);
   seedBoss(db, "a", "記録が多いボス", "2026-01-01T00:00:00Z");
   seedBoss(db, "b", "記録が少し少ないボス", "2026-01-02T00:00:00Z");
@@ -222,7 +222,7 @@ Deno.test("every challenge record counts even when the server returns at most 10
 });
 
 Deno.test("a server row cap smaller than the page size never ends the paging early", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.setMaxRowsPerResponse(300);
   seedBoss(db, "a", "A", "2026-01-01T00:00:00Z");
   seedBoss(db, "b", "B", "2026-01-02T00:00:00Z");
@@ -234,7 +234,7 @@ Deno.test("a server row cap smaller than the page size never ends the paging ear
 });
 
 Deno.test("published bosses beyond the server's row cap are all ranked", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.setMaxRowsPerResponse(1000);
   seedManyBosses(db, 1200);
   seedChallengers(db, "boss-1150", [{ steamId: "1", challengeCount: 1 }, { steamId: "2", challengeCount: 1 }]);
@@ -245,7 +245,7 @@ Deno.test("published bosses beyond the server's row cap are all ranked", async (
 });
 
 Deno.test("the mode filter applies to every published boss, not just the newest 50", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "old-hc", "古いHARDCORE", isoDay(0), "advanced");
   seedChallengers(db, "old-hc", [{ steamId: "1", challengeCount: 1 }, { steamId: "2", challengeCount: 1 }]);
   seedManyBosses(db, 60, "simple", "simple", 10);
@@ -261,7 +261,7 @@ Deno.test("the mode filter applies to every published boss, not just the newest 
 
 Deno.test("a failure on any page returns an error instead of a partial ranking", async () => {
   for (const [table, call] of [["boss_challenge_records", 2], ["bosses", 1]] as const) {
-    const db = new FakeSupabaseRestClient();
+    const db = new FakePostgrestClient();
     db.setMaxRowsPerResponse(1000);
     seedBoss(db, "a", "A", "2026-01-01T00:00:00Z");
     seedUniqueChallengers(db, "a", 1500, (i) => `rec-${String(i).padStart(5, "0")}`);
@@ -277,7 +277,7 @@ Deno.test("a failure on any page returns an error instead of a partial ranking",
 });
 
 Deno.test("each row carries the unique challenger count for display and nothing per player", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "played", "遊ばれたボス", "2026-01-01T00:00:00Z");
   seedChallengers(db, "played", [
     { steamId: "76561198000000001", challengeCount: 500 },
@@ -293,7 +293,7 @@ Deno.test("each row carries the unique challenger count for display and nothing 
 });
 
 Deno.test("a complete tie (challengers, total challenges and published_at) is ordered by id so the order never changes", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "b-second", "B", "2026-01-01T00:00:00Z");
   seedBoss(db, "a-first", "A", "2026-01-01T00:00:00Z");
   seedChallengers(db, "b-second", [{ steamId: "1", challengeCount: 2 }]);
@@ -308,7 +308,7 @@ Deno.test("a complete tie (challengers, total challenges and published_at) is or
 // ---------------------------------------------------------------------------
 
 Deno.test("each popular row carries how many players cleared it at least once", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "b1", "確認ボス", "2026-01-01T00:00:00Z");
   seedChallengers(db, "b1", [
     { steamId: "1", challengeCount: 4, clearCount: 2 },
@@ -321,7 +321,7 @@ Deno.test("each popular row carries how many players cleared it at least once", 
 });
 
 Deno.test("the clearer count never changes the popular order", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "more-players", "多人数", "2026-01-01T00:00:00Z");
   seedChallengers(db, "more-players", [{ steamId: "1", challengeCount: 1 }, { steamId: "2", challengeCount: 1 }]);
   seedBoss(db, "more-clears", "クリア多数", "2026-01-02T00:00:00Z");
@@ -332,7 +332,7 @@ Deno.test("the clearer count never changes the popular order", async () => {
 });
 
 Deno.test("each popular row carries the appearance id from the payload (empty when missing)", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.seed("bosses", [
     { id: "with", boss_name: "武者", author_name: "A", published_at: "2026-01-02T00:00:00Z", revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "advanced", appearance_id: "appearance_musha" } } },
     { id: "without", boss_name: "外見なし", author_name: "A", published_at: "2026-01-01T00:00:00Z", revision: 1, is_published: true, payload: {} },

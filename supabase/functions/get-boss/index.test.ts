@@ -53,6 +53,16 @@ Deno.test("a non-existent id is not found", async () => {
   assertEquals(res.status, 404);
 });
 
+// 2026-10-18: 公開した人の SteamID は、誰でも呼べるこの関数の応答に入れない。
+Deno.test("the publisher's Steam ID is never returned", async () => {
+  const req = new Request(`http://localhost/get-boss?id=${PUBLISHED_ID}`, { method: "GET" });
+  const res = await handleGetBoss(req, dbWithBosses());
+  const text = await res.text();
+  assertEquals(res.status, 200);
+  assertEquals(text.includes("owner_steam_id"), false);
+  assertEquals(Object.keys((JSON.parse(text) as GetBossResponseBody).boss!).sort(), ["author_name", "boss_name", "id", "payload", "published_at", "revision"]);
+});
+
 Deno.test("a malformed id is rejected before touching the DB", async () => {
   const db = dbWithBosses();
   const req = new Request("http://localhost/get-boss?id=not-a-uuid", { method: "GET" });

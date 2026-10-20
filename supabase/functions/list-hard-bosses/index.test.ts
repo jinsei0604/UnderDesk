@@ -3,14 +3,14 @@
 
 import { assertEquals } from "jsr:@std/assert";
 import { handleListHardBosses, ListHardBossesResponseBody } from "./index.ts";
-import { FakeSupabaseRestClient } from "../_shared/fake_supabase_rest_client.ts";
+import { FakePostgrestClient } from "../_shared/fake_postgrest_client.ts";
 
 function req(query = ""): Request {
   return new Request(`http://localhost/list-hard-bosses${query}`, { method: "GET" });
 }
 
 function seedBoss(
-  db: FakeSupabaseRestClient,
+  db: FakePostgrestClient,
   id: string,
   name: string,
   publishedAt: string,
@@ -29,7 +29,7 @@ function seedBoss(
 }
 
 function seedChallengers(
-  db: FakeSupabaseRestClient,
+  db: FakePostgrestClient,
   bossId: string,
   count: number,
   clearedCount: number,
@@ -48,7 +48,7 @@ function seedChallengers(
 }
 
 Deno.test("a boss with 4 or fewer unique challengers is excluded entirely", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "few", "少数挑戦ボス", "2026-01-01T00:00:00Z");
   seedChallengers(db, "few", 4, 0);
 
@@ -58,7 +58,7 @@ Deno.test("a boss with 4 or fewer unique challengers is excluded entirely", asyn
 });
 
 Deno.test("a boss with exactly 5 unique challengers is included", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "five", "五人挑戦ボス", "2026-01-01T00:00:00Z");
   seedChallengers(db, "five", 5, 0);
 
@@ -69,7 +69,7 @@ Deno.test("a boss with exactly 5 unique challengers is included", async () => {
 });
 
 Deno.test("a lower corrected clear rate ranks first (harder)", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   // 5 challengers, 0 clears -> (0+1)/(5+2) = 1/7 ≈ 0.143
   seedBoss(db, "hard", "高難度ボス", "2026-01-01T00:00:00Z");
   seedChallengers(db, "hard", 5, 0);
@@ -83,7 +83,7 @@ Deno.test("a lower corrected clear rate ranks first (harder)", async () => {
 });
 
 Deno.test("clear_count > 0 is counted once per player, not by total clear count", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   // One boss: 5 unique challengers, one of whom cleared it many times (clear_count=50)
   // must count as exactly 1 unique clearer, not 50.
   db.seed("bosses", [{
@@ -117,7 +117,7 @@ Deno.test("clear_count > 0 is counted once per player, not by total clear count"
 });
 
 Deno.test("a tie on corrected clear rate is broken by more unique challengers first", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   // (1+1)/(5+2) = 2/7 ≈ 0.2857
   seedBoss(db, "small", "少人数タイボス", "2026-01-01T00:00:00Z");
   seedChallengers(db, "small", 5, 1);
@@ -134,7 +134,7 @@ Deno.test("a tie on corrected clear rate is broken by more unique challengers fi
 });
 
 Deno.test("mode=simple and mode=advanced filter correctly", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "s1", "SIMPLE高難度ボス", "2026-01-01T00:00:00Z", "simple");
   seedChallengers(db, "s1", 5, 0);
   seedBoss(db, "a1", "HARDCORE高難度ボス", "2026-01-02T00:00:00Z", "advanced");
@@ -150,7 +150,7 @@ Deno.test("mode=simple and mode=advanced filter correctly", async () => {
 });
 
 Deno.test("unpublished bosses are excluded even with 5+ challengers", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "hidden", "非公開高難度ボス", "2026-01-01T00:00:00Z", "simple", false);
   seedChallengers(db, "hidden", 5, 0);
 
@@ -160,7 +160,7 @@ Deno.test("unpublished bosses are excluded even with 5+ challengers", async () =
 });
 
 Deno.test("no per-user data or raw counts ever appear in the response", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "b1", "確認ボス", "2026-01-01T00:00:00Z");
   seedChallengers(db, "b1", 5, 2);
 
@@ -176,7 +176,7 @@ Deno.test("no per-user data or raw counts ever appear in the response", async ()
 });
 
 Deno.test("non-GET requests are rejected", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const res = await handleListHardBosses(new Request("http://localhost/list-hard-bosses", { method: "POST" }), db);
   assertEquals(res.status, 405);
 });
@@ -191,7 +191,7 @@ function isoDay(day: number): string {
 }
 
 // boss-0000(最も古い)〜boss-NNNN(最も新しい)をcount件公開する。
-function seedManyBosses(db: FakeSupabaseRestClient, count: number, prefix = "boss", mode = "simple", firstDay = 0): string[] {
+function seedManyBosses(db: FakePostgrestClient, count: number, prefix = "boss", mode = "simple", firstDay = 0): string[] {
   const ids: string[] = [];
   for (let i = 0; i < count; i++) {
     const id = `${prefix}-${String(i).padStart(4, "0")}`;
@@ -202,7 +202,7 @@ function seedManyBosses(db: FakeSupabaseRestClient, count: number, prefix = "bos
 }
 
 // bossIdへ別々のプレイヤーn人分の記録を入れ、先頭clearers人をクリア済みにする。
-function seedPlayers(db: FakeSupabaseRestClient, bossId: string, n: number, clearers: number, idOf: (i: number) => string): void {
+function seedPlayers(db: FakePostgrestClient, bossId: string, n: number, clearers: number, idOf: (i: number) => string): void {
   const rows = [];
   for (let i = 0; i < n; i++) {
     rows.push({ id: idOf(i), boss_id: bossId, challenger_steam_id: `steam-${bossId}-${i}`, challenge_count: 1, clear_count: i < clearers ? 1 : 0 });
@@ -211,7 +211,7 @@ function seedPlayers(db: FakeSupabaseRestClient, bossId: string, n: number, clea
 }
 
 Deno.test("an old hard boss outside the newest 50 is still ranked", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedManyBosses(db, 60);
   seedChallengers(db, "boss-0000", 5, 0);
 
@@ -220,7 +220,7 @@ Deno.test("an old hard boss outside the newest 50 is still ranked", async () => 
 });
 
 Deno.test("the top 20 of the ranking over every published boss is returned", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const ids = seedManyBosses(db, 25);
   // boss-iは30人中i人がクリア -> 補正クリア率(i+1)/32はiが小さいほど低い(難しい)。
   ids.forEach((id, i) => seedPlayers(db, id, 30, i, (n) => `${id}-r${String(n).padStart(3, "0")}`));
@@ -232,7 +232,7 @@ Deno.test("the top 20 of the ranking over every published boss is returned", asy
 });
 
 Deno.test("every challenge record counts even when the server returns at most 1000 rows per response", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.setMaxRowsPerResponse(1000);
   seedBoss(db, "hard", "難しいボス", "2026-01-01T00:00:00Z");
   seedBoss(db, "easy", "易しいボス", "2026-01-02T00:00:00Z");
@@ -248,7 +248,7 @@ Deno.test("every challenge record counts even when the server returns at most 10
 });
 
 Deno.test("published bosses beyond the server's row cap are all considered", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.setMaxRowsPerResponse(1000);
   seedManyBosses(db, 1200);
   seedChallengers(db, "boss-1150", 6, 0);
@@ -258,7 +258,7 @@ Deno.test("published bosses beyond the server's row cap are all considered", asy
 });
 
 Deno.test("the mode filter applies to every published boss, not just the newest 50", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "old-hc", "古いHARDCORE", isoDay(0), "advanced");
   seedChallengers(db, "old-hc", 5, 1);
   seedManyBosses(db, 60, "simple", "simple", 10);
@@ -272,7 +272,7 @@ Deno.test("the mode filter applies to every published boss, not just the newest 
 
 Deno.test("a failure on any page returns an error instead of a partial ranking", async () => {
   for (const [table, call] of [["boss_challenge_records", 2], ["bosses", 1]] as const) {
-    const db = new FakeSupabaseRestClient();
+    const db = new FakePostgrestClient();
     db.setMaxRowsPerResponse(1000);
     seedBoss(db, "a", "A", "2026-01-01T00:00:00Z");
     seedPlayers(db, "a", 1500, 3, (i) => `rec-${String(i).padStart(5, "0")}`);
@@ -288,7 +288,7 @@ Deno.test("a failure on any page returns an error instead of a partial ranking",
 });
 
 Deno.test("each row carries the plain clearer and challenger counts, never the corrected rate", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "b1", "確認ボス", "2026-01-01T00:00:00Z");
   seedChallengers(db, "b1", 25, 3);
 
@@ -300,7 +300,7 @@ Deno.test("each row carries the plain clearer and challenger counts, never the c
 });
 
 Deno.test("a complete tie (rate, challengers and published_at) is ordered by id so the order never changes", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedBoss(db, "b-second", "B", "2026-01-01T00:00:00Z");
   seedBoss(db, "a-first", "A", "2026-01-01T00:00:00Z");
   seedChallengers(db, "b-second", 5, 1);
@@ -315,7 +315,7 @@ Deno.test("a complete tie (rate, challengers and published_at) is ordered by id 
 // ---------------------------------------------------------------------------
 
 Deno.test("each hard row carries the appearance id from the payload (empty when missing)", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.seed("bosses", [
     { id: "with", boss_name: "竜", author_name: "A", published_at: "2026-01-01T00:00:00Z", revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "advanced", appearance_id: "appearance_dragon" } } },
     { id: "without", boss_name: "外見なし", author_name: "A", published_at: "2026-01-02T00:00:00Z", revision: 1, is_published: true, payload: { draft_fields: { appearance_id: 42 } } },
@@ -328,7 +328,7 @@ Deno.test("each hard row carries the appearance id from the payload (empty when 
 });
 
 Deno.test("the ranking uses the corrected rate even when the displayed clear rates read the other way", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   // 3/33 shows 9.1% but its corrected rate (3+1)/(33+2) = 11.4% is lower than
   // 1/12, which shows 8.3% with a corrected rate (1+1)/(12+2) = 14.3%.
   seedBoss(db, "few", "表示8.3%", "2026-01-01T00:00:00Z");

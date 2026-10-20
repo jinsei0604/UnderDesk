@@ -31,11 +31,10 @@
 
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
 import { selectAllPages } from "../_shared/select_all_pages.ts";
-import { extractAppearanceId } from "../_shared/boss_card_fields.ts";
+import { BossSummaryDbRow, modeCondition, publicBossQuery, toPublicRow } from "../_shared/public_boss_query.ts";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
-const DEFAULT_CREATOR_MODE = "simple";
 const VALID_MODES = new Set(["simple", "advanced"]);
 const MIN_UNIQUE_CHALLENGERS = 5;
 
@@ -62,15 +61,6 @@ export interface ListHardBossesResponseBody {
   message?: string;
 }
 
-interface BossRowWithPayload {
-  id: string;
-  boss_name: string;
-  author_name: string;
-  published_at: string;
-  revision: number;
-  payload?: Record<string, unknown>;
-}
-
 interface ChallengeRecordAggregateRow {
   id: string;
   boss_id: string;
@@ -84,12 +74,10 @@ function jsonResponse(body: ListHardBossesResponseBody, status: number): Respons
   });
 }
 
-function extractCreatorMode(payload: unknown): string {
-  if (typeof payload !== "object" || payload === null) return DEFAULT_CREATOR_MODE;
-  const draftFields = (payload as Record<string, unknown>).draft_fields;
-  if (typeof draftFields !== "object" || draftFields === null) return DEFAULT_CREATOR_MODE;
-  const mode = (draftFields as Record<string, unknown>).creator_mode;
-  return VALID_MODES.has(String(mode)) ? String(mode) : DEFAULT_CREATOR_MODE;
+// カードの概要(creator_mode が無い・不正な既存データは simple。_shared/public_boss_query.ts の toPublicRow と同じ規約)。
+function summaryOf(row: BossSummaryDbRow): BossSummaryRow {
+  const { unique_challengers: _challengers, unique_clearers: _clearers, ...summary } = toPublicRow(row, { uniqueChallengers: 0, uniqueClearers: 0 });
+  return summary;
 }
 
 export async function handleListHardBosses(req: Request, db: SupabaseRestClient): Promise<Response> {
@@ -106,11 +94,12 @@ export async function handleListHardBosses(req: Request, db: SupabaseRestClient)
   const requestedMode = url.searchParams.get("mode");
   const modeFilter = requestedMode !== null && VALID_MODES.has(requestedMode) ? requestedMode : null;
 
-  // 公開中の全ボス(新しい順の上限で打ち切らない)。
-  const bossesLookup = await selectAllPages<BossRowWithPayload>(
+  // 公開中の全ボス(新しい順の上限で打ち切らない)。2026-10-18: payload は読まず、カードに要る列だけ
+  // (creator_mode・appearance_id はJSONの中の値だけ)を読み、modeはDBで絞る(Supabaseの無料枠への負荷)。
+  const bossesLookup = await selectAllPages<BossSummaryDbRow>(
     db,
     "bosses",
-    "is_published=eq.true&select=id,boss_name,author_name,published_at,revision,payload",
+    publicBossQuery(modeFilter !== null ? [modeCondition(modeFilter)] : [], ""),
   );
   if (!bossesLookup.ok) {
     return jsonResponse({ ok: false, error_kind: "db_error", message: bossesLookup.errorMessage ?? "" }, 502);
@@ -136,17 +125,9 @@ export async function handleListHardBosses(req: Request, db: SupabaseRestClient)
 
   let bosses = bossesLookup.rows
     .map((row) => {
-      const aggregate = aggregates.get(row.id) ?? { uniqueChallengers: 0, uniqueClearers: 0 };
+      const aggregate = aggregates.get(String(row.id)) ?? { uniqueChallengers: 0, uniqueClearers: 0 };
       return {
-        summary: {
-          id: row.id,
-          boss_name: row.boss_name,
-          author_name: row.author_name,
-          published_at: row.published_at,
-          revision: row.revision,
-          creator_mode: extractCreatorMode(row.payload),
-          appearance_id: extractAppearanceId(row.payload),
-        } as BossSummaryRow,
+        summary: summaryOf(row),
         uniqueChallengers: aggregate.uniqueChallengers,
         uniqueClearers: aggregate.uniqueClearers,
         correctedClearRate: (aggregate.uniqueClearers + 1) / (aggregate.uniqueChallengers + 2),

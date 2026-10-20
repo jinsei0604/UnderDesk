@@ -10,18 +10,32 @@
 // (id/boss_name/author_name/published_at/revision/creator_mode、2026-10からは
 // 挑戦画面のカード用にappearance_id/unique_challengers/unique_clearersも)——
 // challenger_steam_id・挑戦記録そのもの・payload全文は一切含めない。
+//
+// Supabaseの無料枠への負荷(2026-10-18): 以前は公開中の全ボスを payload ごと読んでから絞っていた
+// (1,000件で約2.6MB)。今は公開ボスを、DBで並べた順(公開日時の新しい順)に SCAN_PAGE 件ずつ、カードに
+// 要る列だけ読み(_shared/public_boss_query.ts。modeもDBで絞る)、自分が挑戦済みのボスを除いて limit 件
+// 集まったところで読むのをやめる。
 
 import { SteamTicketVerifier } from "../steam-auth/steam_ticket_verifier.ts";
 import { RealSteamWebApiClient } from "../steam-auth/steam_web_api_client.ts";
 import { WEB_API_IDENTITY } from "../steam-auth/index.ts";
-import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
+import { RealSupabaseRestClient, RestResult, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
 import { selectAllPages } from "../_shared/select_all_pages.ts";
-import { extractAppearanceId, loadChallengeStats } from "../_shared/boss_card_fields.ts";
+import { loadChallengeStats } from "../_shared/boss_card_fields.ts";
+import {
+  afterPositionCondition,
+  BossSummaryDbRow,
+  dbError,
+  modeCondition,
+  publicBossQuery,
+  toPublicRow,
+} from "../_shared/public_boss_query.ts";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
-const DEFAULT_CREATOR_MODE = "simple";
 const VALID_MODES = new Set(["simple", "advanced"]);
+// 公開ボスを1回の問い合わせで読む件数(挑戦済みを除いた後に limit 件集まるまで、この単位で続きを読む)。
+export const SCAN_PAGE = 100;
 
 export interface BossSummaryRow {
   id: string;
@@ -52,15 +66,6 @@ export interface ListUnchallengedBossesResponseBody {
   message?: string;
 }
 
-interface BossRowWithPayload {
-  id: string;
-  boss_name: string;
-  author_name: string;
-  published_at: string;
-  revision: number;
-  payload?: Record<string, unknown>;
-}
-
 interface ChallengeRecordLookupRow {
   id: string;
   boss_id: string;
@@ -77,20 +82,6 @@ function jsonResponse(body: ListUnchallengedBossesResponseBody, status: number):
     status,
     headers: { "Content-Type": "application/json" },
   });
-}
-
-// list-bossesのextractCreatorMode()と同じフォールバック規約
-// (draft_fields/creator_modeが無い、または既知の2値以外ならsimple扱い)。
-// list-bosses/index.tsとは意図的に独立させている——既存の、既にテスト済み
-// のlist-bosses実装へ今回は一切触れない(各Edge Functionが自己完結する
-// という既存の設計慣習、publish-boss/unpublish-boss/get-bossがそれぞれ
-// isValidHexTicket()を個別に持つのと同じ理由)。
-function extractCreatorMode(payload: unknown): string {
-  if (typeof payload !== "object" || payload === null) return DEFAULT_CREATOR_MODE;
-  const draftFields = (payload as Record<string, unknown>).draft_fields;
-  if (typeof draftFields !== "object" || draftFields === null) return DEFAULT_CREATOR_MODE;
-  const mode = (draftFields as Record<string, unknown>).creator_mode;
-  return VALID_MODES.has(String(mode)) ? String(mode) : DEFAULT_CREATOR_MODE;
 }
 
 export async function handleListUnchallengedBosses(
@@ -148,57 +139,30 @@ export async function handleListUnchallengedBosses(
     challengedLookup.rows.filter((row) => Number(row.challenge_count) > 0).map((row) => row.boss_id),
   );
 
-  // 全件対象(2026-10): 以前は新しい50件だけを取ってから未挑戦/modeで絞っていたため、
-  // それより古い未挑戦のボスを取りこぼした。今は公開中の全ボスを読んでから、自分が
-  // 挑戦済みのものを除き、modeで絞り、公開日時の新しい順(同じ日時ならid順)に
-  // 並べて先頭limit件を返す。
-  const bossesLookup = await selectAllPages<BossRowWithPayload>(
-    db,
-    "bosses",
-    "is_published=eq.true&select=id,boss_name,author_name,published_at,revision,payload",
-  );
-  if (!bossesLookup.ok) {
-    return jsonResponse({ ok: false, error_kind: "db_error", message: bossesLookup.errorMessage ?? "" }, 502);
+  // 全件対象(2026-10): 古い未挑戦のボスも取りこぼさない。公開ボスを公開日時の新しい順(同じ日時ならid順)に
+  // DBで並べ、SCAN_PAGE件ずつ読んで、自分が挑戦済みのものを除き、limit件集まるか最後まで読んだら終わる
+  // (modeはDBで絞る。payloadは読まない)。
+  const conditions: string[] = modeFilter !== null ? [modeCondition(modeFilter)] : [];
+  const page: BossSummaryDbRow[] = [];
+  let after: BossSummaryDbRow | null = null;
+  while (page.length < limit) {
+    const scan: string[] = after === null ? conditions : [...conditions, afterPositionCondition(String(after.published_at), String(after.id))];
+    const found: RestResult<BossSummaryDbRow> = await db.select<BossSummaryDbRow>("bosses", publicBossQuery(scan, `order=published_at.desc,id.asc&limit=${SCAN_PAGE}`));
+    if (!found.ok) return dbError(found);
+    for (const row of found.rows) {
+      if (challengedBossIds.has(String(row.id))) continue;
+      page.push(row);
+      if (page.length >= limit) break;
+    }
+    if (found.rows.length < SCAN_PAGE) break; // 最後まで読んだ
+    after = found.rows[found.rows.length - 1];
   }
 
-  let entries = bossesLookup.rows
-    .filter((row) => !challengedBossIds.has(row.id))
-    .map((row) => ({
-      summary: {
-        id: row.id,
-        boss_name: row.boss_name,
-        author_name: row.author_name,
-        published_at: row.published_at,
-        revision: row.revision,
-        creator_mode: extractCreatorMode(row.payload),
-        appearance_id: extractAppearanceId(row.payload),
-      } as BossSummaryRow,
-      publishedAtMs: publishedAtMs(row.published_at),
-    }));
-
-  if (modeFilter !== null) {
-    entries = entries.filter((entry) => entry.summary.creator_mode === modeFilter);
-  }
-  entries.sort((a, b) => {
-    if (a.publishedAtMs !== b.publishedAtMs) return b.publishedAtMs - a.publishedAtMs;
-    return a.summary.id < b.summary.id ? -1 : a.summary.id > b.summary.id ? 1 : 0;
-  });
-  const page = entries.slice(0, limit).map((entry) => entry.summary);
-  const statsLookup = await loadChallengeStats(db, page.map((summary) => summary.id));
-  if (!statsLookup.ok) {
-    return jsonResponse({ ok: false, error_kind: "db_error", message: statsLookup.errorMessage }, 502);
-  }
-  const bosses: UnchallengedBossRow[] = page.map((summary) => {
-    const stats = statsLookup.stats.get(summary.id)!;
-    return { ...summary, unique_challengers: stats.uniqueChallengers, unique_clearers: stats.uniqueClearers };
-  });
+  const statsLookup = await loadChallengeStats(db, page.map((row) => String(row.id)));
+  if (!statsLookup.ok) return dbError(statsLookup);
+  const bosses: UnchallengedBossRow[] = page.map((row) => toPublicRow(row, statsLookup.stats.get(String(row.id))!));
 
   return jsonResponse({ ok: true, bosses }, 200);
-}
-
-function publishedAtMs(publishedAt: unknown): number {
-  const ms = Date.parse(String(publishedAt ?? ""));
-  return Number.isFinite(ms) ? ms : 0;
 }
 
 if (import.meta.main) {

@@ -25,6 +25,8 @@ export class FakePostgrestClient implements SupabaseCountingRestClient {
   countCalls: { table: string; query: string }[] = [];
   // count()の直後に行を消す(数えた後に取り下げられた場合を試すため)。
   afterCount: (() => void) | null = null;
+  // PostgRESTの応答行数の上限(Supabaseの「Max rows」。limitを大きくしても、これより多くは返さない)。
+  private maxRowsPerResponse: number | undefined;
 
   seed(table: string, rows: Row[]): void {
     this.tables.set(table, [...(this.tables.get(table) ?? []), ...rows]);
@@ -37,6 +39,19 @@ export class FakePostgrestClient implements SupabaseCountingRestClient {
   // tableへのcall回目(1始まり)のselect/countを失敗させる。
   fail(kind: "select" | "count", table: string, call: number): void {
     this.failing.push({ kind, table, call });
+  }
+
+  // FakeSupabaseRestClient と同じ名前の入口(一覧の関数のテストを、こちらの偽物でも同じ形で書けるように。2026-10-18)。
+  failSelectCall(table: string, call: number): void {
+    this.fail("select", table, call);
+  }
+
+  setMaxRowsPerResponse(maxRows: number): void {
+    this.maxRowsPerResponse = maxRows;
+  }
+
+  rowsOf(table: string): Row[] {
+    return this.tables.get(table) ?? [];
   }
 
   private shouldFail(kind: "select" | "count", table: string): boolean {
@@ -56,6 +71,7 @@ export class FakePostgrestClient implements SupabaseCountingRestClient {
     const offset = Number(params.get("offset") ?? 0);
     const limit = params.has("limit") ? Number(params.get("limit")) : rows.length;
     rows = rows.slice(offset, offset + limit);
+    if (this.maxRowsPerResponse !== undefined) rows = rows.slice(0, this.maxRowsPerResponse);
     const select = params.get("select");
     const out = select === null ? rows : rows.map((row) => project(row, select));
     return Promise.resolve({ ok: true, rows: out as T[], status: 200 });

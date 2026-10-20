@@ -9,7 +9,7 @@ import {
   RawHttpResult,
   SteamWebApiClient,
 } from "../steam-auth/steam_web_api_client.ts";
-import { FakeSupabaseRestClient } from "../_shared/fake_supabase_rest_client.ts";
+import { FakePostgrestClient } from "../_shared/fake_postgrest_client.ts";
 
 class StubSteamClient implements SteamWebApiClient {
   constructor(private readonly result: RawHttpResult) {}
@@ -45,8 +45,8 @@ function postJson(payload: unknown): Request {
   });
 }
 
-function dbWithBosses(): FakeSupabaseRestClient {
-  const db = new FakeSupabaseRestClient();
+function dbWithBosses(): FakePostgrestClient {
+  const db = new FakePostgrestClient();
   db.seed("bosses", [
     { id: "1", boss_name: "未挑戦ボスA", author_name: "A", published_at: "2026-01-01T00:00:00Z", revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "simple" } } },
     { id: "2", boss_name: "挑戦済みボスB", author_name: "B", published_at: "2026-02-01T00:00:00Z", revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "simple" } } },
@@ -121,7 +121,7 @@ Deno.test("mode=advanced filters to only advanced unchallenged bosses", async ()
 });
 
 Deno.test("creator_mode falls back to simple when draft_fields or creator_mode is missing", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.seed("bosses", [
     { id: "1", boss_name: "旧形式ボス", author_name: "A", published_at: "2026-01-01T00:00:00Z", revision: 1, is_published: true, payload: {} },
   ]);
@@ -187,7 +187,7 @@ function isoDay(day: number): string {
 }
 
 // <prefix>-0000(最も古い)〜(最も新しい)をcount件公開する。sameTimeなら全部同じ公開日時。
-function seedMany(db: FakeSupabaseRestClient, count: number, prefix = "u", mode = "simple", firstDay = 0, sameTime = false): string[] {
+function seedMany(db: FakePostgrestClient, count: number, prefix = "u", mode = "simple", firstDay = 0, sameTime = false): string[] {
   const ids: string[] = [];
   const rows = [];
   for (let i = 0; i < count; i++) {
@@ -199,7 +199,7 @@ function seedMany(db: FakeSupabaseRestClient, count: number, prefix = "u", mode 
   return ids;
 }
 
-function challenge(db: FakeSupabaseRestClient, bossIds: string[], steamId = ME): void {
+function challenge(db: FakePostgrestClient, bossIds: string[], steamId = ME): void {
   db.seed("boss_challenge_records", bossIds.map((bossId, i) => ({
     id: `rec-${steamId}-${String(i).padStart(5, "0")}`,
     boss_id: bossId,
@@ -209,14 +209,14 @@ function challenge(db: FakeSupabaseRestClient, bossIds: string[], steamId = ME):
   })));
 }
 
-async function unchallenged(db: FakeSupabaseRestClient, payload: Record<string, unknown> = {}): Promise<ListUnchallengedBossesResponseBody> {
+async function unchallenged(db: FakePostgrestClient, payload: Record<string, unknown> = {}): Promise<ListUnchallengedBossesResponseBody> {
   const res = await handleListUnchallengedBosses(postJson({ ticket: VALID_HEX_TICKET, ...payload }), verifierSucceedingAs(ME), db, 480);
   assertEquals(res.status, 200);
   return await res.json();
 }
 
 Deno.test("unchallenged bosses older than the newest 50 are found once the newer ones are all challenged", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const ids = seedMany(db, 60);
   challenge(db, ids.slice(5)); // the newest 55 are challenged
   const body = await unchallenged(db);
@@ -224,7 +224,7 @@ Deno.test("unchallenged bosses older than the newest 50 are found once the newer
 });
 
 Deno.test("the top 20 unchallenged come back newest first out of every published boss", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const ids = seedMany(db, 120);
   challenge(db, ids.filter((_, i) => i % 3 === 0));
   const expected = ids.filter((_, i) => i % 3 !== 0).reverse().slice(0, 20);
@@ -233,7 +233,7 @@ Deno.test("the top 20 unchallenged come back newest first out of every published
 });
 
 Deno.test("my challenge records beyond the server row cap still exclude those bosses", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.setMaxRowsPerResponse(100);
   const ids = seedMany(db, 260);
   challenge(db, ids.slice(10)); // 250 records, more than two pages at the cap
@@ -243,7 +243,7 @@ Deno.test("my challenge records beyond the server row cap still exclude those bo
 });
 
 Deno.test("mode filtering looks at every published boss, not just the newest 50", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const oldHardcore = seedMany(db, 2, "old-hc", "advanced", 0);
   seedMany(db, 60, "new-simple", "simple", 10);
   const advanced = await unchallenged(db, { mode: "advanced" });
@@ -254,16 +254,18 @@ Deno.test("mode filtering looks at every published boss, not just the newest 50"
 });
 
 Deno.test("unchallenged bosses with the same published_at are ordered by id", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   const ids = seedMany(db, 25, "t", "simple", 5, true);
   const body = await unchallenged(db);
   assertEquals(body.bosses!.map((b) => b.id), [...ids].sort().slice(0, 20));
 });
 
+// 2026-10-18: 公開ボスはDBで並べて100件ずつ読むので、最初の読み取り(1回目)の失敗を確かめる
+// (以前は全件のページングの2回目の失敗を確かめていた)。
 Deno.test("a failure while reading bosses or my records returns an error instead of a partial list", async () => {
-  const cases: [string, number][] = [["bosses", 2], ["boss_challenge_records", 1]];
+  const cases: [string, number][] = [["bosses", 1], ["boss_challenge_records", 1]];
   for (const [table, call] of cases) {
-    const db = new FakeSupabaseRestClient();
+    const db = new FakePostgrestClient();
     db.setMaxRowsPerResponse(1000);
     seedMany(db, 1500);
     db.failSelectCall(table, call);
@@ -279,7 +281,7 @@ Deno.test("a failure while reading bosses or my records returns an error instead
 // ---------------------------------------------------------------------------
 
 Deno.test("unchallenged rows carry the appearance id and everyone's challenger/clearer counts", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   db.seed("bosses", [{ id: "g1", boss_name: "ゴーレム", author_name: "A", published_at: isoDay(1), revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "simple", appearance_id: "appearance_golem" } } }]);
   db.seed("boss_challenge_records", [
     { id: "r1", boss_id: "g1", challenger_steam_id: SOMEONE_ELSE, challenge_count: 2, clear_count: 1 },
@@ -292,7 +294,7 @@ Deno.test("unchallenged rows carry the appearance id and everyone's challenger/c
 });
 
 Deno.test("a failure while counting challengers for the unchallenged page returns an error", async () => {
-  const db = new FakeSupabaseRestClient();
+  const db = new FakePostgrestClient();
   seedMany(db, 3);
   db.failSelectCall("boss_challenge_records", 2); // 1 = my own records, 2 = the counts for the page
   const res = await handleListUnchallengedBosses(postJson({ ticket: VALID_HEX_TICKET }), verifierSucceedingAs(ME), db, 480);

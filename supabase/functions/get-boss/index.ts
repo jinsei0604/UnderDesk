@@ -6,6 +6,9 @@
 // (Godotクライアント側のRBMOnlineBossPayload.validate_for_challenge()が
 // schema_version確認→型検証→battle_hash再計算・突合を担う設計、
 // §4D-3)。ここは「公開済みの該当行をそのまま返す」だけの単純な読み取り。
+//
+// 2026-10-18: 公開した人の SteamID(owner_steam_id)は返さない(誰でも呼べる関数のため。ゲームは使っていない。
+// 一覧・検索・ランダムと同じく、公開した人に結びつく値は出さない)。
 
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
 
@@ -13,7 +16,6 @@ export interface BossDetailRow {
   id: string;
   boss_name: string;
   author_name: string;
-  owner_steam_id: string;
   revision: number;
   published_at: string;
   payload: Record<string, unknown>;
@@ -47,7 +49,7 @@ export async function handleGetBoss(req: Request, db: SupabaseRestClient): Promi
 
   const result = await db.select<BossDetailRow>(
     "bosses",
-    `id=eq.${id}&is_published=eq.true&select=id,boss_name,author_name,owner_steam_id,revision,published_at,payload`,
+    `id=eq.${id}&is_published=eq.true&select=id,boss_name,author_name,revision,published_at,payload`,
   );
   if (!result.ok) {
     return jsonResponse({ ok: false, error_kind: "db_error", message: result.errorMessage ?? "" }, 502);

@@ -22,10 +22,11 @@ export const BOSS_SUMMARY_SELECT = [
   "published_at",
   "revision",
   "creator_mode:payload->draft_fields->>creator_mode",
-  "appearance_id:payload->draft_fields->>appearance_id",
+  // 外見IDはJSONの値のまま読む(->> だと数などが文字に変わるため。文字でなければ空にする、一覧のこれまでの規約。2026-10-18)
+  "appearance_id:payload->draft_fields->appearance_id",
 ].join(",");
 
-// DBから読んだ1行(creator_mode・appearance_idはJSONの中に無ければnull)。
+// DBから読んだ1行(creator_mode・appearance_idはJSONの中に無ければnull。appearance_idはJSONの値のまま)。
 export interface BossSummaryDbRow {
   id: string;
   boss_name: string;
@@ -33,7 +34,7 @@ export interface BossSummaryDbRow {
   published_at: string;
   revision: number;
   creator_mode: string | null;
-  appearance_id: string | null;
+  appearance_id: unknown;
 }
 
 // 応答の1行(list-bossesの行と同じ形)。
@@ -117,6 +118,12 @@ export function searchCondition(query: string): string {
   const id = idCondition(query);
   if (id !== null) parts.push(id);
   return `or(${parts.join(",")})`;
+}
+
+// 一覧の並び(公開日時の新しい順、同じ公開日時ならid順)の上で、その位置より「後ろ」(より古い、または同じ
+// 公開日時でidが大きい)の条件。publishedAt・idは確かめた値だけを渡す(list-bossesのcursor・DBが返した行)。
+export function afterPositionCondition(publishedAt: string, id: string): string {
+  return `or(published_at.lt."${publishedAt}",and(published_at.eq."${publishedAt}",id.gt.${id}))`;
 }
 
 // 公開ボスを読む問い合わせ。conditionsは and=(...) の中に並べる条件。
