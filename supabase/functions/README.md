@@ -23,6 +23,7 @@
 | `random-boss`（2026-10-17） | ランダム挑戦 | 数える1回（行は読まない）＋1件＋その挑戦記録 |
 
 - 公開ボスの問い合わせには必ず `is_published=eq.true` を付ける。返すのはカードの項目だけ（owner_steam_id・battle_hash・挑戦者の SteamID などは返さない）。
+- 表への直接の権限（2026-10-21、migration `20261021000000_revoke_direct_table_access.sql`）: ゲームの公開用の鍵（anon）・authenticated は `bosses`・`boss_challenge_records`・`boss_connection_tests` を REST から直接読めない・書けない（すべて関数＝service_role 経由）。確かめ: `supabase db query --linked -f supabase/tools/inspect_public_access.sql`、`verify_revoke_checks.sql`（関数の権限での読み書きも確かめ、最後に取り消す）。新しい表を作る時も、同じように anon・authenticated の権限を外す（Supabase の既定では付く）。戻し方: `supabase/rollback/20261021000000_restore_direct_table_access.sql`。
 - `search-bosses`・`random-boss` は、DBの失敗の文を利用者へ返さず関数のログにだけ残す（`error_kind: db_error` と決まった文だけを返す）。既存の関数は今もDBの失敗の文を `message` に入れて返している（直すなら同じ形に）。
 
 ## 今後の改善課題
