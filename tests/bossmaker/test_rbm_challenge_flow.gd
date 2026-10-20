@@ -398,7 +398,7 @@ func test_winning_a_real_battle_shows_clear_outcome() -> void:
 	assert_true(entry._battle_view.session.battle.battle_over)
 	assert_eq(entry._battle_view.session.battle.winner, "ally")
 	# 実機プレイ改善③ item8: "CLEAR!"/"DEFEAT"は「クリア！」/「敗北」へ日本語化。
-	assert_eq(entry._battle_view._outcome_label.text, "クリア！")
+	assert_eq(entry._battle_view._outcome_label.text, "CLEAR", "結果の画面の見出し（2026-10-18 案C: VICTORY ではなく CLEAR）")
 	assert_true(entry._battle_view._outcome_area.visible)
 	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
@@ -410,7 +410,7 @@ func test_losing_a_real_battle_shows_defeat_outcome() -> void:
 	entry._battle_view.act_attack(0)
 	assert_true(entry._battle_view.session.battle.battle_over)
 	assert_eq(entry._battle_view.session.battle.winner, "boss")
-	assert_eq(entry._battle_view._outcome_label.text, "敗北")
+	assert_eq(entry._battle_view._outcome_label.text, "DEFEAT", "結果の画面の見出し（2026-10-18 案C）")
 	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
 
 ## §25: CHALLENGEの勝利はClear Check成功として記録されない

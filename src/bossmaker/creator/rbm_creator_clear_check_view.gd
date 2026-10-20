@@ -35,11 +35,23 @@ var main: Node
 var draft: RBMCreatorDraft
 var session: RBMCreatorTestSession
 
-# --- confirmation screen (§5, 無改修) ---
-var _confirm_panel: VBoxContainer
+# --- confirmation screen (§5) ---
+## 開始の画面と結果の画面の見た目（案A「王道RPG」、2026-10-18 ユーザーの決定。rbm_result_screen_kit.gd）。
+const ResultKit = preload("res://src/bossmaker/rbm_result_screen_kit.gd")
+const ResultPanel = preload("res://src/bossmaker/rbm_battle_result_panel.gd")
+var _confirm_panel: Control
 var _confirm_boss_name_label: Label
 var _confirm_random_notice_label: Label
 var _confirm_error_label: Label
+var _confirm_backdrop: Control
+var _confirm_portrait: Control
+var _confirm_portrait_art: Control
+var _confirm_dialog: Control
+var _confirm_menu: Control
+var _confirm_lines: Array[Label] = []
+var _confirm_buttons: Array[Button] = []
+var _confirm_tweens: Array[Tween] = []
+var _confirm_generation := 0
 
 # --- battle screen ---
 var _battle_panel: VBoxContainer
@@ -66,7 +78,7 @@ var _restart_button: Button
 var _restart_confirm: HBoxContainer
 var _quit_button: Button
 
-var _outcome_area: VBoxContainer
+var _outcome_area: Control
 var _outcome_label: Label
 var _retry_button: Button
 var _return_button: Button
@@ -122,57 +134,110 @@ func _build_ui() -> void:
 	_build_battle_panel(column)
 
 # ---------------------------------------------------------------------------
-# confirmation screen (§5、無改修)
+# confirmation screen (§5)。見た目は案A「王道RPG」（2026-10-18 ユーザーの決定。比較の資料は prototypes/result_screens_2026-10-17/）:
+# ボスの戦闘背景を暗く敷き、ボスの肖像の窓＋会話の窓（文字が順に出る）＋「▶」で選ぶメニュー。名前の付いた部品
+# （ConfirmBossNameLabel・ConfirmRandomActionNoticeLabel・ConfirmErrorLabel・ConfirmStartButton・ConfirmBackButton）と
+# 押した時の処理は今までどおり。
 # ---------------------------------------------------------------------------
 
-func _build_confirm_panel(parent: Control) -> void:
-	_confirm_panel = VBoxContainer.new()
+func _build_confirm_panel(_parent: Control) -> void:
+	var S := ResultKit.S
+	_confirm_panel = Control.new()
 	_confirm_panel.name = "ClearCheckConfirmPanel"
-	parent.add_child(_confirm_panel)
+	# 金への再配色・枠の差し替え（RBMWorldUi.walk）を受けない（この画面は自分で見た目を持つ）
+	_confirm_panel.set_meta("world_skip", true)
+	_confirm_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_confirm_panel)
+	_confirm_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_confirm_backdrop = Control.new()
+	_confirm_backdrop.name = "ConfirmBackdrop"
+	_confirm_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_confirm_panel.add_child(_confirm_backdrop)
+	_confirm_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	var title := Label.new()
-	title.name = "ConfirmTitleLabel"
-	title.text = tr("クリアチェック")
-	title.theme_type_variation = RBMUiTheme.VARIATION_SECTION_LABEL
-	_confirm_panel.add_child(title)
+	# ボスの肖像の窓（絵と SIMPLE/HARDCORE の札は開くたびに作る）
+	_confirm_portrait = ResultKit.window(_confirm_panel, Rect2(70, 70, 360, 410), tr("クリアチェック"), "ConfirmPortraitWindow")
+	_confirm_portrait_art = Control.new()
+	_confirm_portrait_art.name = "ConfirmPortraitArt"
+	_confirm_portrait_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_confirm_portrait.add_child(_confirm_portrait_art)
+	_confirm_boss_name_label = ResultKit.label(_confirm_portrait, "", Rect2(20, 364, 320, 32), 18, S.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "ConfirmBossNameLabel")
 
-	_confirm_boss_name_label = Label.new()
-	_confirm_boss_name_label.name = "ConfirmBossNameLabel"
-	_confirm_panel.add_child(_confirm_boss_name_label)
-
+	# 会話の窓（文字が順に出る）
+	_confirm_dialog = ResultKit.window(_confirm_panel, Rect2(70, 500, 1140, 186), "", "ConfirmDialogWindow")
+	_confirm_lines.clear()
+	for text in ["【" + tr("試練の確認") + "】", tr("このボスを、作った設定のまま倒せるかを確かめます。"), "・" + tr("REWIND が使えます")]:
+		_confirm_lines.append(ResultKit.label(_confirm_dialog, text, Rect2(30, 18, 1080, 28), 17, S.TEXT))
+	_confirm_lines[0].add_theme_font_size_override("font_size", 18)
+	_confirm_lines[0].add_theme_color_override("font_color", S.GOLD)
 	## §25: ADVANCEDでランダム行動/確率的発動が設定されている場合のみ表示
 	## （RBMCreatorDraft.has_random_action_variance()、判定条件はそちらの
 	## doc comment参照）。open()のたびdraftから最新の状態を読んで更新する。
-	_confirm_random_notice_label = Label.new()
-	_confirm_random_notice_label.name = "ConfirmRandomActionNoticeLabel"
-	_confirm_random_notice_label.text = tr("このボスにはランダム行動が設定されています。挑戦ごとに行動が変化する場合があります。")
-	_confirm_panel.add_child(_confirm_random_notice_label)
+	_confirm_random_notice_label = ResultKit.label(_confirm_dialog, "・" + tr("ランダムに選ぶ行動があります"), Rect2(30, 18, 1080, 28), 17, S.TEXT, HORIZONTAL_ALIGNMENT_LEFT, "ConfirmRandomActionNoticeLabel")
+	_confirm_lines.append(_confirm_random_notice_label)
+	_confirm_lines.append(ResultKit.label(_confirm_dialog, "・" + tr("クリアチェックを通ると、オンラインに公開できます"), Rect2(30, 18, 1080, 28), 17, S.TEXT))
 
-	var info1 := Label.new()
-	info1.text = tr("この設定で攻略可能か確認します")
-	_confirm_panel.add_child(info1)
-
-	var info2 := Label.new()
-	info2.text = tr("クリアチェック中はREWINDを使用できます")
-	_confirm_panel.add_child(info2)
-
-	_confirm_error_label = Label.new()
-	_confirm_error_label.name = "ConfirmErrorLabel"
-	_confirm_panel.add_child(_confirm_error_label)
-
-	var button_row := HBoxContainer.new()
-	_confirm_panel.add_child(button_row)
+	# 「▶」で選ぶメニュー（主の操作が上、戻るが下。保存の画面と同じ並び）
+	var start_button := Button.new()
+	start_button.name = "ConfirmStartButton"
+	start_button.text = tr("開始する")
+	start_button.pressed.connect(_on_confirm_start_pressed)
 	var back_button := Button.new()
 	back_button.name = "ConfirmBackButton"
 	back_button.text = tr("戻る")
-	back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	back_button.pressed.connect(_on_confirm_back_pressed)
-	button_row.add_child(back_button)
-	var start_button := Button.new()
-	start_button.name = "ConfirmStartButton"
-	start_button.text = tr("開始")
-	start_button.pressed.connect(_on_confirm_start_pressed)
-	button_row.add_child(start_button)
+	_confirm_buttons = [start_button, back_button]
+	_confirm_menu = ResultKit.menu(_confirm_panel, Rect2(880, 320, 330, 0), _confirm_buttons, "ConfirmMenu")
+	# ボタンはメニューの窓の後に足す（窓の上に描かれるように）
+	_confirm_panel.add_child(start_button)
+	_confirm_panel.add_child(back_button)
+
+	_confirm_error_label = ResultKit.wrap(_confirm_panel, "", Rect2(880, 438, 330, 60), 15, ResultKit.RED, HORIZONTAL_ALIGNMENT_LEFT, "ConfirmErrorLabel")
+
+## 開始の画面を出す（開くたび: 背景・ボスの絵・札を今のボスで作り、窓が順に出て、会話の文字が順に出る）。表示専用。
+func _present_confirm() -> void:
+	_confirm_generation += 1
+	for tw in _confirm_tweens:
+		if tw != null and tw.is_valid():
+			tw.kill()
+	_confirm_tweens.clear()
+	for holder in [_confirm_backdrop, _confirm_portrait_art]:
+		for c in holder.get_children():
+			holder.remove_child(c)
+			c.queue_free()
+	var boss_asset := RBMVisualAssets.boss_asset(draft.appearance_id) if draft != null else ""
+	ResultKit.backdrop(_confirm_backdrop, boss_asset, draft.battle_background if draft != null else "night")
+	ResultKit.boss_sprite(_confirm_portrait_art, boss_asset, Rect2(30, 60, 300, 300))
+	ResultKit.S.mode_tag(_confirm_portrait_art, draft.creator_mode if draft != null else RBMCreatorDraft.CREATOR_MODE_SIMPLE, Vector2(22, 46))
+	# 決まった位置へ戻してから出す（前の出方の途中でも位置がずれないように）
+	_confirm_portrait.position = Vector2(70, 70)
+	_confirm_dialog.position = Vector2(70, 500)
+	_confirm_menu.position = Vector2(880, 320)
+	_confirm_tweens.append(ResultKit.enter(_confirm_portrait, 0.0, 0.35, Vector2(-30, 0)))
+	_confirm_tweens.append(ResultKit.enter(_confirm_dialog, 0.15, 0.3, Vector2(0, 20)))
+	var y := 18.0
+	var shown := 0
+	for line in _confirm_lines:
+		if not line.visible:
+			continue
+		line.position.y = y
+		y += 30.0
+		line.visible_ratio = 0.0
+		var tw := line.create_tween()
+		tw.tween_interval(0.3 + 0.35 * shown)
+		tw.tween_property(line, "visible_ratio", 1.0, 0.35)
+		_confirm_tweens.append(tw)
+		shown += 1
+	for i in _confirm_buttons.size():
+		_confirm_buttons[i].position = Vector2(880 + 42, 320 + 12 + 42 * i)
+		_confirm_tweens.append(ResultKit.enter(_confirm_buttons[i], 1.6, 0.25, Vector2(0, 12)))
+	_confirm_tweens.append(ResultKit.enter(_confirm_menu, 1.6, 0.25, Vector2(0, 12)))
+	# メニューが出てから、最初のフォーカスを「開始する」に置く（出る前に Enter で押されないように）
+	var generation := _confirm_generation
+	var start_button: Button = _confirm_buttons[0]
+	get_tree().create_timer(1.85).timeout.connect(func():
+		if generation == _confirm_generation and is_instance_valid(start_button) and start_button.is_visible_in_tree():
+			start_button.grab_focus())
 
 ## §4/§5: called by RBMCreatorMain.press_clear_check() — shows the
 ## confirmation screen only. No Definition is generated/validated yet (that
@@ -185,6 +250,8 @@ func open(p_draft: RBMCreatorDraft) -> void:
 	_confirm_random_notice_label.visible = draft.has_random_action_variance()
 	_battle_panel.visible = false
 	_confirm_panel.visible = true
+	if is_inside_tree():
+		_present_confirm()
 	# QA-06: 確認画面が出た時点(ボス・外見・味方・技・覚醒が確定した最も早い時点)から、演出の素材を裏で読み始める。
 	prepare_presentations(draft.to_definition(), draft.appearance_id, draft.battle_background)
 
@@ -246,6 +313,8 @@ func start_battle(definition: Dictionary, rng_seed: int = -1) -> void:
 	_confirm_panel.visible = false
 	_battle_panel.visible = true
 	refresh()
+	# 結果の画面の味方の絵を、戦闘中に裏で少しずつ作る（結果を出す瞬間に止まらないように）
+	_outcome_area.warm_up(self)
 	_start_encounter_or_opening()
 	_check_clear_check_success()
 
@@ -293,8 +362,11 @@ func _build_battle_panel(parent: Control) -> void:
 	# （戦場より前）へ構築し、下部の内容がどれだけ多くても勝敗結果が画面外へ
 	# 押し出されないようにする。visible=falseが初期値のため通常の戦闘中は
 	# 高さ0のまま何も見た目を変えない。
-	_outcome_area = VBoxContainer.new()
+	_outcome_area = ResultPanel.new()
 	_outcome_area.name = "OutcomeArea"
+	_outcome_area.style = ResultPanel.STYLE_RPG
+	_outcome_area.route = "clear_check"
+	_outcome_area.context_fn = func(): return ResultPanel.context_for(self, draft.creator_mode if draft != null else "", "")
 	_se_outcome_played = false
 	_outcome_area.visible = false
 	_battle_panel.add_child(_outcome_area)
@@ -310,7 +382,7 @@ func _build_battle_panel(parent: Control) -> void:
 	_outcome_area.add_child(_retry_button)
 	_return_button = Button.new()
 	_return_button.name = "ReturnToCreatorButton"
-	_return_button.text = tr("Creatorに戻る")
+	_return_button.text = tr("作成画面へ戻る")
 	_return_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	_return_button.pressed.connect(_on_return_pressed)
 	_outcome_area.add_child(_return_button)
@@ -755,6 +827,8 @@ func refresh() -> void:
 		# shows もう一度挑戦 + Creatorに戻る.
 		_outcome_label.text = tr("クリアチェック成功") if won else tr("クリアチェック失敗")
 		_retry_button.visible = not won
+		# 戻り先は同じ（最終確認の画面）。成功した時は次にすること（保存・公開）が分かる文にする（案A、2026-10-18）
+		_return_button.text = tr("最終確認へ（保存・公開）") if won else tr("作成画面へ戻る")
 	# 登場・勝利演出の間は、作り直したコマンドのボタンも押せないようにする（戦闘画面が表示された時の作り直しなど）
 	if is_instance_valid(_encounter) and _encounter.is_playing():
 		_set_presentation_input_locked(true)

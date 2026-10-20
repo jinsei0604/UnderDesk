@@ -210,7 +210,7 @@ static func style_scrollbar(bar: VScrollBar) -> void:
 static func fitted_sprite(asset_id: String, fit: Vector2) -> Texture2D:
 	if asset_id.is_empty():
 		return null
-	var key := "%s|%d|%d" % [asset_id, int(fit.x), int(fit.y)]
+	var key := fitted_sprite_key(asset_id, fit)
 	if _sprite_cache.has(key):
 		return _sprite_cache[key]
 	var source := RBMVisualAssets.texture(asset_id, 0)
@@ -219,20 +219,38 @@ static func fitted_sprite(asset_id: String, fit: Vector2) -> Texture2D:
 	var result: Texture2D = source
 	var image := source.get_image()
 	if image != null and not image.is_empty():
-		if image.is_compressed():
-			image.decompress()
-		var used := image.get_used_rect()
-		if used.size.x > 0 and used.size.y > 0:
-			image = image.get_region(used)
-			var scale := minf(fit.x / image.get_width(), fit.y / image.get_height())
-			if scale >= 1.0:
-				var factor := maxi(1, int(floor(scale)))
-				image.resize(image.get_width() * factor, image.get_height() * factor, Image.INTERPOLATE_NEAREST)
-			else:
-				image.resize(maxi(1, int(image.get_width() * scale)), maxi(1, int(image.get_height() * scale)), Image.INTERPOLATE_LANCZOS)
-			result = ImageTexture.create_from_image(image)
+		var fitted := fit_image(image, fit)
+		if fitted != null:
+			result = ImageTexture.create_from_image(fitted)
 	_sprite_cache[key] = result
 	return result
+
+static func fitted_sprite_key(asset_id: String, fit: Vector2) -> String:
+	return "%s|%d|%d" % [asset_id, int(fit.x), int(fit.y)]
+
+## fitted_sprite() の切り出しと縮小（CPU だけ。画像を書き換える）。透明でない所が無ければ null。
+## 裏のスレッドから呼んでもよい（結果の画面が戦闘中に前もって作る。rbm_result_screen_kit.gd）。
+static func fit_image(image: Image, fit: Vector2) -> Image:
+	if image.is_compressed():
+		image.decompress()
+	var used := image.get_used_rect()
+	if used.size.x <= 0 or used.size.y <= 0:
+		return null
+	image = image.get_region(used)
+	var scale := minf(fit.x / image.get_width(), fit.y / image.get_height())
+	if scale >= 1.0:
+		var factor := maxi(1, int(floor(scale)))
+		image.resize(image.get_width() * factor, image.get_height() * factor, Image.INTERPOLATE_NEAREST)
+	else:
+		image.resize(maxi(1, int(image.get_width() * scale)), maxi(1, int(image.get_height() * scale)), Image.INTERPOLATE_LANCZOS)
+	return image
+
+static func has_fitted_sprite(asset_id: String, fit: Vector2) -> bool:
+	return _sprite_cache.has(fitted_sprite_key(asset_id, fit))
+
+## 前もって作った fitted_sprite() の結果を置く（同じ切り出し・縮め方で作った物だけ）。
+static func store_fitted_sprite(asset_id: String, fit: Vector2, texture: Texture2D) -> void:
+	_sprite_cache[fitted_sprite_key(asset_id, fit)] = texture
 
 ## textureをfitの中に縦横比を保って収めた時の大きさ(拡大はしない)。
 static func fitted_size(texture: Texture2D, fit: Vector2) -> Vector2:

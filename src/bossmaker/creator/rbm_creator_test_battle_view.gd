@@ -58,7 +58,9 @@ var _target_picker_skill_id: String = ""
 var _quit_button: Button
 var _quit_confirm: HBoxContainer
 
-var _outcome_area: VBoxContainer
+## 戦闘の結果の画面（案C「シネマティック」、rbm_battle_result_panel.gd。2026-10-18）。中のボタンの名前と処理は今までどおり。
+const ResultPanel = preload("res://src/bossmaker/rbm_battle_result_panel.gd")
+var _outcome_area: Control
 var _retry_button: Button
 var _return_button: Button
 
@@ -120,8 +122,11 @@ func _build_ui() -> void:
 	# 中身（テキスト・ボタンの名前や処理）には一切触れず、構築順だけを
 	# 最上部（戦場より前）へ移す——visible=falseが初期値のため通常の
 	# 戦闘中は高さ0のまま何も見た目を変えない。
-	_outcome_area = VBoxContainer.new()
+	_outcome_area = ResultPanel.new()
 	_outcome_area.name = "OutcomeArea"
+	_outcome_area.style = ResultPanel.STYLE_CINEMATIC
+	_outcome_area.route = "test"
+	_outcome_area.context_fn = func(): return ResultPanel.context_for(self, _draft_mode(), "")
 	_se_outcome_played = false
 	_outcome_area.visible = false
 	column.add_child(_outcome_area)
@@ -139,7 +144,7 @@ func _build_ui() -> void:
 	_outcome_area.add_child(_retry_button)
 	_return_button = Button.new()
 	_return_button.name = "ReturnToCreatorButton"
-	_return_button.text = tr("Creatorに戻る")
+	_return_button.text = tr("作成画面へ戻る")
 	_return_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	_return_button.pressed.connect(_on_return_pressed)
 	_outcome_area.add_child(_return_button)
@@ -375,6 +380,8 @@ func start(definition: Dictionary, rng_seed: int = -1) -> bool:
 	_outcome_area.visible = false
 	if session.start_ok():
 		refresh()
+		# 結果の画面のボスの絵を前もって作る（結果を出す瞬間に止まらないように）
+		_outcome_area.warm_up(self)
 		_present_session_opening()
 	return session.start_ok()
 
@@ -585,7 +592,14 @@ func refresh() -> void:
 		# 確認が残り、その「終了する」が押せないまま重なっていた。プレイ体験監査 PX-01、2026-10-17）
 		_quit_confirm.visible = false
 		var outcome_label: Label = _outcome_area.get_node("OutcomeLabel")
-		outcome_label.text = tr("勝利") if battle.winner == "ally" else tr("敗北")
+		# 結果の画面の見出し（案C、2026-10-18 ユーザーの決定: VICTORY ではなく CLEAR）。両方の言語で同じ英字。
+		outcome_label.text = "CLEAR" if battle.winner == "ally" else "DEFEAT"
+
+## 結果の画面に出す挑戦モード（作っているボスの SIMPLE/HARDCORE。表示専用）。
+func _draft_mode() -> String:
+	if is_instance_valid(main) and main.get("draft") is RBMCreatorDraft:
+		return main.draft.creator_mode
+	return ""
 
 ## §14/§15: 現在SPD順で入力待ちの味方1人だけのコマンドを表示する
 ## （通常攻撃／スキル／防御の3ボタン。スキル一覧は_skill_list_panelへ分離）。

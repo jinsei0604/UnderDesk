@@ -683,3 +683,22 @@ SP支援,SP support
 覚醒：%s,Awakening: %s
 未設定,Not Set
 設定済み,Set
+撃破ターン,Turns
+クリアタイム,Clear Time
+倒れたターン,Fell on Turn
+全滅してしまった……,Your party has fallen...
+戦闘結果,Battle Result
+挑戦モード,Mode
+クリアチェックが完了しました。,Clear Check complete.
+ボスが強すぎる時は、能力（HP・ATK）か行動を見直しましょう,"If the boss is too strong, adjust its stats (HP/ATK) or actions."
+最終確認へ（保存・公開）,To Final Review (Save / Publish)
+作成画面へ戻る,Back to Creator
+試練の確認,Trial Check
+このボスを、作った設定のまま倒せるかを確かめます。,Check that this boss can be beaten with your settings.
+REWIND が使えます,You can use REWIND
+ランダムに選ぶ行動があります,Some actions are chosen at random
+クリアチェックを通ると、オンラインに公開できます,Pass the Clear Check to publish online.
+開始する,Start
+保存するボス,Boss to Save
+クリアチェック達成済み,Clear Check passed
+最終確認の画面の「オンライン公開」で公開できます,You can publish it from “Publish Online” on the Final Review screen.

@@ -54,6 +54,21 @@ func modal(content: Control, hud: Control, rect: Rect2, node_name: String) -> vo
 	content.visibility_changed.connect(func(): overlay.visible = content.visible)
 	overlay.visible = content.visible
 
+## 結果の画面（rbm_battle_result_panel.gd、画面全体）を戦闘画面の一番上に重ねる。名前（OutcomeDialog）は勝利演出が探して
+## 薄くから出すのに使う。見た目は結果の画面が自分で持つ（金への再配色を受けない）。
+func result_screen(content: Control, hud: Control) -> void:
+	var overlay := Control.new()
+	overlay.name = "OutcomeDialog"
+	overlay.set_meta("world_skip", true)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(overlay)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 40
+	if content.get_parent() != overlay: content.reparent(overlay)
+	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	content.visibility_changed.connect(func(): overlay.visible = content.visible)
+	overlay.visible = content.visible
+
 func build() -> void:
 	built = true
 	canvas = Control.new()
@@ -117,7 +132,7 @@ func build() -> void:
 		modal(view._restart_confirm,hud,Rect2(190,260,900,180),"RestartDialog")
 	if view is RBMCreatorTestBattleView or view is RBMChallengeBattleView:
 		modal(view._quit_confirm,hud,Rect2(190,260,900,180),"QuitDialog")
-	modal(view._outcome_area,hud,Rect2(390,240,500,240),"OutcomeDialog")
+	result_screen(view._outcome_area,hud)
 	# Clear Check still owns its confirm/battle visibility state. Keep those nodes.
 	if view is RBMCreatorClearCheckView:
 		for child in view._battle_panel.get_children():

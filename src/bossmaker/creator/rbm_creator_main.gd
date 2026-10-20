@@ -334,7 +334,9 @@ func _build_ui() -> void:
 	_save_view.return_to_creator_requested.connect(_on_save_return_to_creator)
 	_save_view.return_to_creator_list_requested.connect(_on_save_return_to_creator_list)
 	_save_view.set_meta("world_gold_zone", true)
-	root_column.add_child(_save_view)
+	# 保存の画面は画面全体に出す（案A、ボスの戦闘背景を後ろに敷く。2026-10-18）。中身の余白は画面自身が持つ。
+	add_child(_save_view)
+	_save_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 # ---------------------------------------------------------------------------
 # navigation

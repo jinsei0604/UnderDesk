@@ -417,7 +417,7 @@ func test_composite_condition_and_max_uses_random_slot_survives_the_full_pipelin
 		func(unit_id): challenge_view.act_attack(unit_id),
 	)
 	assert_eq(challenge_view.session.battle.winner, "ally")
-	assert_eq(challenge_view._outcome_label.text, "クリア！")
+	assert_eq(challenge_view._outcome_label.text, "CLEAR", "結果の画面の見出し（2026-10-18 案C: VICTORY ではなく CLEAR）")
 
 	# --- CHALLENGEでの勝利は、既に記録済みのClear Check成功・保存済み
 	# JSONのいずれも書き換えない（Phase 1既存規約、この複合シナリオでも

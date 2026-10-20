@@ -388,7 +388,7 @@ func test_full_phase1_journey_launch_through_challenge_result() -> void:
 	# =========================================================================
 	assert_true(battle_view._outcome_area.visible)
 	# 実機プレイ改善③ item8: "CLEAR!"は「クリア！」へ日本語化。
-	assert_eq(battle_view._outcome_label.text, "クリア！")
+	assert_eq(battle_view._outcome_label.text, "CLEAR", "結果の画面の見出し（2026-10-18 案C: VICTORY ではなく CLEAR）")
 	assert_true(battle_view._retry_button.visible)
 	assert_true(battle_view._return_button.visible)
 

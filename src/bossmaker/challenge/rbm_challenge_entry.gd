@@ -587,6 +587,9 @@ func _start_challenge(definition: Dictionary, encounter: Dictionary) -> void:
 		else:
 			RBMLocalStageRepository.record_challenge_attempt(_confirm_view.stage_id)
 	_battle_view.battle_background = _confirm_view._draft.battle_background if _confirm_view._draft != null else "night"
+	# 結果の画面に出す挑戦モードと制作者（表示専用、rbm_battle_result_panel.gd）
+	_battle_view.result_mode = _confirm_view._draft.creator_mode if _confirm_view._draft != null else ""
+	_battle_view.result_author = _confirm_view._draft.author_name if _confirm_view._draft != null else ""
 	if not encounter.is_empty():
 		_battle_view.request_encounter(encounter)
 	_battle_view.start_battle(definition, visibility, appearance_id)

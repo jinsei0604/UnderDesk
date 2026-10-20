@@ -75,10 +75,15 @@ var _restart_confirm: HBoxContainer
 var _quit_button: Button
 var _quit_confirm: HBoxContainer
 
-var _outcome_area: VBoxContainer
+## 戦闘の結果の画面（案C「シネマティック」、rbm_battle_result_panel.gd。2026-10-18）。中のボタンの名前と処理は今までどおり。
+const ResultPanel = preload("res://src/bossmaker/rbm_battle_result_panel.gd")
+var _outcome_area: Control
 var _outcome_label: Label
 var _retry_button: Button
 var _return_button: Button
+## 結果の画面に出す挑戦モード（SIMPLE/HARDCORE）と制作者。挑戦を始める時に RBMChallengeEntry が渡す（表示専用）。
+var result_mode := ""
+var result_author := ""
 
 var _battle_log_history: Array[Dictionary] = []
 var _log_window_overlay: Dictionary = {}
@@ -136,8 +141,11 @@ func _build_ui() -> void:
 	# を最後尾ではなく最上部（戦場より前）へ構築し、下部の内容がどれだけ
 	# 多くても勝敗結果が画面外へ押し出されないようにする。visible=falseが
 	# 初期値のため通常の戦闘中は高さ0のまま何も見た目を変えない。
-	_outcome_area = VBoxContainer.new()
+	_outcome_area = ResultPanel.new()
 	_outcome_area.name = "OutcomeArea"
+	_outcome_area.style = ResultPanel.STYLE_CINEMATIC
+	_outcome_area.route = "challenge"
+	_outcome_area.context_fn = func(): return ResultPanel.context_for(self, result_mode, result_author)
 	_se_outcome_played = false
 	_outcome_area.visible = false
 	column.add_child(_outcome_area)
@@ -393,6 +401,8 @@ func start_battle(definition: Dictionary, visibility: Dictionary = RBMBattleUiKi
 	_outcome_area.visible = false
 	_outcome_recorded = false
 	refresh()
+	# 結果の画面のボスの絵を前もって作る（登場の前の黒い幕の間。結果を出す瞬間に止まらないように）
+	_outcome_area.warm_up(self)
 	_start_encounter_or_opening()
 
 ## 次の start_battle()（挑戦する）で登場・勝利の演出を使う（RBMChallengeEntry が、前の画面が閉じた後に呼ぶ）。
@@ -636,8 +646,8 @@ func refresh() -> void:
 	if battle.battle_over:
 		# §30: RBMBattle.winnerのみを読む。独自のboss.hp判定はしない。
 		var won := battle.winner == "ally"
-		# 実機プレイ改善③ item8: "CLEAR!"/"DEFEAT"を日本語化。
-		_outcome_label.text = tr("クリア！") if won else tr("敗北")
+		# 結果の画面の見出し（案C、2026-10-18 ユーザーの決定: VICTORY ではなく CLEAR）。両方の言語で同じ英字。
+		_outcome_label.text = "CLEAR" if won else "DEFEAT"
 		# §32/§33: 勝利・敗北どちらも「もう一度挑戦」を表示する
 		# （ClearCheckViewは敗北時のみ——ここが唯一の意図的な違い）。
 		_retry_button.visible = true
