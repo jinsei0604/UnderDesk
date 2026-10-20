@@ -39,6 +39,7 @@ var session: RBMCreatorTestSession
 ## 開始の画面と結果の画面の見た目（案A「王道RPG」、2026-10-18 ユーザーの決定。rbm_result_screen_kit.gd）。
 const ResultKit = preload("res://src/bossmaker/rbm_result_screen_kit.gd")
 const ResultPanel = preload("res://src/bossmaker/rbm_battle_result_panel.gd")
+const Escape = preload("res://src/bossmaker/rbm_escape.gd")
 var _confirm_panel: Control
 var _confirm_boss_name_label: Label
 var _confirm_random_notice_label: Label
@@ -258,6 +259,35 @@ func open(p_draft: RBMCreatorDraft) -> void:
 func _on_confirm_back_pressed() -> void:
 	release_presentations()
 	return_to_creator_requested.emit()
+
+## Esc（PX-13、2026-10-18）: 開始の画面では「戻る」。戦闘中は、開いている窓（詳細・ログ）・スキル一覧・対象の選択・
+## 確認を閉じるだけ（戦闘の「Creatorに戻る」は確認なしで戻るので、Esc では戻らない）。演出の最中・結果の画面では何もしない。
+func _unhandled_input(event: InputEvent) -> void:
+	if not Escape.pressed(self, event):
+		return
+	if _confirm_panel.visible:
+		Escape.consume(self)
+		_on_confirm_back_pressed()
+		return
+	if _any_overlay_open():
+		_close_all_overlays()
+	elif _is_busy() or _outcome_area.visible:
+		return
+	elif _target_picker.visible:
+		_on_target_picker_back_pressed()
+	elif _skill_list_panel.visible:
+		_close_skill_list()
+	elif _restart_confirm.visible:
+		_on_restart_cancel_pressed()
+	else:
+		return
+	Escape.consume(self)
+
+func _any_overlay_open() -> bool:
+	for overlay in [_ally_detail_overlay, _boss_detail_overlay, _log_window_overlay]:
+		if (overlay["overlay"] as Control).visible:
+			return true
+	return false
 
 ## QA-06: 戦闘を始める前の画面(この確認画面)から呼ぶ。この戦闘の演出の素材を、戦闘画面を開く前から
 ## 裏で読み込み始める(rbm_battle_stage.gd の prepare_presentations())。

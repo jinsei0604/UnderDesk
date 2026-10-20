@@ -28,8 +28,27 @@ const DEFAULT_STAGES_DIR := "user://bossmaker/stages"
 ## DEFAULT_STAGES_DIRを使う（通常プレイ時の既定動作）。
 static var _stages_dir_override: String = ""
 
+## 本物の保存を守る安全網（2026-10-18）: GUT（自動テスト）の中で動いている時は、テストが保存先を差し替えて
+## いなくても、本物の user://bossmaker には書かず、この置き場を使う（以前、確認の道具が本物の保存フォルダに
+## 試験のボスを作ったことがあった）。挑戦の記録（stage_stats）・討伐記録も stages_dir() の隣なので一緒に移る。
+## 本物のゲーム（起動の引数に addons/gut/ が無い）では使わない。
+const GUT_DEFAULT_ROOT := "user://bossmaker_gut_default"
+static var _under_gut := -1
+
 static func stages_dir() -> String:
-	return _stages_dir_override if not _stages_dir_override.is_empty() else DEFAULT_STAGES_DIR
+	if not _stages_dir_override.is_empty():
+		return _stages_dir_override
+	return GUT_DEFAULT_ROOT + "/stages" if running_under_gut() else DEFAULT_STAGES_DIR
+
+## GUT（自動テスト）の中で動いているか（起動の引数に addons/gut/ がある）。本物のゲームでは常に false。
+static func running_under_gut() -> bool:
+	if _under_gut < 0:
+		_under_gut = 0
+		for arg in OS.get_cmdline_args():
+			if str(arg).contains("addons/gut/"):
+				_under_gut = 1
+				break
+	return _under_gut == 1
 
 static func set_stages_dir_for_testing(path: String) -> void:
 	_stages_dir_override = path

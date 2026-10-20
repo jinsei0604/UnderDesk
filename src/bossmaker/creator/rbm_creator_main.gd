@@ -58,6 +58,7 @@ signal quit_confirmed
 var _world_ui = preload("res://src/bossmaker/rbm_world_ui.gd").new()
 
 var draft: RBMCreatorDraft = RBMCreatorDraft.new()
+const Escape = preload("res://src/bossmaker/rbm_escape.gd")
 var current_step: int = 1
 var has_reached_summary: bool = false
 
@@ -85,6 +86,9 @@ var _step_content_area: Control
 var _boss_profile_panel: RBMCreatorUiKit.BossProfilePanel
 var _step_views: Array = []  # index i -> STEP (i+1)'s view
 var _status_label: Label
+## 「次へ」で進めなかった STEP（PX-11）。進めない理由の文は、この STEP で「次へ」を押した後だけ出す
+## （以前は STEP4 を開いた直後から「パーティを1人以上選んでください」が出ていた）。STEP が変わると 0 に戻す。
+var _validation_shown_step := 0
 ## 実機プレイ改善③ item3/5/6: STEP1-7専用の「戻る/最終確認へ戻る/次へ」を
 ## 持つ行。_show_only()内で_steps_root表示中だけ表示するよう切り替える
 ## （下記参照）——TEST BATTLE/CLEAR CHECK/保存/外見選択のいずれの画面でも
@@ -360,6 +364,11 @@ func edit_step(step: int) -> void:
 ## whether STEP 7 was already reached.
 func press_next() -> bool:
 	if not _current_view().is_step_valid():
+		_validation_shown_step = current_step
+		_status_label.text = _current_view().validation_message()
+		# 進めない理由を、その画面に出す（PX-09。名前が空の時、押しても何も起きなかった）
+		if _current_view().has_method("show_invalid_reason"):
+			_current_view().call("show_invalid_reason")
 		return false
 	if current_step >= STEP_COUNT:
 		return false
@@ -412,6 +421,8 @@ func _on_appearance_cancelled() -> void:
 # ---------------------------------------------------------------------------
 
 func on_party_changed() -> void:
+	# 編成を自分で変えた後は、進めない理由をすぐ出す（全員を外した時など。開いただけの時は出さない、PX-11）
+	_validation_shown_step = current_step
 	_refresh()
 
 func on_skills_changed() -> void:
@@ -590,6 +601,10 @@ func _on_save_return_to_creator_list() -> void:
 func start_new() -> void:
 	draft.restore_from_saved_dict({})
 	draft.restore_clear_check_snapshot({})
+	# 新しいボスの能力の初期値（PX-07。「未保存の変更なし」の基準は、この値を入れた後で取る）
+	draft.hp = RBMCreatorDraft.NEW_BOSS_HP
+	draft.atk = RBMCreatorDraft.NEW_BOSS_ATK
+	draft.spd = RBMCreatorDraft.NEW_BOSS_SPD
 	current_stage_id = ""
 	current_step = 1
 	has_reached_summary = false
@@ -699,6 +714,31 @@ func _on_exit_confirm_discard_pressed() -> void:
 func _on_exit_confirm_cancel_pressed() -> void:
 	_exit_confirm_panel.visible = false
 
+## Esc（PX-13、2026-10-18）: 終了の確認はキャンセル、外見の選択は「戻る」。STEP では、STEP の中で開いている画面が
+## 先に受け取り（escape()）、何も開いていなければ1つ前の STEP へ（STEP1 は「作成を終了」と同じ。未保存なら確認が出る）。
+## テストバトル・クリアチェック・保存の画面は、それぞれが自分で受ける。
+func _unhandled_input(event: InputEvent) -> void:
+	if not Escape.pressed(self, event):
+		return
+	if _exit_confirm_panel.visible:
+		Escape.consume(self)
+		_on_exit_confirm_cancel_pressed()
+		return
+	if _appearance_picker.visible:
+		Escape.consume(self)
+		_appearance_picker._on_back_pressed()
+		return
+	if not _steps_root.visible:
+		return
+	var view := _current_view()
+	Escape.consume(self)
+	if view.has_method("escape") and bool(view.call("escape")):
+		return
+	if current_step > 1:
+		press_back()
+	else:
+		press_exit_creator()
+
 # ---------------------------------------------------------------------------
 
 func _show_only(node: Control) -> void:
@@ -754,7 +794,9 @@ func _refresh() -> void:
 		## 引き続き表示する(この5項目を確認できる唯一の場所のため)。
 		_boss_profile_panel.update(draft, current_step == 2)
 	var view = _current_view()
-	_status_label.text = "" if view.is_step_valid() else view.validation_message()
+	if _validation_shown_step != current_step:
+		_validation_shown_step = 0
+	_status_label.text = view.validation_message() if _validation_shown_step == current_step and not view.is_step_valid() else ""
 	## Creator本体UI刷新（2026-09-04）§3: 現在の工程名とSTEP n / 総数は、
 	## 実際の工程数・現在位置から都度算出する（デザイン例の固定文言を
 	## 埋め込まない）。

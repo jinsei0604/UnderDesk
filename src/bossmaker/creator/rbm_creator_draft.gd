@@ -75,6 +75,11 @@ var battle_background: String = "night"
 var hp: int = 1
 var atk: int = 1
 var spd: int = 1
+## 新しく作るボスの能力の初期値（RBMCreatorMain.start_new() だけが使う。保存済みのボス・読み込みの既定値は上の 1 のまま）。
+## 同梱の基準のボス（data_bossmaker/enemies/test_boss.json）と同じ値。以前は 1 で、そのまま進めると一撃で倒れた（PX-07、2026-10-18）。
+const NEW_BOSS_HP := 3000
+const NEW_BOSS_ATK := 150
+const NEW_BOSS_SPD := 90
 var weak_attributes: Array[String] = []
 var resist_attributes: Array[String] = []
 

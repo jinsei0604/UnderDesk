@@ -702,3 +702,26 @@ REWIND が使えます,You can use REWIND
 保存するボス,Boss to Save
 クリアチェック達成済み,Clear Check passed
 最終確認の画面の「オンライン公開」で公開できます,You can publish it from “Publish Online” on the Final Review screen.
+覚醒の設定,Awakening Settings
+＋ 自己強化を追加する,+ Add Self-buff
+この自己強化を削除,Remove This Self-buff
+＋ HP回復を追加する,+ Add HP Heal
+このHP回復を削除,Remove This HP Heal
+覚醒後を見る,View Awakened
+覚醒可能,Can Awaken
+通常時を見る,View Normal
+ボス名を入力してください,Enter a boss name.
+自己強化：なし,Self-buff: None
+自己強化：ATK×%.2f / %dターン,Self-buff: ATK×%.2f / %d Turns
+HP回復：なし,HP Heal: None
+HP回復：最大HPの%.1f%%,HP Heal: %.1f%% of Max HP
+HP回復：HP%d,HP Heal: %d HP
+覚醒を編集,Edit Awakening
+覚醒を削除,Remove Awakening
+覚醒を追加,Add Awakening
+スライム,Slime
+狼,Wolf
+騎士,Knight
+竜,Dragon
+幽霊,Ghost
+ゴーレム,Golem

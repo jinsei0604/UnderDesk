@@ -133,7 +133,10 @@ func _check_skills(label: String) -> void:
 		if child is Button:
 			count += 1
 			_ui_check(label + " visible " + child.name, _inside(child))
-	_ui_check(label + " back plus four skills", count == 5)
+	# 「戻る」＋その味方の本物のスキルすべて（ハンマー使いは5つ。以前は全員4つの前提で、ハンマー使いが不合格になっていた。2026-10-18）
+	var unit = view._unit_by_id(view.session.pending_ally_id())
+	var expected: int = 1 + (unit.skills.size() if unit != null else 4)
+	_ui_check(label + " back plus every skill (%d)" % (expected - 1), count == expected)
 	_ui_check(label + " no skill scroll required", not view._skill_list_panel.get_parent() is ScrollContainer)
 	_layout_checks(label)
 	await _capture(label + "_skills.png")

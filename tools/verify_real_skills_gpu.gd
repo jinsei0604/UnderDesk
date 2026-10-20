@@ -2,7 +2,9 @@ extends "res://tools/verify_battle_visuals_gpu.gd"
 
 ## Runs actual master skills through sessions, then plays the returned real logs.
 ## Damage/SP setup below belongs to isolated QA instances, never production data.
-const EXPECTED_REAL_CASES := 56
+## 期待するケースの数は、マスターデータから数える（2026-10-18。以前は 56 件・ボス 30 件の決め打ちで、ハンマー使いの技が
+## 5つになり・ボスが9体になった後は、全部のケースが動いても不合格になっていた）。数え方: 味方の技（全員の本物の技）＋
+## ボスの技（ボスの外見 × 下の all_boss_skills）＋特別なケース（カウンター・かばう）。
 const EXPECTED_SPECIAL_CASES := 6
 var last_record: Dictionary = {}
 
@@ -15,6 +17,9 @@ func _run() -> void:
 	if DisplayServer.get_name() == "headless":
 		quit(2)
 		return
+	var expected_ally_cases := 0
+	for character_id in Assets.ALLY_IDS:
+		expected_ally_cases += (_master(character_id).get("skills", []) as Array).size()
 	for character_id in Assets.ALLY_IDS:
 		for skill in _master(character_id).get("skills", []):
 			var definition := _definition_for(character_id)
@@ -52,16 +57,17 @@ func _run() -> void:
 			_verify_boss_result(last_record, skill, boss_id)
 			await _close_view()
 	await _counter_and_cover()
-	_validate_counts(EXPECTED_REAL_CASES)
+	var expected_boss_cases: int = Assets.BOSS_IDS.size() * all_boss_skills.size()
+	_validate_counts(expected_ally_cases + expected_boss_cases + EXPECTED_SPECIAL_CASES)
 	var boss_cases := 0
 	for item in report["cases"]:
 		if item.has("expected_boss_skill_id"): boss_cases += 1
 	var coverage := {"id": "boss_coverage", "assertions": []}
-	_check(coverage, "30 boss skill/appearance combinations verified", boss_cases == 30, {"actual": boss_cases})
+	_check(coverage, "%d boss skill/appearance combinations verified" % expected_boss_cases, boss_cases == expected_boss_cases, {"expected": expected_boss_cases, "actual": boss_cases})
 	report["boss_coverage"] = coverage
 	report["passed"] = report["errors"].is_empty()
 	report["case_count"] = report["cases"].size()
-	report["case_breakdown"] = {"ally_skills": 20, "boss_skills": 30, "special_skills_included": 6}
+	report["case_breakdown"] = {"ally_skills": expected_ally_cases, "boss_skills": expected_boss_cases, "special_skills_included": EXPECTED_SPECIAL_CASES}
 	_save_report()
 	print("REAL_SKILLS_GPU_DONE passed=%s cases=%d" % [report["passed"], report["case_count"]])
 	quit(0 if report["passed"] else 1)

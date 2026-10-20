@@ -876,6 +876,22 @@ func refresh() -> void:
 	if _editor_view.visible:
 		_refresh_editor_view()
 
+## Esc（PX-13、2026-10-18）を、この STEP の中の画面が受け取ったら true（RBMCreatorMain が STEP を戻らない）。
+## 一覧から開いた画面なら1つ前へ戻る（追加の方法 → 一覧、既存から選ぶ → 追加の方法、設定 → キャンセル）。
+## 性能の編集の欄（フォーム）を開いている時は何もしない（入力中の内容を Esc で失わないように）。
+func escape() -> bool:
+	if _list_view.visible:
+		return false
+	if _form_active:
+		return true
+	if _editor_view.visible:
+		_on_editor_cancel_pressed()
+	elif _pick_existing_view.visible:
+		_show_only(_add_choice_view)
+	else:
+		_show_only(_list_view)
+	return true
+
 func is_step_valid() -> bool:
 	return draft.step4_is_valid()
 

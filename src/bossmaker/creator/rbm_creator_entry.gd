@@ -31,6 +31,7 @@ signal exit_requested
 
 const S := preload("res://src/bossmaker/challenge/rbm_challenge_list_style.gd")
 const M := preload("res://src/bossmaker/challenge/rbm_menu_ui.gd")
+const Escape = preload("res://src/bossmaker/rbm_escape.gd")
 
 ## RBMCreatorGuideCharacterの表示scale/position（案内役の部品は残してあり、今の画面では使っていない）。
 const GUIDE_CHARACTER_SCALE := 0.50
@@ -682,6 +683,24 @@ func _focus_list_after_dialog() -> void:
 
 func _on_list_back_pressed() -> void:
 	_show_top()
+
+## Esc で戻る（PX-13、2026-10-18）: 削除の確認 → キャンセル、保存したボス戦の一覧 → 作成トップ、作成方法の選択 → 作成トップ、
+## 作成トップ → ホーム。ボス作成の画面（main）が出ている時は、main が自分で受ける。
+func _unhandled_input(event: InputEvent) -> void:
+	if not Escape.pressed(self, event) or main.visible:
+		return
+	if _delete_confirm_panel.visible:
+		Escape.consume(self)
+		_on_delete_cancelled()
+	elif _list_panel.visible:
+		Escape.consume(self)
+		_on_list_back_pressed()
+	elif _mode_choice_panel.visible:
+		Escape.consume(self)
+		_on_mode_choice_back_pressed()
+	elif _top_panel.visible:
+		Escape.consume(self)
+		_on_back_to_root_pressed()
 
 # ---------------------------------------------------------------------------
 # §36/§37: Creatorからの退出

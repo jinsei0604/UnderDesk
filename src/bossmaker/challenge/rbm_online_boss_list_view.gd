@@ -128,6 +128,15 @@ const SLOW_NOTICE_SECONDS := 4.0
 var _selected_id := ""
 var _selected_draft: RBMCreatorDraft = null
 var _detail_token := 0
+
+## Supabase の無料枠への負荷を減らす覚え書き（2026-10-18）。
+## 人気・高難度（サーバーが全プレイヤーの挑戦記録を数えるので1回が重い）は、同じモードの結果を LIST_CACHE_SECONDS 秒の
+## あいだ覚えておき、カテゴリを行き来しても取り直さない。「更新」「もう一度読み込む」は覚えた結果を使わない。
+## 挑戦を始めたら（挑戦者数・クリアした人数が変わるので）忘れる。
+const LIST_CACHE_SECONDS := 60.0
+var _list_cache: Dictionary = {}
+## 選んだボスの詳細（get-boss の応答）。一覧の行の版（revision）が同じなら、選び直した時に取り直さない。
+var _detail_cache: Dictionary = {}
 var _summaries: Dictionary = {}
 
 func set_api_adapter_for_testing(adapter: RBMBossApiAdapter) -> void:
@@ -345,7 +354,7 @@ func _build_list_panel() -> void:
 	_retry_button.add_theme_font_size_override("font_size", 15)
 	S.button_style(_retry_button)
 	_retry_button.visible = false
-	_retry_button.pressed.connect(func(): refresh())
+	_retry_button.pressed.connect(func(): refresh(true))
 	panel.add_child(_retry_button)
 	_retry_button.size = Vector2(maxf(200.0, _retry_button.get_combined_minimum_size().x), 42)
 	_retry_button.position = Vector2((LIST_RECT.size.x - _retry_button.size.x) / 2.0, 300)
@@ -408,7 +417,7 @@ func _on_refresh_pressed() -> void:
 	if _current_category == CATEGORY_RANDOM:
 		reroll()
 	else:
-		refresh()
+		refresh(true)
 
 func _skeleton_card() -> Control:
 	var card := Panel.new()
@@ -455,8 +464,9 @@ func _update_mode_buttons() -> void:
 		S.segment_style(_mode_buttons[mode], mode == _current_mode)
 
 ## 一覧を最初から取り直す(カテゴリ/モードの切り替え・「更新」・「もう一度読み込む」)。表示中の行、
-## 「オンライン」の続きの位置(cursor)、選択中のボスは捨てる。
-func refresh() -> void:
+## 「オンライン」の続きの位置(cursor)、選択中のボスは捨てる。force=true（「更新」「もう一度読み込む」）は
+## 覚えている人気・高難度の結果を使わず、必ず取り直す。
+func refresh(force: bool = false) -> void:
 	_list_token += 1
 	var token := _list_token
 	_next_cursor = ""
@@ -488,13 +498,19 @@ func refresh() -> void:
 	var response: Dictionary
 	_requests_in_flight += 1
 	RBMLoadingState.begin(LOADING_OP_LIST)
+	var cache_key := "%s|%s" % [_current_category, _current_mode]
+	var cached := {} if force else _cached_list(cache_key)
 	match _current_category:
+		_ when not cached.is_empty():
+			response = cached
 		CATEGORY_UNCHALLENGED:
 			response = await _recorder.list_unchallenged_bosses(_current_mode, PAGE_SIZE)
 		CATEGORY_POPULAR:
 			response = await _api_adapter.list_popular_bosses(PAGE_SIZE, _current_mode)
+			_remember_list(cache_key, response)
 		CATEGORY_HIGH_DIFFICULTY:
 			response = await _api_adapter.list_hard_bosses(PAGE_SIZE, _current_mode)
+			_remember_list(cache_key, response)
 		CATEGORY_SEARCH:
 			response = await _api_adapter.search_bosses(_search_query, PAGE_SIZE, _current_mode)
 		CATEGORY_RANDOM:
@@ -531,6 +547,18 @@ func refresh() -> void:
 			_on_card_pressed(_random_shown_id)
 		return
 	_detail.show_empty(true)
+
+## 覚えている人気・高難度の結果（LIST_CACHE_SECONDS 秒以内に取ったもの）。無ければ空。
+func _cached_list(key: String) -> Dictionary:
+	var entry: Dictionary = _list_cache.get(key, {})
+	if entry.is_empty() or Time.get_ticks_msec() - int(entry.get("at", 0)) > int(LIST_CACHE_SECONDS * 1000.0):
+		return {}
+	return (entry["response"] as Dictionary).duplicate(true)
+
+## 取れた人気・高難度の結果を覚える（失敗は覚えない）。
+func _remember_list(key: String, response: Dictionary) -> void:
+	if bool(response.get("ok", false)):
+		_list_cache[key] = {"at": Time.get_ticks_msec(), "response": response.duplicate(true)}
 
 ## 一覧が空の時の一言（カテゴリごと）。
 func _empty_list_text() -> String:
@@ -672,7 +700,7 @@ func _fetch_detail(boss_id: String, summary: Dictionary) -> void:
 			return
 	_requests_in_flight += 1
 	RBMLoadingState.begin(LOADING_OP_DETAIL)
-	var result: Dictionary = await RBMOnlineChallengeLoader.load_boss_for_challenge(_api_adapter, boss_id)
+	var result: Dictionary = await RBMOnlineChallengeLoader.load_boss_for_challenge(_api_adapter, boss_id, _detail_cache, int(summary.get("revision", -1)))
 	RBMLoadingState.end(LOADING_OP_DETAIL)
 	_finish_list_request()
 	if token != _detail_token:
@@ -698,6 +726,8 @@ func summary_for(boss_id: String) -> Dictionary:
 func _on_challenge_pressed() -> void:
 	if _selected_draft == null or _selected_id.is_empty():
 		return
+	# 挑戦すると挑戦者数・クリアした人数が変わるので、覚えている人気・高難度の結果は使わない
+	_list_cache.clear()
 	challenge_requested.emit(_selected_id, _selected_draft)
 
 ## 新着カードの公開日(テスト・既存呼び出しのための入口。中身はRBMChallengeListStyle)。

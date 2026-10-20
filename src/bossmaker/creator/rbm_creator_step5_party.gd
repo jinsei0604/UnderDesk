@@ -809,6 +809,17 @@ func _add_info_label(parent: Control, node_name: String, text: String) -> Label:
 	parent.add_child(label)
 	return label
 
+## Esc（PX-13、2026-10-18）を、この STEP の中の画面が受け取ったら true（RBMCreatorMain が STEP を戻らない）。
+## スキルの編集中ならキャンセル、「ステータス編集」を開いていれば閉じる。
+func escape() -> bool:
+	if _skills_editing:
+		_on_cancel_skills_pressed()
+		return true
+	if _status_sheet_open:
+		close_status_sheet()
+		return true
+	return false
+
 func is_step_valid() -> bool:
 	return draft.step5_is_valid()
 

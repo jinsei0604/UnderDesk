@@ -67,6 +67,11 @@ func refresh() -> void:
 	_advanced_view.visible = draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED
 	_current_view().refresh()
 
+## Esc（PX-13、2026-10-18）を、この STEP の中の画面が受け取ったら true（RBMCreatorMain が STEP を戻らない）。
+func escape() -> bool:
+	var view := _current_view()
+	return bool(view.call("escape")) if view.has_method("escape") else false
+
 func is_step_valid() -> bool:
 	return _current_view().is_step_valid()
 

@@ -1675,6 +1675,12 @@ func _on_uses_count_changed(value: float) -> void:
 func refresh() -> void:
 	_rebuild_slot_list()
 
+## Esc（PX-13、2026-10-18）を、この STEP の中の画面が受け取ったら true（RBMCreatorMain が STEP を戻らない）。
+## HARDCORE の行動の編集は画面が入れ子になっていて、入力中の内容が多いので、一覧以外を開いている時は Esc で
+## 何もしない（STEP も戻らない。閉じる時は各画面のキャンセルで）。
+func escape() -> bool:
+	return not _list_view.visible
+
 func is_step_valid() -> bool:
 	return draft.step4_advanced_is_valid()
 

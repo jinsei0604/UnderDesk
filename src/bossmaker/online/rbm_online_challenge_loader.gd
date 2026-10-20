@@ -11,8 +11,23 @@ extends RefCounted
 ## (schema_version確認 → 型検証 → battle_hash再計算・突合 →
 ## RBMDefinitionLoader.resolve()による意味検証)。
 
-static func load_boss_for_challenge(api_adapter: RBMBossApiAdapter, boss_id: String) -> Dictionary:
-	var response: Dictionary = await api_adapter.get_boss(boss_id)
+## 詳細の応答の覚え書きの最大の件数（古いものから忘れる）。
+const RESPONSE_CACHE_MAX := 32
+
+## response_cache（呼び出し元が持つ Dictionary）を渡すと、取れた get-boss の応答をボスのIDごとに覚え、
+## expected_revision（一覧の行の版）が覚えた版と同じなら通信せずにそれを使う（Supabase の無料枠への負荷。
+## 2026-10-18）。検証（battle_hash など）は毎回する。版が変われば取り直す。
+static func load_boss_for_challenge(api_adapter: RBMBossApiAdapter, boss_id: String, response_cache: Dictionary = {}, expected_revision: int = -1) -> Dictionary:
+	var response: Dictionary
+	var cached: Dictionary = response_cache.get(boss_id, {})
+	if expected_revision >= 0 and not cached.is_empty() and int(cached.get("revision", -1)) == expected_revision:
+		response = (cached["response"] as Dictionary).duplicate(true)
+	else:
+		response = await api_adapter.get_boss(boss_id)
+		if bool(response.get("ok", false)) and response.get("boss", null) is Dictionary:
+			if not response_cache.has(boss_id) and response_cache.size() >= RESPONSE_CACHE_MAX:
+				response_cache.erase(response_cache.keys()[0])
+			response_cache[boss_id] = {"revision": int((response["boss"] as Dictionary).get("revision", -1)), "response": response.duplicate(true)}
 	if not bool(response.get("ok", false)):
 		return {
 			"ok": false,

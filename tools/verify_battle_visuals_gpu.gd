@@ -160,6 +160,11 @@ func _skill_entry(actor_id: int, skill: Dictionary) -> Dictionary:
 		"guard_redirect": entry["protecting"] = other_id
 	return entry
 
+## 1つの演出が終わるのを待つ上限（60fps のフレーム数）。止まったまま終わらない演出を見つけるためのもの。
+## 2026-10-18: 360（6秒）→ 900（15秒）。専用の演出（宇宙飛行士・紳士・武者の全体、少女の全体回復など）は承認済みの長さが
+## 6秒を超え、終わる前に「Motion timeout」になっていた。実際にかかったフレーム数は各ケースの motion_frames に残す。
+const MAX_MOTION_FRAMES := 900
+
 func _motion_case(id: String, entry: Dictionary, skill: Dictionary = {}) -> void:
 	current_case = {"id": id, "kind": "motion", "entry": entry, "profile": Motions.profile(entry, skill), "events": [], "frames": [], "errors": []}
 	var initial: Dictionary = stage.get_visual_audit()
@@ -169,7 +174,7 @@ func _motion_case(id: String, entry: Dictionary, skill: Dictionary = {}) -> void
 	stage.play_entry(entry, skill)
 	var frame := 0
 	var last_phase := ""
-	while stage.is_playing() and frame < 360:
+	while stage.is_playing() and frame < MAX_MOTION_FRAMES:
 		await process_frame
 		await RenderingServer.frame_post_draw
 		var audit: Dictionary = stage.get_visual_audit()
@@ -181,6 +186,7 @@ func _motion_case(id: String, entry: Dictionary, skill: Dictionary = {}) -> void
 		impact_pending = false
 		last_phase = phase
 		frame += 1
+	current_case["motion_frames"] = frame
 	if stage.is_playing():
 		_case_fail("Motion timeout")
 		stage.cancel()
@@ -221,7 +227,12 @@ func _check_audit(audit: Dictionary, initial: Dictionary, returned: bool) -> voi
 		var original: Dictionary = initial["actors"].get(actor_id, {})
 		if original.is_empty(): continue
 		if not Vector2(actor["position"]).is_finite(): _case_fail("Nonfinite actor position: " + actor_id)
-		if not Vector2(actor["scale"]).is_equal_approx(original["scale"]): _case_fail("Actor scale changed: " + actor_id)
+		# 大きさは変えない。演出の途中の左右の向きの反転（狼の攻撃など、大きさは同じで符号だけ）は認め、終わった時は元の向きに戻ること
+		# （2026-10-18。以前は反転も「大きさが変わった」と数え、狼の3つの攻撃が不合格になっていた）。
+		var now_scale := Vector2(actor["scale"])
+		var original_scale := Vector2(original["scale"])
+		if not now_scale.abs().is_equal_approx(original_scale.abs()): _case_fail("Actor scale changed: " + actor_id)
+		if returned and not now_scale.is_equal_approx(original_scale): _case_fail("Actor facing not restored: " + actor_id)
 		if actor.has("visible_rect"):
 			var bounds: Rect2 = actor["visible_rect"]
 			var arena := Rect2(Vector2(-1, -1), Vector2(audit["stage_size"]) + Vector2(2, 2))

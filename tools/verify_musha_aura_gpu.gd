@@ -210,18 +210,26 @@ func _field_case(window: Vector2i) -> void:
 	report.metrics[tag + "_torch_lum_ratio"] = torch_ratios
 	for r in torch_ratios:
 		if float(r) > 0.8: _fail(tag + ": a torch is not dimmed (ratio %.2f)" % float(r))
-	# ④ 画面端: 左右の縁の帯が、中央付近より強く暗い(UIパネルに隠れない縁の帯で測る)。
+	# ④ 画面端: 四隅の墨ビネット(確定仕様「四隅に筆で擦った墨ビネット」)が、中央付近よりはっきり暗い。
+	# UIパネルに隠れない四隅の帯(上は y<18、下は UI の下の y>=694)で測る。
+	# 2026-10-18: 以前は左右の縁の中ほどを測っていたが、そこを暗くしていた「画面端から入る墨筆」は 2026-10-17 の
+	# ユーザーの判断で出さなくなった(rbm_musha_aura.gd)ため、仕様どおり四隅で測る。左右の縁の中ほどは記録だけ残す。
 	var sr: Rect2 = stage.get_global_rect()
 	var edge_ratios: Array = []
 	for x0 in [sr.position.x, sr.end.x - 20.0]:
 		var rect := Rect2(Vector2(x0, sr.position.y + sr.size.y * 0.20), Vector2(20, sr.size.y * 0.55))
 		edge_ratios.append(_mean(on, rect, f).lum / maxf(_mean(off, rect, f).lum, 0.001))
+	var corner_ratios: Array = []
+	for corner in [Rect2(sr.position, Vector2(120, 18)), Rect2(Vector2(sr.end.x - 120, sr.position.y), Vector2(120, 18)),
+			Rect2(Vector2(sr.position.x, sr.end.y - 26), Vector2(120, 26)), Rect2(sr.end - Vector2(120, 26), Vector2(120, 26))]:
+		corner_ratios.append(_mean(on, corner, f).lum / maxf(_mean(off, corner, f).lum, 0.001))
 	var centre := Rect2(sr.position + sr.size * Vector2(0.40, 0.30), sr.size * Vector2(0.16, 0.20))
 	var centre_ratio: float = _mean(on, centre, f).lum / maxf(_mean(off, centre, f).lum, 0.001)
 	report.metrics[tag + "_edge_lum_ratio"] = edge_ratios
+	report.metrics[tag + "_corner_lum_ratio"] = corner_ratios
 	report.metrics[tag + "_centre_lum_ratio"] = centre_ratio
-	for r in edge_ratios:
-		if float(r) > centre_ratio - 0.04: _fail(tag + ": the screen edge is not inked more than the centre (%.2f vs %.2f)" % [float(r), centre_ratio])
+	for r in corner_ratios:
+		if float(r) > centre_ratio - 0.15: _fail(tag + ": a corner is not inked clearly more than the centre (%.2f vs %.2f)" % [float(r), centre_ratio])
 	if centre_ratio < 0.55: _fail(tag + ": the centre is crushed (ratio %.2f)" % centre_ratio)
 	# ⑤ 足元: ボスの足元が暗くなる(墨染み)。
 	var foot: Vector2 = _global(aura._home_foot("boss"))

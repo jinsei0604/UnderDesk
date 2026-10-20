@@ -27,7 +27,11 @@ func _run() -> void:
 		var seen: Array=[]
 		var saw_awakened:=false
 		stage.impact.connect(func(entry): seen.append(entry))
-		for frame in range(240):
+		# 演出が全部終わるまで見る（上限は MAX_MOTION_FRAMES）。2026-10-18: 以前は決まった240フレームで止め、竜の覚醒
+		# （承認済みの長さ 5.45秒）が勇者の攻撃の後に始まると見終わる前に打ち切られ、覚醒の数・終わっていない演出が不合格だった。
+		for frame in range(MAX_MOTION_FRAMES):
+			if frame > 60 and not view._is_presenting() and not stage.is_playing():
+				break
 			if frame==40:
 				var entries: Array=view.session.resolve_ally_action({"type":"attack"})
 				resolved=view.session.battle.snapshot().duplicate(true)

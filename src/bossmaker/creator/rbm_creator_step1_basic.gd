@@ -30,6 +30,9 @@ var _name_normal_row: Control
 var _name_edit_row: Control
 var _appearance_preview_swatch: TextureRect
 var _editing_name := false
+## 名前が空のまま「次へ」を押した時の一言（PX-09、2026-10-18）。名前を決めると消える。
+var _name_required_label: Label
+const NAME_REQUIRED_COLOR := Color("e07a6a")
 
 ## 実機プレイ改善①§12: RBMGameRootと同じ理由・同じ技法。columnの識別
 ## （view.get_child(0)としての位置づけ）は変えず、column自身のアンカー
@@ -79,6 +82,10 @@ func _build_ui() -> void:
 
 	_build_name_card(column)
 	_build_appearance_card(column)
+	# 名前が空の時の一言は、この画面を離れたら消す（次に新しいボスを作る時に残らないように）
+	visibility_changed.connect(func():
+		if not is_visible_in_tree():
+			_name_required_label.visible = false)
 
 func _build_name_card(parent: Control) -> void:
 	var card := PanelContainer.new()
@@ -119,6 +126,9 @@ func _build_name_card(parent: Control) -> void:
 	_name_edit.custom_minimum_size = BOSS_NAME_EDIT_MIN_SIZE
 	_name_edit.max_length = RBMCreatorDraft.MAX_BOSS_NAME_LENGTH
 	_name_edit.text_changed.connect(_on_name_edit_text_changed)
+	# Enter で決定、Esc でキャンセル（PX-08、2026-10-18）
+	_name_edit.text_submitted.connect(func(_text: String): _on_confirm_name_pressed())
+	_name_edit.gui_input.connect(_on_name_edit_gui_input)
 	_name_edit_row.add_child(_name_edit)
 	_char_count_label = Label.new()
 	_char_count_label.name = "CharCountLabel"
@@ -134,6 +144,13 @@ func _build_name_card(parent: Control) -> void:
 	cancel_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	cancel_button.pressed.connect(_on_cancel_name_pressed)
 	_name_edit_row.add_child(cancel_button)
+
+	_name_required_label = Label.new()
+	_name_required_label.name = "NameRequiredLabel"
+	_name_required_label.text = tr("ボス名を入力してください")
+	_name_required_label.add_theme_color_override("font_color", NAME_REQUIRED_COLOR)
+	_name_required_label.visible = false
+	card_column.add_child(_name_required_label)
 
 ## Creator本体UI刷新（2026-09-04）§8: ボスイラスト表示領域をこのセクション
 ## の主役にする。旧実装は「プレビュー→説明文→ボタン」の縦積みで、プレビュー
@@ -216,6 +233,15 @@ func _on_edit_name_pressed() -> void:
 	_editing_name = true
 	_name_edit.text = draft.boss_name
 	refresh()
+	# 開いたらすぐ打てるように、入力欄へフォーカス（PX-08、2026-10-18）
+	_name_edit.caret_column = _name_edit.text.length()
+	_name_edit.grab_focus.call_deferred()
+
+## Esc で入力をやめる（決定前の名前に戻す）。
+func _on_name_edit_gui_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		_name_edit.accept_event()
+		_on_cancel_name_pressed()
 
 ## §12-2: 編集中はドラフトへ書き込まない（文字数表示だけを実測テキストから
 ## 都度更新する）——「決定」を押すまでキャンセルで元へ戻せることの前提。
@@ -223,12 +249,30 @@ func _on_name_edit_text_changed(value: String) -> void:
 	_char_count_label.text = "%d / %d" % [value.length(), RBMCreatorDraft.MAX_BOSS_NAME_LENGTH]
 
 func _on_confirm_name_pressed() -> void:
+	var typing := _name_edit.has_focus()
 	_editing_name = false
 	set_boss_name(_name_edit.text)
+	_return_focus_after_editing(typing)
 
 func _on_cancel_name_pressed() -> void:
+	var typing := _name_edit.has_focus()
 	_editing_name = false
 	refresh()
+	_return_focus_after_editing(typing)
+
+## キーボードで入力していた時は、閉じた後のフォーカスを「編集」ボタンへ戻す（フォーカスが行方不明にならないように）。
+func _return_focus_after_editing(was_typing: bool) -> void:
+	if was_typing and is_inside_tree():
+		_edit_name_button.grab_focus.call_deferred()
+
+## 「次へ」で進めなかった時に呼ばれる（RBMCreatorMain.press_next）。名前が空なら、名前の欄に一言を出す（PX-09）。
+func show_invalid_reason() -> void:
+	if not draft.boss_name.is_empty():
+		return
+	_name_required_label.visible = true
+	preload("res://src/bossmaker/rbm_audio.gd").cue(self, "ui_error")
+	if is_inside_tree() and not _editing_name:
+		_edit_name_button.grab_focus.call_deferred()
 
 ## §12外の既存プログラム的API——テスト/呼び出し元がUIを経由せず直接ボス名を
 ## 設定するための経路（実機UIの「編集→決定」フローとは独立して常に即座に
@@ -254,6 +298,8 @@ func refresh() -> void:
 	if not _editing_name:
 		_name_edit.text = draft.boss_name
 		_char_count_label.text = "%d / %d" % [draft.boss_name.length(), RBMCreatorDraft.MAX_BOSS_NAME_LENGTH]
+	if not draft.boss_name.is_empty():
+		_name_required_label.visible = false
 
 	if draft.appearance_id.is_empty():
 		_appearance_preview_label.text = tr("（未選択）")
@@ -262,6 +308,14 @@ func refresh() -> void:
 		_appearance_preview_label.text = tr("現在の外見：%s") % RBMCreatorAppearanceCatalog.display_name(draft.appearance_id)
 		_appearance_preview_swatch.texture = VisualAssets.texture(VisualAssets.boss_asset(draft.appearance_id), 0)
 	_appearance_preview_surface.get_node("AppearancePreviewPlaceholderCenter").visible = _appearance_preview_swatch.texture == null
+
+## Esc（PX-13、2026-10-18）を、この STEP の中の画面が受け取ったら true（RBMCreatorMain が STEP を戻らない）。
+## 名前の入力中ならキャンセルする。
+func escape() -> bool:
+	if not _editing_name:
+		return false
+	_on_cancel_name_pressed()
+	return true
 
 func is_step_valid() -> bool:
 	return draft.step1_is_valid()

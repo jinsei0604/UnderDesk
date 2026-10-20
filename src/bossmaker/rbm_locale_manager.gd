@@ -20,6 +20,13 @@ const DEFAULT_LOCALE := "ja"
 const _SETTINGS_DIR := "user://bossmaker"
 const _SETTINGS_PATH := "user://bossmaker/settings.json"
 
+## 言語設定のファイル。GUT（自動テスト）の中では、本物の設定に書かないよう、テスト用の置き場を使う
+## （RBMLocalStageRepository.running_under_gut()。2026-10-18）。本物のゲームでは _SETTINGS_PATH。
+static func settings_path() -> String:
+	if RBMLocalStageRepository.running_under_gut():
+		return RBMLocalStageRepository.GUT_DEFAULT_ROOT + "/settings.json"
+	return _SETTINGS_PATH
+
 var _locale: String = DEFAULT_LOCALE
 
 func _ready() -> void:
@@ -45,22 +52,21 @@ func toggle_locale() -> void:
 	set_locale(other)
 
 func _load_saved_locale() -> String:
-	if not FileAccess.file_exists(_SETTINGS_PATH):
+	var path := settings_path()
+	if not FileAccess.file_exists(path):
 		return DEFAULT_LOCALE
-	var file := FileAccess.open(_SETTINGS_PATH, FileAccess.READ)
+	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		return DEFAULT_LOCALE
 	var text := file.get_as_text()
 	file.close()
-	var parsed = JSON.parse_string(text)
+	# 壊れた設定は既定の言語にする（エラーを出力しない読み方）
+	var json := JSON.new()
+	var parsed: Variant = json.data if json.parse(text) == OK else null
 	if parsed is Dictionary and parsed.has("locale") and SUPPORTED_LOCALES.has(parsed["locale"]):
 		return String(parsed["locale"])
 	return DEFAULT_LOCALE
 
+## 書き込みは一時ファイルへ書いてから置き換える（書いている途中で終了しても、前の設定が残る。2026-10-18）。
 func _save_locale(locale: String) -> void:
-	DirAccess.make_dir_recursive_absolute(_SETTINGS_DIR)
-	var file := FileAccess.open(_SETTINGS_PATH, FileAccess.WRITE)
-	if file == null:
-		return
-	file.store_string(JSON.stringify({"locale": locale}))
-	file.close()
+	RBMLocalStageRepository._atomic_write(settings_path(), JSON.stringify({"locale": locale}))

@@ -25,6 +25,7 @@ const CONTENT_SIDE_MARGIN_PX := 80.0
 const CONTENT_TOP_MARGIN_PX := 40.0
 
 const Kit = preload("res://src/bossmaker/rbm_result_screen_kit.gd")
+const Escape = preload("res://src/bossmaker/rbm_escape.gd")
 const S = Kit.S
 ## 中身の幅（1280 から左右の余白を除いた幅）。中身はこの幅の中央にそろえる。
 const CONTENT_W := 1280.0 - 2.0 * CONTENT_SIDE_MARGIN_PX
@@ -227,6 +228,18 @@ func open() -> void:
 
 func _on_back_pressed() -> void:
 	return_to_creator_requested.emit()
+
+
+## Esc（PX-13、2026-10-18）: 同じ名前の確認はキャンセル、保存のしかたを選ぶ欄は「戻る」。保存できた画面では何もしない。
+func _unhandled_input(event: InputEvent) -> void:
+	if not Escape.pressed(self, event):
+		return
+	if _same_name_panel.visible:
+		Escape.consume(self)
+		_on_same_name_cancelled()
+	elif _choice_panel.visible:
+		Escape.consume(self)
+		_on_back_pressed()
 
 # --- §23 新規stageの初回保存 / §25 新しいボスとして保存 ---
 # Repository視点では同一操作（save_new）——ボタンの見た目だけが異なる。

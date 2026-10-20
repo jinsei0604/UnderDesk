@@ -60,6 +60,7 @@ var _quit_confirm: HBoxContainer
 
 ## 戦闘の結果の画面（案C「シネマティック」、rbm_battle_result_panel.gd。2026-10-18）。中のボタンの名前と処理は今までどおり。
 const ResultPanel = preload("res://src/bossmaker/rbm_battle_result_panel.gd")
+const Escape = preload("res://src/bossmaker/rbm_escape.gd")
 var _outcome_area: Control
 var _retry_button: Button
 var _return_button: Button
@@ -405,6 +406,31 @@ func _on_return_pressed() -> void:
 
 func _on_quit_pressed() -> void:
 	_quit_confirm.visible = true
+
+## Esc（PX-13、2026-10-18）: 開いている窓（詳細・ログ）・スキル一覧・対象の選択・確認を閉じる。何も開いていなければ
+## 「テストを終了」の確認を出す（すぐには終わらない）。演出の最中・結果の画面では何もしない。
+func _unhandled_input(event: InputEvent) -> void:
+	if not Escape.pressed(self, event):
+		return
+	if _any_overlay_open():
+		_close_all_overlays()
+	elif _is_presenting() or _outcome_area.visible:
+		return
+	elif _target_picker.visible:
+		_on_target_picker_back_pressed()
+	elif _skill_list_panel.visible:
+		_close_skill_list()
+	elif _quit_confirm.visible:
+		_quit_confirm.visible = false
+	else:
+		_on_quit_pressed()
+	Escape.consume(self)
+
+func _any_overlay_open() -> bool:
+	for overlay in [_ally_detail_overlay, _boss_detail_overlay, _log_window_overlay]:
+		if (overlay["overlay"] as Control).visible:
+			return true
+	return false
 
 func _on_quit_confirmed() -> void:
 	_cancel_presentation()

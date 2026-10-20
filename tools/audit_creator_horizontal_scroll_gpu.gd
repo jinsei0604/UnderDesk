@@ -327,6 +327,11 @@ func _audit(label: String) -> void:
 			if c.size.x <= 0.0 or c.size.y <= 0.0:
 				continue
 			var r := c.get_global_rect()
+			# 画面より大きい飾りの光・背景（押せない TextureRect で、画面の左端から右端までを覆うもの）は数えない。
+			# 例: 作成トップ・作成方法の選択・保存したボス戦の一覧の背景の放射状の光（-160〜1440、画面の中央が中心。
+			# 2026-10-18 に確認、見た目・操作に影響なし）。画面の右へはみ出すボタン・文字などは今までどおり報告する。
+			if c is TextureRect and c.mouse_filter == Control.MOUSE_FILTER_IGNORE and r.position.x <= 0.0 and r.end.x >= SCREEN_W:
+				continue
 			if r.end.x > SCREEN_W + 1.0 and not _inside_scroll_or_clip(c):
 				findings.append("HSA_OFFSCREEN %s :: %s right=%.0f" % [label, _path(c), r.end.x])
 	if findings.is_empty():

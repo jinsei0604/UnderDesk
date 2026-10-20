@@ -56,6 +56,7 @@ const CONTENT_SIDE_MARGIN_PX := 80.0
 const CONTENT_TOP_MARGIN_PX := 40.0
 ## 登場演出の入り（前の画面が閉じる）。
 const ScreenClose = preload("res://src/bossmaker/visuals/encounter/rbm_screen_close.gd")
+const Escape = preload("res://src/bossmaker/rbm_escape.gd")
 
 ## Phase 3.5 UI統一§33バグ修正: 既存のLineEdit（RBMCreatorStep1Basic.
 ## BOSS_NAME_EDIT_MIN_SIZE等）はcustom_minimum_sizeを持つが、この検索欄
@@ -436,6 +437,17 @@ func _open_local_random() -> void:
 
 func _on_back_to_hub_pressed() -> void:
 	_show_hub()
+
+## Esc で戻る（PX-13、2026-10-18）: 挑戦トップ → ホーム、一覧 → 挑戦トップ。戦闘中は戦闘画面が自分で受ける。
+func _unhandled_input(event: InputEvent) -> void:
+	if not Escape.pressed(self, event):
+		return
+	if _hub_view.visible:
+		Escape.consume(self)
+		_on_back_to_root_pressed()
+	elif _online_list_view.visible or _list_panel.visible:
+		Escape.consume(self)
+		_on_back_to_hub_pressed()
 
 # ---------------------------------------------------------------------------
 # §2/§3/§5: 一覧・検索
