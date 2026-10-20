@@ -74,6 +74,9 @@ func _init_battle() -> void:
 
 	_view = RBMChallengeBattleView.new()
 	_battle_sub.add_child(_view)
+	# ホーム画面のモニターは音を消したプレビュー。ボス専用BGM(rbm_battle_bgm.gd)は戦闘を始める前から使わない
+	# (下で戦闘の効果音を消すのは冒頭の演出が終わってからなので、BGM はそれを待たない)。
+	(_view.get_node(RBMBattleBgm.NODE_NAME) as RBMBattleBgm).enabled = false
 	_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_view.set_boss_appearance("appearance_golem")
 	_view.start_battle(definition, RBMBattleUiKit.ALL_VISIBLE, "appearance_golem")

@@ -145,6 +145,7 @@
 | ホーム・タイトル（`rbm_game_root.gd` 以外） | `test_rbm_home_monitor_transition`・`test_rbm_home_top_monitor_battle`・`test_rbm_phase35_title_screen`・`test_rbm_title_effects` | 実画面か動画、`verify_home_monitor_gpu` | 2〜3 |
 | `rbm_game_root.gd`・画面の切り替え | 全GUT | `verify_world_ui_install_gpu`・`verify_window_close_gpu`、実機 | 4（A） |
 | 音（`rbm_audio.gd`・`rbm_audio_catalog.gd`・音源） | `test_rbm_audio`・`test_musha_audio_levels`・その音を鳴らす演出・画面のテスト | 実際のゲームの音量での再生と音量のバランス（[AUDIO.md](AUDIO.md)）、`verify_se_playback` | 音源だけは 1、再生の仕組みは 3（全画面が使う API を変えたら 4） |
+| ボス専用BGM（選曲 `rbm_boss_bgm.gd`・再生 `rbm_battle_bgm.gd`・曲 `assets_bossmaker/audio/bgm/<boss_id>/`） | `test_rbm_boss_bgm`（置いた曲の命名規則と取り込みの loop も確かめる）。鳴らし方を変えたら ＋ `test_battle_presentation`・`test_rbm_encounter`・`test_rbm_battle_backgrounds`。presenter の `entry_started` を変えたら上の「演出の進め方の契約」の行 | `verify_boss_bgm_gpu --boss=<boss_id>`（本物の戦闘で、登場の後に鳴る・覚醒で切り替わる・決着で消える・ホーム画面のモニターで鳴らない）を音入りで録って聞く。曲を足したら3周以上続けて鳴らし、継ぎ目（無音・プチッという音・頭へ戻る時の音楽のつながり）を聞いて確かめる | 曲だけを足すなら 1、鳴らし方は 3 |
 | 翻訳・文字（`localization/ui_strings.csv`） | `test_rbm_locale_switch`・`test_rbm_creator_localization_audit_fixes`・`test_rbm_realplay3_ui_japanese_and_flow`・`test_rbm_ally_display_names` | 日本語・英語の実画面 | 2 |
 | Steam | `test_rbm_steam_auth`・`test_rbm_steam_config` | — | 2 |
 | 1つのテストファイルだけの変更 | 変えたテスト ＋ そのテストと関係するテスト（同じ機能の契約テスト・同じ補助を使うテスト）＋ 必要に応じて単独起動（§8）。全GUTは Level 4 に当たる時だけ | — | 1 |

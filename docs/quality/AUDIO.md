@@ -7,8 +7,8 @@
 
 ## 1. 現状（2026-10時点）
 
-- **BGMは1曲もない。** タイトル・ホーム・ボス作成・戦闘・結果のすべてが、SEだけで鳴っている。
 - オーディオバスは Master だけ（BGM／SEを分けて音量を変えられない）。音量の設定画面もない。
+- **BGMはボス専用の戦闘BGMだけ（2026-10-17〜）。** 曲は `assets_bossmaker/audio/bgm/<boss_id>/<boss_id>_normal.ogg`（覚醒前・覚醒の無いボスの1曲）・`_awakened.ogg`（覚醒後）に置くだけで使われる（選曲 `RBMBossBgm`、再生 `RBMBattleBgm`。追加の手順はそのフォルダの README.md）。今ある曲は朽ちた機械武者だけで、ほかのボスとタイトル・ホーム・ボス作成・結果はSEだけ。
 - SEは `RBMAudio`（`rbm_audio.gd`）が鳴らす。同時8音、基準の音量 −9dB（`play_sound(key, gain_db)` は −9 + gain）。読み込んだ音は保持して使い回す。
 - 通常の技は属性ごとの共通SE（`fire_swing`／`ice_impact_heavy` など、`event_key()` が選ぶ）。ボスの大きな演出（武者・竜・宇宙飛行士・紳士）は、専用の長いトラック（最長14秒）を演出スクリプトが自分で鳴らす。
 - ボタンのホバー・クリック音は `RBMAudio.bind_ui` が全ボタンへ自動で付ける。

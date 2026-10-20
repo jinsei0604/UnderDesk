@@ -81,6 +81,8 @@ func setup(p_main: Node) -> void:
 	_build_ui()
 	_world_battle.setup(self)
 	visibility_changed.connect(_on_presentation_visibility_changed)
+	# ボス専用BGM(rbm_battle_bgm.gd。曲は assets_bossmaker/audio/bgm/<boss_id>/、無いボスは今までどおり BGM なし)
+	RBMBattleBgm.attach(self)
 
 func _build_ui() -> void:
 	# Phase 3.5 タイトル画面UI新設 §8/§9/§10: この画面自身のルートへ共通Theme

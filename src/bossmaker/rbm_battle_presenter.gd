@@ -4,6 +4,8 @@ extends Node
 ## Displays already-resolved battle events. Never advances or mutates the simulation.
 ## The stage owns motion timing; its impact signal commits the corresponding HUD state.
 signal entry_impact(entry: Dictionary)
+## 1つの出来事の演出を始める時(entry_impact の前に1回)。BGM が覚醒の演出の始まりを知るのに使う(rbm_battle_bgm.gd)。
+signal entry_started(entry: Dictionary)
 signal finished
 
 var enabled: bool = DisplayServer.get_name() != "headless"
@@ -75,6 +77,7 @@ func _advance(generation: int) -> void:
 	_impacted = false
 	_finishing_entry = false
 	var entry: Dictionary = _entries[_cursor]
+	entry_started.emit(entry)
 	if not can_animate() or str(entry.get("action", "none")) == "none" or bool(entry.get("failed", false)):
 		_on_stage_impact(entry)
 		_on_stage_finished()
