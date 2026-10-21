@@ -34,6 +34,11 @@ signal returned_to_list
 ## ——実際の記録（stage_statsサイドカーへの書き込み）はRBMChallengeEntry
 ## （stage_idを知っている側）が行う。
 signal challenge_won
+## 2026-10-23: 負けで決着した時の一回性シグナル（challenge_won と同じガード。難関ボス討伐の条件の「挑戦結果」を数えるため）。
+## 途中でやめた・やり直した戦闘は決着していないので発火しない。
+signal challenge_lost
+## 2026-10-23: 「もう一度挑戦」「最初からやり直す」で新しい戦闘を始めた時（オンラインの結果を送る戦闘チケットを用意するため）。
+signal battle_restarted
 
 ## 1戦闘（start_battle〜battle_over）につき最大1回だけchallenge_wonを発火する
 ## ための一回性ガード。start_battle()/_do_restart()の両方でfalseへ戻す
@@ -567,6 +572,7 @@ func _do_restart() -> void:
 	_outcome_recorded = false
 	refresh()
 	_start_encounter_or_opening()
+	battle_restarted.emit()
 
 # ---------------------------------------------------------------------------
 # 挑戦をやめる (§29) — 勝敗いずれとしても記録されない、単に一覧へ戻る。
@@ -659,6 +665,8 @@ func refresh() -> void:
 			_outcome_recorded = true
 			if won:
 				challenge_won.emit()
+			else:
+				challenge_lost.emit()
 	# 登場・勝利演出の間は、作り直したコマンドのボタンも押せないようにする（戦闘画面が表示された時の作り直しなど）
 	if is_instance_valid(_encounter) and _encounter.is_playing():
 		_set_presentation_input_locked(true)

@@ -76,6 +76,11 @@ var _defeat_record_for_testing: RBMDefeatRecord
 ## 「挑戦する」の時に控える、勝った時に記録する内容 {boss_id, mode, rate}（オンラインのボスだけ）。
 ## 2026-10-22: 挑戦の記録の応答の by_owner（attempt_by_owner）と、勝った時の判定（ownership）もここに入る。
 var _defeat_context: Dictionary = {}
+## オンラインのボスとの戦闘の結果を戦闘チケットで送る係と、今のアカウントの送信待ち（2026-10-23）。
+var _result_reporter: RBMBattleResultReporter
+var _result_outbox_instance: RBMBattleResultOutbox
+## テスト・検証で差し替える送信待ち。
+var _result_outbox_for_testing: RBMBattleResultOutbox
 
 ## 討伐記録に数えるかの判定の結果（2026-10-22、作者本人のボスは数えない）。
 const DEFEAT_NOT_OWNER := "not_owner"
@@ -159,6 +164,16 @@ func _build_ui() -> void:
 	_battle_view.visible = false
 	_battle_view.returned_to_list.connect(_on_battle_returned_to_list)
 	_battle_view.challenge_won.connect(_on_challenge_won)
+	_battle_view.challenge_lost.connect(_on_challenge_lost)
+	# オンラインのボスとの戦闘の結果を戦闘チケットで送る（2026-10-23）
+	_result_reporter = RBMBattleResultReporter.new()
+	_result_reporter.name = "BattleResultReporter"
+	_result_reporter.recorder_source = _online_recorder
+	_result_reporter.outbox_source = _result_outbox
+	_result_reporter.defeat_confirmed.connect(_record_defeat)
+	_result_reporter.defeat_without_ticket.connect(_record_online_clear_and_defeat)
+	add_child(_result_reporter)
+	_battle_view.battle_restarted.connect(_result_reporter.on_battle_restarted)
 	add_child(_battle_view)
 
 	_show_hub()
@@ -602,10 +617,14 @@ func _start_challenge(definition: Dictionary, encounter: Dictionary) -> void:
 	# RBMOnlineChallengeRecorder経由でSupabaseへ記録するが、これは
 	# ベストエフォート(§7)——awaitせずに投げるだけで、記録の成否に
 	# 関わらず戦闘は必ず開始する(通信失敗でゲームが止まらないようにする)。
+	# 2026-10-23: オンラインは、挑戦の記録の応答で最初の戦闘の戦闘チケットも受け取る（RBMBattleResultReporter）。
+	# 前に届かなかった結果があれば、続けて送り直す（間隔を空ける）。
 	if not _confirm_view.stage_id.is_empty():
 		if _last_browse_was_online:
-			_record_online_attempt(_confirm_view.stage_id, _defeat_context)
+			_result_reporter.begin_challenge(_confirm_view.stage_id, _defeat_context)
+			_result_reporter.flush_if_due()
 		else:
+			_result_reporter.end_challenge()
 			RBMLocalStageRepository.record_challenge_attempt(_confirm_view.stage_id)
 	_battle_view.battle_background = _confirm_view._draft.battle_background if _confirm_view._draft != null else "night"
 	# 結果の画面に出す挑戦モードと制作者（表示専用、rbm_battle_result_panel.gd）
@@ -623,27 +642,31 @@ func _start_challenge(definition: Dictionary, encounter: Dictionary) -> void:
 func _on_challenge_won() -> void:
 	if not _confirm_view.stage_id.is_empty():
 		if _last_browse_was_online:
-			# クリアの記録の応答（by_owner）を待ってから討伐記録を決める。勝利の処理・結果の画面は待たない（await しない）
-			_record_online_clear_and_defeat(_confirm_view.stage_id, _defeat_context)
+			# 2026-10-23: 戦闘チケットで結果を送り（送信待ちに入れてから）、応答（作者本人か・難関の認定）で討伐記録を決める。
+			# 勝利の処理・結果の画面は待たない（await しない）。チケットが無ければ旧来のクリアの記録で決める。
+			_result_reporter.on_battle_decided(true)
 		else:
 			RBMLocalStageRepository.record_challenge_clear(_confirm_view.stage_id)
 
-## オンラインの挑戦の記録（ベストエフォート、戦闘は待たない）。応答の by_owner（サーバーが Steam で確かめた本人が
-## このボスの作者か）を、この挑戦の討伐記録の控えに残す（2026-10-22）。
-func _record_online_attempt(boss_id: String, context: Dictionary) -> void:
-	var response: Dictionary = await _online_recorder().record_challenge_attempt(boss_id)
-	if not context.is_empty():
-		context["attempt_by_owner"] = server_by_owner(response)
-
-## オンラインのクリアの記録（ベストエフォート）。応答を待ってから討伐記録を決める（2026-10-22）。
+## 旧来のクリアの記録（ベストエフォート）。応答を待ってから討伐記録を決める（2026-10-22）。2026-10-23 からは、
+## 戦闘チケットの無い勝ち（通信できずに始めた戦闘・旧版のサーバー）と、サーバーが数えられないと答えた勝ちだけ。
+## サーバーの clear_count は増えるが、挑戦者数・クリア率・難関ボス討伐には数えない。
 func _record_online_clear_and_defeat(boss_id: String, context: Dictionary) -> void:
 	var response: Dictionary = await _online_recorder().record_challenge_clear(boss_id)
-	_record_defeat(context, server_by_owner(response))
+	_record_defeat(context, server_by_owner(response), server_hard_awarded(response), server_first_clear_rate(response))
+
+## 負けで決着した時（2026-10-23）: オンラインのボスなら、戦闘チケットで負けの結果を送る（挑戦者数・クリア率・難関ボス討伐の
+## 「挑戦結果」。結果の画面は待たない）。手元に保存したボス・途中でやめた戦闘は送らない。討伐記録には関係しない。
+func _on_challenge_lost() -> void:
+	if _last_browse_was_online and not _confirm_view.stage_id.is_empty():
+		_result_reporter.on_battle_decided(false)
 
 ## 討伐記録（RBMDefeatRecord）: 挑戦で勝った時、初めてのボスなら記録する（同じボスは何度勝っても1件）。
 ## TEST BATTLE・クリアチェックはこの経路を通らないので数えない。
 ## 2026-10-22: 自分が作ったボスは数えない。defeat_ownership() が「作者ではない」と決めた時だけ記録する。
-func _record_defeat(context: Dictionary, clear_by_owner: Variant) -> void:
+## 2026-10-23: 難関はサーバーの認定（hard_awarded）だけでつける。rate はサーバーが残した初回クリア時のクリア率（無ければ
+## 挑戦を始めた時の一覧の値）。
+func _record_defeat(context: Dictionary, clear_by_owner: Variant, hard_awarded: bool = false, server_rate: Variant = null) -> void:
 	if context.is_empty():
 		return
 	# 保存先を分けていないテスト（ヘッドレス）は、開発機の記録に書かない
@@ -653,9 +676,24 @@ func _record_defeat(context: Dictionary, clear_by_owner: Variant) -> void:
 	context["ownership"] = decision
 	if decision != DEFEAT_NOT_OWNER:
 		return
-	_defeat_book().record_clear(str(context.boss_id), str(context.mode), float(context.rate))
+	var rate: float = float(server_rate) if server_rate != null else float(context.rate)
+	# 送り直した結果は、その戦闘の時刻で記録する（Steam Cloud との統合は早い方を残すため。2026-10-23）
+	_defeat_book().record_clear(str(context.boss_id), str(context.mode), rate, int(context.get("at", -1)), hard_awarded)
 	if is_visible_in_tree() and _hub_view.visible:
 		_refresh_defeat_record()
+
+## クリアの記録の応答から、難関ボス討伐に認定されているか（成功していて true の時だけ true）。
+static func server_hard_awarded(response: Dictionary) -> bool:
+	return bool(response.get("ok", false)) and response.get("hard_awarded", false) is bool and bool(response.get("hard_awarded", false))
+
+## クリアの記録の応答から、初めてクリアした時のクリア率（成功していて数の時だけ。ほかは null）。
+static func server_first_clear_rate(response: Dictionary) -> Variant:
+	if not bool(response.get("ok", false)):
+		return null
+	var value: Variant = response.get("first_clear_rate", null)
+	if value is float or value is int:
+		return clampf(float(value), 0.0, 1.0)
+	return null
 
 ## 挑戦・クリアの記録の応答から by_owner を取り出す。成功していて真偽値がある時だけその値、ほかは null（分からない）。
 static func server_by_owner(response: Dictionary) -> Variant:
@@ -691,7 +729,7 @@ static func defeat_ownership(server_answers: Array, published_here: bool) -> Str
 func _defeat_book() -> RBMDefeatRecord:
 	if _defeat_record_for_testing != null:
 		return _defeat_record_for_testing
-	var real_steam := DisplayServer.get_name() != "headless" and RBMLocalStageRepository._stages_dir_override.is_empty()
+	var real_steam := _uses_real_steam_records()
 	var account := _online_recorder().account_id() if real_steam else RBMDefeatRecord.LOCAL_ACCOUNT
 	if _defeat_record == null or _defeat_record.account_id != RBMDefeatRecord.sanitize_account(account):
 		_defeat_record = RBMDefeatRecord.new(account, RBMSteamCloud.new() if real_steam else null)
@@ -706,8 +744,59 @@ func _refresh_defeat_record() -> void:
 	var book := _defeat_book()
 	book.load_records()
 	_hub_view.set_defeat_counts(book.counts())
+	# 届かなかった戦闘の結果があれば送り直す（間隔を空ける。2026-10-23）。応答で討伐記録が増えたら数を出し直す
+	_result_reporter.flush_if_due()
+	_maybe_sync_hard_awards(book)
+
+## 今のアカウントの、戦闘の結果の送信待ち（2026-10-23）。討伐記録と同じアカウントの決め方。保存先を分けていない
+## ヘッドレスのテストは、ファイルに書かずにメモリにだけ持つ（開発機の記録に書かない）。
+func _result_outbox() -> RBMBattleResultOutbox:
+	if _result_outbox_for_testing != null:
+		return _result_outbox_for_testing
+	var real_steam := _uses_real_steam_records()
+	var account := RBMDefeatRecord.sanitize_account(_online_recorder().account_id() if real_steam else RBMDefeatRecord.LOCAL_ACCOUNT)
+	var persist := real_steam or not RBMLocalStageRepository._stages_dir_override.is_empty()
+	if _result_outbox_instance == null or _result_outbox_instance.account_id != account or _result_outbox_instance.persistent != persist:
+		_result_outbox_instance = RBMBattleResultOutbox.new(account, persist)
+	return _result_outbox_instance
+
+## テスト・検証用: 送信待ちを差し替える。
+func set_result_outbox_for_testing(outbox: RBMBattleResultOutbox) -> void:
+	_result_outbox_for_testing = outbox
+
+## 難関ボス討伐の認定を受け取りに行く最短の間隔（2026-10-23。Supabase の無料枠への負荷を抑える）。
+const HARD_AWARD_SYNC_INTERVAL_MSEC := 10 * 60 * 1000
+var _hard_award_sync_at_msec := -1
+var _hard_award_sync_running := false
+
+## 難関がまだついていない記録がある時だけ、サーバーの認定（さかのぼった認定を含む）を受け取りに行く（2026-10-23）。
+## 本物の Steam を使う時（ゲーム）か、テスト・検証が記録を差し替えた時だけ。間隔を空け、同時に2回は行かない。
+func _maybe_sync_hard_awards(book: RBMDefeatRecord) -> void:
+	if _hard_award_sync_running or not book.has_unawarded_entries():
+		return
+	if _defeat_record_for_testing == null and not _uses_real_steam_records():
+		return
+	if _hard_award_sync_at_msec >= 0 and Time.get_ticks_msec() - _hard_award_sync_at_msec < HARD_AWARD_SYNC_INTERVAL_MSEC:
+		return
+	_hard_award_sync_at_msec = Time.get_ticks_msec()
+	_sync_hard_awards(book)
+
+func _sync_hard_awards(book: RBMDefeatRecord) -> void:
+	_hard_award_sync_running = true
+	var response: Dictionary = await _online_recorder().list_my_hard_awards()
+	_hard_award_sync_running = false
+	if not bool(response.get("ok", false)) or not (response.get("boss_ids", null) is Array):
+		return
+	if book.mark_hard(response["boss_ids"]) > 0 and is_inside_tree() and _hub_view.visible:
+		_hub_view.set_defeat_counts(book.counts())
+
+## 討伐記録に本物の Steam（アカウント・Steam Cloud）を使うか: ゲームとして動いている時（窓があり、保存先をテスト用に差し替えていない）。
+func _uses_real_steam_records() -> bool:
+	return DisplayServer.get_name() != "headless" and RBMLocalStageRepository._stages_dir_override.is_empty()
 
 func _on_battle_returned_to_list() -> void:
+	# 戦闘チケットの控えを閉じる（届いていない結果は送信待ちに残る。2026-10-23）
+	_result_reporter.end_challenge()
 	# Phase 4D-1: オンライン一覧経由で挑戦した場合は、戦闘終了後もオンライン
 	# 一覧側へ戻す(ローカルの_list_panelへ迷い込ませない)。
 	if _last_browse_was_online:

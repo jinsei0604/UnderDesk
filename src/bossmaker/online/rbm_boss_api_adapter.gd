@@ -119,13 +119,34 @@ func get_boss(id: String) -> Dictionary:
 ## Phase 5 — オンライン版「未挑戦」。ticket_hex取得済み(RBMSteamTicketProvider
 ## 経由)であることが前提——SteamIDはこのクラス自身ではなくサーバー側の
 ## SteamTicketVerifierが確定する(クライアントは一切自己申告しない)。
+## 2026-10-23: 最初の戦闘の戦闘チケットも頼む（応答の battle_ticket。出せなければ ticket_status に理由）。
 func record_challenge_attempt(ticket_hex: String, boss_id: String) -> Dictionary:
-	var body := {"ticket": ticket_hex, "boss_id": boss_id}
+	var body := {"ticket": ticket_hex, "boss_id": boss_id, "want_battle_ticket": true}
 	return await _request(_function_url("record-challenge-attempt"), HTTPClient.METHOD_POST, JSON.stringify(body))
 
+## 旧来のクリアの記録（clear_count を足して by_owner を返すだけ。挑戦者数・クリア率・難関ボス討伐には数えない）。
+## 2026-10-23 から、戦闘チケットの無い勝ち（通信できずに始めた戦闘など）の討伐記録の判断にだけ使う。
 func record_challenge_clear(ticket_hex: String, boss_id: String) -> Dictionary:
 	var body := {"ticket": ticket_hex, "boss_id": boss_id}
 	return await _request(_function_url("record-challenge-clear"), HTTPClient.METHOD_POST, JSON.stringify(body))
+
+## 2026-10-23: 次の戦闘の戦闘チケット（{"ok": true, "battle_ticket", "expires_at"}。上限なら error_kind が rate_limited など）。
+func issue_battle_ticket(ticket_hex: String, boss_id: String) -> Dictionary:
+	var body := {"ticket": ticket_hex, "boss_id": boss_id}
+	return await _request(_function_url("issue-battle-ticket"), HTTPClient.METHOD_POST, JSON.stringify(body))
+
+## 2026-10-23: 決着した戦闘の結果（送信待ちの最大20件、[{boss_id, battle_ticket, result_id, outcome}]）をまとめて送る。
+## 応答: {"ok": true, "results": [{result_id, status, by_owner, hard_awarded, first_clear_rate}], "next_battle_ticket"?}。
+## next_ticket_boss_id を渡すと、次の戦闘のチケットも同じ応答で受け取る。
+func submit_battle_results(ticket_hex: String, results: Array, next_ticket_boss_id: String = "") -> Dictionary:
+	var body := {"ticket": ticket_hex, "results": results}
+	if not next_ticket_boss_id.is_empty():
+		body["next_ticket_boss_id"] = next_ticket_boss_id
+	return await _request(_function_url("submit-battle-result"), HTTPClient.METHOD_POST, JSON.stringify(body))
+
+## 2026-10-23: 自分が難関ボス討伐に認定されたボスの id（{"ok": true, "boss_ids": [...]}）。認定はサーバー（DB）が決める。
+func list_my_hard_awards(ticket_hex: String) -> Dictionary:
+	return await _request(_function_url("list-my-hard-awards"), HTTPClient.METHOD_POST, JSON.stringify({"ticket": ticket_hex}))
 
 ## list_bosses()と違い匿名GETではない——「誰にとっての未挑戦か」をサーバー
 ## 側でSteam ticketから確定させるため、ticketを渡すPOSTにする。

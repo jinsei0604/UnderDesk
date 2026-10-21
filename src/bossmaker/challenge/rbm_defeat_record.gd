@@ -5,27 +5,29 @@ extends RefCounted
 ## ボスを1件ずつ覚え、3つの数を出す:
 ##   SIMPLE   … 初めてクリアした時に SIMPLE だったボスの数
 ##   HARDCORE … 初めてクリアした時に HARDCORE（作り込まれたボス戦、creator_mode = advanced）だったボスの数
-##   難関      … 初めてクリアした時のクリア率が5%以下だったボスの数（難易度とは別に数える）
+##   難関      … 難関ボス討伐に認定されたボスの数（難易度とは別に数える。2026-10-23 から認定はサーバーが決める）
 ## 集計の決まり:
 ## - ボス固有ID（オンラインのボスID）で判定し、同じボスは何度クリアしても1件だけ（最初のクリアの内容で固定）。
-## - 難関の判定は、初めてクリアした時のクリア率で固定する（後でクリア率が変わっても変えない）。
-##   クリア率は既存の正式な算出（オンライン一覧に出すクリア率 = クリアした人数 ÷ 挑戦した人数）。人数が分からない・
-##   挑戦者0人の時は「不明」として難関に数えない（推測しない）。
+## - 難関（2026-10-23 確定）: 作者本人を除いた正式な挑戦結果（勝ち・負け）50回以上・挑戦者10人以上・クリア率5%以下のボスを、
+##   初めてクリアした時にほかの人のクリア率が5%以下だったプレイヤーだけに認定する。判定は DB（Supabase の記録の関数）が行い、
+##   ゲームはクリアの記録の応答（hard_awarded）と list-my-hard-awards の一覧で受け取るだけ（手元では数えない・推測しない）。
+##   初めてクリアした時に条件（50回・10人）に届いていなければ保留され、後で条件を満たすとさかのぼって認定される
+##   （挑戦トップを開いた時に一覧で受け取る）。一度ついた難関は消さない（後でクリア率が変わっても、記録をまとめ直しても）。
+##   rate は初めてクリアした時のクリア率（サーバーの値、無ければ挑戦を始めた時の一覧の値。-1 は不明）で、表示・記録用。
 ## - TEST BATTLE・クリアチェックは数えない（呼び出し元 RBMChallengeEntry が挑戦の勝利でだけ呼ぶ）。
 ## - ボスが削除・更新されても、取得した実績は消さない（ボスの存在を確かめない）。
 ## 保存（継続的なサーバー費用を増やさない）:
 ## - 手元: user://bossmaker/defeat_records/<アカウント>.json（stages の隣。テストでは保存先の差し替えに従う）。
 ## - Steam Cloud（使える時だけ）: defeat_records.json（Steam Cloud はアカウントごとに分かれる）。
 ## - 同期の競合: 手元と Steam Cloud を「ボスごとの和集合、同じボスはクリアした時刻が早い方」でまとめる（どちらから先に
-##   読んでも同じ結果になる。消す操作は無いので、記録が失われない）。
+##   読んでも同じ結果になる。消す操作は無いので、記録が失われない）。難関はどちらかで難関なら難関（消えない）。
+##   ファイルの形式（項目: mode・rate・hard・at）は 2026-10-16 から変えていない。
 ## 戦闘・乱数・保存データ（ステージ）・オンラインの記録（Supabase）には触れない。
 
 const FORMAT := "rbm_defeat_records"
 const VERSION := 1
 const SUBDIR_NAME := "defeat_records"
 const CLOUD_FILE := "defeat_records.json"
-## 難関の判定: 初めてクリアした時のクリア率がこれ以下（5%）。
-const HARD_RATE_LIMIT := 0.05
 ## Steam のアカウントが分からない時（Steam を使っていない・テスト）の記録の持ち主。
 const LOCAL_ACCOUNT := "local"
 
@@ -61,9 +63,6 @@ static func official_rate(summary: Dictionary) -> float:
 		return -1.0
 	return clampf(float(summary["unique_clearers"]) / float(challengers), 0.0, 1.0)
 
-static func is_hard(rate: float) -> bool:
-	return rate >= 0.0 and rate <= HARD_RATE_LIMIT + 1e-9
-
 static func mode_of(creator_mode: String) -> String:
 	return RBMCreatorDraft.CREATOR_MODE_ADVANCED if creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED else RBMCreatorDraft.CREATOR_MODE_SIMPLE
 
@@ -78,8 +77,14 @@ static func merge(a: Dictionary, b: Dictionary) -> Dictionary:
 			if not e is Dictionary or str(boss_id).is_empty():
 				continue
 			var entry := _normalized(e)
-			if not bosses.has(boss_id) or int(entry.at) < int(bosses[boss_id].at):
+			if not bosses.has(boss_id):
 				bosses[boss_id] = entry
+				continue
+			# 難関は、どちらかで難関なら難関のまま（一度ついた実績は消さない。2026-10-23）
+			var hard: bool = bool(entry.hard) or bool(bosses[boss_id].hard)
+			if int(entry.at) < int(bosses[boss_id].at):
+				bosses[boss_id] = entry
+			bosses[boss_id].hard = hard
 	out["bosses"] = bosses
 	return out
 
@@ -169,18 +174,49 @@ static func _same_bosses(a: Dictionary, b: Dictionary) -> bool:
 
 ## 挑戦で勝った時に呼ぶ。初めてのボスなら記録して true、もう記録があれば何もしないで false。
 ## rate: その挑戦を始めた時の正式なクリア率（分からない時は -1）。
-func record_clear(boss_id: String, creator_mode: String, rate: float, at_unix: int = -1) -> bool:
+func record_clear(boss_id: String, creator_mode: String, rate: float, at_unix: int = -1, hard_awarded: bool = false) -> bool:
 	if boss_id.is_empty():
 		return false
 	load_records()
 	if has_boss(boss_id):
+		# 再クリアは数えない。ただしサーバーが難関に認定していれば、さかのぼって難関をつける（2026-10-23）
+		if hard_awarded:
+			mark_hard([boss_id])
 		return false
 	var at := at_unix if at_unix >= 0 else int(Time.get_unix_time_from_system())
-	(data.bosses as Dictionary)[boss_id] = {"mode": mode_of(creator_mode), "rate": rate if rate >= 0.0 else -1.0, "hard": is_hard(rate), "at": at}
+	# 難関はサーバーの認定（hard_awarded）だけで決める（2026-10-23。手元でクリア率から決めない）
+	(data.bosses as Dictionary)[boss_id] = {"mode": mode_of(creator_mode), "rate": rate if rate >= 0.0 else -1.0, "hard": hard_awarded, "at": at}
+	_save_everywhere()
+	return true
+
+## サーバーが認定した難関ボス討伐（list-my-hard-awards の一覧・クリアの記録の応答）を、もう記録があるボスにつける（2026-10-23）。
+## 記録が無いボス（勝っていない・作者本人のボス・判定できなかった勝利）にはつけない。難関を消すことはしない。
+## 戻り値: 新しく難関になったボスの数。
+func mark_hard(boss_ids: Array) -> int:
+	load_records()
+	var changed := 0
+	var bosses: Dictionary = data.get("bosses", {})
+	for boss_id in boss_ids:
+		var entry: Variant = bosses.get(str(boss_id), null)
+		if entry is Dictionary and not bool((entry as Dictionary).get("hard", false)):
+			(entry as Dictionary)["hard"] = true
+			changed += 1
+	if changed > 0:
+		_save_everywhere()
+	return changed
+
+## 難関がまだついていない記録があるか（挑戦トップがサーバーの認定を受け取りに行くかの判断）。
+func has_unawarded_entries() -> bool:
+	var bosses: Dictionary = data.get("bosses", {})
+	for boss_id in bosses:
+		if not bool((bosses[boss_id] as Dictionary).get("hard", false)):
+			return true
+	return false
+
+func _save_everywhere() -> void:
 	_write_local(data)
 	if cloud != null:
 		if cloud.is_available():
 			cloud_state = "synced" if cloud.write_text(CLOUD_FILE, JSON.stringify(data, "\t", false)) else "write_failed"
 		else:
 			cloud_state = "unavailable"
-	return true

@@ -19,16 +19,42 @@ var cloud := RBMFakeSteamCloud.new()
 const ACCOUNT_A := "76561198000000001"
 const ACCOUNT_B := "76561198000000002"
 
+## 今のサーバー（戦闘チケットあり）と同じ応答を返す記録係（本物の通信・Steam はしない）。
 class Recorder:
 	extends RBMOnlineChallengeRecorder
 	var attempts: Array[String] = []
+	## 戦闘チケットで受け付けた勝ち（ボスの id）と、旧来のクリアの記録（チケットの無い勝ち。この検証では使われない）
 	var clears: Array[String] = []
+	var legacy_clears: Array[String] = []
+	var tickets_issued := 0
+	## 2026-10-23: 難関ボス討伐の認定はサーバーが決める。ここでは1体目（作者以外の挑戦結果50回以上・10人以上・2.5%）を
+	## もう条件を満たしたボスとして、初めてのクリアで認定済みと答える（本物のサーバーと同じ応答の形）。
+	var awarded_ids: Array[String] = ["0d0d0d0d-0000-4000-8000-000000000001"]
+	func _ticket() -> String:
+		tickets_issued += 1
+		return "00000000-0000-4000-8000-%012d" % tickets_issued
 	func record_challenge_attempt(boss_id: String) -> Dictionary:
 		attempts.append(boss_id)
-		return {"ok": true, "error_kind": "", "message": "", "challenge_count": attempts.size(), "by_owner": false}
+		return {"ok": true, "error_kind": "", "message": "", "challenge_count": attempts.size(), "by_owner": false, "battle_ticket": _ticket()}
+	func issue_battle_ticket(_boss_id: String) -> Dictionary:
+		return {"ok": true, "error_kind": "", "message": "", "battle_ticket": _ticket(), "expires_at": ""}
+	func submit_battle_results(results: Array, next_ticket_boss_id: String = "") -> Dictionary:
+		var out: Array = []
+		for r in results:
+			var won: bool = str(r.outcome) == "clear"
+			if won:
+				clears.append(str(r.boss_id))
+			out.append({"result_id": r.result_id, "status": "counted", "by_owner": false,
+				"hard_awarded": won and awarded_ids.has(str(r.boss_id)), "first_clear_rate": null})
+		var response := {"ok": true, "error_kind": "", "message": "", "results": out}
+		if not next_ticket_boss_id.is_empty():
+			response["next_battle_ticket"] = _ticket()
+		return response
 	func record_challenge_clear(boss_id: String) -> Dictionary:
-		clears.append(boss_id)
-		return {"ok": true, "error_kind": "", "message": "", "clear_count": clears.size(), "by_owner": false}
+		legacy_clears.append(boss_id)
+		return {"ok": true, "error_kind": "", "message": "", "clear_count": legacy_clears.size(), "by_owner": false}
+	func list_my_hard_awards() -> Dictionary:
+		return {"ok": true, "error_kind": "", "message": "", "boss_ids": awarded_ids.filter(func(id): return clears.has(id))}
 	func account_id() -> String:
 		return ""
 
@@ -73,8 +99,9 @@ func run_gpu_verification(scene_tree: SceneTree, directory: String) -> int:
 	await _back_to_hub()
 	_check("同じボスをもう一度クリアしても増えない", _shown() == {"simple": 1, "hardcore": 1, "hard": 1}, _shown())
 	await _shot("03_hub_after_reclear")
-	_check("オンラインの挑戦・クリアの記録の呼び出しは今までどおり（3回ずつ）", recorder.attempts.size() == 3 and recorder.clears.size() == 3,
-		"挑戦 %d・クリア %d" % [recorder.attempts.size(), recorder.clears.size()])
+	_check("オンラインの挑戦の記録と、戦闘チケットでの勝ちの送信（3回ずつ。旧来のクリアの記録は0回）",
+		recorder.attempts.size() == 3 and recorder.clears.size() == 3 and recorder.legacy_clears.is_empty(),
+		"挑戦 %d・勝ち %d・旧来 %d" % [recorder.attempts.size(), recorder.clears.size(), recorder.legacy_clears.size()])
 	await _pace(1.0)
 	# 再起動: ゲームを閉じて、同じ保存先・同じアカウントで起動し直す
 	await _shutdown()

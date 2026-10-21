@@ -12,6 +12,26 @@ var _get_response: Dictionary = {"ok": true, "boss": {}}
 ## 既定の応答は今のサーバーと同じ形（by_owner: 記録した本人がボスの作者か。2026-10-22。ここでは作者ではない人の挑戦）
 var _record_attempt_response: Dictionary = {"ok": true, "challenge_count": 1, "by_owner": false}
 var _record_clear_response: Dictionary = {"ok": true, "clear_count": 1, "by_owner": false}
+## 2026-10-23: 難関の認定の一覧（今のサーバーと同じ形）
+var _list_my_hard_awards_response: Dictionary = {"ok": true, "boss_ids": []}
+var list_my_hard_awards_calls := 0
+## 2026-10-23: 戦闘チケットの偽のサーバー（本物の submit_boss_battle_result と同じ決まり: 1チケット1結果・同じ結果の
+## 送り直しは duplicate・別の結果は used・知らないチケット・ボス違いは invalid・期限切れは expired）。
+## tickets_enabled = false（既定）は旧版のサーバー（挑戦の記録の応答にチケットが無く、チケット・結果の関数が無い = 404）。
+## 今のサーバーを試すテストは true にする。数えた結果の応答の by_owner・hard_awarded・first_clear_rate は、
+## configure_record_clear_response() の値を使う（勝ちの時。負けは by_owner だけ）。
+var tickets_enabled := false
+## チケットを出さない理由（"" なら出す。rate_limited・daily_limit・not_found）。
+var ticket_refusal := ""
+## true の間、チケット・結果の通信は届かない（network_error。通信断）。
+var network_down := false
+## true にすると、次の結果の送信は「サーバーでは数えたが応答が届かなかった」にする（1回だけ）。
+var lose_next_submit_response := false
+var server_tickets: Dictionary = {}
+var counted_results: Array[Dictionary] = []
+var submit_calls: Array[Dictionary] = []
+var issue_ticket_calls: Array[String] = []
+var _ticket_serial := 0
 var _list_unchallenged_response: Dictionary = {"ok": true, "bosses": []}
 var _list_popular_response: Dictionary = {"ok": true, "bosses": []}
 var _list_hard_response: Dictionary = {"ok": true, "bosses": []}
@@ -66,6 +86,10 @@ func configure_record_attempt_response(response: Dictionary) -> void:
 func configure_record_clear_response(response: Dictionary) -> void:
 	_record_clear_response = response
 
+
+func configure_list_my_hard_awards_response(response: Dictionary) -> void:
+	_list_my_hard_awards_response = response
+
 func configure_list_unchallenged_response(response: Dictionary) -> void:
 	_list_unchallenged_response = response
 
@@ -99,11 +123,96 @@ func get_boss(id: String) -> Dictionary:
 
 func record_challenge_attempt(ticket_hex: String, boss_id: String) -> Dictionary:
 	record_attempt_calls.append({"ticket": ticket_hex, "boss_id": boss_id})
-	return _record_attempt_response.duplicate(true)
+	var response := _record_attempt_response.duplicate(true)
+	if tickets_enabled and bool(response.get("ok", false)):
+		var issued := _new_ticket(boss_id)
+		if bool(issued.ok):
+			response["battle_ticket"] = issued.battle_ticket
+			response["ticket_expires_at"] = issued.expires_at
+		else:
+			response["ticket_status"] = issued.error_kind
+	return response
 
 func record_challenge_clear(ticket_hex: String, boss_id: String) -> Dictionary:
 	record_clear_calls.append({"ticket": ticket_hex, "boss_id": boss_id})
 	return _record_clear_response.duplicate(true)
+
+func issue_battle_ticket(_ticket_hex: String, boss_id: String) -> Dictionary:
+	issue_ticket_calls.append(boss_id)
+	if network_down:
+		return RBMSupabaseResponse.network_error("offline")
+	if not tickets_enabled:
+		return {"ok": false, "error_kind": "http_404", "message": "not found", "http_status": 404}
+	return _new_ticket(boss_id)
+
+func submit_battle_results(_ticket_hex: String, results: Array, next_ticket_boss_id: String = "") -> Dictionary:
+	submit_calls.append({"results": results.duplicate(true), "next_ticket_boss_id": next_ticket_boss_id})
+	if network_down:
+		return RBMSupabaseResponse.network_error("offline")
+	if not tickets_enabled:
+		return {"ok": false, "error_kind": "http_404", "message": "not found", "http_status": 404}
+	var out: Array = []
+	for r in results:
+		out.append(_submit_one(r))
+	var response := {"ok": true, "results": out}
+	if not next_ticket_boss_id.is_empty():
+		var issued := _new_ticket(next_ticket_boss_id)
+		if bool(issued.ok):
+			response["next_battle_ticket"] = issued.battle_ticket
+			response["next_ticket_expires_at"] = issued.expires_at
+		else:
+			response["next_ticket_status"] = issued.error_kind
+	if lose_next_submit_response:
+		lose_next_submit_response = false
+		return RBMSupabaseResponse.network_error("the response was lost")
+	return response
+
+## サーバーが出したチケットを期限切れにする（30日を過ぎた時）。
+func expire_ticket(battle_ticket: String) -> void:
+	if server_tickets.has(battle_ticket):
+		server_tickets[battle_ticket].expired = true
+
+func _new_ticket(boss_id: String) -> Dictionary:
+	if not ticket_refusal.is_empty():
+		return {"ok": false, "error_kind": ticket_refusal, "message": "refused", "http_status": 429}
+	_ticket_serial += 1
+	var ticket := "00000000-0000-4000-8000-%012d" % _ticket_serial
+	server_tickets[ticket] = {"boss_id": boss_id, "result_id": "", "outcome": "", "expired": false}
+	return {"ok": true, "battle_ticket": ticket, "expires_at": "2026-11-22T00:00:00Z"}
+
+func _submit_one(r: Dictionary) -> Dictionary:
+	var rid := str(r.get("result_id", ""))
+	var outcome := str(r.get("outcome", ""))
+	var t: Variant = server_tickets.get(str(r.get("battle_ticket", "")), null)
+	if t == null or str(t.boss_id) != str(r.get("boss_id", "")) or (outcome != "clear" and outcome != "loss") or rid.is_empty():
+		return {"result_id": rid, "status": "invalid"}
+	if not str(t.result_id).is_empty():
+		if str(t.result_id) == rid and str(t.outcome) == outcome:
+			return _counted(rid, "duplicate", outcome)
+		return {"result_id": rid, "status": "used"}
+	if bool(t.expired):
+		return {"result_id": rid, "status": "expired"}
+	for other in server_tickets.values():
+		if str(other.result_id) == rid:
+			return {"result_id": rid, "status": "used"}
+	t.result_id = rid
+	t.outcome = outcome
+	counted_results.append({"boss_id": str(t.boss_id), "result_id": rid, "outcome": outcome})
+	return _counted(rid, "counted", outcome)
+
+func _counted(rid: String, status: String, outcome: String) -> Dictionary:
+	var row := {"result_id": rid, "status": status, "by_owner": bool(_record_clear_response.get("by_owner", false))}
+	if outcome == "clear":
+		row["hard_awarded"] = _record_clear_response.get("hard_awarded", false)
+		row["first_clear_rate"] = _record_clear_response.get("first_clear_rate", null)
+	else:
+		row["hard_awarded"] = false
+		row["first_clear_rate"] = null
+	return row
+
+func list_my_hard_awards(_ticket_hex: String) -> Dictionary:
+	list_my_hard_awards_calls += 1
+	return _list_my_hard_awards_response.duplicate(true)
 
 func list_unchallenged_bosses(ticket_hex: String, mode: String = "", limit: int = 20) -> Dictionary:
 	list_unchallenged_calls.append({"ticket": ticket_hex, "mode": mode, "limit": limit})

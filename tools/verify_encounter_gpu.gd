@@ -43,6 +43,14 @@ class OfflineRecorder:
 	func record_challenge_clear(boss_id: String) -> Dictionary:
 		clears.append(boss_id)
 		return {"ok": true, "error_kind": "", "message": "", "clear_count": clears.size(), "by_owner": false}
+	# 2026-10-23: 旧版のサーバーと同じ（戦闘チケットが無い。勝ちは旧来のクリアの記録）。チケット・結果・認定の一覧も
+	# 受け取るだけ（本物の通信をしない）
+	func issue_battle_ticket(_boss_id: String) -> Dictionary:
+		return {"ok": false, "error_kind": "http_404", "message": ""}
+	func submit_battle_results(_results: Array, _next_ticket_boss_id: String = "") -> Dictionary:
+		return {"ok": false, "error_kind": "http_404", "message": ""}
+	func list_my_hard_awards() -> Dictionary:
+		return {"ok": true, "error_kind": "", "message": "", "boss_ids": []}
 
 func _arg(key: String, fallback: String) -> String:
 	for a in OS.get_cmdline_user_args():

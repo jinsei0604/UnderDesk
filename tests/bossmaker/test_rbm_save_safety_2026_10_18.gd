@@ -106,7 +106,8 @@ func test_a_failed_upload_is_sent_again_on_the_next_load() -> void:
 func test_a_broken_steam_cloud_file_does_not_wipe_the_local_record() -> void:
 	var cloud := RBMFakeSteamCloud.new()
 	var r := RBMDefeatRecord.new(ACCOUNT_A, cloud)
-	r.record_clear("boss-1", RBMCreatorDraft.CREATOR_MODE_ADVANCED, 0.02, 100)
+	# 2026-10-23: 難関はサーバーの認定でつく（hard_awarded）。認定済みの難関も、壊れた Steam Cloud で消えないことを確かめる
+	r.record_clear("boss-1", RBMCreatorDraft.CREATOR_MODE_ADVANCED, 0.02, 100, true)
 	cloud.files[RBMDefeatRecord.CLOUD_FILE] = "{ broken"
 	var again := RBMDefeatRecord.new(ACCOUNT_A, cloud)
 	again.load_records()
