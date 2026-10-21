@@ -74,7 +74,14 @@ var _defeat_record: RBMDefeatRecord
 ## テスト・検証で差し替える記録（アカウント・Steam Cloud を偽物にする）。
 var _defeat_record_for_testing: RBMDefeatRecord
 ## 「挑戦する」の時に控える、勝った時に記録する内容 {boss_id, mode, rate}（オンラインのボスだけ）。
+## 2026-10-22: 挑戦の記録の応答の by_owner（attempt_by_owner）と、勝った時の判定（ownership）もここに入る。
 var _defeat_context: Dictionary = {}
+
+## 討伐記録に数えるかの判定の結果（2026-10-22、作者本人のボスは数えない）。
+const DEFEAT_NOT_OWNER := "not_owner"
+const DEFEAT_OWNER := "owner"
+const DEFEAT_UNKNOWN := "unknown"
+const DEFEAT_CONFLICT := "conflict"
 
 ## テスト専用: _online_list_view自身は_ready()内で初めて生成されるため、
 ## 生成前(.new()直後、add_child_autofree()より前)にこのフィールドへ
@@ -572,7 +579,9 @@ func _start_challenge(definition: Dictionary, encounter: Dictionary) -> void:
 	_defeat_context = {}
 	if _last_browse_was_online and not _confirm_view.stage_id.is_empty() and _confirm_view._draft != null:
 		_defeat_context = {"boss_id": _confirm_view.stage_id, "mode": _confirm_view._draft.creator_mode,
-			"rate": RBMDefeatRecord.official_rate(_online_list_view.summary_for(_confirm_view.stage_id))}
+			"rate": RBMDefeatRecord.official_rate(_online_list_view.summary_for(_confirm_view.stage_id)),
+			# この PC で公開したボスか（補助の判定、2026-10-22）。勝利の演出の最中に保存を読まないよう、ここで1回だけ調べる
+			"published_here": RBMLocalStageRepository.online_boss_ids().has(_confirm_view.stage_id)}
 	# Phase 3.5 Step 4 §5/§18: ボス詳細ウィンドウが非公開情報を漏らさない
 	# ようにするため、確認画面が既に読み込み済みのdraft（_confirm_view自身の
 	# フィールド、Definition自体には含まれない——RBMCreatorDraft.to_definition()
@@ -595,7 +604,7 @@ func _start_challenge(definition: Dictionary, encounter: Dictionary) -> void:
 	# 関わらず戦闘は必ず開始する(通信失敗でゲームが止まらないようにする)。
 	if not _confirm_view.stage_id.is_empty():
 		if _last_browse_was_online:
-			_online_recorder().record_challenge_attempt(_confirm_view.stage_id)
+			_record_online_attempt(_confirm_view.stage_id, _defeat_context)
 		else:
 			RBMLocalStageRepository.record_challenge_attempt(_confirm_view.stage_id)
 	_battle_view.battle_background = _confirm_view._draft.battle_background if _confirm_view._draft != null else "night"
@@ -614,20 +623,68 @@ func _start_challenge(definition: Dictionary, encounter: Dictionary) -> void:
 func _on_challenge_won() -> void:
 	if not _confirm_view.stage_id.is_empty():
 		if _last_browse_was_online:
-			_online_recorder().record_challenge_clear(_confirm_view.stage_id)
+			# クリアの記録の応答（by_owner）を待ってから討伐記録を決める。勝利の処理・結果の画面は待たない（await しない）
+			_record_online_clear_and_defeat(_confirm_view.stage_id, _defeat_context)
 		else:
 			RBMLocalStageRepository.record_challenge_clear(_confirm_view.stage_id)
-	_record_defeat()
+
+## オンラインの挑戦の記録（ベストエフォート、戦闘は待たない）。応答の by_owner（サーバーが Steam で確かめた本人が
+## このボスの作者か）を、この挑戦の討伐記録の控えに残す（2026-10-22）。
+func _record_online_attempt(boss_id: String, context: Dictionary) -> void:
+	var response: Dictionary = await _online_recorder().record_challenge_attempt(boss_id)
+	if not context.is_empty():
+		context["attempt_by_owner"] = server_by_owner(response)
+
+## オンラインのクリアの記録（ベストエフォート）。応答を待ってから討伐記録を決める（2026-10-22）。
+func _record_online_clear_and_defeat(boss_id: String, context: Dictionary) -> void:
+	var response: Dictionary = await _online_recorder().record_challenge_clear(boss_id)
+	_record_defeat(context, server_by_owner(response))
 
 ## 討伐記録（RBMDefeatRecord）: 挑戦で勝った時、初めてのボスなら記録する（同じボスは何度勝っても1件）。
 ## TEST BATTLE・クリアチェックはこの経路を通らないので数えない。
-func _record_defeat() -> void:
-	if _defeat_context.is_empty():
+## 2026-10-22: 自分が作ったボスは数えない。defeat_ownership() が「作者ではない」と決めた時だけ記録する。
+func _record_defeat(context: Dictionary, clear_by_owner: Variant) -> void:
+	if context.is_empty():
 		return
 	# 保存先を分けていないテスト（ヘッドレス）は、開発機の記録に書かない
 	if _defeat_record_for_testing == null and DisplayServer.get_name() == "headless" and RBMLocalStageRepository._stages_dir_override.is_empty():
 		return
-	_defeat_book().record_clear(str(_defeat_context.boss_id), str(_defeat_context.mode), float(_defeat_context.rate))
+	var decision := defeat_ownership([context.get("attempt_by_owner", null), clear_by_owner], bool(context.get("published_here", false)))
+	context["ownership"] = decision
+	if decision != DEFEAT_NOT_OWNER:
+		return
+	_defeat_book().record_clear(str(context.boss_id), str(context.mode), float(context.rate))
+	if is_visible_in_tree() and _hub_view.visible:
+		_refresh_defeat_record()
+
+## 挑戦・クリアの記録の応答から by_owner を取り出す。成功していて真偽値がある時だけその値、ほかは null（分からない）。
+static func server_by_owner(response: Dictionary) -> Variant:
+	if not bool(response.get("ok", false)):
+		return null
+	var value: Variant = response.get("by_owner", null)
+	return value if value is bool else null
+
+## 自分が作ったボスかの判定（2026-10-22）。サーバーの答え（by_owner。Steam で確かめた本人とボスの作者を DB が比べた結果）を
+## 正とし、この PC で公開したボス（published_here）も作者とみなす。
+##   作者だという答えが1つでもある・この PC で公開した → owner（ただし「作者ではない」という答えとも食い違えば conflict）
+##   サーバーの答えが1つも無い → unknown
+##   答えがすべて「作者ではない」で、この PC で公開したボスでもない → not_owner（これだけ討伐記録に数える）
+static func defeat_ownership(server_answers: Array, published_here: bool) -> String:
+	var says_owner := published_here
+	var says_not_owner := false
+	for answer in server_answers:
+		if answer is bool:
+			if answer:
+				says_owner = true
+			else:
+				says_not_owner = true
+	if says_owner and says_not_owner:
+		return DEFEAT_CONFLICT
+	if says_owner:
+		return DEFEAT_OWNER
+	if says_not_owner:
+		return DEFEAT_NOT_OWNER
+	return DEFEAT_UNKNOWN
 
 ## 今のアカウントの討伐記録。本物の Steam（アカウント・Steam Cloud）は、ゲームとして動いている時（窓があり、
 ## 保存先をテスト用に差し替えていない）だけ使う。それ以外は手元の LOCAL_ACCOUNT の記録だけ。

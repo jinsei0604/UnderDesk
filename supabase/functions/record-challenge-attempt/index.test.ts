@@ -180,3 +180,14 @@ Deno.test("a malformed boss_id is rejected before touching Steam or the database
   assertEquals(res.status, 400);
   assertEquals(db.rowsOf("boss_challenge_records").length, 0);
 });
+
+// 2026-10-22: 応答の by_owner（記録した本人がボスの作者か）。作者本人も挑戦でき、記録も今までどおり作られる。
+Deno.test("the author can challenge their own boss and the attempt is reported as by_owner", async () => {
+  const db = new FakeSupabaseRestClient();
+  db.seed("bosses", [{ id: PUBLISHED_BOSS_ID, boss_name: "作者のボス", is_published: true, owner_steam_id: STEAM_ID }]);
+  const request = new Request("http://localhost/record-challenge-attempt", { method: "POST", body: JSON.stringify({ ticket: VALID_HEX_TICKET, boss_id: PUBLISHED_BOSS_ID }) });
+  const res = await handleRecordChallengeAttempt(request, verifierSucceedingAs(STEAM_ID), db, 480);
+  assertEquals(res.status, 200);
+  const body: RecordChallengeAttemptResponseBody = await res.json();
+  assertEquals(body, { ok: true, challenge_count: 1, by_owner: true });
+});

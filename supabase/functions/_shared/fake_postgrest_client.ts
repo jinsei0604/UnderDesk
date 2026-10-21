@@ -15,6 +15,9 @@ import { CountResult, RestResult, SupabaseCountingRestClient } from "./supabase_
 type Row = Record<string, unknown>;
 
 // 失敗の時のDBの内部の文（PostgRESTの文に似せる。関数が利用者へ返さないことを確かめる）。
+// 本物の DB の列の既定（seed で指定しない列に入れる）。2026-10-22: 作者本人の挑戦の印。
+const COLUMN_DEFAULTS: Record<string, Row> = { boss_challenge_records: { by_owner: false } };
+
 export const FAKE_INTERNAL_ERROR = '{"code":"42703","message":"column bosses.owner_steam_id does not exist"}';
 
 export class FakePostgrestClient implements SupabaseCountingRestClient {
@@ -29,7 +32,8 @@ export class FakePostgrestClient implements SupabaseCountingRestClient {
   private maxRowsPerResponse: number | undefined;
 
   seed(table: string, rows: Row[]): void {
-    this.tables.set(table, [...(this.tables.get(table) ?? []), ...rows]);
+    const defaults = COLUMN_DEFAULTS[table] ?? {};
+    this.tables.set(table, [...(this.tables.get(table) ?? []), ...rows.map((row) => ({ ...defaults, ...row }))]);
   }
 
   remove(table: string, predicate: (row: Row) => boolean): void {

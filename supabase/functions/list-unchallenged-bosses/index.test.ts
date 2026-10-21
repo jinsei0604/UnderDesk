@@ -302,3 +302,19 @@ Deno.test("a failure while counting challengers for the unchallenged page return
   assertEquals(res.status, 502);
   assertEquals(body.bosses, undefined);
 });
+
+// 2026-10-22: 作者本人が自分のボスに挑戦した記録（by_owner = true）は、本人の「未挑戦」の判定には今までどおり使う
+// （挑戦したボスは本人の未挑戦一覧から外れる）。カードの挑戦者数には数えない。
+Deno.test("the author's own challenge still removes the boss from the author's unchallenged list", async () => {
+  const db = dbWithBosses();
+  db.seed("boss_challenge_records", [
+    { id: "own", boss_id: "1", challenger_steam_id: ME, challenge_count: 1, clear_count: 1, by_owner: true },
+    { id: "own-c", boss_id: "3", challenger_steam_id: "someone-else-is-the-author", challenge_count: 2, clear_count: 1, by_owner: true },
+  ]);
+  const body: ListUnchallengedBossesResponseBody = await (await handleListUnchallengedBosses(
+    postJson({ ticket: VALID_HEX_TICKET }), verifierSucceedingAs(ME), db, 480)).json();
+  const names = body.bosses!.map((b) => b.boss_name);
+  assertEquals(names.includes("未挑戦ボスA"), false, "my own challenge still counts as challenged for me");
+  const c = body.bosses!.find((b) => b.boss_name === "未挑戦ボスC")!;
+  assertEquals([c.unique_challengers, c.unique_clearers], [0, 0], "an author's own record is not a challenger in the card counts");
+});

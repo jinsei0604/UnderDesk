@@ -149,3 +149,28 @@ Deno.test("non-POST requests are rejected", async () => {
   const res = await handleRecordChallengeClear(req, verifierSucceedingAs(STEAM_ID), dbWithBosses(), 480);
   assertEquals(res.status, 405);
 });
+
+// 2026-10-22: 応答の by_owner（記録した本人がボスの作者か）。DB のトリガーが決めた値をそのまま返し、SteamID は返さない。
+Deno.test("the author's own clear is recorded and reported as by_owner, without returning any SteamID", async () => {
+  const db = new FakeSupabaseRestClient();
+  db.seed("bosses", [{ id: PUBLISHED_BOSS_ID, boss_name: "作者のボス", is_published: true, owner_steam_id: STEAM_ID }]);
+  const res = await handleRecordChallengeClear(postJson({ ticket: VALID_HEX_TICKET, boss_id: PUBLISHED_BOSS_ID }), verifierSucceedingAs(STEAM_ID), db, 480);
+  assertEquals(res.status, 200);
+  const text = await res.text();
+  assertEquals(JSON.parse(text), { ok: true, clear_count: 1, by_owner: true });
+  assertEquals(text.includes(STEAM_ID), false);
+});
+
+Deno.test("another player's clear is reported as not by_owner", async () => {
+  const db = new FakeSupabaseRestClient();
+  db.seed("bosses", [{ id: PUBLISHED_BOSS_ID, boss_name: "作者のボス", is_published: true, owner_steam_id: "76561198000000999" }]);
+  const res = await handleRecordChallengeClear(postJson({ ticket: VALID_HEX_TICKET, boss_id: PUBLISHED_BOSS_ID }), verifierSucceedingAs(STEAM_ID), db, 480);
+  assertEquals(await res.json(), { ok: true, clear_count: 1, by_owner: false });
+});
+
+Deno.test("a by_owner value sent by the client is ignored", async () => {
+  const db = new FakeSupabaseRestClient();
+  db.seed("bosses", [{ id: PUBLISHED_BOSS_ID, boss_name: "作者のボス", is_published: true, owner_steam_id: "76561198000000999" }]);
+  const res = await handleRecordChallengeClear(postJson({ ticket: VALID_HEX_TICKET, boss_id: PUBLISHED_BOSS_ID, by_owner: true, steam_id: "76561198000000999" }), verifierSucceedingAs(STEAM_ID), db, 480);
+  assertEquals(await res.json(), { ok: true, clear_count: 1, by_owner: false });
+});

@@ -58,7 +58,8 @@ export async function loadChallengeStats(
     const lookup = await selectAllPages<StatsRecordRow>(
       db,
       "boss_challenge_records",
-      `boss_id=in.(${ids.join(",")})&select=id,boss_id,clear_count`,
+      // 作者本人の挑戦（by_owner、DB のトリガーが決める）は数えない（2026-10-22）
+      `boss_id=in.(${ids.join(",")})&by_owner=is.false&select=id,boss_id,clear_count`,
     );
     if (!lookup.ok) return { ok: false, errorMessage: lookup.errorMessage ?? "" };
     records.push(...lookup.rows);

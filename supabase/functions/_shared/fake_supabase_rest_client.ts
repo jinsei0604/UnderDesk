@@ -215,6 +215,8 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
       if (!row.first_cleared_at) row.first_cleared_at = now;
       row.last_cleared_at = now;
     }
+    // 本物の DB のトリガー（boss_challenge_records_set_by_owner、2026-10-22）と同じ: 挑戦者がボスの作者なら true
+    row.by_owner = this.rowsOf("bosses").some((b) => b.id === bossId && b.owner_steam_id === steamId);
     row.updated_at = now;
     return Promise.resolve({ ok: true, rows: [row], status: 200 });
   }

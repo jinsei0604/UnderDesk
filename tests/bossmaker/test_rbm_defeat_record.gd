@@ -248,3 +248,154 @@ func test_the_hub_shows_three_cards_with_the_hard_card_in_gold() -> void:
 		assert_lte(r.end.y, 700.0, n + " fits on the screen")
 		for b in ["SearchBossButton", "RandomChallengeButton"]:
 			assert_false(r.intersects((hub.find_child(b, true, false) as Control).get_rect()), n + " does not overlap " + b)
+
+# ---------------------------------------------------------------------------
+# 2026-10-22: 自分が作ったボスは討伐記録に数えない。サーバー（挑戦・クリアの記録の応答の by_owner）を正とし、
+# この PC で公開したボス（保存したボスの online_boss_id）も作者とみなす。分からない・食い違う時は数えない。
+
+func test_the_ownership_decision_counts_only_bosses_confirmed_to_be_someone_elses() -> void:
+	assert_eq(RBMChallengeEntry.defeat_ownership([false, false], false), RBMChallengeEntry.DEFEAT_NOT_OWNER)
+	assert_eq(RBMChallengeEntry.defeat_ownership([null, false], false), RBMChallengeEntry.DEFEAT_NOT_OWNER, "the clear answer alone is enough")
+	assert_eq(RBMChallengeEntry.defeat_ownership([false, null], false), RBMChallengeEntry.DEFEAT_NOT_OWNER, "the attempt answer alone is enough")
+	assert_eq(RBMChallengeEntry.defeat_ownership([true, true], false), RBMChallengeEntry.DEFEAT_OWNER)
+	assert_eq(RBMChallengeEntry.defeat_ownership([true, null], false), RBMChallengeEntry.DEFEAT_OWNER)
+	assert_eq(RBMChallengeEntry.defeat_ownership([null, null], true), RBMChallengeEntry.DEFEAT_OWNER, "published from this PC")
+	assert_eq(RBMChallengeEntry.defeat_ownership([null, null], false), RBMChallengeEntry.DEFEAT_UNKNOWN)
+	assert_eq(RBMChallengeEntry.defeat_ownership([false, true], false), RBMChallengeEntry.DEFEAT_CONFLICT)
+	assert_eq(RBMChallengeEntry.defeat_ownership([false, false], true), RBMChallengeEntry.DEFEAT_CONFLICT, "the server and this PC disagree")
+
+func test_the_server_answer_is_read_only_from_a_successful_boolean() -> void:
+	assert_eq(RBMChallengeEntry.server_by_owner({"ok": true, "clear_count": 1, "by_owner": true}), true)
+	assert_eq(RBMChallengeEntry.server_by_owner({"ok": true, "clear_count": 1, "by_owner": false}), false)
+	assert_eq(RBMChallengeEntry.server_by_owner({"ok": true, "clear_count": 1}), null, "an older server without the field: unknown")
+	assert_eq(RBMChallengeEntry.server_by_owner({"ok": true, "by_owner": "false"}), null, "not a boolean: unknown")
+	assert_eq(RBMChallengeEntry.server_by_owner({"ok": false, "error_kind": "network_error", "by_owner": false}), null, "a failure: unknown")
+
+func _entry_for_ownership(attempt_response: Dictionary, clear_response: Dictionary) -> Dictionary:
+	RBMSteamConfig.set_local_dev_app_id_path_for_testing("")
+	var auth := _steam_auth()
+	var recorder_api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(recorder_api)
+	recorder_api.configure_record_attempt_response(attempt_response)
+	recorder_api.configure_record_clear_response(clear_response)
+	var recorder := RBMOnlineChallengeRecorder.new()
+	add_child_autofree(recorder)
+	recorder.set_steam_auth_for_testing(auth)
+	recorder.set_api_adapter_for_testing(recorder_api)
+	var browse_api := RBMFakeBossApiAdapter.new()
+	add_child_autofree(browse_api)
+	var entry := RBMChallengeEntry.new()
+	entry.set_online_api_adapter_for_testing(browse_api)
+	entry.set_online_recorder_for_testing(recorder)
+	var cloud := RBMFakeSteamCloud.new()
+	var record := RBMDefeatRecord.new(ACCOUNT_A, cloud)
+	entry.set_defeat_record_for_testing(record)
+	add_child_autofree(entry)
+	entry.enter_challenge()
+	entry._last_browse_was_online = true
+	return {"entry": entry, "record": record, "api": recorder_api, "auth": auth, "cloud": cloud}
+
+## オンラインのボスを選んで挑戦し、勝つ（win = false なら挑戦を始めるだけ）。
+func _challenge_online(s: Dictionary, boss_id: String, mode: String, summary: Dictionary, win := true) -> void:
+	var entry: RBMChallengeEntry = s.entry
+	entry._online_list_view._summaries[boss_id] = summary
+	entry._on_online_boss_selected(boss_id, _draft(mode), "討伐記録テストボス", "")
+	_ticket.call_deferred(s.auth)
+	entry._confirm_view._on_challenge_pressed()
+	await wait_process_frames(3)
+	if not win:
+		return
+	entry._battle_view.act_attack(0)
+	assert_true(entry._battle_view.session.battle.battle_over and entry._battle_view.session.battle.winner == "ally", "sanity: won")
+	_ticket.call_deferred(s.auth)
+	await wait_process_frames(3)
+
+func _after_ownership_test() -> void:
+	RBMSteamConfig.set_local_dev_app_id_path_for_testing("")
+	await get_tree().process_frame
+
+func test_the_author_clearing_their_own_boss_adds_nothing_but_the_online_records_are_still_sent() -> void:
+	var s := _entry_for_ownership({"ok": true, "challenge_count": 1, "by_owner": true}, {"ok": true, "clear_count": 1, "by_owner": true})
+	await _challenge_online(s, "own-boss", RBMCreatorDraft.CREATOR_MODE_ADVANCED, {"unique_challengers": 40, "unique_clearers": 1})
+	assert_eq(s.record.counts(), {"simple": 0, "hardcore": 0, "hard": 0}, "neither HARDCORE nor a hard boss for my own boss")
+	assert_eq(s.entry._defeat_context.get("ownership"), RBMChallengeEntry.DEFEAT_OWNER)
+	assert_eq(s.api.record_attempt_calls.size(), 1, "the author can still challenge (attempt recorded)")
+	assert_eq(s.api.record_clear_calls.size(), 1, "the clear is still recorded on the server")
+	await _after_ownership_test()
+
+func test_a_boss_published_from_this_pc_is_the_authors_even_when_the_server_cannot_answer() -> void:
+	var mine := _draft(RBMCreatorDraft.CREATOR_MODE_SIMPLE)
+	mine.set_online_boss_id("published-here")
+	RBMLocalStageRepository.save_new(mine)
+	var failure := {"ok": false, "error_kind": "network_error", "message": "offline"}
+	var s := _entry_for_ownership(failure, failure)
+	await _challenge_online(s, "published-here", RBMCreatorDraft.CREATOR_MODE_SIMPLE, {"unique_challengers": 10, "unique_clearers": 0})
+	assert_eq(s.record.counts(), {"simple": 0, "hardcore": 0, "hard": 0})
+	assert_eq(s.entry._defeat_context.get("ownership"), RBMChallengeEntry.DEFEAT_OWNER)
+	await _after_ownership_test()
+
+func test_another_players_boss_counts_when_either_record_confirms_it() -> void:
+	var s := _entry_for_ownership({"ok": false, "error_kind": "network_error", "message": "offline"}, {"ok": true, "clear_count": 1, "by_owner": false})
+	await _challenge_online(s, "their-boss", RBMCreatorDraft.CREATOR_MODE_SIMPLE, {"unique_challengers": 10, "unique_clearers": 5})
+	assert_eq(s.record.counts(), {"simple": 1, "hardcore": 0, "hard": 0})
+	assert_eq(s.entry._defeat_context.get("ownership"), RBMChallengeEntry.DEFEAT_NOT_OWNER)
+	await _after_ownership_test()
+
+func test_starting_a_challenge_without_winning_adds_nothing() -> void:
+	var s := _entry_for_ownership({"ok": true, "challenge_count": 1, "by_owner": false}, {"ok": true, "clear_count": 1, "by_owner": false})
+	await _challenge_online(s, "their-boss", RBMCreatorDraft.CREATOR_MODE_SIMPLE, {"unique_challengers": 10, "unique_clearers": 0}, false)
+	assert_eq(s.api.record_attempt_calls.size(), 1)
+	assert_eq(s.api.record_clear_calls.size(), 0)
+	assert_eq(s.record.counts(), {"simple": 0, "hardcore": 0, "hard": 0})
+	await _after_ownership_test()
+
+func test_unknown_or_conflicting_answers_add_nothing_and_a_later_confirmed_clear_counts_once() -> void:
+	var failure := {"ok": false, "error_kind": "network_error", "message": "offline"}
+	var s := _entry_for_ownership(failure, failure)
+	await _challenge_online(s, "their-boss", RBMCreatorDraft.CREATOR_MODE_ADVANCED, {"unique_challengers": 20, "unique_clearers": 1})
+	assert_eq(s.entry._defeat_context.get("ownership"), RBMChallengeEntry.DEFEAT_UNKNOWN)
+	assert_eq(s.record.counts(), {"simple": 0, "hardcore": 0, "hard": 0}, "communication failure: not added")
+
+	# 食い違い（挑戦では作者ではない、クリアでは作者）も数えない
+	s.api.configure_record_attempt_response({"ok": true, "challenge_count": 1, "by_owner": false})
+	s.api.configure_record_clear_response({"ok": true, "clear_count": 1, "by_owner": true})
+	await _challenge_online(s, "conflict-boss", RBMCreatorDraft.CREATOR_MODE_SIMPLE, {"unique_challengers": 20, "unique_clearers": 1})
+	assert_eq(s.entry._defeat_context.get("ownership"), RBMChallengeEntry.DEFEAT_CONFLICT)
+	assert_eq(s.record.counts(), {"simple": 0, "hardcore": 0, "hard": 0}, "conflict: not added")
+
+	# 通信が戻ってから同じボスにまた勝つと、その時に1件だけ数える（その挑戦を始めた時のクリア率で難関を決める）
+	s.api.configure_record_attempt_response({"ok": true, "challenge_count": 2, "by_owner": false})
+	s.api.configure_record_clear_response({"ok": true, "clear_count": 2, "by_owner": false})
+	await _challenge_online(s, "their-boss", RBMCreatorDraft.CREATOR_MODE_ADVANCED, {"unique_challengers": 20, "unique_clearers": 1})
+	assert_eq(s.record.counts(), {"simple": 0, "hardcore": 1, "hard": 1})
+	await _challenge_online(s, "their-boss", RBMCreatorDraft.CREATOR_MODE_ADVANCED, {"unique_challengers": 20, "unique_clearers": 1})
+	assert_eq(s.record.counts(), {"simple": 0, "hardcore": 1, "hard": 1}, "a re-clear does not add")
+	await _after_ownership_test()
+
+func test_other_players_bosses_count_by_mode_and_the_hard_rate_at_0_5_and_10_percent_and_stay_recorded() -> void:
+	var s := _entry_for_ownership({"ok": true, "challenge_count": 1, "by_owner": false}, {"ok": true, "clear_count": 1, "by_owner": false})
+	await _challenge_online(s, "rate-0", RBMCreatorDraft.CREATOR_MODE_SIMPLE, {"unique_challengers": 20, "unique_clearers": 0})
+	await _challenge_online(s, "rate-5", RBMCreatorDraft.CREATOR_MODE_ADVANCED, {"unique_challengers": 20, "unique_clearers": 1})
+	await _challenge_online(s, "rate-10", RBMCreatorDraft.CREATOR_MODE_SIMPLE, {"unique_challengers": 20, "unique_clearers": 2})
+	assert_eq(s.record.counts(), {"simple": 2, "hardcore": 1, "hard": 2}, "0% and exactly 5% are hard, 10% is not")
+	# 作者のボスの勝利を挟んでも、もう数えた記録は消えない
+	s.api.configure_record_attempt_response({"ok": true, "challenge_count": 1, "by_owner": true})
+	s.api.configure_record_clear_response({"ok": true, "clear_count": 1, "by_owner": true})
+	await _challenge_online(s, "own-boss", RBMCreatorDraft.CREATOR_MODE_SIMPLE, {"unique_challengers": 20, "unique_clearers": 0})
+	assert_eq(s.record.counts(), {"simple": 2, "hardcore": 1, "hard": 2})
+	# 読み直しても同じ（手元と Steam Cloud の形式は今までどおり）
+	var reloaded := RBMDefeatRecord.new(ACCOUNT_A, s.cloud)
+	reloaded.load_records()
+	assert_eq(reloaded.counts(), {"simple": 2, "hardcore": 1, "hard": 2})
+	assert_true((s.cloud as RBMFakeSteamCloud).files.has(RBMDefeatRecord.CLOUD_FILE))
+	await _after_ownership_test()
+
+func test_the_local_online_ids_list_only_published_bosses_and_skip_broken_files() -> void:
+	var published := _draft(RBMCreatorDraft.CREATOR_MODE_SIMPLE)
+	published.set_online_boss_id("online-id-1")
+	RBMLocalStageRepository.save_new(published)
+	RBMLocalStageRepository.save_new(_draft(RBMCreatorDraft.CREATOR_MODE_SIMPLE))
+	var broken := FileAccess.open(TEST_DIR.path_join("1234567890.json"), FileAccess.WRITE)
+	broken.store_string("{ not json")
+	broken.close()
+	assert_eq(RBMLocalStageRepository.online_boss_ids(), {"online-id-1": true}, "only the boss published from this PC; a broken file is skipped quietly")

@@ -366,3 +366,33 @@ Deno.test("a failure while counting challengers returns an error instead of rows
   assertEquals(body.error_kind, "db_error");
   assertEquals(body.bosses, undefined);
 });
+
+// 2026-10-22: カードのクリア率（クリア者数 ÷ 挑戦者数。手元の討伐記録の「難関」= 5% 以下の判定にも使う）は、
+// 作者本人の挑戦（by_owner = true）を除いて数える。0%・ちょうど5%・5%超の境界で確かめる。
+function seedRateBoss(db: FakePostgrestClient, id: string, day: number, others: number, othersCleared: number): void {
+  db.seed("bosses", [{ id, boss_name: id, author_name: "A", published_at: isoDay(day), revision: 1, is_published: true,
+    payload: { draft_fields: { creator_mode: "simple" } } }]);
+  const rows = [];
+  for (let i = 0; i < others; i++) {
+    rows.push({ id: `${id}-p${i}`, boss_id: id, challenger_steam_id: `p${i}`, challenge_count: 1, clear_count: i < othersCleared ? 1 : 0 });
+  }
+  rows.push({ id: `${id}-owner`, boss_id: id, challenger_steam_id: "author", challenge_count: 3, clear_count: 1, by_owner: true });
+  db.seed("boss_challenge_records", rows);
+}
+
+Deno.test("the clear rate leaves out the author's own clear (0%, exactly 5%, over 5%)", async () => {
+  const db = new FakePostgrestClient();
+  seedRateBoss(db, "rate-0", 3, 20, 0);
+  seedRateBoss(db, "rate-5", 2, 20, 1);
+  seedRateBoss(db, "rate-over-5", 1, 20, 2);
+
+  const { status, body } = await page(db, "?limit=10");
+  assertEquals(status, 200);
+  const rate = (id: string) => {
+    const row = body.bosses!.find((b) => b.id === id)!;
+    return { challengers: row.unique_challengers, clearers: row.unique_clearers, rate: row.unique_clearers / row.unique_challengers };
+  };
+  assertEquals(rate("rate-0"), { challengers: 20, clearers: 0, rate: 0 }, "the author's clear alone does not lift 0%");
+  assertEquals(rate("rate-5"), { challengers: 20, clearers: 1, rate: 0.05 }, "exactly 5% stays 5% (not 2/21)");
+  assertEquals(rate("rate-over-5"), { challengers: 20, clearers: 2, rate: 0.1 });
+});

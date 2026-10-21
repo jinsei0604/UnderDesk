@@ -24,6 +24,8 @@ export interface RecordChallengeClearRequestBody {
 export interface RecordChallengeClearResponseBody {
   ok: boolean;
   clear_count?: number;
+  // 2026-10-22: 記録した本人がこのボスの作者か（DB のトリガーが決めた by_owner）。ゲームが討伐記録に数えるかの判断に使う
+  by_owner?: boolean;
   error_kind?: string;
   message?: string;
 }
@@ -48,6 +50,7 @@ interface BossExistsRow {
 
 interface ChallengeRecordRow {
   clear_count: number;
+  by_owner?: boolean;
 }
 
 export async function handleRecordChallengeClear(
@@ -101,7 +104,7 @@ export async function handleRecordChallengeClear(
     return jsonResponse({ ok: false, error_kind: "db_error", message: recorded.errorMessage ?? "" }, 502);
   }
 
-  return jsonResponse({ ok: true, clear_count: recorded.rows[0].clear_count }, 200);
+  return jsonResponse({ ok: true, clear_count: recorded.rows[0].clear_count, by_owner: recorded.rows[0].by_owner === true }, 200);
 }
 
 if (import.meta.main) {

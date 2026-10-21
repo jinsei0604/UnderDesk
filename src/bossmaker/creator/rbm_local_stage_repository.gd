@@ -862,6 +862,27 @@ static func list() -> Array[Dictionary]:
 		})
 	return out
 
+## この PC に保存したボスのうち、オンラインに公開したことのあるボスの id（{id: true}）。読み取りだけ（2026-10-22）。
+## 挑戦トップの討伐記録で「自分が作ったボスか」を補助的に確かめるため。list() と違い、各ファイルの draft.online_boss_id
+## だけを読む（検証・Draft の組み立てをしないので軽い）。壊れた・読めないファイルは静かに飛ばす。
+static func online_boss_ids() -> Dictionary:
+	var out := {}
+	if not DirAccess.dir_exists_absolute(stages_dir()):
+		return out
+	for file_name in DirAccess.get_files_at(stages_dir()):
+		if not file_name.ends_with(".json") or not _is_valid_stage_id(file_name.get_basename()):
+			continue
+		var json := JSON.new()
+		if json.parse(FileAccess.get_file_as_string(stages_dir().path_join(file_name))) != OK:
+			continue
+		var parsed: Variant = json.get_data()
+		if not (parsed is Dictionary) or not (parsed.get("draft", null) is Dictionary):
+			continue
+		var online_id: Variant = (parsed["draft"] as Dictionary).get("online_boss_id", "")
+		if online_id is String and not (online_id as String).is_empty():
+			out[online_id] = true
+	return out
+
 ## §26: 新規保存/新しいボスとして保存の直前に呼ぶ同名警告用チェック。
 ## 大文字小文字を無視した完全一致（部分一致ではない）——"Dragon"/"dragon"/
 ## "DRAGON"はすべて同名として扱う。§33の検索（ボス名部分一致・大文字小文字

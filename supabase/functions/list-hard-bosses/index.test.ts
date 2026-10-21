@@ -340,3 +340,37 @@ Deno.test("the ranking uses the corrected rate even when the displayed clear rat
   assertEquals(body.bosses!.map((b) => b.boss_name), ["表示9.1%", "表示8.3%"], "rank by the corrected rate");
   assertEquals(body.bosses!.map((b) => [b.unique_clearers, b.unique_challengers]), [[3, 33], [1, 12]], "the screen still shows the plain 9.1% / 8.3%");
 });
+
+// 2026-10-22: 作者本人の挑戦（by_owner = true、DB のトリガーが決める）は、5人以上の条件にもクリア率にも数えない。
+function seedOwnerRecord(db: FakePostgrestClient, bossId: string, cleared: boolean): void {
+  db.seed("boss_challenge_records", [{
+    id: `${bossId}-owner`,
+    boss_id: bossId,
+    challenger_steam_id: `owner-of-${bossId}`,
+    challenge_count: 9,
+    clear_count: cleared ? 1 : 0,
+    by_owner: true,
+  }]);
+}
+
+Deno.test("the author's own challenge does not count toward the 5-challenger threshold", async () => {
+  const db = new FakePostgrestClient();
+  seedBoss(db, "four-plus-owner", "作者を入れると5人", "2026-01-01T00:00:00Z");
+  seedChallengers(db, "four-plus-owner", 4, 0);
+  seedOwnerRecord(db, "four-plus-owner", true);
+
+  const body: ListHardBossesResponseBody = await (await handleListHardBosses(req(), db)).json();
+  assertEquals(body.bosses!.length, 0, "4 other players + the author is still fewer than 5");
+});
+
+Deno.test("five challengers other than the author qualify, and the author's clear is left out of the rate", async () => {
+  const db = new FakePostgrestClient();
+  seedBoss(db, "five-plus-owner", "作者以外が5人", "2026-01-01T00:00:00Z");
+  seedChallengers(db, "five-plus-owner", 5, 0);
+  seedOwnerRecord(db, "five-plus-owner", true);
+
+  const body: ListHardBossesResponseBody = await (await handleListHardBosses(req(), db)).json();
+  assertEquals(body.bosses!.length, 1);
+  assertEquals(body.bosses![0].unique_challengers, 5, "the author is not a challenger in the count");
+  assertEquals(body.bosses![0].unique_clearers, 0, "the author's own clear does not make the boss look easier");
+});

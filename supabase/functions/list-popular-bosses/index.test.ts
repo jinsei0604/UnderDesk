@@ -341,3 +341,21 @@ Deno.test("each popular row carries the appearance id from the payload (empty wh
   const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
   assertEquals(body.bosses!.map((b) => [b.id, b.appearance_id]), [["with", "appearance_musha"], ["without", ""]]);
 });
+
+// 2026-10-22: 作者本人の挑戦（by_owner = true）は、人気の挑戦者数・延べ挑戦回数・クリア者数に数えない。
+Deno.test("the author's own challenges never raise a boss in the popular ranking", async () => {
+  const db = new FakePostgrestClient();
+  seedBoss(db, "self-played", "作者が何度も挑戦したボス", "2026-01-02T00:00:00Z");
+  seedChallengers(db, "self-played", [{ steamId: "p1", challengeCount: 1 }]);
+  db.seed("boss_challenge_records", [
+    { id: "self-played-owner", boss_id: "self-played", challenger_steam_id: "author", challenge_count: 50, clear_count: 3, by_owner: true },
+  ]);
+  seedBoss(db, "others", "ほかの人が2人挑戦したボス", "2026-01-01T00:00:00Z");
+  seedChallengers(db, "others", [{ steamId: "p1", challengeCount: 1 }, { steamId: "p2", challengeCount: 1 }]);
+
+  const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
+  assertEquals(body.bosses!.map((b) => b.boss_name), ["ほかの人が2人挑戦したボス", "作者が何度も挑戦したボス"]);
+  const selfPlayed = body.bosses!.find((b) => b.boss_name === "作者が何度も挑戦したボス")!;
+  assertEquals(selfPlayed.unique_challengers, 1);
+  assertEquals(selfPlayed.unique_clearers, 0);
+});

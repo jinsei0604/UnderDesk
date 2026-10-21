@@ -9,8 +9,9 @@ var _publish_response: Dictionary = {"ok": true, "boss_id": "fake-boss-id", "rev
 var _unpublish_response: Dictionary = {"ok": true}
 var _list_response: Dictionary = {"ok": true, "bosses": []}
 var _get_response: Dictionary = {"ok": true, "boss": {}}
-var _record_attempt_response: Dictionary = {"ok": true, "challenge_count": 1}
-var _record_clear_response: Dictionary = {"ok": true, "clear_count": 1}
+## 既定の応答は今のサーバーと同じ形（by_owner: 記録した本人がボスの作者か。2026-10-22。ここでは作者ではない人の挑戦）
+var _record_attempt_response: Dictionary = {"ok": true, "challenge_count": 1, "by_owner": false}
+var _record_clear_response: Dictionary = {"ok": true, "clear_count": 1, "by_owner": false}
 var _list_unchallenged_response: Dictionary = {"ok": true, "bosses": []}
 var _list_popular_response: Dictionary = {"ok": true, "bosses": []}
 var _list_hard_response: Dictionary = {"ok": true, "bosses": []}

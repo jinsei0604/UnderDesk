@@ -108,7 +108,8 @@ export async function handleListHardBosses(req: Request, db: SupabaseRestClient)
   const recordsLookup = await selectAllPages<ChallengeRecordAggregateRow>(
     db,
     "boss_challenge_records",
-    "select=id,boss_id,clear_count",
+    // 作者本人の挑戦（by_owner、DB のトリガーが決める）は数えない（2026-10-22）。5人以上の条件も作者を除いた人数
+    "by_owner=is.false&select=id,boss_id,clear_count",
   );
   if (!recordsLookup.ok) {
     return jsonResponse({ ok: false, error_kind: "db_error", message: recordsLookup.errorMessage ?? "" }, 502);

@@ -25,10 +25,10 @@ class Recorder:
 	var clears: Array[String] = []
 	func record_challenge_attempt(boss_id: String) -> Dictionary:
 		attempts.append(boss_id)
-		return {"ok": true, "error_kind": "", "message": "", "challenge_count": attempts.size()}
+		return {"ok": true, "error_kind": "", "message": "", "challenge_count": attempts.size(), "by_owner": false}
 	func record_challenge_clear(boss_id: String) -> Dictionary:
 		clears.append(boss_id)
-		return {"ok": true, "error_kind": "", "message": "", "clear_count": clears.size()}
+		return {"ok": true, "error_kind": "", "message": "", "clear_count": clears.size(), "by_owner": false}
 	func account_id() -> String:
 		return ""
 
