@@ -31,8 +31,10 @@ export interface SteamWebApiClient {
   ): Promise<RawHttpResult>;
 }
 
-const AUTHENTICATE_USER_TICKET_URL =
-  "https://api.steampowered.com/ISteamUserAuth/AuthenticateUserTicket/v1/";
+// Publisher Web API Key を使う問い合わせは、Valve の説明どおり partner 用の宛先へ送る
+// （「自分の安全なサーバーからの要求はすべて partner.steam-api.com」。2026-10-21 に api.steampowered.com から変更）。
+export const AUTHENTICATE_USER_TICKET_URL =
+  "https://partner.steam-api.com/ISteamUserAuth/AuthenticateUserTicket/v1/";
 
 // Steam公式ドキュメントの ISteamUserAuth/AuthenticateUserTicket を実際に
 // 叩く実装。正式なSTEAM_PUBLISHER_WEB_API_KEYが用意されるPhase 4A-2まで、

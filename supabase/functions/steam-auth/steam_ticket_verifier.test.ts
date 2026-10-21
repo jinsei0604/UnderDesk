@@ -6,8 +6,10 @@
 
 import { assertEquals } from "jsr:@std/assert";
 import {
+  AUTHENTICATE_USER_TICKET_URL,
   AuthenticateUserTicketParams,
   RawHttpResult,
+  RealSteamWebApiClient,
   SteamWebApiClient,
 } from "./steam_web_api_client.ts";
 import { SteamTicketVerifier } from "./steam_ticket_verifier.ts";
@@ -143,4 +145,33 @@ Deno.test("missing publisher web api key short-circuits to not_configured withou
   assertEquals(result.ok, false);
   assertEquals(result.errorKind, "not_configured");
   assertEquals(client.lastParams, null);
+});
+
+// 2026-10-21: Publisher Web API Key での問い合わせは、Valve の説明どおり partner 用の宛先へ送る。
+// 本物の通信はしない（fetch を差し替えて、組み立てた URL だけを見る）。
+Deno.test("the real client sends AuthenticateUserTicket to the partner host with key, appid, ticket and identity", async () => {
+  const originalFetch = globalThis.fetch;
+  let requested = "";
+  globalThis.fetch = ((input: string | URL | Request) => {
+    requested = String(input);
+    return Promise.resolve(new Response('{"response":{}}', { status: 200 }));
+  }) as typeof fetch;
+  try {
+    await new RealSteamWebApiClient().authenticateUserTicket({
+      publisherWebApiKey: "test-publisher-key",
+      appId: 5482410,
+      ticketHex: "4af203",
+      identity: "makers-and-challengers-backend",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  const url = new URL(requested);
+  assertEquals(AUTHENTICATE_USER_TICKET_URL, "https://partner.steam-api.com/ISteamUserAuth/AuthenticateUserTicket/v1/");
+  assertEquals(url.origin, "https://partner.steam-api.com");
+  assertEquals(url.pathname, "/ISteamUserAuth/AuthenticateUserTicket/v1/");
+  assertEquals(url.searchParams.get("key"), "test-publisher-key");
+  assertEquals(url.searchParams.get("appid"), "5482410");
+  assertEquals(url.searchParams.get("ticket"), "4af203");
+  assertEquals(url.searchParams.get("identity"), "makers-and-challengers-backend");
 });

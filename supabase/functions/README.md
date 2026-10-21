@@ -11,6 +11,13 @@
 - JWT の確認: 2026-10-17 時点で、デプロイ済みの関数はすべて `verify_jwt: true`（`supabase functions list` で確認）。新しい関数も同じ設定（既定）でデプロイする。
 - 無料枠のプロジェクトは、しばらく使われないと一時停止される（2026-10-17 に停止中を確認）。停止中はすべてのオンライン機能が通信の失敗になる。再開はダッシュボードから。
 
+## Steam の本人確認（公開・挑戦の記録・未挑戦）
+
+- ゲームは GetAuthTicketForWebApi（identity `makers-and-challengers-backend`、`RBMSteamAuth.WEB_API_IDENTITY` と `steam-auth/index.ts` の `WEB_API_IDENTITY` を必ず同じにする）で ticket を取り、hex で送る。関数は Valve の AuthenticateUserTicket（`https://partner.steam-api.com/ISteamUserAuth/AuthenticateUserTicket/v1/`。Publisher Web API Key の問い合わせは partner 用の宛先、という Valve の説明に従う）で確かめた SteamID だけを使う。リクエストに入っている SteamID は使わない。
+- 要る Secrets（Supabase の Edge Functions → Secrets）: `STEAM_APP_ID`（正式 AppID 5482410）と `STEAM_PUBLISHER_WEB_API_KEY`（Steamworks の Users & Permissions → Manage Groups → アプリのグループ → Create WebAPI Key。管理者だけが作れる）。どちらかが無い間、`publish-boss`・`unpublish-boss`・`record-challenge-attempt`・`record-challenge-clear`・`list-unchallenged-bosses` は 503 `not_configured` を返す。
+- 鍵はゲーム・Git・ログ・チャットに入れない。入れ方: ダッシュボードで入力するか、リポジトリの外に置いた一時ファイルで `supabase secrets set --env-file <ファイル>`（流した後にファイルを消す）。Edge Functions の出口の IP は決まっていないので、鍵の IP の制限は付けない。
+- 確かめ（読み取りだけ）: 書き出した検証版で `MakersAndChallengers.console.exe -- --report=<出力> --steam=1`（本物の ticket で `list-unchallenged-bosses` を呼ぶ。鍵が入っていれば 200）。
+
 ## 読み取りの関数と公開範囲
 
 | 関数 | 内容 | 読むもの |

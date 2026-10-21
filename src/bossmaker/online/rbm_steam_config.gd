@@ -10,13 +10,14 @@ extends RefCounted
 ##      .gitignore対象、実行ファイルと同じ場所に置くSteamworks公式の
 ##      steam_appid.txt規約とは別に、Godot側で明示的にsteamInitEx()へ
 ##      渡す値をこのファイル1つで管理する）
-##   3. どちらにも無ければOFFICIAL_APP_ID（Phase 4A-1時点では0=未設定）
+##   3. GUT（自動テスト）の中では 0=未設定（下の app_id() の説明）
+##   4. どれも無ければOFFICIAL_APP_ID
 ##
-## §重要: Makers & Challengers正式AppIDが発行されたら、OFFICIAL_APP_ID
-## を1箇所書き換えるだけで済む設計。480（ValveのSpacewar開発確認用ID）は
-## この定数へ絶対に書かない——480は steam_dev_appid.local.txt という
-## コミット対象外のファイルにのみ置く、開発者ローカルの一時値。
-const OFFICIAL_APP_ID := 0
+## 正式AppID（2026-10-21、Steamworks で Makers & Challengers を登録）。エディター・書き出した版・Steam から
+## 起動した版のどれも、この値で steamInitEx() する（GodotSteam が SteamAppId の環境変数を立てるので、
+## 書き出した版の横に steam_appid.txt は要らない。配布物には入れない）。480（ValveのSpacewar開発確認用ID）は
+## この定数へ絶対に書かない——試す時は steam_dev_appid.local.txt（コミット対象外）に置く。
+const OFFICIAL_APP_ID := 5482410
 
 const ENV_APP_ID_KEY := "STEAM_APP_ID"
 const DEFAULT_LOCAL_DEV_APP_ID_PATH := "res://steam_dev_appid.local.txt"
@@ -43,15 +44,19 @@ static func app_id() -> int:
 	if from_local > 0:
 		return from_local
 
+	# GUT の中では、テストが明示した値（環境変数・テスト用のファイル）が無い限り未設定として扱う。
+	# 開発機で起動している本物の Steam を、テストが正式 AppID で初期化しないため
+	# （保存先・言語設定と同じ RBMLocalStageRepository.running_under_gut() の安全網。2026-10-21）。
+	if RBMLocalStageRepository.running_under_gut():
+		return 0
 	return OFFICIAL_APP_ID
 
 static func is_configured() -> bool:
 	return app_id() > 0
 
-## 現在解決されているAppIDが、正式値(OFFICIAL_APP_ID、Phase 4A-1時点では
-## 未設定=0)ではなく、開発用の一時値（環境変数またはローカルファイル）
-## から来ているかどうか——ログ・UI表示で「これは開発用AppIDです」と
-## 明示するために使う。
+## 現在解決されているAppIDが、正式値(OFFICIAL_APP_ID)ではなく、開発用の
+## 一時値（環境変数またはローカルファイル）から来ているかどうか——ログ・UI表示で
+## 「これは開発用AppIDです」と明示するために使う。
 static func is_using_development_override() -> bool:
 	return is_configured() and app_id() != OFFICIAL_APP_ID
 
