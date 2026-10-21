@@ -2,7 +2,8 @@
 // ボス」を返す。
 //
 // 順位(ユーザー確定仕様):
-//   1. ユニーク挑戦者数 DESC
+//   1. ユニーク挑戦者数 DESC(2026-10-23 から、作者本人を除き、決着した戦闘の結果がある人の数。一覧・検索・高難度・
+//      難関ボス討伐の認定と同じ数え方。_shared/boss_card_fields.ts を参照)
 //   2. 同数なら総挑戦回数 DESC
 //   3. さらに同数ならpublished_at DESC
 //   (それでも完全に同じなら、並びを毎回同じにするためだけにid ASC)
@@ -63,7 +64,7 @@ interface ChallengeRecordAggregateRow {
   id: string;
   boss_id: string;
   challenge_count: number;
-  clear_count: number;
+  result_clear_count: number;
 }
 
 function jsonResponse(body: ListPopularBossesResponseBody, status: number): Response {
@@ -109,8 +110,8 @@ export async function handleListPopularBosses(req: Request, db: SupabaseRestClie
   const recordsLookup = await selectAllPages<ChallengeRecordAggregateRow>(
     db,
     "boss_challenge_records",
-    // 作者本人の挑戦（by_owner、DB のトリガーが決める）は数えない（2026-10-22）
-    "by_owner=is.false&select=id,boss_id,challenge_count,clear_count",
+    // 作者本人の挑戦（by_owner、DB のトリガーが決める）は数えない（2026-10-22）。決着した結果がある人だけ（2026-10-23）
+    "by_owner=is.false&result_count=gt.0&select=id,boss_id,challenge_count,result_clear_count",
   );
   if (!recordsLookup.ok) {
     return jsonResponse({ ok: false, error_kind: "db_error", message: recordsLookup.errorMessage ?? "" }, 502);
@@ -123,7 +124,7 @@ export async function handleListPopularBosses(req: Request, db: SupabaseRestClie
     const current = aggregates.get(record.boss_id) ?? { uniqueChallengers: 0, totalChallenges: 0, uniqueClearers: 0 };
     current.uniqueChallengers += 1;
     current.totalChallenges += Number(record.challenge_count) || 0;
-    if (Number(record.clear_count) > 0) current.uniqueClearers += 1;
+    if (Number(record.result_clear_count) > 0) current.uniqueClearers += 1;
     aggregates.set(record.boss_id, current);
   }
 

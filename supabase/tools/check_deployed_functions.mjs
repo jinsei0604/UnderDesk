@@ -1,6 +1,7 @@
 // 本番の Edge Functions の読み取りだけの確認（2026-10-20、デプロイの前後で同じものを流す）。
 // 接続先と公開用の鍵は supabase_poc.local.env から読む。値は出力しない（状態コード・項目の名前・件数だけ）。
-// 書き込む関数は呼ばない。Steam の ticket が要る関数は、ticket 無し・形だけの ticket で入口の振る舞いだけを見る。
+// 書き込む関数は呼ばない。Steam の ticket が要る関数は、ticket 無し・形だけの ticket で入口の振る舞いだけを見る
+// （Steam の確認で止まり、DB には届かない。2026-10-23 から、戦闘チケット・結果・認定の一覧の関数も同じ形で見る）。
 // 実行（リポジトリの直下）: node supabase/tools/check_deployed_functions.mjs [出力.json]
 import fs from "node:fs";
 
@@ -50,6 +51,13 @@ out.push(await call("get-boss invalid id", fn("get-boss?id=not-a-uuid")));
 // Steam の ticket が要る関数（入口だけ）
 out.push(await call("list-unchallenged no ticket", fn("list-unchallenged-bosses"), { method: "POST", body: {} }));
 out.push(await call("list-unchallenged fake ticket", fn("list-unchallenged-bosses"), { method: "POST", body: { ticket: "aabbcc", limit: 5 } }));
+const NO_ID = "00000000-0000-4000-8000-000000000000";
+out.push(await call("record-challenge-attempt no ticket", fn("record-challenge-attempt"), { method: "POST", body: {} }));
+out.push(await call("issue-battle-ticket no ticket", fn("issue-battle-ticket"), { method: "POST", body: {} }));
+out.push(await call("issue-battle-ticket fake ticket", fn("issue-battle-ticket"), { method: "POST", body: { ticket: "aabbcc", boss_id: NO_ID } }));
+out.push(await call("submit-battle-result no ticket", fn("submit-battle-result"), { method: "POST", body: {} }));
+out.push(await call("submit-battle-result fake ticket", fn("submit-battle-result"), { method: "POST", body: { ticket: "aabbcc", results: [], next_ticket_boss_id: NO_ID } }));
+out.push(await call("list-my-hard-awards fake ticket", fn("list-my-hard-awards"), { method: "POST", body: { ticket: "aabbcc" } }));
 // 違う鍵（JWT の確認が効いているか）
 const BAD = "sb_publishable_this_key_does_not_exist_0000";
 out.push(await call("list-bosses bad key", fn("list-bosses?limit=5"), { key: BAD }));
@@ -57,4 +65,5 @@ out.push(await call("get-boss bad key", fn("get-boss?id=00000000-0000-4000-8000-
 // 表を直接読めないか（公開範囲）
 out.push(await call("REST bosses (direct)", "/rest/v1/bosses?select=id,owner_steam_id&limit=1"));
 out.push(await call("REST boss_challenge_records (direct)", "/rest/v1/boss_challenge_records?select=boss_id,challenger_steam_id&limit=1"));
+out.push(await call("REST boss_battle_tickets (direct)", "/rest/v1/boss_battle_tickets?select=id&limit=1"));
 if (process.argv[2]) fs.writeFileSync(process.argv[2], JSON.stringify(out, null, 2));

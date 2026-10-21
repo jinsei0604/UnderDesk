@@ -18,6 +18,20 @@ type Row = Record<string, unknown>;
 // 本物の DB の列の既定（seed で指定しない列に入れる）。2026-10-22: 作者本人の挑戦の印。
 const COLUMN_DEFAULTS: Record<string, Row> = { boss_challenge_records: { by_owner: false } };
 
+// 2026-10-23: 決着した戦闘の結果の数（result_count・result_clear_count。一覧・人気・高難度はこれで数える）。
+// 旧来の項目（challenge_count・clear_count）だけで seed した記録は、テストを書いた時の意味のとおり「決着した結果がある人」
+// （結果1回以上、勝ちの回数 = clear_count）として扱う。結果の無い記録（挑戦を始めただけ・旧版のクリアの記録）は、
+// result_count: 0 を明示して試す。
+function withResultDefaults(table: string, row: Row): Row {
+  if (table !== "boss_challenge_records") return row;
+  const clears = Number(row.clear_count ?? 0) || 0;
+  return {
+    result_count: Math.max(1, clears),
+    result_clear_count: clears,
+    ...row,
+  };
+}
+
 export const FAKE_INTERNAL_ERROR = '{"code":"42703","message":"column bosses.owner_steam_id does not exist"}';
 
 export class FakePostgrestClient implements SupabaseCountingRestClient {
@@ -33,7 +47,7 @@ export class FakePostgrestClient implements SupabaseCountingRestClient {
 
   seed(table: string, rows: Row[]): void {
     const defaults = COLUMN_DEFAULTS[table] ?? {};
-    this.tables.set(table, [...(this.tables.get(table) ?? []), ...rows.map((row) => ({ ...defaults, ...row }))]);
+    this.tables.set(table, [...(this.tables.get(table) ?? []), ...rows.map((row) => withResultDefaults(table, { ...defaults, ...row }))]);
   }
 
   remove(table: string, predicate: (row: Row) => boolean): void {

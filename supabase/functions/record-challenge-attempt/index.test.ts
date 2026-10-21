@@ -191,3 +191,55 @@ Deno.test("the author can challenge their own boss and the attempt is reported a
   const body: RecordChallengeAttemptResponseBody = await res.json();
   assertEquals(body, { ok: true, challenge_count: 1, by_owner: true });
 });
+
+// 2026-10-23: 戦闘チケット。新しいゲームは want_battle_ticket を送り、最初の戦闘のチケットを同じ応答で受け取る。
+Deno.test("with want_battle_ticket the first battle ticket comes back, bound to the verified player, the boss and its DB mode", async () => {
+  const db = new FakeSupabaseRestClient();
+  db.seed("bosses", [{ id: PUBLISHED_BOSS_ID, boss_name: "公開ボス", is_published: true, revision: 3, payload: { draft_fields: { creator_mode: "advanced" } } }]);
+  const res = await handleRecordChallengeAttempt(
+    postJson({ ticket: VALID_HEX_TICKET, boss_id: PUBLISHED_BOSS_ID, want_battle_ticket: true, steam_id: "1", creator_mode: "simple" }),
+    verifierSucceedingAs(STEAM_ID),
+    db,
+    480,
+  );
+  assertEquals(res.status, 200);
+  const body: RecordChallengeAttemptResponseBody = await res.json();
+  assertEquals(body.ok, true);
+  assertEquals(body.challenge_count, 1);
+  assertEquals(typeof body.battle_ticket, "string");
+  assertEquals(typeof body.ticket_expires_at, "string");
+  assertEquals(body.ticket_status, undefined);
+  const tickets = db.rowsOf("boss_battle_tickets");
+  assertEquals(tickets.length, 1);
+  assertEquals(tickets[0].id, body.battle_ticket);
+  assertEquals(tickets[0].challenger_steam_id, STEAM_ID, "never the steam_id in the request");
+  assertEquals(tickets[0].boss_id, PUBLISHED_BOSS_ID);
+  assertEquals(tickets[0].creator_mode, "advanced", "the mode is the boss's mode in the DB, not the client's");
+  assertEquals(tickets[0].boss_revision, 3);
+});
+
+Deno.test("an old game that does not ask for a battle ticket gets the same attempt response and no ticket is made", async () => {
+  const db = dbWithBosses();
+  const res = await handleRecordChallengeAttempt(postJson({ ticket: VALID_HEX_TICKET, boss_id: PUBLISHED_BOSS_ID }), verifierSucceedingAs(STEAM_ID), db, 480);
+  assertEquals(await res.json(), { ok: true, challenge_count: 1, by_owner: false });
+  assertEquals(db.rowsOf("boss_battle_tickets").length, 0);
+});
+
+Deno.test("when no ticket can be issued the attempt is still recorded and the reason is given (the battle is never blocked)", async () => {
+  const limited = dbWithBosses();
+  for (let i = 0; i < 60; i++) {
+    await handleRecordChallengeAttempt(postJson({ ticket: VALID_HEX_TICKET, boss_id: PUBLISHED_BOSS_ID, want_battle_ticket: true }), verifierSucceedingAs(STEAM_ID), limited, 480);
+  }
+  const res = await handleRecordChallengeAttempt(postJson({ ticket: VALID_HEX_TICKET, boss_id: PUBLISHED_BOSS_ID, want_battle_ticket: true }), verifierSucceedingAs(STEAM_ID), limited, 480);
+  assertEquals(res.status, 200);
+  const body: RecordChallengeAttemptResponseBody = await res.json();
+  assertEquals([body.ok, body.challenge_count, body.battle_ticket, body.ticket_status], [true, 61, undefined, "rate_limited"]);
+
+  const failing = dbWithBosses();
+  failing.failRpcCall("issue_boss_battle_ticket", 1);
+  const failed = await handleRecordChallengeAttempt(postJson({ ticket: VALID_HEX_TICKET, boss_id: PUBLISHED_BOSS_ID, want_battle_ticket: true }), verifierSucceedingAs(STEAM_ID), failing, 480);
+  assertEquals(failed.status, 200);
+  const text = await failed.text();
+  assertEquals(JSON.parse(text), { ok: true, challenge_count: 1, by_owner: false, ticket_status: "error" });
+  assertEquals(text.includes("fake failure"), false, "the DB's own message is not returned");
+});

@@ -359,3 +359,20 @@ Deno.test("the author's own challenges never raise a boss in the popular ranking
   assertEquals(selfPlayed.unique_challengers, 1);
   assertEquals(selfPlayed.unique_clearers, 0);
 });
+
+// 2026-10-23: 挑戦者は、作者本人を除き、戦闘チケットで決着した結果がある人だけ（一覧のカード・高難度と同じ数え方）。
+// 順位の決まり（挑戦者数 → 総挑戦回数 → 公開日時 → id）は変えない。
+Deno.test("only players with a settled battle result are challengers and clearers; starting alone never raises a boss", async () => {
+  const db = new FakePostgrestClient();
+  seedBoss(db, "started-only", "始めただけのボス", "2026-01-02T00:00:00Z");
+  db.seed("boss_challenge_records", [0, 1, 2, 3, 4].map((i) => ({
+    id: `s-${i}`, boss_id: "started-only", challenger_steam_id: `s${i}`, challenge_count: 10, clear_count: 1, result_count: 0, result_clear_count: 0,
+  })));
+  seedBoss(db, "settled", "決着したボス", "2026-01-01T00:00:00Z");
+  db.seed("boss_challenge_records", [
+    { id: "d-0", boss_id: "settled", challenger_steam_id: "d0", challenge_count: 1, clear_count: 1, result_count: 1, result_clear_count: 1 },
+    { id: "d-1", boss_id: "settled", challenger_steam_id: "d1", challenge_count: 1, clear_count: 3, result_count: 2, result_clear_count: 0 },
+  ]);
+  const body: ListPopularBossesResponseBody = await (await handleListPopularBosses(req(), db)).json();
+  assertEquals(body.bosses!.map((b) => [b.id, b.unique_challengers, b.unique_clearers]), [["settled", 2, 1], ["started-only", 0, 0]]);
+});

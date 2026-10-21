@@ -22,6 +22,18 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
   private failingSelects: { table: string; call: number }[] = [];
   // 発行されたselectの記録(テーブルごとの回数を数えるため)。
   selectCalls: { table: string; query: string }[] = [];
+  // 2026-10-23: 呼ばれた RPC の記録と、失敗させる RPC（名前・何回目か）。時計（チケットの期限・発行の上限を試すため）。
+  rpcCalls: { name: string; params: Record<string, unknown> }[] = [];
+  private failingRpcs: { name: string; call: number }[] = [];
+  nowMs: number | null = null;
+
+  failRpcCall(name: string, call: number): void {
+    this.failingRpcs.push({ name, call });
+  }
+
+  private now(): number {
+    return this.nowMs ?? Date.now();
+  }
 
   addUniqueConstraint(constraint: UniqueConstraint): void {
     this.uniqueConstraints.push(constraint);
@@ -167,6 +179,17 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
   // 明示的にハードコードする(汎用的なSQL実行エンジンにはしない、この
   // プロジェクトが実際に呼ぶ範囲だけをサポートする既存方針を踏襲)。
   async rpc<T>(functionName: string, params: Record<string, unknown>): Promise<RestResult<T>> {
+    this.rpcCalls.push({ name: functionName, params });
+    const call = this.rpcCalls.filter((c) => c.name === functionName).length;
+    if (this.failingRpcs.some((f) => f.name === functionName && f.call === call)) {
+      return Promise.resolve({ ok: false, rows: [], status: 503, errorMessage: `fake failure on rpc ${functionName} #${call}` });
+    }
+    if (functionName === "issue_boss_battle_ticket") {
+      return Promise.resolve({ ok: true, rows: [this.issueTicket(params) as T], status: 200 });
+    }
+    if (functionName === "submit_boss_battle_result") {
+      return Promise.resolve({ ok: true, rows: [this.submitResult(params) as T], status: 200 });
+    }
     if (functionName === "record_boss_challenge_attempt") {
       return this.upsertChallengeRecord(params, "attempt") as Promise<RestResult<T>>;
     }
@@ -188,7 +211,7 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
     const bossId = String(params.p_boss_id ?? "");
     const steamId = String(params.p_steam_id ?? "");
     const rows = this.rowsOf("boss_challenge_records");
-    const now = new Date().toISOString();
+    const now = new Date(this.now()).toISOString();
     let row = rows.find((r) => r.boss_id === bossId && r.challenger_steam_id === steamId);
     if (!row) {
       row = {
@@ -197,6 +220,11 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
         challenger_steam_id: steamId,
         challenge_count: 0,
         clear_count: 0,
+        result_count: 0,
+        result_clear_count: 0,
+        first_clear_challengers: null,
+        first_clear_clearers: null,
+        hard_awarded_at: null,
         first_challenged_at: null,
         last_challenged_at: null,
         first_cleared_at: null,
@@ -219,5 +247,144 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
     row.by_owner = this.rowsOf("bosses").some((b) => b.id === bossId && b.owner_steam_id === steamId);
     row.updated_at = now;
     return Promise.resolve({ ok: true, rows: [row], status: 200 });
+  }
+
+  // 本物の DB の issue_boss_battle_ticket() と同じ（2026-10-23）: 公開中のボスだけ。1人×1ボスで1時間に60枚・1人で24時間に600枚まで。
+  // 期限は30日。モード・版は DB（bosses）の値。
+  private issueTicket(params: Record<string, unknown>): Record<string, unknown> {
+    const bossId = String(params.p_boss_id ?? "");
+    const steamId = String(params.p_steam_id ?? "");
+    const boss = this.rowsOf("bosses").find((b) => b.id === bossId && b.is_published === true);
+    if (!boss) return { status: "not_found", ticket_id: null, expires_at: null };
+    const now = this.now();
+    const tickets = this.rowsOf("boss_battle_tickets");
+    const issuedMs = (t: Record<string, unknown>) => Date.parse(String(t.issued_at));
+    if (tickets.filter((t) => t.challenger_steam_id === steamId && t.boss_id === bossId && issuedMs(t) > now - 3600_000).length >= 60) {
+      return { status: "rate_limited", ticket_id: null, expires_at: null };
+    }
+    if (tickets.filter((t) => t.challenger_steam_id === steamId && issuedMs(t) > now - 24 * 3600_000).length >= 600) {
+      return { status: "daily_limit", ticket_id: null, expires_at: null };
+    }
+    const draftFields = ((boss.payload ?? {}) as Record<string, unknown>).draft_fields as Record<string, unknown> | undefined;
+    const ticket = {
+      id: crypto.randomUUID(),
+      boss_id: bossId,
+      challenger_steam_id: steamId,
+      creator_mode: typeof draftFields?.creator_mode === "string" ? draftFields.creator_mode : "simple",
+      boss_revision: boss.revision ?? 1,
+      issued_at: new Date(now).toISOString(),
+      expires_at: new Date(now + 30 * 24 * 3600_000).toISOString(),
+      used_at: null,
+      outcome: null,
+      result_id: null,
+    };
+    this.tables.set("boss_battle_tickets", [...tickets, ticket]);
+    return { status: "issued", ticket_id: ticket.id, expires_at: ticket.expires_at };
+  }
+
+  // 本物の DB の submit_boss_battle_result() と同じ（2026-10-23）。
+  private submitResult(params: Record<string, unknown>): Record<string, unknown> {
+    const reject = (status: string) => ({
+      status,
+      by_owner: null,
+      hard_awarded: null,
+      clear_count: null,
+      first_clear_challengers: null,
+      first_clear_clearers: null,
+    });
+    const ticketId = String(params.p_ticket_id ?? "");
+    const bossId = String(params.p_boss_id ?? "");
+    const steamId = String(params.p_steam_id ?? "");
+    const resultId = params.p_result_id === null || params.p_result_id === undefined ? null : String(params.p_result_id);
+    const outcome = String(params.p_outcome ?? "");
+    if ((outcome !== "clear" && outcome !== "loss") || resultId === null) return reject("invalid");
+    const tickets = this.rowsOf("boss_battle_tickets");
+    const ticket = tickets.find((t) => t.id === ticketId);
+    if (!ticket || ticket.challenger_steam_id !== steamId || ticket.boss_id !== bossId) return reject("invalid");
+    const state = (status: string) => {
+      const rec = this.rowsOf("boss_challenge_records").find((r) => r.boss_id === bossId && r.challenger_steam_id === steamId);
+      return {
+        status,
+        by_owner: rec ? rec.by_owner === true : null,
+        hard_awarded: rec ? rec.hard_awarded_at !== null && rec.hard_awarded_at !== undefined : null,
+        clear_count: rec ? Number(rec.clear_count ?? 0) : null,
+        first_clear_challengers: rec?.first_clear_challengers ?? null,
+        first_clear_clearers: rec?.first_clear_clearers ?? null,
+      };
+    };
+    if (ticket.used_at) {
+      return ticket.result_id === resultId && ticket.outcome === outcome ? state("duplicate") : reject("used");
+    }
+    const now = this.now();
+    if (Date.parse(String(ticket.expires_at)) < now) return reject("expired");
+    if (tickets.some((t) => t.result_id === resultId)) return reject("used");
+    ticket.used_at = new Date(now).toISOString();
+    ticket.outcome = outcome;
+    ticket.result_id = resultId;
+
+    const rows = this.rowsOf("boss_challenge_records");
+    let rec = rows.find((r) => r.boss_id === bossId && r.challenger_steam_id === steamId);
+    const iso = new Date(now).toISOString();
+    if (!rec) {
+      rec = {
+        id: `fake-id-${this.nextId++}`,
+        boss_id: bossId,
+        challenger_steam_id: steamId,
+        challenge_count: 0,
+        clear_count: 0,
+        result_count: 0,
+        result_clear_count: 0,
+        first_clear_challengers: null,
+        first_clear_clearers: null,
+        hard_awarded_at: null,
+        created_at: iso,
+      };
+      rows.push(rec);
+      this.tables.set("boss_challenge_records", rows);
+    }
+    rec.by_owner = this.rowsOf("bosses").some((b) => b.id === bossId && b.owner_steam_id === steamId);
+    if (outcome === "clear") {
+      // 初めて結果でクリアした時だけ、その時の「ほかの人」（作者・本人を除く、結果のある人）の数を残す
+      if (Number(rec.result_clear_count ?? 0) === 0 && (rec.first_clear_challengers ?? null) === null) {
+        const others = this.hardDefeatStats(bossId, steamId);
+        rec.first_clear_challengers = others.challengers;
+        rec.first_clear_clearers = others.clearers;
+      }
+      rec.clear_count = Number(rec.clear_count ?? 0) + 1;
+      rec.result_clear_count = Number(rec.result_clear_count ?? 0) + 1;
+      if (!rec.first_cleared_at) rec.first_cleared_at = iso;
+      rec.last_cleared_at = iso;
+    }
+    rec.result_count = Number(rec.result_count ?? 0) + 1;
+    rec.updated_at = iso;
+    this.awardHardDefeats(bossId, iso);
+    return state("counted");
+  }
+
+  // 本物の DB の boss_hard_defeat_stats() と同じ: 作者本人（by_owner）を除き、決着した結果がある人の数・そのうち勝った人の数・結果の合計。
+  hardDefeatStats(bossId: string, excludeSteamId: string | null): { results: number; challengers: number; clearers: number } {
+    const rows = this.rowsOf("boss_challenge_records").filter((r) =>
+      r.boss_id === bossId && r.by_owner !== true && (excludeSteamId === null || r.challenger_steam_id !== excludeSteamId)
+    );
+    const withResults = rows.filter((r) => Number(r.result_count ?? 0) > 0);
+    return {
+      results: rows.reduce((sum, r) => sum + Number(r.result_count ?? 0), 0),
+      challengers: withResults.length,
+      clearers: withResults.filter((r) => Number(r.result_clear_count ?? 0) > 0).length,
+    };
+  }
+
+  // 本物の DB の award_hard_defeats() と同じ: ボスが条件（結果50回・挑戦者10人・5%以下）を満たしたら、初回クリアの時に5%以下だった人
+  // （ほかに0人だった最初のクリアは保留していて、ここで認定）を認定する。一度ついた認定は消さない。
+  private awardHardDefeats(bossId: string, now: string): void {
+    const s = this.hardDefeatStats(bossId, null);
+    if (!(s.results >= 50 && s.challengers >= 10 && s.clearers * 20 <= s.challengers)) return;
+    for (const r of this.rowsOf("boss_challenge_records")) {
+      if (r.boss_id !== bossId || r.by_owner === true || Number(r.result_clear_count ?? 0) <= 0) continue;
+      if (r.hard_awarded_at || r.first_clear_challengers === null || r.first_clear_challengers === undefined) continue;
+      if (Number(r.first_clear_challengers) === 0 || Number(r.first_clear_clearers) * 20 <= Number(r.first_clear_challengers)) {
+        r.hard_awarded_at = now;
+      }
+    }
   }
 }

@@ -374,3 +374,22 @@ Deno.test("five challengers other than the author qualify, and the author's clea
   assertEquals(body.bosses![0].unique_challengers, 5, "the author is not a challenger in the count");
   assertEquals(body.bosses![0].unique_clearers, 0, "the author's own clear does not make the boss look easier");
 });
+
+// 2026-10-23: 「挑戦者5人以上」・補正クリア率も、作者本人を除き、戦闘チケットで決着した結果がある人で数える
+// （一覧のカード・人気・難関ボス討伐の認定と同じ数え方）。補正式・順位の決まりは変えない。
+Deno.test("the 5-challenger rule and the clear rates count only players with a settled battle result", async () => {
+  const db = new FakePostgrestClient();
+  seedBoss(db, "four-settled", "4人だけ決着", "2026-01-01T00:00:00Z");
+  db.seed("boss_challenge_records", [
+    ...[0, 1, 2, 3].map((i) => ({ id: `f-${i}`, boss_id: "four-settled", challenger_steam_id: `f${i}`, challenge_count: 1, clear_count: 0, result_count: 1, result_clear_count: 0 })),
+    ...[0, 1, 2, 3, 4, 5].map((i) => ({ id: `fs-${i}`, boss_id: "four-settled", challenger_steam_id: `fs${i}`, challenge_count: 3, clear_count: 0, result_count: 0, result_clear_count: 0 })),
+  ]);
+  seedBoss(db, "five-settled", "5人決着", "2026-01-02T00:00:00Z");
+  db.seed("boss_challenge_records", [0, 1, 2, 3, 4].map((i) => ({
+    id: `v-${i}`, boss_id: "five-settled", challenger_steam_id: `v${i}`, challenge_count: 1,
+    // v0 は旧版のクリアの記録だけ（数えない）、v1 は結果でクリア
+    clear_count: i <= 1 ? 1 : 0, result_count: 1, result_clear_count: i === 1 ? 1 : 0,
+  })));
+  const body: ListHardBossesResponseBody = await (await handleListHardBosses(req(), db)).json();
+  assertEquals(body.bosses!.map((b) => [b.id, b.unique_challengers, b.unique_clearers]), [["five-settled", 5, 1]]);
+});

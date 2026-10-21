@@ -11,6 +11,10 @@
 // 行わない(競合に強いINSERT ... ON CONFLICT ... DO UPDATE ... = ... + 1、
 // ユーザー確定仕様)。
 //
+// 2026-10-23: want_battle_ticket が true なら、最初の戦闘の戦闘チケット（_shared/battle_tickets.ts）も同じ応答で返す
+// （戦闘ごとに通信を1回増やさないため）。発行できなかった時（上限・DB の失敗）も、挑戦の記録は成功として返し、
+// ticket_status に理由を入れる（戦闘は止めない。その戦闘の結果が数えられないだけ）。旧版のゲームは送らないので、チケットは出さない。
+//
 // 挑戦記録はベストエフォート(クライアント側で戦闘開始をブロックしない)
 // だが、サーバー側は普通にエラーを返す——「常に200を返す」ような設計には
 // しない(呼び出し側が失敗を無視する判断をするだけで、サーバー自身は
@@ -20,10 +24,12 @@ import { SteamTicketVerifier } from "../steam-auth/steam_ticket_verifier.ts";
 import { RealSteamWebApiClient } from "../steam-auth/steam_web_api_client.ts";
 import { WEB_API_IDENTITY } from "../steam-auth/index.ts";
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
+import { issueBattleTicket } from "../_shared/battle_tickets.ts";
 
 export interface RecordChallengeAttemptRequestBody {
   ticket?: unknown;
   boss_id?: unknown;
+  want_battle_ticket?: unknown;
 }
 
 export interface RecordChallengeAttemptResponseBody {
@@ -31,6 +37,10 @@ export interface RecordChallengeAttemptResponseBody {
   challenge_count?: number;
   // 2026-10-22: 記録した本人がこのボスの作者か（DB のトリガーが決めた by_owner）。ゲームが討伐記録に数えるかの判断に使う
   by_owner?: boolean;
+  // 2026-10-23: 最初の戦闘の戦闘チケット（want_battle_ticket の時だけ）。出せなかった時は ticket_status に理由
+  battle_ticket?: string;
+  ticket_expires_at?: string;
+  ticket_status?: string;
   error_kind?: string;
   message?: string;
 }
@@ -112,7 +122,24 @@ export async function handleRecordChallengeAttempt(
     return jsonResponse({ ok: false, error_kind: "db_error", message: recorded.errorMessage ?? "" }, 502);
   }
 
-  return jsonResponse({ ok: true, challenge_count: recorded.rows[0].challenge_count, by_owner: recorded.rows[0].by_owner === true }, 200);
+  const response: RecordChallengeAttemptResponseBody = {
+    ok: true,
+    challenge_count: recorded.rows[0].challenge_count,
+    by_owner: recorded.rows[0].by_owner === true,
+  };
+  if (body.want_battle_ticket === true) {
+    const issued = await issueBattleTicket(db, bossId, challengerSteamId);
+    if (!issued.ok) {
+      console.error("record-challenge-attempt: ticket error", issued.errorMessage);
+      response.ticket_status = "error";
+    } else if (issued.status === "issued" && issued.ticketId !== null && issued.expiresAt !== null) {
+      response.battle_ticket = issued.ticketId;
+      response.ticket_expires_at = issued.expiresAt;
+    } else {
+      response.ticket_status = issued.status;
+    }
+  }
+  return jsonResponse(response, 200);
 }
 
 if (import.meta.main) {

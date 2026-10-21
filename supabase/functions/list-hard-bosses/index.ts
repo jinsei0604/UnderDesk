@@ -1,14 +1,15 @@
 // Phase 6 — Challenge Hub「高難度」— 補正クリア率が低いボスを返す。
 //
 // 対象条件(ユーザー確定仕様): ユニーク挑戦者数 >= 5 のbossのみ
+// (2026-10-23 から、挑戦者 = 作者本人を除き、決着した戦闘の結果がある人。クリアした人 = そのうち勝ちの結果がある人。
+// 一覧・検索・人気・難関ボス討伐の認定と同じ数え方。_shared/boss_card_fields.ts を参照。補正式・順位の決まりは変えない)
 // ランキング対象にする(1人挑戦・0人クリアのようなサンプル数が
 // 少なすぎるケースが即座に最難関扱いになるのを防ぐ、既存ローカル版
 // RBMChallengeUiKit.corrected_clear_rate()の補正式と同じ思想)。
 //
-// ユニーククリア者数 = boss_challenge_recordsのうちclear_count > 0の行数
+// ユニーククリア者数 = 決着した結果がある記録のうちresult_clear_count > 0の行数
 // (「総クリア回数」ではなく「一度でもクリアしたユニーク人数」。
-// 再挑戦後の勝利でclear_countがchallenge_countを超えることがあっても、
-// 0より大きいかしか見ないので順位には影響しない)。
+// 何度クリアしても、0より大きいかしか見ないので順位には影響しない)。
 //
 // 補正クリア率 = (unique_clearers + 1) / (unique_challengers + 2)。
 // この値が低いほど高難度——値そのものはランキングの並び替え専用の内部値で、
@@ -64,7 +65,7 @@ export interface ListHardBossesResponseBody {
 interface ChallengeRecordAggregateRow {
   id: string;
   boss_id: string;
-  clear_count: number;
+  result_clear_count: number;
 }
 
 function jsonResponse(body: ListHardBossesResponseBody, status: number): Response {
@@ -108,8 +109,9 @@ export async function handleListHardBosses(req: Request, db: SupabaseRestClient)
   const recordsLookup = await selectAllPages<ChallengeRecordAggregateRow>(
     db,
     "boss_challenge_records",
-    // 作者本人の挑戦（by_owner、DB のトリガーが決める）は数えない（2026-10-22）。5人以上の条件も作者を除いた人数
-    "by_owner=is.false&select=id,boss_id,clear_count",
+    // 作者本人の挑戦（by_owner、DB のトリガーが決める）は数えない（2026-10-22）。5人以上の条件も作者を除いた人数。
+    // 決着した結果がある人だけ（2026-10-23、挑戦を始めただけ・旧版のクリアの記録は数えない）
+    "by_owner=is.false&result_count=gt.0&select=id,boss_id,result_clear_count",
   );
   if (!recordsLookup.ok) {
     return jsonResponse({ ok: false, error_kind: "db_error", message: recordsLookup.errorMessage ?? "" }, 502);
@@ -120,7 +122,7 @@ export async function handleListHardBosses(req: Request, db: SupabaseRestClient)
   for (const record of recordsLookup.rows) {
     const current = aggregates.get(record.boss_id) ?? { uniqueChallengers: 0, uniqueClearers: 0 };
     current.uniqueChallengers += 1;
-    if (Number(record.clear_count) > 0) current.uniqueClearers += 1;
+    if (Number(record.result_clear_count) > 0) current.uniqueClearers += 1;
     aggregates.set(record.boss_id, current);
   }
 

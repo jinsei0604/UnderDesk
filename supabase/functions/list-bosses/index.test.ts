@@ -396,3 +396,26 @@ Deno.test("the clear rate leaves out the author's own clear (0%, exactly 5%, ove
   assertEquals(rate("rate-5"), { challengers: 20, clearers: 1, rate: 0.05 }, "exactly 5% stays 5% (not 2/21)");
   assertEquals(rate("rate-over-5"), { challengers: 20, clearers: 2, rate: 0.1 });
 });
+
+// 2026-10-23: 挑戦者・クリアした人は、作者本人を除き、戦闘チケットで決着した結果（result_count > 0）がある人だけ。
+// 挑戦を始めただけ・旧版のクリアの記録（result_count = 0）は数えない。人気・高難度・難関ボス討伐の認定と同じ数え方。
+Deno.test("the card counts only players with a settled battle result; starting a challenge or an old clear record does not count", async () => {
+  const db = new FakePostgrestClient();
+  db.seed("bosses", [
+    { id: "b1", boss_name: "竜", author_name: "A", published_at: isoDay(2), revision: 1, is_published: true, payload: { draft_fields: { creator_mode: "advanced" } } },
+    { id: "b2", boss_name: "始めただけ", author_name: "A", published_at: isoDay(1), revision: 1, is_published: true, payload: { draft_fields: {} } },
+  ]);
+  db.seed("boss_challenge_records", [
+    { id: "r1", boss_id: "b1", challenger_steam_id: "p1", challenge_count: 1, clear_count: 1, result_count: 1, result_clear_count: 1 },
+    { id: "r2", boss_id: "b1", challenger_steam_id: "p2", challenge_count: 4, clear_count: 3, result_count: 4, result_clear_count: 0 },
+    { id: "r3", boss_id: "b1", challenger_steam_id: "p3", challenge_count: 9, clear_count: 2, result_count: 0, result_clear_count: 0 },
+    { id: "r4", boss_id: "b1", challenger_steam_id: "author", challenge_count: 2, clear_count: 2, result_count: 2, result_clear_count: 2, by_owner: true },
+    { id: "r5", boss_id: "b2", challenger_steam_id: "p1", challenge_count: 5, clear_count: 0, result_count: 0, result_clear_count: 0 },
+  ]);
+  const { body } = await page(db, "");
+  assertEquals(
+    body.bosses!.map((b) => [b.id, b.unique_challengers, b.unique_clearers]),
+    [["b1", 2, 1], ["b2", 0, 0]],
+    "b1: p1 (cleared) and p2 (only losses; old clear records do not count); b2: nobody settled a battle, so the card shows —",
+  );
+});
