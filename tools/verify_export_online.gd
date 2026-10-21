@@ -127,8 +127,17 @@ func _ui_check() -> void:
 	game = RBMGameRoot.new()
 	get_tree().root.add_child(game)
 	await _wait(1.8)
-	await _click_at(Vector2(640, 420))
-	await _wait(1.6)
+	# タイトル（起動の演出、TitleBootLauncher）は START のフェードが終わると自分を隠す。演出の途中の押下は無視されることが
+	# あるので、隠れる（ホーム画面が出る）まで押し直す（最大12秒。2026-10-22）
+	var waited := 0.0
+	while waited < 12.0:
+		await _click_at(Vector2(640, 420))
+		await _wait(1.5)
+		waited += 1.5
+		if not _vis(game, "TitleBootLauncher"):
+			break
+	await _wait(0.6)
+	report.notes.append({"title_closed": not _vis(game, "TitleBootLauncher"), "title_wait_seconds": waited})
 	await _shot("x00_home")
 	if not await _press(game, "ChallengeHomeMonitor"):
 		return
