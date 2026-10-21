@@ -23,7 +23,13 @@
 | `random-boss`（2026-10-17） | ランダム挑戦 | 数える1回（行は読まない）＋1件＋その挑戦記録 |
 
 - 公開ボスの問い合わせには必ず `is_published=eq.true` を付ける。返すのはカードの項目だけ（owner_steam_id・battle_hash・挑戦者の SteamID などは返さない）。
-- 表への直接の権限（2026-10-21、migration `20261021000000_revoke_direct_table_access.sql`）: ゲームの公開用の鍵（anon）・authenticated は `bosses`・`boss_challenge_records`・`boss_connection_tests` を REST から直接読めない・書けない（すべて関数＝service_role 経由）。確かめ: `supabase db query --linked -f supabase/tools/inspect_public_access.sql`、`verify_revoke_checks.sql`（関数の権限での読み書きも確かめ、最後に取り消す）。新しい表を作る時も、同じように anon・authenticated の権限を外す（Supabase の既定では付く）。戻し方: `supabase/rollback/20261021000000_restore_direct_table_access.sql`。
+- 表への直接の権限（2026-10-21、migration `20261021000000_revoke_direct_table_access.sql`）: ゲームの公開用の鍵（anon）・authenticated は `bosses`・`boss_challenge_records`・`boss_connection_tests` を REST から直接読めない・書けない（すべて関数＝service_role 経由）。確かめ: `supabase db query --linked -f supabase/tools/inspect_public_access.sql`、`verify_revoke_checks.sql`（関数の権限での読み書きも確かめ、最後に取り消す）。戻し方: `supabase/rollback/20261021000000_restore_direct_table_access.sql`。
+- これから作る物の既定の権限（2026-10-21、migration `20261021100100`・`20261021100200`）: postgres（migration・ダッシュボード・SQL エディター）が public に作る表・順序・関数には、anon・authenticated の権限が付かない。postgres が作る関数には、どのスキーマでも PUBLIC の EXECUTE が付かない。**service_role にも、表の読み書き・関数の EXECUTE は自動では付かない**（表の TRUNCATE・REFERENCES・TRIGGER・MAINTAIN だけ）。既にある表・関数は変わっていない。Supabase の内部機能（認証・ストレージなど）と、ダッシュボードで入れる拡張機能（supabase_admin が作る）には効かない。
+- 新しい表・関数を足す時の決まり（同じ migration の中で書く）:
+  - 表: `alter table public.<表> enable row level security;`、`revoke all on table public.<表> from anon, authenticated, public;`、Edge Functions が使う分だけ `grant select, insert, update on table public.<表> to service_role;`（要る物だけ。例: `20260917010000_grant_service_role_online_permissions.sql`）。
+  - 関数: `set search_path = ''` を付け、本体の表・関数の参照には `public.` などのスキーマを付ける。`revoke all on function public.<関数>(<引数の型>) from public, anon, authenticated;` と、呼ぶ役割にだけ `grant execute on function public.<関数>(<引数の型>) to service_role;`。SECURITY DEFINER は必要な時だけ。
+  - 当てる前: 本番で「当てて確かめて取り消す」空実行（`supabase/tools/dry_run_migration.sh`）。当てた後: `supabase db query --linked -f supabase/tools/check_no_client_access.sql`（読み取りだけ。anon・authenticated・PUBLIC が public の表・順序・関数に触れない、service_role に要る権限がある、を確かめる）と `supabase db advisors --linked --type security`。
+- トリガー関数の search_path（2026-10-21、migration `20261021100000`）: `bosses_set_updated_at`・`boss_challenge_records_set_updated_at` は `search_path = ''`。確かめ: `supabase/tools/verify_default_privileges_checks.sql`（`begin;` と `rollback;` で挟んで流す）。
 - `search-bosses`・`random-boss` は、DBの失敗の文を利用者へ返さず関数のログにだけ残す（`error_kind: db_error` と決まった文だけを返す）。既存の関数は今もDBの失敗の文を `message` に入れて返している（直すなら同じ形に）。
 
 ## 今後の改善課題
