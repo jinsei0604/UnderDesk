@@ -99,6 +99,9 @@ func _init_battle() -> void:
 		log_row.visible = false
 
 	_stage = _view._battlefield_ally_row.get_meta("visual_stage", null)
+	# ホームのモニターの見本の戦闘には、ダメージの数字を出さない(承認済みのモニターの見た目のまま。2026-10-22)。
+	if is_instance_valid(_stage):
+		_stage.show_damage_numbers = false
 
 	# 音声完全OFF: RBMBattleStage自身が内部でRBMAudio(自分専用の子ノード
 	# "RBMAudio")を持ち、ボタン操作とは無関係にヒット/属性VFX/カウンター

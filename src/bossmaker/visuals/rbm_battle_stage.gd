@@ -29,6 +29,12 @@ var _gentleman_aura: Node2D
 const GentlemanImpacts = preload("res://src/bossmaker/visuals/rbm_gentleman_impact_sheets.gd")
 ## 異形紳士の着弾画像をこの戦闘の間だけ保持する(ボスが決まった時点で裏で読み込む)。表示専用。
 var _gentleman_impacts: Node
+const DamageNumbers = preload("res://src/bossmaker/visuals/rbm_damage_numbers.gd")
+## 命中した相手の上に出るダメージ・回復の数字(impact を受けて出す。表示専用)。false で出さない(ホームのモニターの見本の戦闘)。
+var show_damage_numbers := true
+var _damage_numbers: Node2D
+var _damage_numbers_shown := false
+var _damage_hits_shown := false
 const PresentationWarmup = preload("res://src/bossmaker/visuals/rbm_presentation_warmup.gd")
 ## 演出が再生中に読む素材を、ボスと味方が決まった時点で裏で読み込んでおく(各演出の warm_paths() が宣言)。表示専用。
 var _presentation_warmup: Node
@@ -225,6 +231,12 @@ func _ready() -> void:
 	_presentation_warmup = PresentationWarmup.new()
 	add_child(_presentation_warmup)
 	_presentation_warmup.configure(self)
+	_damage_numbers = DamageNumbers.new()
+	_damage_numbers.name = "DamageNumbers"
+	_damage_numbers.stage = self
+	add_child(_damage_numbers)
+	impact.connect(_show_damage_numbers)
+	visibility_changed.connect(func(): if not is_visible_in_tree(): _damage_numbers.clear())
 	set_process(_waiting_script != null)
 	resized.connect(_layout_actors)
 	_layout_actors()
@@ -232,6 +244,7 @@ func _ready() -> void:
 func configure(battle: Variant, appearance_id: String = "") -> void:
 	if battle == null:
 		cancel()
+		if is_instance_valid(_damage_numbers): _damage_numbers.clear()
 		return
 	if is_instance_valid(_samurai_stance): _samurai_stance.resume()
 	if is_instance_valid(_tank_state): _tank_state.resume()
@@ -242,6 +255,7 @@ func configure(battle: Variant, appearance_id: String = "") -> void:
 	if _battle == battle and _appearance_id == appearance_id and keys == _party_keys and not _visuals.is_empty():
 		return
 	cancel()
+	if is_instance_valid(_damage_numbers): _damage_numbers.clear()
 	for visual in _visuals.values():
 		if is_instance_valid(visual):
 			remove_child(visual)
@@ -275,6 +289,7 @@ func prepare_presentations(definition: Dictionary, appearance_id: String, time_o
 
 ## 戦闘を出る時・確認画面を離れる時に呼ぶ。事前読み込みで持っていた素材を手放す。
 func release_presentations() -> void:
+	if is_instance_valid(_damage_numbers): _damage_numbers.clear()
 	if is_instance_valid(_tank_state): _tank_state.release()
 	if is_instance_valid(_samurai_stance): _samurai_stance.release()
 	if is_instance_valid(_presentation_warmup):
@@ -402,6 +417,8 @@ func set_state(snapshot: Dictionary) -> void:
 ## sequencing contract. A cancelled entry never emits either signal afterwards.
 func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 	cancel()
+	_damage_numbers_shown = false
+	_damage_hits_shown = false
 	_entry = entry.duplicate(true)
 	# 覚醒(Awakening)は通常の攻撃/防御/支援スキルと異なり、skill_id・target・
 	# kindを一切持たない独立したログentry(RBMBattle._maybe_trigger_
@@ -614,6 +631,23 @@ func is_playing() -> bool:
 func set_motion_speed(scale: float) -> void:
 	if _tween != null and _tween.is_valid():
 		_tween.set_speed_scale(maxf(0.01, scale))
+	if is_instance_valid(_damage_numbers):
+		_damage_numbers.time_scale = maxf(0.01, scale)
+
+## impact(命中の確定)で、その出来事の数字を1回だけ出す(同じ行動で impact が重ねて来ても1回)。
+## カウンターの前に仲間の数字を出していれば、ここではボスへの反撃の数字だけを出す。
+func _show_damage_numbers(entry: Dictionary) -> void:
+	if _damage_numbers_shown or not show_damage_numbers or not is_instance_valid(_damage_numbers):
+		return
+	_damage_numbers_shown = true
+	_damage_numbers.show_entry(entry, _skill, _battle, "reflected" if _damage_hits_shown else "all")
+
+## カウンターがある時、ボスの攻撃が仲間に当たった瞬間(_strike())に、防いでいない仲間の数字だけを出す。
+func _show_damage_numbers_before_counter() -> void:
+	if _damage_hits_shown or _damage_numbers_shown or not show_damage_numbers or not is_instance_valid(_damage_numbers):
+		return
+	_damage_hits_shown = true
+	_damage_numbers.show_entry(_entry, _skill, _battle, "hits")
 
 func _queue_visual_redraw() -> void:
 	queue_redraw()
@@ -1069,6 +1103,8 @@ func _strike() -> void:
 		impact.emit(_entry)
 	else:
 		_phase = "counter"
+		# impact は侍の反撃が当たるまで来ないので、攻撃が当たった仲間の数字だけを今出す(防いだ侍には出さない)。
+		_show_damage_numbers_before_counter()
 	_queue_visual_redraw()
 
 func _counter_progress(value: float) -> void:
