@@ -24,9 +24,10 @@ func _run() -> void:
 				var entries: Array=view.session.resolve_ally_action({"type":"skill","skill_id":"hero_burst_slash"})
 				resolved=view.session.battle.snapshot().duplicate(true)
 				view._present_batch(entries,initial)
-			if stage._hero_finish:
-				if stage._phase=="travel" and stage._visuals[str(id)].position!=stage._homes[str(id)]:_fail(mode+": hero moved during projectile")
-				ages.append(stage._hero_fire.age)
+			var action = stage._skill_presentation
+			if is_instance_valid(action) and action.get_script()==preload("res://src/bossmaker/visuals/rbm_hero_burst.gd"):
+				if action._foot.distance_to(action._home)>9.0:_fail(mode+": hero moved beyond authored step")
+				ages.append(action.age)
 			await process_frame
 			await RenderingServer.frame_post_draw
 			if frame in [45,85,100,125,145,163,198,400]:
@@ -44,7 +45,7 @@ func _run() -> void:
 		while stage.is_playing() and follow_frames<600:
 			await process_frame
 			follow_frames+=1
-		if stage.is_playing() or stage._hero_fire.visible or stage._hero_shake!=Vector2.ZERO:_fail(mode+": unfinished visuals")
+		if stage.is_playing() or stage._skill_presentation!=null or stage._hero_fire.visible or stage._hero_shake!=Vector2.ZERO:_fail(mode+": unfinished visuals")
 		if ages.is_empty() or ages.max()<2.0:_fail(mode+": finish did not run fully")
 		if view.session.battle.snapshot()!=resolved:_fail(mode+": simulation changed during playback")
 		report["cases"].append({"mode":mode,"hero_impacts":hero_events,"finish_observed":not ages.is_empty(),"simulation_unchanged":view.session.battle.snapshot()==resolved,"frames_after_window_until_finished":follow_frames})

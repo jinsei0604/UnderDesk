@@ -1,4 +1,7 @@
 extends GutTest
+var held: Array=[]
+func before_all() -> void:
+	for path in preload("res://src/bossmaker/visuals/rbm_hero_burst.gd").warm_paths("hero",""): held.append(load(path))
 
 func _session() -> RBMCreatorTestSession:
 	var draft := RBMCreatorDraft.new()
@@ -38,11 +41,11 @@ func test_finish_blocks_next_entry_and_emits_each_impact_once() -> void:
 	var seen: Array = []
 	presenter.entry_impact.connect(func(entry): seen.append(entry))
 	presenter.play(log,session.battle,before)
-	stage._tween.custom_step(.70)
+	stage._tween.custom_step(1.65)
 	assert_eq(seen.size(),1)
 	assert_eq(stage._motion_offset,Vector2.ZERO,"Hero fires from home")
-	assert_eq(stage._visuals["0"].position,stage._homes["0"])
-	stage._tween.custom_step(1.0)
+	assert_lt(stage._visuals["0"].position.distance_to(stage._homes["0"]),6.0,"Only the authored world shake at impact; hero stays at home")
+	stage._tween.custom_step(0.5)
 	assert_eq(seen.size(),1,"Boss cannot attack during the finish")
 	assert_true(stage.is_playing())
 	assert_eq(presenter.display_state(),log[0]["visual_state"],"No future boss damage in HUD")
@@ -59,7 +62,7 @@ func test_finish_blocks_next_entry_and_emits_each_impact_once() -> void:
 	await get_tree().process_frame
 
 func test_cancel_each_phase_then_rewind_and_replay_at_double_speed() -> void:
-	for seconds in [.15,.5,.7,1.05,1.43,2.2]:
+	for seconds in [.15,.5,.7,1.05,1.67,2.65]:
 		var session := _session()
 		var stage := _stage(session)
 		var initial := session.battle.presentation_state()
@@ -89,7 +92,7 @@ func test_cancel_each_phase_then_rewind_and_replay_at_double_speed() -> void:
 		assert_eq(replay,log,"Rewind reproduces damage and RNG log")
 		stage.play_entry(replay[0])
 		stage._tween.set_speed_scale(2.0)
-		stage._tween.custom_step(1.5)
+		stage._tween.custom_step(1.6)
 		assert_false(stage.is_playing(),"Whole finish follows tween playback speed")
 		assert_eq(impacts.size(),impact_count+1)
 		assert_eq(finishes.size(),1)

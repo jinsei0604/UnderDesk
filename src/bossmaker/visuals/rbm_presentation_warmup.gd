@@ -169,6 +169,8 @@ func plan_from(source: Dictionary) -> Array[String]:
 		for kind in _scripted_kinds(battle, "replace") + kinds:
 			_ask(out, tables[kind].get(boss_id), boss_id, kind)
 	# 2. 最初の入力で再生されうる物
+	for character_id in party:
+		_ask(out, _stage.ATTACK_PRESENTATIONS.get(str(character_id)), str(character_id), "normal")
 	var later_skills: Array = []
 	for skill_id in _stage.SKILL_PRESENTATIONS:
 		var entry: Dictionary = _stage.SKILL_PRESENTATIONS[skill_id]

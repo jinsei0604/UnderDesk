@@ -55,7 +55,31 @@ var _musha_aura: Node2D
 ## ボスごとの専用の覚醒演出(無いボスは rbm_boss_awakening_transform.gd)。
 const BOSS_AWAKENING_PRESENTATIONS = {"gentleman": GentlemanAwakening, "astronaut": AstronautAwakening, "dragon": DragonAwakening, "musha": MushaAwakening}
 ## Skill-owned timelines. Add dedicated scripts here, not long stage branches.
+const ATTACK_PRESENTATIONS = {
+	"tank": preload("res://src/bossmaker/visuals/rbm_tank_normal.gd"),
+	"samurai": preload("res://src/bossmaker/visuals/rbm_samurai_normal.gd"),
+	"healer": preload("res://src/bossmaker/visuals/rbm_healer_normal.gd"),
+	"butler": preload("res://src/bossmaker/visuals/rbm_butler_normal.gd"),
+	"hero": preload("res://src/bossmaker/visuals/rbm_hero_normal.gd"),
+}
 const SKILL_PRESENTATIONS = {
+	"tank_smash": {"actor": "tank", "kind": "hammer", "script": preload("res://src/bossmaker/visuals/rbm_tank_smash.gd")},
+	"tank_guard_swap": {"actor": "tank", "kind": "protect", "script": preload("res://src/bossmaker/visuals/rbm_tank_cover.gd")},
+	"tank_guard_boost": {"actor": "tank", "kind": "guard_boost", "script": preload("res://src/bossmaker/visuals/rbm_tank_boost.gd")},
+	"tank_iron_wall": {"actor": "tank", "kind": "iron_wall", "script": preload("res://src/bossmaker/visuals/rbm_tank_wall.gd")},
+	"samurai_slash": {"actor": "samurai", "kind": "wind_slash", "script": preload("res://src/bossmaker/visuals/rbm_samurai_single.gd")},
+	"samurai_slash_all": {"actor": "samurai", "kind": "wind_sweep", "script": preload("res://src/bossmaker/visuals/rbm_samurai_all.gd")},
+	"samurai_iai": {"actor": "samurai", "kind": "iai", "script": preload("res://src/bossmaker/visuals/rbm_samurai_iai.gd")},
+	"samurai_counter": {"actor": "samurai", "kind": "counter_stance", "script": preload("res://src/bossmaker/visuals/rbm_samurai_counter.gd")},
+	"healer_heal_single": {"actor": "healer", "kind": "heal_single", "script": preload("res://src/bossmaker/visuals/rbm_healer_heal.gd")},
+	"healer_sp_all": {"actor": "healer", "kind": "sp_all", "allow_empty_targets": true, "script": preload("res://src/bossmaker/visuals/rbm_healer_sp.gd")},
+	"butler_ice_bolt": {"actor": "butler", "kind": "ice_bolt", "script": preload("res://src/bossmaker/visuals/rbm_butler_bolt.gd")},
+	"butler_ice_storm": {"actor": "butler", "kind": "ice_storm", "script": preload("res://src/bossmaker/visuals/rbm_butler_storm.gd")},
+	"butler_sp_gift": {"actor": "butler", "kind": "sp_single", "script": preload("res://src/bossmaker/visuals/rbm_butler_gift.gd")},
+	"hero_burst_slash": {"actor": "hero", "kind": "fire_burst", "script": preload("res://src/bossmaker/visuals/rbm_hero_burst.gd")},
+	"hero_slash": {"actor": "hero", "kind": "fire_slash", "script": preload("res://src/bossmaker/visuals/rbm_hero_slash.gd")},
+	"hero_blaze_all": {"actor": "hero", "kind": "fire_sweep", "script": preload("res://src/bossmaker/visuals/rbm_hero_sweep.gd")},
+	"hero_flame_wrap": {"actor": "hero", "kind": "fire_buff", "script": preload("res://src/bossmaker/visuals/rbm_hero_wrap.gd")},
 	"healer_heal_all": {"actor": "healer", "kind": "heal_all", "script": preload("res://src/bossmaker/visuals/rbm_healer_saint_finish.gd")},
 }
 var _skill_presentation: Node2D
@@ -74,6 +98,8 @@ var _healer_lightning: Node2D
 var _healer_finish := false
 var _healer_elapsed := -1.0
 var _healer_shake := Vector2.ZERO
+## Samurai-only pose and IAI wind; reads the presentation state.
+var _samurai_stance: Node2D
 var _samurai_wind: Node2D
 var _samurai_wind_block: Node2D
 var _samurai_finish := false
@@ -84,6 +110,8 @@ const SAMURAI_WIND_PAUSE := 0.13
 const SAMURAI_WIND_START_DELAY := SAMURAI_WIND_BLOCK_DURATION + SAMURAI_WIND_PAUSE
 const SAMURAI_AFTERMATH_CUE_FRACS := [0.0, 0.32, 0.62, 0.85]
 const SAMURAI_AFTERMATH_CUE_GAINS := [-6.0, -11.0, -16.0, -22.0]
+## Tank support indicators read resolved presentation state only.
+var _tank_state: Node2D
 var _tank_hammer: Node2D
 var _tank_impact_frame: Node2D
 var _tank_finish := false
@@ -153,6 +181,9 @@ func _ready() -> void:
 	_healer_lightning.z_index = 80
 	_healer_lightning.visible = false
 	add_child(_healer_lightning)
+	_samurai_stance = preload("res://src/bossmaker/visuals/rbm_samurai_stance.gd").new()
+	_samurai_stance.stage = self
+	add_child(_samurai_stance)
 	_samurai_wind = SamuraiWind.new()
 	_samurai_wind.z_index = 80
 	_samurai_wind.visible = false
@@ -161,6 +192,9 @@ func _ready() -> void:
 	_samurai_wind_block.z_index = 80
 	_samurai_wind_block.visible = false
 	add_child(_samurai_wind_block)
+	_tank_state = preload("res://src/bossmaker/visuals/rbm_tank_state.gd").new()
+	_tank_state.stage = self
+	add_child(_tank_state)
 	_tank_hammer = TankHammer.new()
 	_tank_hammer.z_index = 80
 	_tank_hammer.visible = false
@@ -199,6 +233,8 @@ func configure(battle: Variant, appearance_id: String = "") -> void:
 	if battle == null:
 		cancel()
 		return
+	if is_instance_valid(_samurai_stance): _samurai_stance.resume()
+	if is_instance_valid(_tank_state): _tank_state.resume()
 	var keys: Array[String] = []
 	for unit in battle.party:
 		if keys.size() < 4:
@@ -224,6 +260,8 @@ func configure(battle: Variant, appearance_id: String = "") -> void:
 	_add_actor("boss", Assets.boss_asset(appearance_id))
 	_layout_actors()
 	_refresh_musha_ink()
+	if is_instance_valid(_tank_state): _tank_state.refresh()
+	if is_instance_valid(_samurai_stance): _samurai_stance.refresh()
 	_queue_visual_redraw()
 
 ## 戦闘を始める前の画面(Creator の最終確認・クリアチェックの確認・挑戦のボスの確認)から呼ぶ(QA-06)。
@@ -237,6 +275,8 @@ func prepare_presentations(definition: Dictionary, appearance_id: String, time_o
 
 ## 戦闘を出る時・確認画面を離れる時に呼ぶ。事前読み込みで持っていた素材を手放す。
 func release_presentations() -> void:
+	if is_instance_valid(_tank_state): _tank_state.release()
+	if is_instance_valid(_samurai_stance): _samurai_stance.release()
 	if is_instance_valid(_presentation_warmup):
 		_presentation_warmup.release()
 	if is_instance_valid(_musha_aura):
@@ -297,6 +337,9 @@ func _add_actor(key: String, asset_id: String) -> void:
 			sword.scale = Vector2.ONE * float(visual.get("_pixel_scale"))
 			sword.z_index = 1
 			visual.add_child(sword)
+			var aura := preload("res://src/bossmaker/visuals/rbm_hero_sword_aura.gd").new()
+			visual.add_child(aura)
+			aura.setup(self,key)
 
 func _layout_actors() -> void:
 	if _playing:
@@ -373,8 +416,12 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 	if str(_profile["kind"]) == "normal" and str(_asset_ids.get(_actor, "")) in ["butler", "healer"]:
 		_profile["advance"] = 0.0
 	_targets = _entry_targets()
+	var normal = ATTACK_PRESENTATIONS.get(str(_asset_ids.get(_actor, "")))
+	if normal != null and _entry.get("action", "") == "attack" and _profile["kind"] == "normal" and _targets == ["boss"]:
+		_start_dedicated(normal, str(_asset_ids[_actor]), "normal")
+		return
 	var dedicated: Dictionary = SKILL_PRESENTATIONS.get(str(_entry.get("skill_id", "")), {})
-	if not dedicated.is_empty() and _entry.get("action", "") == "skill" and str(_asset_ids.get(_actor, "")) == dedicated["actor"] and _profile["kind"] == dedicated["kind"] and not _targets.is_empty():
+	if not dedicated.is_empty() and _entry.get("action", "") == "skill" and str(_asset_ids.get(_actor, "")) == dedicated["actor"] and _profile["kind"] == dedicated["kind"] and (not _targets.is_empty() or bool(dedicated.get("allow_empty_targets", false))):
 		_start_dedicated(dedicated["script"], str(dedicated["actor"]), str(dedicated["kind"]))
 		return
 	_hero_finish = str(_entry.get("skill_id", "")) == "hero_burst_slash" and str(_asset_ids.get(_actor, "")) == "hero" and str(_profile["kind"]) == "fire_burst" and _targets.has("boss")
@@ -388,6 +435,7 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 		_profile["advance"] = 0.0
 	_counters = _counter_targets()
 	_samurai_finish = _actor == "boss" and not _counters.is_empty() and str(_asset_ids.get(_counters[0], "")) == "samurai"
+	if _samurai_finish and is_instance_valid(_samurai_stance): _samurai_stance.begin_counter(_counters[0])
 	# Unlike the other finishes, the hammer smash keeps a nonzero advance:
 	# the tank must physically walk into melee range using the same generic
 	# windup/travel slide every melee skill already uses (see _travel_progress).
@@ -1101,6 +1149,8 @@ func _reset_actors() -> void:
 		elif float(unit.get("next_attack_bonus_multiplier", 1.0)) > 1.0:
 			pose = Motions.Pose.SUPPORT
 		_pose(str(key), pose)
+	if is_instance_valid(_tank_state): _tank_state.refresh()
+	if is_instance_valid(_samurai_stance): _samurai_stance.refresh()
 
 func _pose(key: String, index: int) -> void:
 	if not _visuals.has(key):

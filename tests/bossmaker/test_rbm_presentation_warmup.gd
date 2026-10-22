@@ -389,7 +389,28 @@ func test_other_bosses_read_only_their_own_presentations_and_the_party_poses() -
 		for pose in Warmup.REACTION_POSES:
 			expected.append(RBMVisualAssets.frame_path(id, pose))
 	expected.append_array([RBMVisualAssets.frame_path("healer", 4), RBMVisualAssets.frame_path("healer", 5)])
-	assert_eq(held, _sorted(expected), "a boss without declared presentations: the party's reaction poses and the healer's finisher")
+	# The party now includes the approved hero normal/skill presentations.
+	for path in ["battle/hero/actions/hero_intermediates_v1.png", "battle/hero/actions/hero_retreat_v2.png",
+			"battle/hero/frames/00.png", "battle/hero/frames/01.png", "battle/hero/frames/03.png", "battle/hero/frames/06.png", "battle/hero/frames/07.png",
+			"audio/neutral_sword_swing.wav", "audio/neutral_impact_light.wav", "audio/fire_swing.wav", "audio/fire_cast.wav",
+			"audio/fire_impact_light.wav", "audio/fire_impact_heavy.wav", "audio/buff_atk.wav", "audio/fire_move.wav", "audio/fire_burst.wav"]:
+		if not expected.has(ASSET_ROOT + path): expected.append(ASSET_ROOT + path)
+	# Approved butler actions add their own body poses, clock and ice/SP cues.
+	for path in ["battle/butler/actions/butler_intermediates_v2.png", "battle/butler/frames/00.png", "battle/butler/frames/06.png",
+			"audio/neutral_staff_tap.wav", "audio/neutral_impact_light.wav", "audio/ice_cast.wav", "audio/ice_move.wav",
+			"audio/ice_impact_light.wav", "audio/ice_impact_heavy.wav", "audio/heal_sp.wav"]:
+		if not expected.has(ASSET_ROOT + path): expected.append(ASSET_ROOT + path)
+	# Approved girl gestures and HP/SP cues are held with this party.
+	for path in ["battle/healer/actions/healer_intermediates_v1.png", "battle/healer/frames/00.png",
+			"audio/neutral_staff_tap.wav", "audio/neutral_impact_light.wav", "audio/heal_hp.wav", "audio/heal_sp.wav"]:
+		if not expected.has(ASSET_ROOT + path): expected.append(ASSET_ROOT + path)
+	# Approved samurai body, draw/sheath poses and neutral/wind/support cues.
+	for path in ["battle/samurai/actions/samurai_intermediates_v1.png", "battle/samurai/frames/00.png",
+			"battle/samurai/frames/06.png", "battle/samurai/frames/07.png", "battle/samurai/frames/08.png",
+			"audio/neutral_sword_swing.wav", "audio/neutral_impact_light.wav", "audio/wind_swing.wav", "audio/wind_move.wav",
+			"audio/wind_impact_light.wav", "audio/wind_impact_heavy.wav", "audio/wind_cast.wav", "audio/buff_atk.wav", "audio/guard_set.wav"]:
+		if not expected.has(ASSET_ROOT + path): expected.append(ASSET_ROOT + path)
+	assert_eq(held, _sorted(expected), "only the party's reaction poses and declared ally presentations")
 
 func test_first_plays_read_nothing_that_was_not_read_ahead() -> void:
 	await _assert_first_play_reads_nothing_new(_battle("appearance_musha", [_attack("single")]), "musha_single")
