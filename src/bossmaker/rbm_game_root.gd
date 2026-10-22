@@ -280,8 +280,7 @@ func _build_ui() -> void:
 
 	# 承認済みSFX同期(right_creator_sfx_v2)の本実装: RBMHomeMonitorPanel自身
 	# には一切触れず、外部からその実際の視覚状態を監視して同期させる
-	# アダプタ(RBMTitleBootLauncherと同じ手法。詳細はRBMHomeMonitorSfx冒頭
-	# コメント参照)。
+	# アダプタ(詳細はRBMHomeMonitorSfx冒頭コメント参照)。
 	_challenge_monitor_sfx = RBMHomeMonitorSfx.new()
 	_challenge_monitor_sfx.name = "ChallengeHomeMonitorSfx"
 	_challenge_monitor_sfx.panel = _challenge_monitor
@@ -314,12 +313,12 @@ func _build_ui() -> void:
 	_top_monitor_battle.size = HOME_TOP_MONITOR_RECT.size
 	_title_screen.add_child(_top_monitor_battle)
 
-	# 起動導線(承認済みプレビュー反映版): タイトル→START→時計SYSTEM CORE
-	# 加速演出→SYSTEM BOOT/ONLINE→既存の挑戦/作成選択、という流れを、
-	# 画面全体を覆う独立レイヤーとして追加する(詳細はRBMTitleBootLauncher
-	# 冒頭コメント参照)。ChallengeModeButton/CreateModeButton自身やその
-	# シグナル配線には一切触れない——この演出が完了すると自身を隠すだけで、
-	# 既存のボタンがそのまま露出する。
+	# 起動導線: 起動ごとに選ばれたボスの部屋のタイトル→START→短いフェード
+	# →既存の挑戦/作成選択、という流れを、画面全体を覆う独立レイヤーとして
+	# 追加する(詳細はtitle_rooms/rbm_boss_room_title.gd冒頭コメント参照)。
+	# ChallengeModeButton/CreateModeButton自身やそのシグナル配線には一切
+	# 触れない——STARTのフェードが終わると自身を隠すだけで、既存のボタンが
+	# そのまま露出する。
 	_title_boot_launcher = RBMTitleBootLauncher.new()
 	_title_boot_launcher.name = "TitleBootLauncher"
 	_title_boot_launcher.set_anchors_preset(Control.PRESET_FULL_RECT)

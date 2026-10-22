@@ -2,8 +2,7 @@ class_name RBMHomeMonitorSfx
 extends Node
 
 ## RBMHomeMonitorPanel(左下「挑戦」／右下「ボス作成」モニター)へBOOT/拡大
-## のSFXを同期させるアダプタ。RBMTitleBootLauncherがRBMTitleBootPreviewに
-## 対して行っているのと同じ手法——対象のRBMHomeMonitorPanel自身のロジック・
+## のSFXを同期させるアダプタ——対象のRBMHomeMonitorPanel自身のロジック・
 ## タイミング・見た目には一切触れず、外部からその実際の視覚状態
 ## (_state/_panel_draw/_reticle/_status_label/_label/size)を毎フレーム
 ## 読むだけ。SFXは固定秒数のタイマーではなく、対応する視覚イベントの実際の

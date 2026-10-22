@@ -17,8 +17,8 @@ func run_gpu_verification(tree: SceneTree, output_dir: String) -> int:
 	await tree.process_frame
 	await tree.process_frame
 
-	# タイトル→START→時計SYSTEM CORE起動演出(既存・無改修)を最後まで進めて
-	# から、初めてホーム画面(モニター群)が露出する——RBMTitleBootLauncher.
+	# タイトル(ボスの部屋)でSTARTを押し、短いフェードが終わってから初めて
+	# ホーム画面(モニター群)が露出する——RBMTitleBootLauncher.
 	# boot_completedを直接awaitする。
 	var start_button: Control = root._title_boot_launcher.find_child("StartButton", true, false)
 	var press := InputEventMouseButton.new()
