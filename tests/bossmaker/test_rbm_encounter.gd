@@ -61,13 +61,43 @@ func test_every_boss_has_an_intro_and_a_victory_and_awakened_forms_get_the_right
 		assert_true(IntroPlayer.has_intro(boss), boss + " intro")
 		assert_true(VictoryPlayer.has_victory(boss), boss + " victory")
 		assert_eq(VictoryPlayer.defeat_script(boss), VictoryPlayer.DEFEAT[boss])
-	# 覚醒後の12ポーズで描ける倒れ方はそのまま、覚醒前のコマ絵に依存する倒れ方（武者・紳士）は共通の倒れ方
-	assert_eq(VictoryPlayer.defeat_script("dragon_awakened"), VictoryPlayer.DEFEAT["dragon"])
-	assert_eq(VictoryPlayer.defeat_script("astronaut_awakened"), VictoryPlayer.DEFEAT["astronaut"])
-	assert_eq(VictoryPlayer.defeat_script("musha_awakened"), VictoryPlayer.GENERIC)
-	assert_eq(VictoryPlayer.defeat_script("gentleman_awakened"), VictoryPlayer.GENERIC)
+	# 承認された覚醒4体は専用撃破。通常形の振り分けは保持する。
+	assert_eq(VictoryPlayer.defeat_script("dragon_awakened"), VictoryPlayer.DEFEAT["dragon_awakened"])
+	assert_ne(VictoryPlayer.defeat_script("dragon_awakened"), VictoryPlayer.DEFEAT["dragon"], "only the awakened dragon detonates")
+	assert_eq(VictoryPlayer.defeat_script("astronaut_awakened"), VictoryPlayer.DEFEAT["astronaut_awakened"])
+	assert_ne(VictoryPlayer.defeat_script("astronaut_awakened"), VictoryPlayer.DEFEAT["astronaut"])
+	assert_eq(VictoryPlayer.defeat_script("musha_awakened"), VictoryPlayer.DEFEAT["musha_awakened"])
+	assert_ne(VictoryPlayer.defeat_script("musha_awakened"), VictoryPlayer.DEFEAT["musha"])
+	assert_eq(VictoryPlayer.defeat_script("gentleman_awakened"), VictoryPlayer.DEFEAT["gentleman_awakened"])
+	assert_ne(VictoryPlayer.defeat_script("gentleman_awakened"), VictoryPlayer.DEFEAT["gentleman"])
 	assert_null(VictoryPlayer.defeat_script(""))
 	assert_false(IntroPlayer.has_intro(""))
+
+func test_awakened_dragon_detonation_is_declared_only_for_its_victory() -> void:
+	var path := "res://assets_bossmaker/audio/encounter/dragon_detonation.wav"
+	assert_true(VictoryPlayer.warm_paths("dragon_awakened", ALLIES).has(path))
+	assert_true(VictoryPlayer.victory_keys("dragon_awakened").has("enc:dragon_detonation"))
+	for normal in BOSSES:
+		assert_false(VictoryPlayer.warm_paths(normal, ALLIES).has(path), normal + " keeps its existing assets")
+	assert_false(VictoryPlayer.final_blow_paths("dragon_awakened").has(path), "detonation is not played by the final-hit cue")
+
+func test_approved_awakened_defeats_declare_materials_and_exclusive_sounds() -> void:
+	var sounds := {"musha":"musha_break","astronaut":"astro_collapse","gentleman":"gentleman_burst"}
+	for boss in sounds:
+		var awakened: String = boss+"_awakened"
+		var script: Script = VictoryPlayer.defeat_script(awakened)
+		var paths: Array = script.get_script_constant_map().get("VFX_PATHS", [])
+		assert_eq(paths.size(),2)
+		for path in paths:
+			assert_true(ResourceLoader.exists(path))
+			assert_true(VictoryPlayer.warm_paths(awakened,ALLIES).has(path))
+			assert_true(VictoryPlayer.final_blow_paths(awakened).has(path))
+		var sound: String = "enc:"+sounds[boss]
+		assert_true(VictoryPlayer.victory_keys(awakened).has(sound))
+		assert_true(VictoryPlayer.warm_paths(awakened,ALLIES).has(IntroPlayer.Audio.path_of(sound)))
+		for normal in BOSSES:
+			assert_false(VictoryPlayer.victory_keys(normal).has(sound))
+			assert_false(VictoryPlayer.warm_paths(normal,ALLIES).has(IntroPlayer.Audio.path_of(sound)))
 
 func test_every_sound_a_script_plays_is_declared_for_the_warmup() -> void:
 	var dirs := ["res://src/bossmaker/visuals/encounter/intro/", "res://src/bossmaker/visuals/encounter/defeat/"]

@@ -11,6 +11,7 @@ extends Node
 ## - 撃破ターン = 決着した時の戦闘のターン。クリアタイム = 登場が終わって操作できるようになってから、とどめが当たるまで（実時間）。
 ## - 戦闘の状態・乱数・行動順・保存データ・クリアの記録には触れない（読むだけ）。cancel() でいつでも元の見た目へ戻す。
 
+const DefeatWarmup = preload("res://src/bossmaker/visuals/encounter/rbm_awakened_defeat_warmup.gd")
 const IntroPlayer = preload("res://src/bossmaker/visuals/encounter/rbm_intro_player.gd")
 const VictoryPlayer = preload("res://src/bossmaker/visuals/encounter/rbm_victory_player.gd")
 const ScreenClose = preload("res://src/bossmaker/visuals/encounter/rbm_screen_close.gd")
@@ -33,6 +34,8 @@ var author := ""
 ## 検証用: 素材がキャッシュに無い時も読み込んでよいか（本番は false）。
 var allow_load := false
 
+var _defeat_warmup: Node2D
+var _defeat_materials_requested := false
 var _intro: Node2D
 var _intro_wait := -1.0     # 登場の素材を待っている間の経過秒（待っていない時は -1）
 var _intro_done_fn: Callable
@@ -128,9 +131,22 @@ func _intro_ready() -> bool:
 	if not is_instance_valid(st) or not (st.get("_visuals") as Dictionary).has("boss"):
 		return false
 	var boss := boss_asset()
+	_prepare_defeat_material(boss)
 	if not IntroPlayer.has_intro(boss):
 		return true
 	return _assets_ready([[boss, "intro"], [boss, "final_blow"]] + _ally_kinds("intro_ally"))
+
+## GPU compilation only; the existing material-ready and intro/result contracts remain unchanged.
+func _prepare_defeat_material(boss: String) -> void:
+	if _defeat_materials_requested: return
+	_defeat_materials_requested = true
+	if DisplayServer.get_name() == "headless" or not DefeatWarmup.supports(boss): return
+	var session = view.get("session")
+	var can_awaken: bool = session != null and session.battle != null and not session.battle.awakening.is_empty()
+	if not can_awaken and not boss.ends_with("_awakened"): return
+	_defeat_warmup = DefeatWarmup.new()
+	_defeat_warmup.subject = boss.trim_suffix("_awakened")
+	add_child(_defeat_warmup)
 
 func _ally_kinds(kind: String) -> Array:
 	var out: Array = []
@@ -263,6 +279,9 @@ func _process(delta: float) -> void:
 
 ## 今の演出をやめて、元の見た目へ戻す（戦闘をやり直す・画面を出る・画面が隠れる・REWIND）。
 func cancel() -> void:
+	if is_instance_valid(_defeat_warmup): _defeat_warmup.queue_free()
+	_defeat_warmup = null
+	_defeat_materials_requested = false
 	var was_locked := is_playing()
 	_intro_wait = -1.0
 	_intro_done_fn = Callable()

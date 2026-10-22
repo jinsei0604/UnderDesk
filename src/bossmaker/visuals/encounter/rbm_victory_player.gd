@@ -20,7 +20,12 @@ const Banner = preload("res://src/bossmaker/visuals/encounter/rbm_victory_banner
 const AllyFrames = preload("res://src/bossmaker/visuals/encounter/rbm_encounter_ally_frames.gd")
 const Audio = preload("res://src/bossmaker/visuals/encounter/rbm_encounter_audio.gd")
 const IntroPlayer = preload("res://src/bossmaker/visuals/encounter/rbm_intro_player.gd")
+const AuraGuard = preload("res://src/bossmaker/visuals/encounter/rbm_defeat_aura_guard.gd")
 const DEFEAT := {
+	"musha_awakened": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_musha_awakened.gd"),
+	"astronaut_awakened": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_astronaut_awakened.gd"),
+	"gentleman_awakened": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_gentleman_awakened.gd"),
+	"dragon_awakened": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_dragon_awakened.gd"),
 	"slime": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_slime.gd"),
 	"wolf": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_wolf.gd"),
 	"knight": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_knight.gd"),
@@ -78,6 +83,7 @@ var _hud_speed := 4.0
 ## 戦場の動きの速さ（とどめのスロー）。粒もこの速さで動かす。
 var motion_speed := 1.0
 var _attached := false
+var _aura_guard: RefCounted
 
 ## ボスの絵（ステージのボスの素材 ID。覚醒した後は *_awakened）→ 倒れ方のスクリプト。無ければ null。
 static func defeat_script(asset_id: String) -> Script:
@@ -102,6 +108,7 @@ static func warm_paths(boss_id: String, party: Array) -> Array[String]:
 	if script == null:
 		return out
 	var consts: Dictionary = script.get_script_constant_map()
+	out.append_array(Array(consts.get("VFX_PATHS", [])))
 	out.append_array(Sprites.pose_paths(boss_id))
 	out.append_array(IntroPlayer.frame_paths_of(boss_id, consts.get("FRAMES", [])))
 	out.append_array(AllyFrames.warm_paths(party))
@@ -131,6 +138,9 @@ static func hold_ally_sheets(party: Array, allow_load: bool = false) -> void:
 ## とどめの命中の瞬間に使う物だけ（決着の前に読み終えておく。とどめの音・ボスの被弾の姿勢）。
 static func final_blow_paths(boss_id: String) -> Array[String]:
 	var out: Array[String] = Audio.paths_of(["enc:final_hit"])
+	var script := defeat_script(boss_id)
+	if script != null:
+		out.append_array(Array(script.get_script_constant_map().get("VFX_PATHS", [])))
 	var poses := Sprites.pose_paths(boss_id)
 	if poses.size() > 11:
 		out.append(poses[11])
@@ -204,6 +214,8 @@ func _attach() -> void:
 	banner.p = self
 	overlay.extra_draw.append(banner.draw)
 	defeat = defeat_script(boss).new()
+	_aura_guard = AuraGuard.new()
+	_aura_guard.attach(stage,boss,top)
 	defeat.p = self
 	defeat.setup()
 	allies = Allies.new()
