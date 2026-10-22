@@ -27,7 +27,7 @@ const ATLAS_RECTS := [
 	Rect2(110, 639, 513, 579), Rect2(672, 640, 456, 579),
 ]
 const ATLAS_FEET := [Vector2(351, 596), Vector2(959, 600), Vector2(370, 1215), Vector2(971, 1215)]
-const ATLAS_EYES := [Vector2(294, 126), Vector2(897, 129), Vector2(324, 741), Vector2(925, 742)]
+const ATLAS_EYES := [Vector2(295.24, 147.20), Vector2(892.23, 151.59), Vector2(310.52, 765.32), Vector2(906.99, 765.53)]
 const ATLAS_SCALE := 0.335
 ## 振り下ろし4コマ(swing.png)。倍率0.415、足元アンカーは動かさない。
 const SWING_RECTS := [

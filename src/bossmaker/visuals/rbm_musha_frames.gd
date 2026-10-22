@@ -1,64 +1,54 @@
 extends RefCounted
-## 朽ちた機械武者のコマ描画(覚醒前・覚醒後の全行動と待機で共通)。
-## 本番の原画のコマ(静止姿 design.png・ポーズ poses.png・覚醒後 awakened.png・振り下ろし swing.png)と、
-## 原画から作った追加コマ(assets_bossmaker/battle/musha_frames/)を、承認済みの倍率・足元のまま Nearest で1枚ずつ描く。
-## 絵を毎フレーム変形・揺らすことはしない(動きはコマの切り替えで表す)。表示専用で、戦闘の状態には触れない。
-## 状態: {"fr": コマ名, "foot": 足元(ステージ座標), "flip": 左右反転, "alpha": 不透明度, "eye": 眼を灯すか}
-
+## Same approved frame sequence; all action sprites are redrawn from the original standing design.
+## One complete native-grid image is drawn at a time. Timing, movement and combat contracts are unchanged.
 const ROOT := "res://assets_bossmaker/battle/"
-
 static var FR := {
-	"idle": {"tex": "musha/design.png", "rect": Rect2(0, 0, 748, 1410), "anchor": Vector2(374, 1410), "scale": 180.0 / 1410.0, "eye": Vector2(265, 243)},
-	"p0": {"tex": "musha/poses.png", "rect": Rect2(95, 50, 345, 438), "anchor": Vector2(270, 475), "scale": 0.445, "eye": Vector2(215, 158), "hilt": Vector2(284, 262), "tsuba": Vector2(292, 274)},
-	"p1": {"tex": "musha/poses.png", "rect": Rect2(447, 50, 590, 438), "anchor": Vector2(856, 475), "scale": 0.445, "eye": Vector2(800, 152), "hilt": Vector2(646, 203), "tip": Vector2(463, 206)},
-	"p2": {"tex": "musha/poses.png", "rect": Rect2(1190, 50, 332, 438), "anchor": Vector2(1360, 475), "scale": 0.445, "eye": Vector2(1305, 152), "hilt": Vector2(1318, 272), "tsuba": Vector2(1366, 268)},
-	"p3": {"tex": "musha/poses.png", "rect": Rect2(20, 502, 435, 508), "anchor": Vector2(280, 988), "scale": 0.445, "eye": Vector2(258, 657), "hilt": Vector2(245, 555), "tip": Vector2(50, 517)},
-	"p4": {"tex": "musha/poses.png", "rect": Rect2(535, 547, 454, 462), "anchor": Vector2(823, 988), "scale": 0.445, "eye": Vector2(780, 653), "hilt": Vector2(725, 839), "tip": Vector2(562, 944)},
-	"p5": {"tex": "musha/poses.png", "rect": Rect2(1190, 543, 322, 465), "anchor": Vector2(1355, 988), "scale": 0.445, "eye": Vector2(1306, 649), "core": Vector2(1330, 760), "tsuba": Vector2(1353, 775), "chest": Vector2(1332, 712)},
-	"a0": {"tex": "musha_awakened/awakened.png", "rect": Rect2(177, 17, 328, 581), "anchor": Vector2(351, 596), "scale": 0.335, "eye": Vector2(294, 126), "patch": true, "tsuba": Vector2(352, 318)},
-	"a1": {"tex": "musha_awakened/awakened.png", "rect": Rect2(777, 24, 365, 578), "anchor": Vector2(959, 600), "scale": 0.335, "eye": Vector2(897, 129), "patch": true},
-	"a2": {"tex": "musha_awakened/awakened.png", "rect": Rect2(110, 639, 513, 579), "anchor": Vector2(370, 1215), "scale": 0.335, "eye": Vector2(324, 741), "patch": true},
-	"a3": {"tex": "musha_awakened/awakened.png", "rect": Rect2(672, 640, 456, 579), "anchor": Vector2(971, 1215), "scale": 0.335, "eye": Vector2(925, 742), "patch": true, "hilt": Vector2(849, 1001), "tip": Vector2(706, 1172)},
-	"s0": {"tex": "musha_awakened/swing.png", "rect": Rect2(40, 20, 390, 710), "anchor": Vector2(232, 708), "scale": 0.415, "eye": Vector2(181, 311), "hilt": Vector2(189, 173), "tip": Vector2(338, 48)},
-	"s1": {"tex": "musha_awakened/swing.png", "rect": Rect2(451, 140, 502, 589), "anchor": Vector2(786, 708), "scale": 0.415, "eye": Vector2(729, 334), "hilt": Vector2(605, 313), "tip": Vector2(478, 182)},
-	"s2": {"tex": "musha_awakened/swing.png", "rect": Rect2(956, 240, 586, 490), "anchor": Vector2(1380, 708), "scale": 0.415, "eye": Vector2(1308, 335), "hilt": Vector2(1186, 436), "tip": Vector2(985, 429)},
-	"s3": {"tex": "musha_awakened/swing.png", "rect": Rect2(1560, 266, 505, 468), "anchor": Vector2(1890, 708), "scale": 0.415, "eye": Vector2(1784, 366), "hilt": Vector2(1756, 576), "tip": Vector2(1624, 704)},
+	"idle": {"tex": "musha/design.png", "rect": Rect2(0,0,748,1410), "anchor": Vector2(374,1410), "scale": 180.0/1410.0, "eye": Vector2(265,243)},
+	"p0": {"tex": "musha_frames/p0.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(219.00, 130.32), "hilt": Vector2(231.81, 183.15), "tsuba": Vector2(236.63, 189.89), "mouth": Vector2(238.23, 192.68)},
+	"p1": {"tex": "musha_frames/p1.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(207.69, 131.30), "hilt": Vector2(107.02, 168.77), "tip": Vector2(24.17, 162.14)},
+	"p2": {"tex": "musha_frames/p2.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(219.00, 130.36), "hilt": Vector2(228.46, 184.12), "tsuba": Vector2(233.16, 189.57), "mouth": Vector2(235.83, 192.46)},
+	"p3": {"tex": "musha_frames/p3.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(222.98, 131.19), "hilt": Vector2(232.58, 81.20), "tip": Vector2(168.77, 64.99)},
+	"p4": {"tex": "musha_frames/p4.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(219.45, 130.07), "hilt": Vector2(213.34, 206.75), "tip": Vector2(177.29, 274.80)},
+	"p5": {"tex": "musha_frames/p5.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(219.05, 130.27), "core": Vector2(229.56, 170.89), "chest": Vector2(229.78, 167.90), "tsuba": Vector2(236.40, 190.21)},
+	"p0k": {"tex": "musha_frames/p0k.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(217.53, 129.75), "hilt": Vector2(225.73, 181.47), "tsuba": Vector2(232.34, 188.07), "mouth": Vector2(236.38, 191.38)},
+	"p0d": {"tex": "musha_frames/p0d.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(207.27, 134.71), "hilt": Vector2(218.12, 179.08), "tsuba": Vector2(222.71, 184.22), "mouth": Vector2(236.47, 193.03)},
+	"p2n1": {"tex": "musha_frames/p2n1.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(218.75, 131.63), "tsuba": Vector2(214.29, 170.84), "mouth": Vector2(233.70, 186.72)},
+	"p2n2": {"tex": "musha_frames/p2n2.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(218.07, 131.54), "tsuba": Vector2(227.90, 183.19), "mouth": Vector2(234.20, 186.72)},
+	"p2n3": {"tex": "musha_frames/p2n3.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(217.70, 131.60), "tsuba": Vector2(229.66, 186.97), "mouth": Vector2(235.21, 186.72)},
+	"a0": {"tex": "musha_frames/a0.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(221.32, 129.65), "tsuba": Vector2(237.52, 185.43), "mouth": Vector2(240.13, 188.82)},
+	"a1": {"tex": "musha_frames/a1.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(217.63, 129.78), "tsuba": Vector2(221.96, 173.21), "mouth": Vector2(237.18, 186.06)},
+	"a2": {"tex": "musha_frames/a2.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(220.07, 129.36), "hilt": Vector2(200.20, 183.16), "tip": Vector2(260.99, 183.68)},
+	"a3": {"tex": "musha_frames/a3.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(218.56, 129.43), "hilt": Vector2(199.29, 207.42), "tip": Vector2(159.44, 274.19)},
+	"s0": {"tex": "musha_frames/s0.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(214.16, 134.35), "hilt": Vector2(195.66, 101.65), "tip": Vector2(287.81, 66.97)},
+	"s1": {"tex": "musha_frames/s1.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(202.31, 136.07), "hilt": Vector2(152.51, 149.94), "tip": Vector2(106.93, 76.20)},
+	"s2": {"tex": "musha_frames/s2.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(197.90, 136.20), "hilt": Vector2(149.23, 172.07), "tip": Vector2(65.89, 172.41)},
+	"s3": {"tex": "musha_frames/s3.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(203.36, 136.86), "hilt": Vector2(201.85, 222.14), "tip": Vector2(116.25, 272.22)},
+	"an1": {"tex": "musha_frames/an1.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(220.29, 130.48), "tsuba": Vector2(215.12, 168.79), "mouth": Vector2(239.66, 188.97)},
+	"an2": {"tex": "musha_frames/an2.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(220.71, 130.44), "tsuba": Vector2(231.80, 179.80), "mouth": Vector2(247.85, 188.97)},
+	"an3": {"tex": "musha_frames/an3.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(220.79, 130.48), "tsuba": Vector2(243.61, 185.53), "mouth": Vector2(256.68, 188.97)},
+	"kcn1": {"tex": "musha_frames/kcn1.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(217.51, 145.05), "tsuba": Vector2(203.15, 187.92), "mouth": Vector2(243.70, 195.94)},
+	"kcs26": {"tex": "musha_frames/kcs26.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(217.27, 145.00), "tsuba": Vector2(206.53, 187.92), "mouth": Vector2(236.94, 195.94)},
+	"kcs22": {"tex": "musha_frames/kcs22.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(217.20, 145.00), "tsuba": Vector2(206.42, 187.92), "mouth": Vector2(230.92, 195.94)},
+	"kcs18": {"tex": "musha_frames/kcs18.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(217.17, 143.23), "tsuba": Vector2(211.62, 188.68), "mouth": Vector2(243.63, 196.79)},
+	"kcs14": {"tex": "musha_frames/kcs14.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(216.89, 143.19), "tsuba": Vector2(221.54, 188.68), "mouth": Vector2(236.91, 196.79)},
+	"kcn2": {"tex": "musha_frames/kcn2.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(216.85, 143.23), "tsuba": Vector2(228.16, 188.68), "mouth": Vector2(230.72, 196.79)},
+	"kcs7": {"tex": "musha_frames/kcs7.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(217.21, 142.17), "tsuba": Vector2(234.84, 189.26), "mouth": Vector2(243.87, 197.43)},
+	"kcs3": {"tex": "musha_frames/kcs3.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(216.78, 142.17), "tsuba": Vector2(237.85, 189.26), "mouth": Vector2(236.99, 197.43)},
+	"kc": {"tex": "musha_frames/kc.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(216.78, 142.17), "tsuba": Vector2(232.47, 189.26), "mouth": Vector2(230.75, 197.43)},
+	"p2k": {"tex": "musha_frames/p2k.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(219.00, 130.36), "hilt": Vector2(228.46, 184.12), "tsuba": Vector2(233.16, 189.57), "mouth": Vector2(235.83, 192.46)},
+	"a0f": {"tex": "musha_frames/a0f.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(221.32, 129.65), "tsuba": Vector2(237.52, 185.43), "mouth": Vector2(240.13, 188.82)},
+	"p3c": {"tex": "musha_frames/p3c.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(227.98, 132.19), "hilt": Vector2(240.58, 77.20), "tip": Vector2(176.77, 60.99)},
+	"p4i": {"tex": "musha_frames/p4i.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(215.45, 133.07), "hilt": Vector2(213.12, 206.92), "tip": Vector2(177.29, 274.80)},
+	"p4r": {"tex": "musha_frames/p4r.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(222.45, 129.07), "hilt": Vector2(213.51, 206.70), "tip": Vector2(177.29, 274.80)},
+	"p5d": {"tex": "musha_frames/p5d.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(218.05, 133.27), "core": Vector2(228.91, 172.85), "chest": Vector2(229.07, 170.02), "tsuba": Vector2(236.11, 191.08)},
+	"p5u": {"tex": "musha_frames/p5u.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(221.05, 126.27), "core": Vector2(230.87, 168.27), "chest": Vector2(231.19, 165.07), "tsuba": Vector2(236.98, 189.05)},
+	"s0c": {"tex": "musha_frames/s0c.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(219.16, 134.35), "hilt": Vector2(204.19, 104.30), "tip": Vector2(296.81, 69.97)},
+	"s3i": {"tex": "musha_frames/s3i.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "eye": Vector2(200.36, 140.86), "hilt": Vector2(201.85, 222.14), "tip": Vector2(116.25, 272.22)},
+	"kc1": {"tex": "musha_frames/kc1.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(219.77, 134.19), "tsuba": Vector2(233.40, 186.80), "mouth": Vector2(231.27, 196.05)},
+	"kcd": {"tex": "musha_frames/kcd.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(216.78, 142.17), "tsuba": Vector2(237.85, 189.26), "mouth": Vector2(236.99, 197.43)},
+	"a1c": {"tex": "musha_frames/a1c.png", "rect": Rect2(0,0,360,300), "anchor": Vector2(240,280), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(215.53, 144.06), "tsuba": Vector2(202.48, 187.59), "mouth": Vector2(243.31, 195.75)},
 }
-
-## 原画から作った追加コマ(1コマ1枚。倍率1.0 = 表示の大きさのドット絵。pscale は元にした原画の倍率)。
-## 鯉口を切る・抜き始め・納刀の途中・溜め・振り抜き後の沈み・反動・調律の沈み/伸び(覚醒前)、
-## 振り下ろしの溜め・振り抜き(覚醒後単体)、納刀・居合の構え・鯉口を切る・抜く瞬間・納め直し(覚醒後全体)。
-const GENERATED := {
-	"a0f": {"file": "musha_frames/a0f.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(79.9, 76.6), "tsuba": Vector2(98.8, 141.2), "mouth": Vector2(101.1, 143.9)},
-	"a1c": {"file": "musha_frames/a1c.png", "size": Vector2(203, 274), "anchor": Vector2(101.0, 233.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(72.6, 92.7), "tsuba": Vector2(73.7, 147.7), "mouth": Vector2(111.3, 162.9)},
-	"an1": {"file": "musha_frames/an1.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(79.9, 76.6), "tsuba": Vector2(76.4, 115.6), "mouth": Vector2(101.1, 143.9)},
-	"an2": {"file": "musha_frames/an2.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(79.9, 76.6), "tsuba": Vector2(85.6, 126.2), "mouth": Vector2(101.1, 143.9)},
-	"an3": {"file": "musha_frames/an3.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(79.9, 76.6), "tsuba": Vector2(93.5, 135.2), "mouth": Vector2(101.1, 143.9)},
-	"kc": {"file": "musha_frames/kc.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(72.5, 94.4), "tsuba": Vector2(96.6, 158.8), "mouth": Vector2(100.0, 159.6)},
-	"kc1": {"file": "musha_frames/kc1.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(75.5, 86.3), "tsuba": Vector2(97.5, 150.6), "mouth": Vector2(100.4, 152.4)},
-	"kcd": {"file": "musha_frames/kcd.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(72.5, 94.4), "tsuba": Vector2(93.7, 158.0), "mouth": Vector2(100.0, 159.6)},
-	"kcn1": {"file": "musha_frames/kcn1.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(72.5, 94.4), "tsuba": Vector2(67.5, 151.5), "mouth": Vector2(100.0, 159.6)},
-	"kcn2": {"file": "musha_frames/kcn2.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(72.5, 94.4), "tsuba": Vector2(85.9, 156.1), "mouth": Vector2(100.0, 159.6)},
-	"kcs14": {"file": "musha_frames/kcs14.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(72.5, 94.4), "tsuba": Vector2(83.0, 155.4), "mouth": Vector2(100.0, 159.6)},
-	"kcs18": {"file": "musha_frames/kcs18.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(72.5, 94.4), "tsuba": Vector2(79.2, 154.4), "mouth": Vector2(100.0, 159.6)},
-	"kcs22": {"file": "musha_frames/kcs22.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(72.5, 94.4), "tsuba": Vector2(75.3, 153.4), "mouth": Vector2(100.0, 159.6)},
-	"kcs26": {"file": "musha_frames/kcs26.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(72.5, 94.4), "tsuba": Vector2(71.4, 152.5), "mouth": Vector2(100.0, 159.6)},
-	"kcs3": {"file": "musha_frames/kcs3.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(72.5, 94.4), "tsuba": Vector2(93.2, 157.9), "mouth": Vector2(100.0, 159.6)},
-	"kcs7": {"file": "musha_frames/kcs7.png", "size": Vector2(191, 275), "anchor": Vector2(99.0, 234.0), "scale": 1.0, "patch": true, "pscale": 0.335, "eye": Vector2(72.5, 94.4), "tsuba": Vector2(89.8, 157.1), "mouth": Vector2(100.0, 159.6)},
-	"p0d": {"file": "musha_frames/p0d.png", "size": Vector2(393, 486), "anchor": Vector2(199.0, 449.0), "scale": 0.445, "patch": false, "eye": Vector2(134.8, 137.7), "hilt": Vector2(183.8, 232.3), "tsuba": Vector2(192.6, 243.7), "mouth": Vector2(225.2, 251.0)},
-	"p0k": {"file": "musha_frames/p0k.png", "size": Vector2(393, 486), "anchor": Vector2(199.0, 449.0), "scale": 0.445, "patch": false, "eye": Vector2(144.0, 132.0), "hilt": Vector2(202.0, 233.0), "tsuba": Vector2(210.0, 245.0), "mouth": Vector2(228.0, 250.0)},
-	"p2k": {"file": "musha_frames/p2k.png", "size": Vector2(229, 276), "anchor": Vector2(116.0, 230.0), "scale": 1.0, "patch": false, "pscale": 0.445, "eye": Vector2(91.5, 86.3), "tsuba": Vector2(119.5, 133.2), "mouth": Vector2(122.3, 135.2)},
-	"p2n1": {"file": "musha_frames/p2n1.png", "size": Vector2(229, 276), "anchor": Vector2(116.0, 230.0), "scale": 1.0, "patch": false, "pscale": 0.445, "eye": Vector2(91.5, 86.3), "tsuba": Vector2(101.8, 120.0), "mouth": Vector2(122.3, 135.2)},
-	"p2n2": {"file": "musha_frames/p2n2.png", "size": Vector2(229, 276), "anchor": Vector2(116.0, 230.0), "scale": 1.0, "patch": false, "pscale": 0.445, "eye": Vector2(91.5, 86.3), "tsuba": Vector2(109.1, 125.4), "mouth": Vector2(122.3, 135.2)},
-	"p2n3": {"file": "musha_frames/p2n3.png", "size": Vector2(229, 276), "anchor": Vector2(116.0, 230.0), "scale": 1.0, "patch": false, "pscale": 0.445, "eye": Vector2(91.5, 86.3), "tsuba": Vector2(115.5, 130.2), "mouth": Vector2(122.3, 135.2)},
-	"p3c": {"file": "musha_frames/p3c.png", "size": Vector2(483, 556), "anchor": Vector2(284.0, 510.0), "scale": 0.445, "patch": false, "eye": Vector2(272.8, 180.4), "hilt": Vector2(267.0, 77.7), "tip": Vector2(75.1, 26.2)},
-	"p4i": {"file": "musha_frames/p4i.png", "size": Vector2(502, 510), "anchor": Vector2(312.0, 465.0), "scale": 0.445, "patch": false, "eye": Vector2(260.2, 136.3), "hilt": Vector2(214.1, 316.7), "tip": Vector2(51.0, 421.0)},
-	"p4r": {"file": "musha_frames/p4r.png", "size": Vector2(502, 510), "anchor": Vector2(312.0, 465.0), "scale": 0.445, "patch": false, "eye": Vector2(276.4, 127.3), "hilt": Vector2(213.9, 315.6), "tip": Vector2(51.0, 421.0)},
-	"p5d": {"file": "musha_frames/p5d.png", "size": Vector2(370, 513), "anchor": Vector2(189.0, 469.0), "scale": 0.445, "patch": false, "eye": Vector2(137.3, 136.7), "core": Vector2(163.3, 246.7), "tsuba": Vector2(186.6, 260.3)},
-	"p5u": {"file": "musha_frames/p5u.png", "size": Vector2(370, 513), "anchor": Vector2(189.0, 469.0), "scale": 0.445, "patch": false, "eye": Vector2(145.5, 120.7), "core": Vector2(165.4, 233.3), "tsuba": Vector2(187.8, 250.3)},
-	"s0c": {"file": "musha_frames/s0c.png", "size": Vector2(438, 758), "anchor": Vector2(216.0, 712.0), "scale": 0.415, "patch": false, "eye": Vector2(176.9, 315.2), "hilt": Vector2(193.3, 178.0), "tip": Vector2(349.7, 62.3)},
-	"s3i": {"file": "musha_frames/s3i.png", "size": Vector2(553, 516), "anchor": Vector2(354.0, 466.0), "scale": 0.415, "patch": false, "eye": Vector2(239.8, 133.2), "hilt": Vector2(220.0, 334.0), "tip": Vector2(88.0, 462.0)},
-}
+const GENERATED := {}
 
 static var _tex := {}
 static var _prepared := false

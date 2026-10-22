@@ -26,8 +26,8 @@ const Timeline = preload("res://src/bossmaker/visuals/rbm_musha_aura_timeline.gd
 const Ink = preload("res://src/bossmaker/visuals/rbm_musha_aura_ink.gd")
 const BASE_ASSET := "musha"
 const AWAKENED_ASSET := "musha_awakened"
-## 覚醒後の抜刀待機の単眼(足元から)。フレーム画像上の(-46,-473)を表示倍率0.335で換算。
-const EYE_OFFSET := Vector2(-15.4, -158.5)
+## 覚醒後の抜刀待機の単眼(足元から)。新しい a3 の目をアトラスの表示倍率0.335で換算。
+const EYE_OFFSET := Vector2(-21.44335, -150.57245)
 ## 空間圧・暗化の中心(ボスの胸のあたり)。
 const CHEST_OFFSET := Vector2(0, -95)
 const BOSS_BLOT_SIZE := Vector2(500, 100)
