@@ -21,7 +21,27 @@ const APPEARANCES := {
 ## Only explicitly supported bosses receive such assets; normal saved IDs are unchanged.
 const AWAKENED_SUFFIX := "_awakened"
 
+## 行動順などに出すボスの顔の位置（frames/00.png の中。[中心 x, 中心 y, 一辺]。中心は絵の幅・高さに対する割合、
+## 一辺は絵の幅に対する割合）。2026-10-23 に13枚を目で確かめて決めた（prototypes/battle_ui_designs_2026-10-23/tools/boss_faces.json）。
+## 行動順に出す22pxでも目と口元が見えるよう、竜・覚醒後の竜は低く狭くした（prototypes/battle_hud_c_2026-10-23/review/_faces22_*.png）。
+## ここに無いもの（味方など）は空を返し、RBMBattleUiKit.build_portrait() の切り出し（絵の上の真ん中）を使う。
+const FACE_REGIONS := {
+	"slime": [0.47, 0.72, 0.32], "wolf": [0.31, 0.4, 0.22], "knight": [0.56, 0.32, 0.2], "dragon": [0.29, 0.585, 0.19],
+	"ghost": [0.4, 0.23, 0.24], "golem": [0.47, 0.38, 0.22], "musha": [0.41, 0.28, 0.42], "astronaut": [0.47, 0.3, 0.24],
+	"gentleman": [0.475, 0.225, 0.16], "dragon_awakened": [0.315, 0.6, 0.17], "musha_awakened": [0.52, 0.31, 0.42],
+	"astronaut_awakened": [0.5, 0.29, 0.24], "gentleman_awakened": [0.49, 0.235, 0.15],
+}
+
 static var _texture_cache: Dictionary = {}
+
+## ボスの顔の範囲（絵の画素の座標、絵の中に収める）。決めていない絵は空。
+static func face_region(asset_id: String, image_size: Vector2) -> Rect2:
+	if not FACE_REGIONS.has(asset_id) or image_size.x <= 0.0 or image_size.y <= 0.0:
+		return Rect2()
+	var f: Array = FACE_REGIONS[asset_id]
+	var side := image_size.x * float(f[2])
+	var region := Rect2(image_size.x * float(f[0]) - side * 0.5, image_size.y * float(f[1]) - side * 0.5, side, side)
+	return region.intersection(Rect2(Vector2.ZERO, image_size))
 
 static func known(asset_id: String) -> bool:
 	if ALLY_IDS.has(asset_id) or BOSS_IDS.has(asset_id):

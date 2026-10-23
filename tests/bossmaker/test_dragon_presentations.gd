@@ -242,7 +242,9 @@ func test_approved_breath_holds_mouth_pose_and_reaches_beyond_left_edge() -> voi
 func test_meteor_final_impact_precedes_cleanup_and_damage_stays_single() -> void:
 	var f := _fixture("aoe","FIRE",true)
 	var seen: Array=[]
+	var partials: Array=[]
 	f.stage.impact.connect(func(entry): seen.append(entry))
+	f.stage.partial_hits.connect(func(_entry,landed): partials.append(landed))
 	f.stage.play_entry(f.entry,f.skill)
 	var d = f.stage._skill_presentation
 	assert_eq(d._vfx.meteors.size(),33)
@@ -251,6 +253,10 @@ func test_meteor_final_impact_precedes_cleanup_and_damage_stays_single() -> void
 	assert_gt(last.radius,d._vfx.meteors[0].radius)
 	f.stage._tween.custom_step(3.0)
 	assert_true(f.stage.is_playing())
+	# 2026-10-23（ユーザーの決定）: 小さな隕石は小さなダメージの数字と HP の表示だけ（partial_hits）。命中の確定は巨大隕石で1回。
+	assert_eq(seen.size(),0,"small meteors only show partial hits")
+	assert_gt(partials.size(),0)
+	f.stage._tween.custom_step(last.arrival-3.0+.05)
 	assert_eq(seen.size(),1,"Repeated visual impacts do not repeat damage")
 	assert_gt(d.duration,last.arrival+1.7)
 	f.stage._tween.custom_step(10)

@@ -172,6 +172,7 @@ func _advance(t: float) -> void:
 		shown.foot = (body_state.foot as Vector2) + shake
 		director.set_body(shown)
 		director.advance_attack(action_kind, t, shake, {})
+	_stage.advance_multi_hit(t)
 	if t >= impact_time and not _hit:
 		_hit = true
 		_stage._strike()

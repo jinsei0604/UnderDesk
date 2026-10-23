@@ -103,6 +103,8 @@ func play(stage: Control) -> Tween:
 	_vfx.screen = Rect2(Vector2.ZERO, stage.size)
 	_vfx.awakened = _awakened
 	add_child(_vfx)
+	# 何回も当たる攻撃（2026-10-23）: 初撃・連撃のたびに小さな数字、最後の大きな斬撃で合計（stage.begin_multi_hit()）
+	stage.begin_multi_hit(_multi_hit_plan(), 0.6 if action_kind == "single" else 0.4)
 
 	boss.visible = false
 	_advance(0.0)
@@ -123,6 +125,25 @@ func play(stage: Control) -> Tween:
 		tween.tween_callback(stage._counter_impact)
 	tween.tween_callback(stage._finish)
 	return tween
+
+## 全体の連撃（rbm_musha_vfx.gd の 2.48 + i * 0.043 秒の28回。i 回目は hits[i % 人数] の相手へ当たる）。
+const FLURRY_START := 2.48
+const FLURRY_STEP := 0.043
+const FLURRY_COUNT := 28
+
+## 最後の一撃（_strike）より前の当たりの時刻（相手ごと）。単体は初撃、全体は初撃と連撃。
+func _multi_hit_plan() -> Dictionary:
+	var plan := {}
+	for i in range(_target_keys.size()):
+		if action_kind == "single":
+			plan[_target_keys[i]] = [Motion.SINGLE_FIRST_HIT]
+		elif action_kind == "all":
+			var times: Array = [Motion.ALL_FIRST]
+			for j in range(FLURRY_COUNT):
+				if j % _target_keys.size() == i:
+					times.append(FLURRY_START + j * FLURRY_STEP)
+			plan[_target_keys[i]] = times
+	return plan
 
 func _jump_track(t: float) -> void:
 	if is_instance_valid(_stage) and is_instance_valid(_stage._sound):
@@ -148,6 +169,7 @@ func _advance(t: float) -> void:
 	_vfx.advance(t)
 	_update_glyph(timeline_kind, t, shake)
 	_layout_party(timeline_kind, t, shake)
+	_stage.advance_multi_hit(t)
 	if t >= impact_time and not _hit:
 		_hit = true
 		_stage._strike()

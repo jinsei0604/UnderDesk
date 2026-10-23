@@ -86,6 +86,19 @@ func play(stage: Control) -> Tween:
 	_vfx.hits=hits
 	_vfx.prepare()
 	add_child(_vfx)
+	if action_kind=="meteors" and not _vfx.meteors.is_empty():
+		# 何回も当たる攻撃（2026-10-23）: 小さな隕石が当たるたびに小さな数字、最後の巨大隕石で合計（stage.begin_multi_hit()）。
+		# 命中の確定（_strike）は巨大隕石へ。小さな隕石は hits[i % 人数] の相手へ当たる（rbm_dragon_ranged_vfx.gd の prepare()）。
+		impact_time=float(_vfx.meteors.back().arrival)
+		var keys: Array[String]=[]
+		for key in stage._targets:
+			if key!="boss": keys.append(key)
+		var plan:={}
+		for i in range(_vfx.meteors.size()-1):
+			var key: String=keys[i%keys.size()]
+			if not plan.has(key): plan[key]=[]
+			plan[key].append(float(_vfx.meteors[i].arrival))
+		stage.begin_multi_hit(plan,.4)
 	if action_kind=="meteors":
 		_sky=MeteorSky.new()
 		_sky.z_index=-1
@@ -124,6 +137,7 @@ func _advance(t: float) -> void:
 	if t>=release_time and not _released:
 		_released=true
 		_stage._play_se("release")
+	if action_kind=="meteors": _stage.advance_multi_hit(t)
 	if t>=impact_time and not _hit:
 		_hit=true
 		_stage._strike()

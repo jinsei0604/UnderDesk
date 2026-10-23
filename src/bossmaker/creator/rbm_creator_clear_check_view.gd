@@ -965,6 +965,8 @@ func _configure_presentation() -> void:
 		_presenter.name = "BattlePresenter"
 		add_child(_presenter)
 		_presenter.entry_impact.connect(_on_presentation_impact)
+		_presenter.entry_hits_landed.connect(_on_presentation_hits_landed)
+		_presenter.entry_partial.connect(_on_presentation_partial)
 		_presenter.finished.connect(_on_presentation_finished)
 	_presenter.enabled = presentation_enabled
 	var visual_stage: Node = _battlefield_ally_row.get_meta("visual_stage", null) as Node
@@ -999,8 +1001,18 @@ func _present_session_opening() -> void:
 	if not log.is_empty() and is_instance_valid(_presenter) and _presenter.can_animate():
 		_present_batch(log, session.presentation_initial_state)
 
+## 侍のカウンターの前に、ボスの攻撃が当たった仲間の HP と左下の文字を、ダメージの数字と同じ瞬間に出す
+## (記録・ログ窓・勝敗は反撃の瞬間の _on_presentation_impact のまま)。
+## 何回も当たる攻撃の途中の当たり（2026-10-23）: 当たった分だけ減った HP を、小さなダメージの数字と同じ瞬間に出す。
+func _on_presentation_partial(state: Dictionary) -> void:
+	RBMBattlePresenter.apply_status_snapshot(self, state, true)
+
+func _on_presentation_hits_landed(entry: Dictionary, state: Dictionary) -> void:
+	RBMBattlePresenter.apply_status_snapshot(self, state, true)
+	_log_label.text = RBMBattleUiKit.format_latest_info([entry], session.battle)
+
 func _on_presentation_impact(entry: Dictionary) -> void:
-	RBMBattlePresenter.apply_status_snapshot(self, entry.get("visual_state", {}))
+	RBMBattlePresenter.apply_status_snapshot(self, entry.get("visual_state", {}), true)
 	_battle_log_history.append(entry)
 	# Do not replace a meaningful last action with a following boss no-op.
 	if str(entry.get("action", "none")) != "none" or _log_label.text.is_empty():

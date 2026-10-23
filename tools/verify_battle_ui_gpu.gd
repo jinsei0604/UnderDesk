@@ -164,7 +164,11 @@ func _visible_clip(node: Node) -> Rect2:
 
 func _layout_checks(label: String) -> void:
 	var message: Control = view.find_child("LatestInfoPanel",true,false)
-	_ui_check(label + " message between battlefield and HP", message.get_global_rect().position.y >= view._battlefield.get_global_rect().end.y and message.get_global_rect().end.y <= view._party_rows.get_global_rect().position.y)
+	# 案C（2026-10-23 ユーザーが採用）: 最新の行動と結果はボスの欄のすぐ下、戦場（ステージの絵）の上。行動順・LOG・やめると重ならない。
+	var boss_panel: Control = view.find_child("BossPanel",true,false)
+	_ui_check(label + " message between boss panel and battlefield", message.get_global_rect().position.y >= boss_panel.get_global_rect().end.y and message.get_global_rect().end.y <= view._battlefield.get_global_rect().position.y)
+	for other in [view._turn_order_panel, view.find_child("LogButton",true,false), view._quit_button]:
+		_ui_check(label + " message clear of " + str(other.name), not message.get_global_rect().intersects(other.get_global_rect()))
 	_ui_check(label + " message wide", message.size.x >= 600)
 	_ui_check(label + " battlefield height", view._battlefield.size.y >= 260)
 	_ui_check(label + " HP panels inside", _inside(view._party_rows))

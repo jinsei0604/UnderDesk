@@ -73,6 +73,8 @@ func _init_battle() -> void:
 		definition["party"].append({"character_id": id, "allowed_skill_ids": skill_ids})
 
 	_view = RBMChallengeBattleView.new()
+	# 戦闘画面の HUD の刷新（案C、2026-10-23）で足した味方の足元の影・頭の上の印は、モニターの見本には出さない（承認済みの見た目のまま）
+	_view._world_battle.battlefield_marks = false
 	_battle_sub.add_child(_view)
 	# ホーム画面のモニターは音を消したプレビュー。ボス専用BGM(rbm_battle_bgm.gd)は戦闘を始める前から使わない
 	# (下で戦闘の効果音を消すのは冒頭の演出が終わってからなので、BGM はそれを待たない)。
@@ -97,6 +99,10 @@ func _init_battle() -> void:
 	var log_row := _view.find_child("LogRow", true, false) as Control
 	if log_row != null:
 		log_row.visible = false
+	# 戦闘画面の HUD（欄の枠・コマンドの欄など）はまとめて隠す（案C のコマンドの欄の左端が、切り出す窓 BATTLE_CROP にかかるため）
+	var hud := _view.find_child("BattleHUD", true, false) as Control
+	if hud != null:
+		hud.visible = false
 
 	_stage = _view._battlefield_ally_row.get_meta("visual_stage", null)
 	# ホームのモニターの見本の戦闘には、ダメージの数字を出さない(承認済みのモニターの見た目のまま。2026-10-22)。

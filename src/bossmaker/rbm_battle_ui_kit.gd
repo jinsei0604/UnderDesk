@@ -395,6 +395,8 @@ static func turn_order_entries(battle: RBMBattle) -> Array[Dictionary]:
 			"status": status,
 			"is_boss": is_boss,
 			"is_downed": unit.is_downed(),
+			# 顔の写真を出す画面のため（味方はキャラクター、ボスは画面側がステージの今の外見から決める）
+			"character_id": "" if is_boss else str(unit.character_id),
 		})
 	return out
 
@@ -800,6 +802,26 @@ static func build_portrait(asset_id: String, portrait_size: float, node_name: St
 		portrait.texture = atlas
 	return portrait
 
+## 顔の写真（行動順など）。ボスは RBMVisualAssets.FACE_REGIONS の顔の範囲を切り出し、決めていない絵（味方など）は
+## build_portrait() と同じ切り出しにする。
+static func build_face_portrait(asset_id: String, portrait_size: float, node_name: String) -> Control:
+	var texture := RBMVisualAssets.texture(asset_id)
+	var region := RBMVisualAssets.face_region(asset_id, texture.get_size()) if texture != null else Rect2()
+	if not region.has_area():
+		return build_portrait(asset_id, portrait_size, node_name)
+	var portrait := TextureRect.new()
+	portrait.name = node_name
+	portrait.custom_minimum_size = Vector2(portrait_size, portrait_size)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var atlas := AtlasTexture.new()
+	atlas.atlas = texture
+	atlas.region = region
+	portrait.texture = atlas
+	return portrait
+
 static func build_portrait_placeholder(size: float, node_name: String, asset_id: String = "") -> PanelContainer:
 	var frame := PanelContainer.new()
 	frame.name = node_name
@@ -950,7 +972,11 @@ static func refresh_turn_order_panel(panel: Control, battle: RBMBattle) -> void:
 
 		if entry["status"] == TURN_ORDER_STATUS_ACTED or entry["is_downed"]:
 			row.modulate = Color(1.0, 1.0, 1.0, 0.5)
+		row.set_meta("turn_order_entry", entry)
 		list.add_child(row)
+		# 戦闘画面の見た目（顔の写真・色）を付ける所（rbm_fullscreen_battle_ui.gd が入れる）。行の中身の文字と ▶ は変えない。
+		if panel.has_meta("row_decorator"):
+			(panel.get_meta("row_decorator") as Callable).call(row, entry)
 
 ## §20: 現在行動中の行だけに使う、ごく細い銅アクセント枠——共有Panel
 ## StyleBoxを複製し、塗り色を透明にして枠線色だけアクセントへ差し替える

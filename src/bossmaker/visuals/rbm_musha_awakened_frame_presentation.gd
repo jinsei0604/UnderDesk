@@ -136,8 +136,31 @@ func play(stage: Control) -> Tween:
 			tw.tween_method(stage._counter_progress, 0.0, 1.0, .20)
 			tw.tween_callback(stage._counter_impact)
 		tw.tween_callback(stage._finish)
+	# 何回も当たる攻撃（2026-10-23）: 先に入る斬撃のたびに小さな数字、着弾（最後の一撃）で合計（stage.begin_multi_hit()）
+	if kind in ["single", "all"]:
+		stage.begin_multi_hit(_multi_hit_plan(), 0.6 if kind == "single" else 0.4)
 	_advance(0.0)
 	return tw
+
+## 単体の先に入る斬撃の時刻(演出の時刻 T。着弾は strike_at)。
+const SINGLE_FIRST_T := 3.70
+
+## 最後の一撃（着弾）より前の当たりの時刻（演出の時刻 T、相手ごと）。単体は先の斬撃、全体は遅れて入る斬撃（武者に近い人から
+## 順に FLURRY_STAGGER ずつ遅れる。_layout_party_T と同じ）。
+func _multi_hit_plan() -> Dictionary:
+	var plan := {}
+	if kind == "single":
+		for key in _target_keys:
+			plan[key] = [SINGLE_FIRST_T]
+		return plan
+	var order: Array = _target_keys.duplicate()
+	order.sort_custom(func(p, q): return _stage._foot(p).x > _stage._foot(q).x)
+	for key in _target_keys:
+		var times: Array = []
+		for dt in FLURRY_DT:
+			times.append(FLURRY_AT + float(dt) + FLURRY_STAGGER * float(order.find(key)))
+		plan[key] = times
+	return plan
 
 ## 単体は溜めを入れてから(SD 秒後に)完成トラックを1回だけ鳴らす。全体は開始時に鳴らし、区切って使う。
 func _plays_track_on_start() -> bool:
@@ -230,6 +253,7 @@ func _advance(T: float) -> void:
 			if key != "boss":
 				al.append(_stage._foot(key))
 		director.advance_attack(kind, T, shake, {"hit": _vfx.hit_at, "center": _vfx.center, "feet": fs, "allies": al})
+	_stage.advance_multi_hit(T)
 	if T >= _delay and t >= impact_time and not _hit:
 		_hit = true
 		_stage._strike()
@@ -361,7 +385,7 @@ func stop() -> void:
 func _layout_party_T(T: float, t: float, shake: Vector2) -> void:
 	var hits: Array
 	if kind == "single":
-		hits = [[3.70, 0.08, Vector2(-1, 0), 6.0], [4.55, 0.10, Vector2(-1, 0), 12.0]]
+		hits = [[SINGLE_FIRST_T, 0.08, Vector2(-1, 0), 6.0], [4.55, 0.10, Vector2(-1, 0), 12.0]]
 	else:
 		# 遅れて入る斬撃の一回ごとに小さくのけぞり(武者に近い人から順に)、着弾で大きく押し込まれる
 		hits = []

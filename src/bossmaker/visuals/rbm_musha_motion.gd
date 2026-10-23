@@ -38,8 +38,9 @@ const TEMPO := {"single": [[3.85, 4.65, 0.0]], "all": [[5.70, 6.45, 0.0]], "supp
 static func tempo(kind: String) -> Array:
 	return TEMPO.get(kind, [])
 
-## strike通知(ダメージ表示の同期)は「巨大な最終斬撃」へ合わせる(初撃は文字なしの
-## 演出のみ)。initial→finalの両方でstrikeは呼ばない。
+## strike通知(命中の確定・HUD の最終の値)は「巨大な最終斬撃」へ合わせる。initial→finalの両方でstrikeは呼ばない。
+## 初撃・全体の連撃は、2026-10-23 から小さなダメージの数字を出す(rbm_musha_presentation.gd の _multi_hit_plan()、
+## stage.begin_multi_hit())。最終斬撃で合計の数字。
 const SINGLE_FIRST_HIT := 1.34
 const SINGLE_FINAL := 2.75
 const ALL_FIRST := 1.52

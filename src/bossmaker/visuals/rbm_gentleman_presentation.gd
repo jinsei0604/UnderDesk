@@ -90,6 +90,8 @@ func play(stage: Control) -> Tween:
 	stage.visibility_changed.connect(_visibility_changed)
 	if not stage._sound.muted:_audio.play()
 	if not stage._guards.is_empty():stage._sound.play_sound("cover_move",-5)
+	# 何回も当たる攻撃（2026-10-23）: 影の射撃・先の弾が当たるたびに小さな数字、最後の一撃（impact）で合計（stage.begin_multi_hit()）
+	if kind in ["single","aoe"]:stage.begin_multi_hit(_multi_hit_plan(data),.6 if kind=="single" else .4)
 	_advance(0)
 	var tween:=create_tween()
 	# 戦闘テンポ（2026-10-16）: 止まっている区間だけ詰める（覚醒は詰めない）。通しの音も同じ時刻へ合わせ直す。
@@ -107,6 +109,26 @@ func play(stage: Control) -> Tween:
 		tween.tween_callback(stage._counter_impact)
 	tween.tween_callback(stage._finish)
 	return tween
+
+## 最後の一撃（impact）より前に当たる弾の時刻（相手ごと）。影の射撃は shadows の target 番目の相手（rbm_gentleman_vfx.gd の
+## point() と同じ数え方）、本体の先の弾（覚醒後）は全部の相手。
+func _multi_hit_plan(data: Dictionary) -> Dictionary:
+	var keys: Array[String]=[]
+	for key in _stage._targets:
+		if key!="boss":keys.append(key)
+	var plan:={}
+	if keys.is_empty():return plan
+	for e in data.get("shadows",[]):
+		if float(e.hit)>=impact_time-.001:continue
+		var key: String=keys[posmod(int(e.target),keys.size())]
+		if not plan.has(key):plan[key]=[]
+		plan[key].append(float(e.hit))
+	for e in data.get("host",[]):
+		if float(e.hit)>=impact_time-.001:continue
+		for key in keys:
+			if not plan.has(key):plan[key]=[]
+			plan[key].append(float(e.hit))
+	return plan
 
 func _advance(t: float) -> void:
 	if not active or not is_instance_valid(_stage):return
@@ -129,6 +151,7 @@ func _advance(t: float) -> void:
 		var progress:=smoothstep(0,.5,t)*(1-smoothstep(duration-.5,duration,t))
 		_stage._visuals[key].position=(Vector2(_stage._homes[key])+Vector2(_stage._guard_offsets[key])*progress).round()
 		_stage._pose(key,10)
+	_stage.advance_multi_hit(t)
 	if t>=impact_time and not _hit and kind!="awakening":
 		_hit=true;_stage._strike()
 		if not active or not is_instance_valid(_stage):return

@@ -91,16 +91,29 @@ func _real_action(id: String, action: Dictionary) -> void:
 	view._present_batch(actual, before)
 	var frames := 0
 	var phases: Dictionary = {}
+	# 2026-10-23: 命中の瞬間、HP・SP の文字はすぐ、バーは RBMBattlePresenter.BAR_EASE_TIME で新しい値へ動く。
+	# 文字は毎フレーム表示中の状態と一致、バーは値が変わってから BAR_EASE_TIME + 2 フレーム以内に着き、途中も前後の値の外へ出ない。
+	var bar_limit := int(ceil(RBMBattlePresenter.BAR_EASE_TIME * 60.0)) + 2
+	var bar_track: Dictionary = {}
 	while view._presenter.is_playing() and frames < 1200:
 		await process_frame
 		await RenderingServer.frame_post_draw
 		var state: Dictionary = view._presenter.display_state()
 		for key in state.get("party", {}):
 			var unit: Dictionary = state["party"][key]
-			var hp_bar := view.find_child("PartyRowHPBar_%s" % key, true, false) as ProgressBar
-			var sp_bar := view.find_child("PartyRowSPBar_%s" % key, true, false) as ProgressBar
-			if hp_bar != null and int(hp_bar.value) != int(unit["hp"]): _fail(id + ": HP HUD not synchronized with impact")
-			if sp_bar != null and int(sp_bar.value) != int(unit["sp"]): _fail(id + ": SP HUD not synchronized with impact")
+			var hp_label := view.find_child("PartyRowHP_%s" % key, true, false) as Label
+			if hp_label != null and hp_label.text != "HP %d / %d" % [int(unit["hp"]), int(unit["max_hp"])]: _fail(id + ": HP text not synchronized with impact")
+			for kind in ["hp", "sp"]:
+				var bar := view.find_child("Party%sBar_%s" % ["RowHP" if kind == "hp" else "RowSP", key], true, false) as ProgressBar
+				if bar == null:
+					continue
+				var target := int(unit[kind])
+				var track: Dictionary = bar_track.get(kind + key, {"target": int(bar.value), "frame": frames, "low": int(bar.value), "high": int(bar.value)})
+				if target != int(track["target"]):
+					track = {"target": target, "frame": frames, "low": mini(mini(int(track["target"]), target), int(bar.value)), "high": maxi(maxi(int(track["target"]), target), int(bar.value))}
+				bar_track[kind + key] = track
+				if int(bar.value) < int(track["low"]) or int(bar.value) > int(track["high"]): _fail(id + ": %s bar moved outside the change" % kind.to_upper())
+				if frames - int(track["frame"]) > bar_limit and int(bar.value) != target: _fail(id + ": %s HUD not synchronized with impact" % kind.to_upper())
 		var phase: String = stage.get_visual_audit()["phase"]
 		if not phases.has(phase) or frames % 20 == 0:
 			_save_image(id + "_%03d_%s.png" % [frames, phase])

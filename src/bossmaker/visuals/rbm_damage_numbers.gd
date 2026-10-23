@@ -22,6 +22,18 @@ const GLYPH_H := 8
 const ADVANCE := 7
 ## 同じ相手に続けて当たった時、前の数字を上へずらす量。
 const STACK_STEP := 30.0
+## 何回も当たる攻撃（2026-10-23 ユーザーの決定）: 当たるたびに、その回の分を小さな数字で出し、最後の一撃で合計を
+## いつもの大きさで出す（小さな数字を全部足すと合計になる。分け方はステージの begin_multi_hit()）。小さな数字は
+## 短く跳ねてすぐ消える（続けて当たると前の数字を少し上へ押し上げる）。
+const SMALL_PIXEL := 2.0
+const SMALL_STAGGER := 0.03
+const SMALL_HOP := 0.42
+const SMALL_HOP_HEIGHT := 12.0
+const SMALL_HOLD := 0.2
+const SMALL_FADE := 0.18
+const SMALL_STACK_STEP := 18.0
+## 最後の一撃で、その回の小さな数字を出してから合計を出すまでの間（合計が出た時に、それまでの数字を上へ押し上げる）。
+const TOTAL_DELAY := 0.18
 ## 画面の上下の、HUD がかぶる帯（数字をこの内側へ収める）。
 const SAFE_TOP := 64.0
 const SAFE_BOTTOM := 176.0
@@ -80,7 +92,9 @@ func _tag_font() -> Font:
 ## 1つの出来事（ログの entry）の結果を、命中した相手ごとに出す。skill はその行動の技（通常攻撃は空）。
 ## part: "all"（全部）/ "hits"（カウンターの前: ボスの攻撃が当たった仲間だけ。防いだ人・反撃は出さない）
 ##       / "reflected"（カウンターの反撃が当たった時: ボスへの反撃のダメージだけ）。
-func show_entry(entry: Dictionary, skill: Dictionary, battle: Variant, part := "all") -> void:
+## rest: 何回も当たる攻撃の最後の一撃 {相手のキー: まだ出していない分}。その相手には、まず残りの分を小さな数字で出し、
+##       TOTAL_DELAY 後に合計を出す。
+func show_entry(entry: Dictionary, skill: Dictionary, battle: Variant, part := "all", rest: Dictionary = {}) -> void:
 	if bool(entry.get("failed", false)):
 		return
 	var action := str(entry.get("action", ""))
@@ -109,7 +123,33 @@ func show_entry(entry: Dictionary, skill: Dictionary, battle: Variant, part := "
 			_add(batch, target, int(entry.get("amount", 0)), "sp")
 		else:
 			_add_hit(batch, entry, skill, battle, part)
+	if not rest.is_empty():
+		var with_rest: Array[Dictionary] = []
+		for n in batch:
+			if rest.has(n["key"]) and n["kind"] in ["damage", "weak", "resist"]:
+				if int(rest[n["key"]]) > 0:
+					with_rest.append({"key": n["key"], "text": str(int(rest[n["key"]])), "kind": n["kind"], "small": true})
+				n["delay"] = TOTAL_DELAY
+			with_rest.append(n)
+		batch = with_rest
 	_place(batch)
+
+## 何回も当たる攻撃の途中の1回（その回の分を小さな数字で出す）。kind は hit_kind() の値。
+func show_part(key: String, amount: int, kind: String) -> void:
+	var batch: Array[Dictionary] = []
+	_add(batch, key, amount, kind)
+	for n in batch:
+		n["small"] = true
+	_place(batch)
+
+## 攻撃が当たった相手の数字の色（弱点・耐性・通常）。
+func hit_kind(key: String, skill: Dictionary, battle: Variant) -> String:
+	var unit = _unit(battle, key)
+	if unit != null and not skill.is_empty():
+		match RBMBattleUiKit.attribute_hit_kind(skill, unit):
+			"weak": return "weak"
+			"resist": return "resist"
+	return "damage"
 
 ## 1人への攻撃。カウンターで防いだ時は、防いだ側には出さず、ボスへの反撃のダメージだけを出す。
 func _add_hit(batch: Array[Dictionary], hit: Dictionary, skill: Dictionary, battle: Variant, part := "all") -> void:
@@ -120,13 +160,7 @@ func _add_hit(batch: Array[Dictionary], hit: Dictionary, skill: Dictionary, batt
 	if part == "reflected":
 		return
 	var target := str(hit.get("target", "boss"))
-	var kind := "damage"
-	var unit = _unit(battle, target)
-	if unit != null and not skill.is_empty():
-		match RBMBattleUiKit.attribute_hit_kind(skill, unit):
-			"weak": kind = "weak"
-			"resist": kind = "resist"
-	_add(batch, target, int(hit.get("amount", 0)), kind)
+	_add(batch, target, int(hit.get("amount", 0)), hit_kind(target, skill, battle))
 
 func _add(batch: Array[Dictionary], key: String, amount: int, kind: String) -> void:
 	if amount <= 0 and kind in ["heal", "sp"]:
@@ -147,44 +181,61 @@ func _unit(battle: Variant, key: String) -> Variant:
 		return battle.boss
 	return RBMBattleUiKit.unit_by_id(battle, int(key))
 
-## 相手の上（ボスは胸、味方は頭の上）に置き、画面の内側へ収める。同じ瞬間の数字どうしが重なる時は上へずらす。
-## 同じ相手にまだ前の数字が出ていれば、前の数字を1段上げる（新しい数字はいつも同じ高さに出る）。
+## 相手の上（ボスは胸、味方は頭の上）に置き、画面の内側へ収める。同じ瞬間の数字どうしが重なる時は上へずらす
+## （同じ相手の数字どうしは、下の「前の数字を上げる」で並ぶので比べない）。
+## 同じ相手にまだ前の数字が出ていれば、前の数字を1段上げる（新しい数字はいつも同じ高さに出る）。遅れて出る数字
+## （何回も当たる攻撃の合計）は、見え始めた時に上げる。
 func _place(batch: Array[Dictionary]) -> void:
 	if batch.is_empty():
 		return
-	var placed: Array[Rect2] = []
+	var placed: Array[Dictionary] = []
 	for n in batch:
 		var key: String = n["key"]
-		for old in _numbers:
-			if old["key"] == key:
-				old["stack"] = float(old["stack"]) + STACK_STEP
-		var digits_width: float = _text_width(n["text"])
-		# 添え書き（弱点！など）は数字の左に置く（跳ねる数字とぶつからない）。全体の真ん中を相手に合わせる。
-		n["tag_w"] = ceilf(_tag_font().get_string_size(tr(TAGS[n["kind"]]), HORIZONTAL_ALIGNMENT_LEFT, -1, TAG_SIZE).x) + 6.0 if TAGS.has(n["kind"]) else 0.0
+		var small := bool(n.get("small", false))
+		n["px"] = SMALL_PIXEL if small else PIXEL
+		n["stagger"] = SMALL_STAGGER if small else STAGGER
+		n["hop"] = SMALL_HOP if small else HOP
+		n["hop_h"] = SMALL_HOP_HEIGHT if small else HOP_HEIGHT
+		n["fade"] = SMALL_FADE if small else FADE
+		n["step"] = SMALL_STACK_STEP if small else STACK_STEP
+		var px: float = n["px"]
+		var delay := float(n.get("delay", 0.0))
+		n["pending"] = delay > 0.0
+		if delay <= 0.0:
+			_lift_others(key, float(n["step"]), n)
+		var digits_width: float = _text_width(n["text"], px)
+		# 添え書き（弱点！など）は数字の左に置く（跳ねる数字とぶつからない）。全体の真ん中を相手に合わせる。小さな数字には付けない。
+		n["tag_w"] = ceilf(_tag_font().get_string_size(tr(TAGS[n["kind"]]), HORIZONTAL_ALIGNMENT_LEFT, -1, TAG_SIZE).x) + 6.0 if TAGS.has(n["kind"]) and not small else 0.0
 		var width: float = digits_width + n["tag_w"]
 		var anchor := _anchor(key)
-		var top_room := HOP_HEIGHT + GLYPH_H * PIXEL
+		var top_room: float = float(n["hop_h"]) + GLYPH_H * px
 		var x := clampf(anchor.x - width * 0.5, SAFE_SIDE, maxf(SAFE_SIDE, stage.size.x - SAFE_SIDE - width))
 		var y := clampf(anchor.y, SAFE_TOP + top_room, maxf(SAFE_TOP + top_room, stage.size.y - SAFE_BOTTOM))
-		var rect := Rect2(x, y - GLYPH_H * PIXEL, width, GLYPH_H * PIXEL)
+		var rect := Rect2(x, y - GLYPH_H * px, width, GLYPH_H * px)
 		for _try in range(4):
 			var hit := false
 			for other in placed:
-				if other.grow(2.0).intersects(rect):
+				if other["key"] != key and (other["rect"] as Rect2).grow(2.0).intersects(rect):
 					hit = true
 					break
 			if not hit or rect.position.y - STACK_STEP < SAFE_TOP + HOP_HEIGHT:
 				break
 			rect.position.y -= STACK_STEP
-		placed.append(rect)
+		placed.append({"key": key, "rect": rect})
 		n["origin"] = Vector2(rect.position.x + n["tag_w"], rect.end.y).round()
-		n["age"] = 0.0
+		n["age"] = -delay
 		n["stack"] = 0.0
 		n["lift"] = 0.0
-		n["life"] = (n["text"].length() - 1) * STAGGER + HOP + HOLD + FADE
+		n["life"] = (n["text"].length() - 1) * float(n["stagger"]) + float(n["hop"]) + (SMALL_HOLD if small else HOLD) + float(n["fade"])
 		_numbers.append(n)
 	set_process(true)
 	queue_redraw()
+
+## 同じ相手に出ている他の数字を、新しい数字の分だけ上げる。
+func _lift_others(key: String, step: float, except: Dictionary) -> void:
+	for old in _numbers:
+		if old["key"] == key and not is_same(old, except):
+			old["stack"] = float(old["stack"]) + step
 
 func _anchor(key: String) -> Vector2:
 	var visual: Control = stage._visuals[key]
@@ -194,14 +245,17 @@ func _anchor(key: String) -> Vector2:
 			return Vector2(visual.position.x + bounds.get_center().x, visual.position.y + bounds.position.y - 4.0)
 	return stage._chest(key) - Vector2(0, 8)
 
-func _text_width(text: String) -> float:
-	return ((text.length() - 1) * ADVANCE + GLYPH_W) * PIXEL
+func _text_width(text: String, px := PIXEL) -> float:
+	return ((text.length() - 1) * ADVANCE + GLYPH_W) * px
 
 func _process(delta: float) -> void:
 	var step := delta * time_scale
 	for i in range(_numbers.size() - 1, -1, -1):
 		var n: Dictionary = _numbers[i]
 		n["age"] = float(n["age"]) + step
+		if bool(n["pending"]) and float(n["age"]) >= 0.0:
+			n["pending"] = false
+			_lift_others(n["key"], float(n["step"]), n)
 		n["lift"] = lerpf(float(n["lift"]), float(n["stack"]), minf(1.0, delta * 32.0))
 		if float(n["age"]) >= float(n["life"]):
 			_numbers.remove_at(i)
@@ -228,19 +282,23 @@ static func hop_offset(p: float) -> float:
 func _draw() -> void:
 	for n in _numbers:
 		var age: float = n["age"]
+		if age < 0.0:
+			continue
 		var text: String = n["text"]
-		var alpha := clampf((float(n["life"]) - age) / FADE, 0.0, 1.0)
+		var px: float = n["px"]
+		var alpha := clampf((float(n["life"]) - age) / float(n["fade"]), 0.0, 1.0)
 		var origin: Vector2 = n["origin"] - Vector2(0, roundf(float(n["lift"])))
-		var glyph_size := Vector2(GLYPH_W + 2, GLYPH_H + 3) * PIXEL
+		var glyph_size := Vector2(GLYPH_W + 2, GLYPH_H + 3) * px
+		var hop_scale: float = float(n["hop_h"]) / HOP_HEIGHT
 		for i in range(text.length()):
-			var local := age - i * STAGGER
+			var local := age - i * float(n["stagger"])
 			if local < 0.0:
 				break
 			var appear := clampf(local / 0.04, 0.0, 1.0)
-			var y := origin.y - GLYPH_H * PIXEL - PIXEL - roundf(hop_offset(local / HOP))
-			var pos := Vector2(origin.x + (i * ADVANCE - 1) * PIXEL, y)
+			var y := origin.y - GLYPH_H * px - px - roundf(hop_offset(local / float(n["hop"])) * hop_scale)
+			var pos := Vector2(origin.x + (i * ADVANCE - 1) * px, y)
 			draw_texture_rect(_glyph(text[i], n["kind"]), Rect2(pos, glyph_size), false, Color(1, 1, 1, alpha * appear))
-		if TAGS.has(n["kind"]):
+		if TAGS.has(n["kind"]) and float(n["tag_w"]) > 0.0:
 			var tag: String = tr(TAGS[n["kind"]])
 			var color: Color = PALETTES[n["kind"]][0]
 			color.a = alpha * clampf(age / 0.08, 0.0, 1.0)
@@ -264,7 +322,8 @@ func active_count() -> int:
 func audit() -> Array:
 	var out: Array = []
 	for n in _numbers:
-		out.append({"key": n["key"], "text": n["text"], "kind": n["kind"], "origin": n["origin"], "age": n["age"], "lift": n["lift"], "stack": n["stack"]})
+		out.append({"key": n["key"], "text": n["text"], "kind": n["kind"], "origin": n["origin"], "age": n["age"], "lift": n["lift"], "stack": n["stack"],
+			"small": bool(n.get("small", false)), "pending": bool(n["pending"])})
 	return out
 
 static func _glyph(ch: String, kind: String) -> ImageTexture:

@@ -4,6 +4,12 @@ extends Control
 ## Visual playback of already resolved combat entries. This node never advances
 ## RBMBattle, changes a unit, selects a target, or reads/consumes battle RNG.
 signal impact(entry: Dictionary)
+## 侍のカウンターで impact が反撃の瞬間まで遅れる時、ボスの攻撃が仲間に当たった瞬間に1回(_strike())。
+## presenter が、当たった仲間の HP・左下の文字をダメージの数字と同じ瞬間に表示するのに使う(表示だけ)。
+signal hits_landed(entry: Dictionary)
+## 何回も当たる攻撃（2026-10-23）の、最後の一撃（impact）より前の当たり。landed: {相手のキー: ここまでに当たった分の合計}。
+## presenter が、その分だけ HP を減らした表示を出すのに使う(表示だけ。戦闘の計算・記録は impact のまま)。
+signal partial_hits(entry: Dictionary, landed: Dictionary)
 signal finished
 signal ally_clicked(unit_id: int)
 signal boss_clicked
@@ -35,6 +41,8 @@ var show_damage_numbers := true
 var _damage_numbers: Node2D
 var _damage_numbers_shown := false
 var _damage_hits_shown := false
+## 何回も当たる攻撃の、相手ごとの当たり（begin_multi_hit()）。{キー: {times, parts, next, landed, amount}}。
+var _multi: Dictionary = {}
 const PresentationWarmup = preload("res://src/bossmaker/visuals/rbm_presentation_warmup.gd")
 ## 演出が再生中に読む素材を、ボスと味方が決まった時点で裏で読み込んでおく(各演出の warm_paths() が宣言)。表示専用。
 var _presentation_warmup: Node
@@ -419,6 +427,7 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 	cancel()
 	_damage_numbers_shown = false
 	_damage_hits_shown = false
+	_multi.clear()
 	_entry = entry.duplicate(true)
 	# 覚醒(Awakening)は通常の攻撃/防御/支援スキルと異なり、skill_id・target・
 	# kindを一切持たない独立したログentry(RBMBattle._maybe_trigger_
@@ -616,6 +625,7 @@ func cancel() -> void:
 	_entry = {}
 	_skill = {}
 	_profile = {}
+	_multi.clear()
 	_targets.clear()
 	_counters.clear()
 	_guards.clear()
@@ -640,14 +650,92 @@ func _show_damage_numbers(entry: Dictionary) -> void:
 	if _damage_numbers_shown or not show_damage_numbers or not is_instance_valid(_damage_numbers):
 		return
 	_damage_numbers_shown = true
-	_damage_numbers.show_entry(entry, _skill, _battle, "reflected" if _damage_hits_shown else "all")
+	_damage_numbers.show_entry(entry, _skill, _battle, "reflected" if _damage_hits_shown else "all", {} if _damage_hits_shown else _multi_rest())
 
 ## カウンターがある時、ボスの攻撃が仲間に当たった瞬間(_strike())に、防いでいない仲間の数字だけを出す。
 func _show_damage_numbers_before_counter() -> void:
 	if _damage_hits_shown or _damage_numbers_shown or not show_damage_numbers or not is_instance_valid(_damage_numbers):
 		return
 	_damage_hits_shown = true
-	_damage_numbers.show_entry(_entry, _skill, _battle, "hits")
+	_damage_numbers.show_entry(_entry, _skill, _battle, "hits", _multi_rest())
+
+## 何回も当たる攻撃（2026-10-23 ユーザーの決定）: 1回の行動で決まったダメージを、演出の当たりの回数に分けて見せる
+## （表示だけ。戦闘の計算・記録・次の行動は変えない）。演出は play() で、最後の一撃（_strike()）より前の当たりの
+## 演出の時刻を相手ごとに渡し、_advance(t) で advance_multi_hit(t) を呼ぶ。当たるたびに、その回の分を小さな数字で出し、
+## その分だけ HP を減らした表示を出す（partial_hits）。最後の一撃で、残りの分の小さな数字と合計の数字を出す。
+## hits: {相手のキー: [演出の時刻, ...]}。final_share: 最後の一撃が受け持つ割合（残りを途中の当たりで同じだけ分ける）。
+## ダメージの無い相手（防いだ・回復など）は対象にしない。
+func begin_multi_hit(hits: Dictionary, final_share := 0.4) -> void:
+	_multi.clear()
+	var amounts := _damage_amounts()
+	for key in hits:
+		var times: Array = (hits[key] as Array).duplicate()
+		times.sort()
+		var amount := int(amounts.get(str(key), 0))
+		if times.is_empty() or amount <= 0:
+			continue
+		_multi[str(key)] = {"times": times, "parts": split_amount(amount, times.size(), final_share), "next": 0, "landed": 0, "amount": amount}
+
+## 演出の時刻 t までの途中の当たりを順に出す（毎フレーム呼ぶ。時刻を飛ばしても1回ずつ出る）。最後の一撃の後は何もしない。
+func advance_multi_hit(t: float) -> void:
+	if _multi.is_empty() or _damage_numbers_shown or _damage_hits_shown:
+		return
+	var changed := false
+	for key in _multi:
+		var m: Dictionary = _multi[key]
+		var times: Array = m["times"]
+		while int(m["next"]) < times.size() and t >= float(times[int(m["next"])]):
+			var part: int = (m["parts"] as Array)[int(m["next"])]
+			m["next"] = int(m["next"]) + 1
+			if part <= 0:
+				continue
+			m["landed"] = int(m["landed"]) + part
+			changed = true
+			if show_damage_numbers and is_instance_valid(_damage_numbers):
+				_damage_numbers.show_part(key, part, _damage_numbers.hit_kind(key, _skill, _battle))
+	if changed:
+		var landed := {}
+		for key in _multi:
+			if int(_multi[key]["landed"]) > 0:
+				landed[key] = int(_multi[key]["landed"])
+		partial_hits.emit(_entry, landed)
+
+## ダメージ amount を、途中の当たり small_hits 回と最後の一撃に分ける。途中は同じ重み、最後は final_share。
+## 端数は累積で切り捨てるので、全部を足すといつも amount になる（最後の分が端数を受け持つ）。
+static func split_amount(amount: int, small_hits: int, final_share: float) -> Array[int]:
+	var out: Array[int] = []
+	var given := 0
+	var share := clampf(final_share, 0.0, 1.0)
+	for i in range(small_hits):
+		var upto := int(floor(float(amount) * (1.0 - share) * float(i + 1) / float(maxi(1, small_hits))))
+		out.append(upto - given)
+		given = upto
+	out.append(amount - given)
+	return out
+
+## 最後の一撃でまだ出していない分 {キー: 残り}（何回も当たる攻撃でない時は空）。
+func _multi_rest() -> Dictionary:
+	var rest := {}
+	for key in _multi:
+		rest[key] = int(_multi[key]["amount"]) - int(_multi[key]["landed"])
+	return rest
+
+## この行動で相手が受けるダメージ {キー: 量}（防いだ相手・回復・SP 回復は入れない）。
+func _damage_amounts() -> Dictionary:
+	var out := {}
+	if bool(_entry.get("failed", false)) or not str(_entry.get("action", "")) in ["attack", "skill"]:
+		return out
+	if _entry.has("hits"):
+		var hits: Dictionary = _entry["hits"]
+		for uid in hits:
+			var hit: Dictionary = hits[uid] if hits[uid] is Dictionary else {"target": uid, "amount": hits[uid]}
+			if not bool(hit.get("blocked", false)):
+				out[str(hit.get("target", uid))] = int(hit.get("amount", 0))
+	elif _entry.has("amount") and _entry.has("target") and not bool(_entry.get("blocked", false)):
+		var label := "ダメージ" if str(_entry.get("action", "")) == "attack" else str(RBMBattleUiKit.AMOUNT_UNIT_BY_EFFECT.get(str(_skill.get("effect", "")), "ダメージ"))
+		if label == "ダメージ":
+			out[str(_entry["target"])] = int(_entry["amount"])
+	return out
 
 func _queue_visual_redraw() -> void:
 	queue_redraw()
@@ -1103,8 +1191,9 @@ func _strike() -> void:
 		impact.emit(_entry)
 	else:
 		_phase = "counter"
-		# impact は侍の反撃が当たるまで来ないので、攻撃が当たった仲間の数字だけを今出す(防いだ侍には出さない)。
+		# impact は侍の反撃が当たるまで来ないので、攻撃が当たった仲間の数字と HP の表示だけを今出す(防いだ侍には出さない)。
 		_show_damage_numbers_before_counter()
+		hits_landed.emit(_entry)
 	_queue_visual_redraw()
 
 func _counter_progress(value: float) -> void:

@@ -251,3 +251,97 @@ func test_stage_switch_release_and_motion_speed() -> void:
 	stage.configure(null)
 	assert_eq(stage._damage_numbers.active_count(), 0)
 	assert_eq(stage._damage_numbers.time_scale, 1.0)
+
+## カウンターの全体攻撃: ボスの攻撃が当たった瞬間に、当たった仲間の HP（HUD）が数字と一緒に変わる。防いだ侍とボスは
+## まだ変わらず、侍の反撃が当たった瞬間（entry_impact）に出来事の結果全体になる。
+func test_hud_hp_of_hit_allies_changes_with_their_numbers_before_the_counter() -> void:
+	var session := _session(["hero", "samurai"], "all")
+	var stage := _stage(session)
+	var boss_entry := {}
+	var before := session.battle.presentation_state()
+	for i in range(4):
+		var actor: int = session.pending_ally_id()
+		if actor < 0:
+			break
+		var unit := RBMBattleUiKit.unit_by_id(session.battle, actor)
+		var action := {"type": "skill", "skill_id": "samurai_counter"} if str(unit.character_id) == "samurai" else {"type": "defend"}
+		for entry in session.resolve_ally_action(action):
+			if str(entry.get("actor")) == "boss" and entry.has("hits"):
+				boss_entry = entry
+			else:
+				before = entry["visual_state"]
+	assert_false(boss_entry.is_empty(), "sanity: the boss used its area attack")
+	var hud := Control.new()
+	add_child_autofree(hud)
+	for unit in session.battle.party:
+		hud.add_child(RBMBattleUiKit.build_party_card(unit, func(_id: int): pass))
+	RBMBattlePresenter.apply_status_snapshot(hud, before)
+	var presenter := RBMBattlePresenter.new()
+	add_child_autofree(presenter)
+	presenter.enabled = true
+	presenter.setup(stage)
+	var landed: Array = []
+	var impacts: Array = []
+	presenter.entry_hits_landed.connect(func(entry: Dictionary, state: Dictionary):
+		RBMBattlePresenter.apply_status_snapshot(hud, state, true)
+		landed.append({"entry": entry, "state": state, "numbers": stage._damage_numbers.audit(), "display": presenter.display_state()}))
+	presenter.entry_impact.connect(func(entry: Dictionary):
+		RBMBattlePresenter.apply_status_snapshot(hud, entry["visual_state"], true)
+		impacts.append(entry))
+	presenter.play([boss_entry], session.battle, before)
+	for i in range(400):
+		if not impacts.is_empty():
+			break
+		if stage._tween != null and stage._tween.is_valid():
+			stage._tween.custom_step(0.02)
+		await get_tree().process_frame
+	assert_eq(landed.size(), 1, "one early HUD update for the hit allies")
+	assert_eq(impacts.size(), 1, "the counter's impact still commits the whole entry once")
+	var samurai := ""
+	var hero := ""
+	for uid in boss_entry["hits"]:
+		if bool(boss_entry["hits"][uid].get("blocked", false)): samurai = str(uid)
+		else: hero = str(uid)
+	var early: Dictionary = landed[0]
+	assert_eq(early["entry"]["hits"].keys().map(func(k): return str(k)), [hero], "the early entry has only the ally who was hit")
+	assert_false(early["entry"].has("reflected") or early["entry"].has("counter"))
+	assert_eq(early["state"]["party"][hero]["hp"], boss_entry["visual_state"]["party"][hero]["hp"], "the hit ally's HP is already the post-hit HP")
+	assert_eq(early["state"]["party"][samurai], before["party"][samurai], "the samurai who blocked is untouched until the counter")
+	assert_eq(early["state"]["boss"], before["boss"], "the boss's HP does not drop before the counter lands")
+	assert_eq(early["display"], early["state"], "the presenter's shown state is the early one")
+	assert_eq(early["numbers"].map(func(n): return n["key"]), [hero], "the number and the HP change in the same moment")
+	var hero_label := hud.find_child("PartyRowHP_%s" % hero, true, false) as Label
+	var hero_bar := hud.find_child("PartyRowHPBar_%s" % hero, true, false) as ProgressBar
+	var hero_after: Dictionary = boss_entry["visual_state"]["party"][hero]
+	assert_eq(hero_label.text, "HP %d / %d" % [hero_after["hp"], hero_after["max_hp"]])
+	assert_eq(int(hero_bar.value), int(hero_after["hp"]))
+	assert_eq(presenter.display_state(), boss_entry["visual_state"], "after the counter the whole entry is shown")
+	var samurai_label := hud.find_child("PartyRowHP_%s" % samurai, true, false) as Label
+	assert_eq(samurai_label.text, "HP %d / %d" % [before["party"][samurai]["hp"], before["party"][samurai]["max_hp"]], "the samurai's HP never drops")
+
+func test_no_early_update_when_nobody_but_the_samurai_was_hit() -> void:
+	var entry := {"actor": "boss", "action": "skill", "hits": {3: {"blocked": true, "counter": true, "amount": 0, "reflected": 9, "target": 3}}}
+	assert_true(RBMBattlePresenter.hits_before_counter(entry).is_empty())
+	assert_true(RBMBattlePresenter.hits_before_counter({"actor": "boss", "action": "skill", "target": 3, "blocked": true, "amount": 0}).is_empty(), "single-target counter")
+
+## REWIND・作り直し（すぐ入れる更新）は、動いている途中のバーを止めてから値を入れる（古い行き先で上書きされない）。
+func test_an_instant_update_stops_a_bar_that_is_still_moving() -> void:
+	var session := _session(["hero"])
+	var hud := Control.new()
+	add_child_autofree(hud)
+	var unit: RBMUnit = session.battle.party[0]
+	hud.add_child(RBMBattleUiKit.build_party_card(unit, func(_id: int): pass))
+	var bar := hud.find_child("PartyRowHPBar_%d" % unit.id, true, false) as ProgressBar
+	var stale := bar.create_tween()
+	stale.tween_property(bar, "value", 1.0, 0.5)
+	bar.set_meta("value_tween", stale)
+	var state := session.battle.presentation_state()
+	RBMBattlePresenter.apply_status_snapshot(hud, state)
+	assert_false(stale.is_valid(), "the old bar motion is stopped")
+	assert_false(bar.has_meta("value_tween"))
+	for i in range(10):
+		await get_tree().process_frame
+	assert_eq(int(bar.value), unit.hp, "the instant value stays")
+	RBMBattlePresenter.apply_status_snapshot(hud, state, true)
+	assert_eq(int(bar.value), unit.hp, "without a window (tests) the animated update is immediate")
+	assert_eq(RBMBattlePresenter.BAR_EASE_TIME, 0.2, "0.15〜0.25 s")

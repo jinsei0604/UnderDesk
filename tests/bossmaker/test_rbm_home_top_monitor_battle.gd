@@ -104,6 +104,24 @@ func test_battle_stage_own_audio_is_muted() -> void:
 	assert_true(stage_audio.muted, "the top monitor battle preview must be silent")
 	await _settle(root)
 
+## 戦闘画面の HUD の刷新（案C、2026-10-23）: モニターの見本には HUD の欄も、足した戦場の印（味方の足元の影・頭の上の印）も出さない
+## （承認済みのモニターの見た目のまま。案C のコマンドの欄の左端が、切り出す窓にかかるため HUD はまとめて隠す）。
+func test_the_battle_hud_and_battlefield_marks_stay_hidden() -> void:
+	var root := await _make_root()
+	await _await_battle_ready(root)
+	for i in range(4):
+		await get_tree().process_frame
+	var view: Control = root._top_monitor_battle._view
+	var hud := view.find_child("BattleHUD", true, false) as Control
+	assert_not_null(hud)
+	assert_false(hud.visible, "the battle HUD is hidden in the monitor")
+	var stage: Node = root._top_monitor_battle._stage
+	for name in ["AllyGroundShadows", "ActiveAllyMarker"]:
+		var mark := stage.get_node_or_null(name) as CanvasItem
+		assert_not_null(mark, "%s exists in the battle stage" % name)
+		assert_false(mark.visible, "%s is not shown in the monitor" % name)
+	await _settle(root)
+
 func test_boss_appearance_is_not_the_dragon() -> void:
 	var root := await _make_root()
 	await _await_battle_ready(root)
