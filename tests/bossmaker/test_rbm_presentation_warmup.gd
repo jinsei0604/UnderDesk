@@ -417,6 +417,10 @@ func test_other_bosses_read_only_their_own_presentations_and_the_party_poses() -
 	assert_eq(held, _sorted(expected), "only the party's reaction poses and declared ally presentations")
 
 func test_first_plays_read_nothing_that_was_not_read_ahead() -> void:
+	for awakened in [false,true]:
+		await _assert_first_play_reads_nothing_new(_battle("appearance_plush", [_attack("single")], false, awakened), "")
+		await _assert_first_play_reads_nothing_new(_battle("appearance_plush", [_attack("all")], false, awakened), "")
+		await _assert_first_play_reads_nothing_new(_battle("appearance_plush", [_heal()], false, awakened), "")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_musha", [_attack("single")]), "musha_single")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_musha", [_attack("all")]), "musha_aoe")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_musha", [_heal()]), "")
@@ -429,7 +433,7 @@ func test_first_plays_read_nothing_that_was_not_read_ahead() -> void:
 	await _assert_first_play_reads_nothing_new(_battle("appearance_gentleman", [_attack("all")]), "gentleman_all")
 
 func test_first_awakenings_read_nothing_that_was_not_read_ahead() -> void:
-	for appearance in ["appearance_musha", "appearance_gentleman"]:
+	for appearance in ["appearance_musha", "appearance_gentleman", "appearance_plush"]:
 		var f := _battle(appearance, [_attack("single")], true)
 		var held := await _settle(f.stage)
 		var entry: Dictionary = {}

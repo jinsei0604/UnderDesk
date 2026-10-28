@@ -34,6 +34,7 @@ const ENTRIES: Array[Dictionary] = [
 	{"id": "appearance_musha", "name": "朽ちた機械武者", "supports_awakening": true},
 	{"id": "appearance_astronaut", "name": "宇宙飛行士", "supports_awakening": true},
 	{"id": "appearance_gentleman", "name": "異形紳士", "supports_awakening": true},
+	{"id": "appearance_plush", "name": "ぬいぐるみ", "supports_awakening": true},
 ]
 
 static func all() -> Array[Dictionary]:

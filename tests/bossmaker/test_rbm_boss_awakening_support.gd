@@ -1,14 +1,14 @@
 extends GutTest
 ## 覚醒対応(supports_awakening)の回帰テスト。覚醒対応は竜・朽ちた機械武者・宇宙飛行士・異形紳士の
-## 4体で、残りの5体(スライム・狼・騎士・幽霊・ゴーレム)は非対応のまま。
+## 5体で、残りの5体(スライム・狼・騎士・幽霊・ゴーレム)は非対応のまま。
 
 func after_each() -> void:
 	await get_tree().process_frame
 
-## 覚醒対応は竜・朽ちた機械武者・宇宙飛行士・異形紳士の4体だけ。他の5体は非対応のまま。
+## 覚醒対応は竜・朽ちた機械武者・宇宙飛行士・異形紳士・ぬいぐるみの5体だけ。他の5体は非対応のまま。
 func test_only_approved_bosses_are_set_to_supports_awakening() -> void:
 	for entry in RBMCreatorAppearanceCatalog.all():
-		var expected: bool = str(entry["id"]) in ["appearance_dragon", "appearance_musha", "appearance_astronaut", "appearance_gentleman"]
+		var expected: bool = str(entry["id"]) in ["appearance_dragon", "appearance_musha", "appearance_astronaut", "appearance_gentleman", "appearance_plush"]
 		assert_eq(bool(entry.get("supports_awakening", false)), expected)
 		assert_eq(RBMCreatorAppearanceCatalog.supports_awakening(str(entry["id"])), expected)
 
@@ -20,11 +20,11 @@ func test_supports_awakening_extraction_logic_handles_true_false_and_missing_key
 	assert_false(bool({"id": "x", "supports_awakening": false}.get("supports_awakening", false)))
 	assert_false(bool({"id": "x"}.get("supports_awakening", false)))
 
-## 全9体のIDと並び: 既存6体は不変で、その後ろに朽ちた機械武者・宇宙飛行士・異形紳士がこの順で並ぶこと。
+## 全10体のIDと並び: 既存6体は不変で、その後ろに朽ちた機械武者・宇宙飛行士・異形紳士がこの順で並ぶこと。
 func test_catalog_entry_count_and_ids_are_unchanged() -> void:
 	var ids: Array = []
 	for entry in RBMCreatorAppearanceCatalog.all(): ids.append(str(entry["id"]))
-	assert_eq(ids, ["appearance_slime", "appearance_wolf", "appearance_knight", "appearance_dragon", "appearance_ghost", "appearance_golem", "appearance_musha", "appearance_astronaut", "appearance_gentleman"])
+	assert_eq(ids, ["appearance_slime", "appearance_wolf", "appearance_knight", "appearance_dragon", "appearance_ghost", "appearance_golem", "appearance_musha", "appearance_astronaut", "appearance_gentleman", "appearance_plush"])
 
 func _draft() -> RBMCreatorDraft:
 	var draft := RBMCreatorDraft.new()
@@ -39,7 +39,7 @@ func test_draft_supports_awakening_only_for_approved_bosses() -> void:
 	var draft := _draft()
 	for entry in RBMCreatorAppearanceCatalog.all():
 		draft.appearance_id = str(entry["id"])
-		assert_eq(draft.supports_awakening(), draft.appearance_id in ["appearance_dragon", "appearance_musha", "appearance_astronaut", "appearance_gentleman"])
+		assert_eq(draft.supports_awakening(), draft.appearance_id in ["appearance_dragon", "appearance_musha", "appearance_astronaut", "appearance_gentleman", "appearance_plush"])
 
 func test_draft_supports_awakening_is_false_when_no_appearance_chosen_yet() -> void:
 	var draft := _draft()

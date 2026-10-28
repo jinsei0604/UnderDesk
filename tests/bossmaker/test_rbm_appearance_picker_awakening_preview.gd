@@ -6,7 +6,7 @@ extends GutTest
 ##
 ## RBMCreatorAppearanceCatalog.ENTRIESはGodotのconstとして実行時読み取り
 ## 専用のため、テストからボスの覚醒対応を書き換えることはできない。実データ
-## では覚醒対応の4体(竜・朽ちた機械武者・宇宙飛行士・異形紳士)と非対応の5体の
+## では覚醒対応の5体(竜・朽ちた機械武者・宇宙飛行士・異形紳士)と非対応の5体の
 ## 表示を確かめる。覚醒後アセットが無い場合などの構造テストは、picker._build_card()
 ## へその場限りのfixture Dictionaryを直接渡すことで、正規のcatalogに
 ## 一切触れずに検証する——実在の9つのidとは衝突しない専用のfixture id
@@ -52,7 +52,7 @@ func test_grid_is_still_three_columns_with_all_nine_bosses_present() -> void:
 	var picker := _new_picker()
 	var grid: GridContainer = _find(picker, "AppearanceGrid")
 	assert_eq(grid.columns, 3)
-	assert_eq(grid.get_child_count(), 9, "既存8体+異形紳士")
+	assert_eq(grid.get_child_count(), 10, "既存9体+ぬいぐるみ")
 
 ## 画面再設計(2回目の改修)§1-2: この画面自身がroot_columnの中で実際の
 ## 表示領域を確保できるよう、size_flags_vertical=EXPAND_FILLを明示している
@@ -124,14 +124,14 @@ func test_back_button_does_not_change_the_currently_selected_boss() -> void:
 	assert_eq(picker._selected_id, "appearance_dragon", "戻るはboss idを変更しない")
 
 # ---------------------------------------------------------------------------
-# 「覚醒可能」表示・プレビュー切替: 実データ(覚醒対応は竜・朽ちた機械武者・宇宙飛行士・異形紳士の4体)
+# 「覚醒可能」表示・プレビュー切替: 実データ(覚醒対応は竜・朽ちた機械武者・宇宙飛行士・異形紳士・ぬいぐるみの5体)
 # ---------------------------------------------------------------------------
 
 func test_only_approved_appearances_show_awakening_badge_and_toggle() -> void:
 	var picker := _new_picker()
 	for entry in RBMCreatorAppearanceCatalog.all():
 		var id := str(entry["id"])
-		if id in ["appearance_dragon", "appearance_musha", "appearance_astronaut", "appearance_gentleman"]:
+		if id in ["appearance_dragon", "appearance_musha", "appearance_astronaut", "appearance_gentleman", "appearance_plush"]:
 			assert_not_null(_find(picker, "AwakeningCapableBadge_%s" % id))
 			assert_not_null(_find(picker, "AwakenedPreviewToggle_%s" % id))
 		else:

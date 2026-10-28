@@ -22,6 +22,8 @@ const Audio = preload("res://src/bossmaker/visuals/encounter/rbm_encounter_audio
 const IntroPlayer = preload("res://src/bossmaker/visuals/encounter/rbm_intro_player.gd")
 const AuraGuard = preload("res://src/bossmaker/visuals/encounter/rbm_defeat_aura_guard.gd")
 const DEFEAT := {
+	"plush": preload("res://src/bossmaker/visuals/plush/rbm_plush_defeat.gd"),
+	"plush_awakened": preload("res://src/bossmaker/visuals/plush/rbm_plush_defeat.gd"),
 	"musha_awakened": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_musha_awakened.gd"),
 	"astronaut_awakened": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_astronaut_awakened.gd"),
 	"gentleman_awakened": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_gentleman_awakened.gd"),

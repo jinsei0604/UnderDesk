@@ -1,0 +1,21 @@
+{
+  "file": "ghost_cry.wav",
+  "origin": "Original procedural voice-like synthesis made for Makers & Challengers.",
+  "method": "Glottal harmonics shaped by moving vowel formants, detuned second throat, low vocal growl and a short diffuse tail. No impact, explosion or metallic layer.",
+  "external_audio_sources": [],
+  "recorded_human_voices": false,
+  "third_party_samples": false,
+  "license_note": "Self-created from mathematical oscillators and seeded noise. No external sample license, commercial-use restriction from third-party recordings, or third-party attribution requirement. Generator is included.",
+  "generator": "authoring/synthesize_ghost.py",
+  "seed": 102710,
+  "sample_rate": 48000,
+  "bit_depth": 16,
+  "channels": 2,
+  "duration_seconds": 1.05,
+  "peak_dbfs": -6.052733772076904,
+  "rms_dbfs": -17.986458455583513,
+  "v9_reference_rms_dbfs": -17.986458455583513,
+  "playback_gain_db": -10,
+  "cue": "Unchanged V9 JUMP=3.40 seconds, same show_action() sound marker and AudioStreamPlayer pool.",
+  "sha256": "df10fe4cfc6ced244955c833580c5810a64eedf209b05bd1f85e3e5063800ce6"
+}

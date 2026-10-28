@@ -1,0 +1,27 @@
+{
+  "origin": "Original procedural synthesis for Makers & Challengers plush V8. No third-party recordings or samples.",
+  "generator": "authoring/build_v8.py",
+  "sample_rate": 48000,
+  "files": {
+    "loom_jolt": {
+      "duration": 0.87,
+      "peak_dbfs": -2.733542797590882
+    },
+    "cloth_hit_0": {
+      "duration": 0.2,
+      "peak_dbfs": -5.514482607984219
+    },
+    "cloth_hit_1": {
+      "duration": 0.2,
+      "peak_dbfs": -5.514482607984219
+    },
+    "cloth_hit_2": {
+      "duration": 0.2,
+      "peak_dbfs": -5.514482607984219
+    },
+    "cloth_finish": {
+      "duration": 0.65,
+      "peak_dbfs": -2.498774732165999
+    }
+  }
+}

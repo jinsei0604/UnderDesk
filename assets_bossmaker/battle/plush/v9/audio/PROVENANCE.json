@@ -1,0 +1,18 @@
+{
+  "file": "loom_jolt_v9.wav",
+  "origin": "Original mathematical synthesis created for this Makers & Challengers preview.",
+  "third_party_audio": false,
+  "external_samples_or_recorded_voices": false,
+  "rights_note": "No external sound recordings or libraries. No third-party attribution, redistribution or commercial-use license dependency. Generator source included.",
+  "generator": "authoring/synthesize_sting.py",
+  "seed": 902710,
+  "sample_rate": 48000,
+  "channels": 2,
+  "bit_depth": 16,
+  "duration_seconds": 1.05,
+  "peak_dbfs": -3.0980391997148637,
+  "rms_dbfs": -17.89878558255189,
+  "sha256": "12e05d824b0311d359e355c26ac2c82c765112276c1ba4758068fa267a207aec",
+  "playback_gain_db": -10,
+  "sync": "V9 JUMP=3.40 s: one show_action threshold switches blackout off and starts the face and AudioStreamPlayer in the same presentation update."
+}

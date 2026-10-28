@@ -45,7 +45,7 @@ func test_new_boss_is_appended_with_a_unique_id_and_existing_six_are_untouched()
 	for entry in RBMCreatorAppearanceCatalog.all():
 		ids.append(str(entry["id"]))
 	assert_eq(ids.slice(0, 6), EXISTING_IDS, "the six existing ids and their order are unchanged")
-	assert_eq(ids.size(), 9)
+	assert_eq(ids.size(), 10)
 	assert_eq(ids[6], MUSHA)
 	var seen := {}
 	for id in ids:
@@ -100,7 +100,7 @@ func test_picker_shows_all_nine_bosses_with_unchanged_card_sizes() -> void:
 	await _frames()
 	var grid: GridContainer = _find(picker, "AppearanceGrid")
 	assert_eq(grid.columns, 3)
-	assert_eq(grid.get_child_count(), 9)
+	assert_eq(grid.get_child_count(), 10)
 	for card in grid.get_children():
 		assert_eq((card as Control).custom_minimum_size, RBMCreatorAppearancePicker.CARD_SIZE, "cards keep their size")
 		assert_gte((card as Control).size.x, RBMCreatorAppearancePicker.CARD_SIZE.x - 0.5, "%s is not squeezed horizontally" % card.name)
