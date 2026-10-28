@@ -404,6 +404,10 @@ func test_other_bosses_read_only_their_own_presentations_and_the_party_poses() -
 	for path in ["battle/healer/actions/healer_intermediates_v1.png", "battle/healer/frames/00.png",
 			"audio/neutral_staff_tap.wav", "audio/neutral_impact_light.wav", "audio/heal_hp.wav", "audio/heal_sp.wav"]:
 		if not expected.has(ASSET_ROOT + path): expected.append(ASSET_ROOT + path)
+	# 味方の覚醒（2026-10-24）: パーティの各味方の発動演出（Codex の発動シーン・音・本体のコマ・オーラ）。
+	for id in PARTY:
+		for path in preload("res://src/bossmaker/visuals/rbm_ally_awakening_presentation.gd").warm_paths(id, "awakening_ally"):
+			if not expected.has(path): expected.append(path)
 	# Approved samurai body, draw/sheath poses and neutral/wind/support cues.
 	for path in ["battle/samurai/actions/samurai_intermediates_v1.png", "battle/samurai/frames/00.png",
 			"battle/samurai/frames/06.png", "battle/samurai/frames/07.png", "battle/samurai/frames/08.png",

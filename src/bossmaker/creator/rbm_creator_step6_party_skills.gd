@@ -43,6 +43,7 @@ const EFFECT_LABELS := {
 	"party_damage_reduction": "被ダメージ軽減（全体）",
 	"sp_recover_all_no_self": "SP回復（全体）",
 	"sp_recover_single_no_self": "SP回復（単体）",
+	"ally_awakening": "覚醒",
 }
 
 const TARGET_LABELS := {
@@ -225,9 +226,11 @@ func _build_edit_panel(parent: Control, character_id: String, master: Dictionary
 		var effect_id := str(skill.get("effect", ""))
 		var target_id := str(skill.get("target", ""))
 		var target_text := tr(str(TARGET_LABELS.get(target_id, target_id))) if not target_id.is_empty() else "-"
+		# 味方の覚醒の SP 消費は最大SPの割合（覚醒する前の最大SP から決まる）。
+		var sp_text := tr("最大SPの%d%%") % int(skill.get("awakening_sp_percent", 0)) if effect_id == RBMDataLoader.AWAKENING_EFFECT else str(skill.get("sp_cost", 0))
 		label.text = tr("%s（%s、対象:%s、SP消費%s）") % [
 			tr(str(skill.get("display_name", skill_id))), tr(str(EFFECT_LABELS.get(effect_id, effect_id))),
-			target_text, str(skill.get("sp_cost", 0)),
+			target_text, sp_text,
 		]
 		row.add_child(label)
 

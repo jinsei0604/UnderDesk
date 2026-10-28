@@ -70,12 +70,13 @@ func _attacking_boss(atk: int, spd: int = 999, weak: Variant = null, resist: Var
 
 func test_all_five_stats_match_spec() -> void:
 	var battle := RBMBattle.new(_full_party(), boss_def, 1)
+	# 技の数は、味方の覚醒（2026-10-24）を1つずつ足した数。
 	var expected := [
-		{"hp": 650, "atk": 240, "spd": 100, "sp": 100, "skills": 4},
-		{"hp": 450, "atk": 220, "spd": 120, "sp": 150, "skills": 4},
-		{"hp": 800, "atk": 140, "spd": 110, "sp": 120, "skills": 4},
-		{"hp": 700, "atk": 280, "spd": 70, "sp": 130, "skills": 4},
-		{"hp": 950, "atk": 200, "spd": 140, "sp": 100, "skills": 5},
+		{"hp": 650, "atk": 240, "spd": 100, "sp": 100, "skills": 5},
+		{"hp": 450, "atk": 220, "spd": 120, "sp": 150, "skills": 5},
+		{"hp": 800, "atk": 140, "spd": 110, "sp": 120, "skills": 5},
+		{"hp": 700, "atk": 280, "spd": 70, "sp": 130, "skills": 5},
+		{"hp": 950, "atk": 200, "spd": 140, "sp": 100, "skills": 6},
 	]
 	for i in range(5):
 		var unit := battle.party[i]
@@ -736,6 +737,12 @@ func test_all_twenty_one_ally_skills_match_the_confirmed_spec() -> void:
 		"tank_guard_boost": {"effect": "guard_boost", "duration_turns": 1.0, "new_rate": 0.6, "sp_cost": 0.0},
 		# 鉄壁
 		"tank_iron_wall": {"effect": "party_damage_reduction", "duration_turns": 1.0, "reduction_rate": 0.1, "sp_cost": 0.0},
+		# 味方の覚醒（2026-10-24）: 5人とも同じ SIMPLE の値。必要SP は最大SP × 割合から戦闘の開始時に決まる（sp_cost を持たない）。
+		"hero_awakening": {"effect": "ally_awakening", "awakening_multiplier": 1.5, "awakening_turns": 3.0, "awakening_sp_percent": 70.0, "sp_cost": null},
+		"butler_awakening": {"effect": "ally_awakening", "awakening_multiplier": 1.5, "awakening_turns": 3.0, "awakening_sp_percent": 70.0, "sp_cost": null},
+		"healer_awakening": {"effect": "ally_awakening", "awakening_multiplier": 1.5, "awakening_turns": 3.0, "awakening_sp_percent": 70.0, "sp_cost": null},
+		"samurai_awakening": {"effect": "ally_awakening", "awakening_multiplier": 1.5, "awakening_turns": 3.0, "awakening_sp_percent": 70.0, "sp_cost": null},
+		"tank_awakening": {"effect": "ally_awakening", "awakening_multiplier": 1.5, "awakening_turns": 3.0, "awakening_sp_percent": 70.0, "sp_cost": null},
 	}
 	var all_defs := [hero_def, butler_def, healer_def, samurai_def, tank_def]
 	var seen := {}
@@ -748,4 +755,4 @@ func test_all_twenty_one_ally_skills_match_the_confirmed_spec() -> void:
 			var fields: Dictionary = expected[id]
 			for key in fields.keys():
 				assert_eq(skill.get(key, null), fields[key], "%s.%s" % [id, key])
-	assert_eq(seen.size(), 21, "exactly 21 skills accounted for")
+	assert_eq(seen.size(), 26, "exactly 21 skills + 5 awakenings accounted for")

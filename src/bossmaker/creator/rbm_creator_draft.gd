@@ -1176,7 +1176,10 @@ func set_ally_skill_override(character_id: String, skill_id: String, field: Stri
 		or not RBMDefinitionLoader.ally_skill_override_fields(master_skill).has(field) \
 		or not RBMDefinitionLoader.validate_ally_skill_override_value(field, value):
 		return false
-	var normalized: Variant = int(value) if ["heal_amount", "sp_amount", "sp_cost", "duration_turns"].has(field) else float(value)
+	var normalized: Variant = int(value) if RBMDefinitionLoader.ALLY_SKILL_INT_FIELDS.has(field) else float(value)
+	if field == "awakening_multiplier":
+		# 味方の覚醒の倍率は 0.1 刻み（入力の小数の誤差を持ち込まない）。
+		normalized = roundf(float(value) * 10.0) / 10.0
 	var master_value: Variant = int(master_skill.get(field, 0)) if normalized is int else float(master_skill.get(field, 0.0))
 	if normalized == master_value:
 		if ally_overrides.has(character_id):
@@ -1223,13 +1226,15 @@ func is_ally_customized(character_id: String) -> bool:
 	if not ally_allowed_skill_ids.has(character_id):
 		return false
 	var allowed: Array = ally_allowed_skill_ids[character_id]
-	var all_ids := all_master_skill_ids(character_id)
-	if allowed.size() != all_ids.size():
-		return true
-	for skill_id in all_ids:
-		if not allowed.has(skill_id):
+	# 味方の覚醒（2026-10-24 追加）の ON/OFF は CUSTOM に数えない。それより前の保存では覚醒が OFF のまま
+	# 読み込まれる（戦闘の内容を変えない）ので、数えると古いボスの味方が全員 CUSTOM に見えてしまう。
+	for skill_id in all_master_skill_ids(character_id):
+		if not allowed.has(skill_id) and not _is_ally_awakening_skill(character_id, str(skill_id)):
 			return true
 	return false
+
+func _is_ally_awakening_skill(character_id: String, skill_id: String) -> bool:
+	return str(_master_ally_skill(character_id, skill_id).get("effect", "")) == RBMDataLoader.AWAKENING_EFFECT
 
 ## Returns the full master shape with sparse differences applied to a deep
 ## duplicate.  This accessor intentionally ignores creator_mode so HARDCORE UI
@@ -1670,7 +1675,7 @@ func _party_snapshot_entry(character_id: String, allowed_raw: Array) -> Dictiona
 			continue
 		var values := {}
 		for field in RBMDefinitionLoader.ally_skill_override_fields(skill):
-			values[field] = int(skill[field]) if ["heal_amount", "sp_amount", "sp_cost", "duration_turns"].has(field) else float(skill[field])
+			values[field] = int(skill[field]) if RBMDefinitionLoader.ALLY_SKILL_INT_FIELDS.has(field) else float(skill[field])
 		skill_values[skill_id] = values
 	return {
 		"character_id": character_id,
@@ -2014,7 +2019,7 @@ func _normalized_clear_check_party(raw_party: Variant) -> Array:
 			var normalized_values := {}
 			for field in values.keys():
 				var field_name := str(field)
-				normalized_values[field_name] = int(values[field]) if ["heal_amount", "sp_amount", "sp_cost", "duration_turns"].has(field_name) else float(values[field])
+				normalized_values[field_name] = int(values[field]) if RBMDefinitionLoader.ALLY_SKILL_INT_FIELDS.has(field_name) else float(values[field])
 			skill_values[str(skill_id)] = normalized_values
 		out.append({
 			"character_id": str(entry.get("character_id", "")),

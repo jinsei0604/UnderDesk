@@ -81,7 +81,15 @@ const ALLY_SKILL_OVERRIDE_FIELDS_BY_EFFECT := {
 	"guard_redirect": ["sp_cost"],
 	"guard_boost": ["duration_turns", "new_rate", "sp_cost"],
 	"party_damage_reduction": ["duration_turns", "reduction_rate", "sp_cost"],
+	# 味方の覚醒（2026-10-24）: 必要SP は覚醒前の最大SP × 消費率から決まるので sp_cost は持たない。
+	"ally_awakening": ["awakening_multiplier", "awakening_turns", "awakening_sp_percent"],
 }
+## 味方の覚醒の HARDCORE の範囲（SIMPLE は master の値のまま 1.5 倍・3 回・70%）。
+const AWAKENING_MULTIPLIER_MIN := 1.0
+const AWAKENING_MULTIPLIER_MAX := 10.0
+const AWAKENING_TURNS_MAX := 99
+## 整数で持つ性能調整の値（ほかは小数）。
+const ALLY_SKILL_INT_FIELDS: Array[String] = ["heal_amount", "sp_amount", "sp_cost", "duration_turns", "awakening_turns", "awakening_sp_percent"]
 
 static func _is_finite_number(value: Variant) -> bool:
 	if typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT:
@@ -118,6 +126,17 @@ static func validate_ally_skill_override_value(field: String, value: Variant) ->
 			return _is_integral_number(value) and int(value) >= 1 and int(value) <= ALLY_OVERRIDE_INT_MAX
 		"new_rate", "reduction_rate":
 			return _is_finite_number(value) and float(value) >= 0.0 and float(value) <= 1.0
+		"awakening_multiplier":
+			# 1.0〜10.0 の 0.1 刻み。
+			if not _is_finite_number(value):
+				return false
+			var tenths := float(value) * 10.0
+			return float(value) >= AWAKENING_MULTIPLIER_MIN - 0.000001 and float(value) <= AWAKENING_MULTIPLIER_MAX + 0.000001 \
+				and absf(tenths - roundf(tenths)) < 0.0001
+		"awakening_turns":
+			return _is_integral_number(value) and int(value) >= 1 and int(value) <= AWAKENING_TURNS_MAX
+		"awakening_sp_percent":
+			return _is_integral_number(value) and int(value) >= 0 and int(value) <= 100
 	return false
 
 ## Validates the saved Draft shape {character_id:{stats:{...},skills:{...}}}.
@@ -281,7 +300,7 @@ static func _filter_ally_skills(master: Dictionary, entry: Dictionary, errors: A
 				var values: Dictionary = skill_overrides[skill_id]
 				for field in values.keys():
 					var field_name := str(field)
-					if ["heal_amount", "sp_amount", "sp_cost", "duration_turns"].has(field_name):
+					if ALLY_SKILL_INT_FIELDS.has(field_name):
 						skill[field_name] = int(values[field])
 					else:
 						skill[field_name] = float(values[field])

@@ -142,7 +142,9 @@ func test_full_phase1_journey_launch_through_challenge_result() -> void:
 	main.draft.set_ally_skill_allowed("hero", "hero_flame_wrap", true)
 	main.draft.set_ally_skill_allowed("hero", "hero_blaze_all", false)
 	main.draft.set_ally_skill_allowed("hero", "hero_burst_slash", false)
-	var expected_allowed_skill_ids := ["hero_slash", "hero_flame_wrap"]
+	# 味方の覚醒（2026-10-24、hero_awakening）も ON のまま保存・CHALLENGE の読み込みを通ることを確かめる。
+	main.draft.set_ally_skill_allowed("hero", "hero_awakening", true)
+	var expected_allowed_skill_ids := ["hero_slash", "hero_flame_wrap", "hero_awakening"]
 	assert_true(main.draft.step1_is_valid(), "sanity")
 	assert_true(main.draft.step2_is_valid(), "sanity")
 	assert_true(main.draft.step5_is_valid(), "sanity")

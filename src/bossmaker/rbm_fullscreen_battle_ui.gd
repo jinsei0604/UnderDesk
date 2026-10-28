@@ -471,7 +471,28 @@ func _build_card(card: PanelContainer) -> void:
 	chip_text.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	HudStyle.label(chip_text,HudStyle.CAPTION_SIZE,HudStyle.CYAN,HudStyle.number_font())
 	chip.add_child(chip_text)
-	column.add_child(chip)
+	# ACTIVE の札の横に、覚醒している間だけ「覚醒 残りN」の札（味方の覚醒、2026-10-24。色だけに頼らず文字で出す）。
+	var chips := HBoxContainer.new()
+	chips.name = "PartyRowChips_%d" % uid
+	chips.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chips.add_theme_constant_override("separation",4)
+	column.add_child(chips)
+	chips.add_child(chip)
+	var awakening := PanelContainer.new()
+	awakening.name = "PartyRowAwakening_%d" % uid
+	awakening.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	awakening.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	awakening.add_theme_stylebox_override("panel",HudStyle.pill(HudStyle.AWAKENED_FILL,HudStyle.AWAKENED_EDGE))
+	var awakening_text := Label.new()
+	awakening_text.name = "PartyRowAwakeningText_%d" % uid
+	awakening_text.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	HudStyle.label(awakening_text,HudStyle.CAPTION_SIZE,HudStyle.AWAKENED_TEXT)
+	awakening.add_child(awakening_text)
+	chips.add_child(awakening)
+	var unit: RBMUnit = null
+	if view.session != null and view.session.battle != null:
+		unit = RBMBattleUiKit.unit_by_id(view.session.battle,uid)
+	RBMBattlePresenter.apply_awakening_chip(card,uid,unit != null and unit.awakened,unit.awakening_turns_left if unit != null else 0)
 	card.set_meta("active_chip",chip)
 	card.set_meta("face_frame",frame)
 	for key in ["PartyRowHP_%d","PartyRowSP_%d"]:

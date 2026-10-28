@@ -52,6 +52,10 @@ static func profile(entry: Dictionary, skill: Dictionary = {}) -> Dictionary:
 		return _from_row(["heal_single", "HP", 6, 7, 0, 0.28, 0.25, 0.20, 0.0])
 	if effect in ["buff_atk_self", "atk_self_buff"]:
 		return _from_row(["boss_buff", attribute, 8, 9, 0, 0.30, 0.25, 0.20, 0.0])
+	# 味方の覚醒（2026-10-24）。ふだんは Codex の発動演出（rbm_ally_awakening_presentation.gd）が使われ、これは
+	# その演出が無い外見の時の控えの動き（自分を対象にした支援と同じ）。
+	if effect == "ally_awakening":
+		return _from_row(["awakening_ally", "NEUTRAL", 8, 9, 0, 0.30, 0.25, 0.20, 0.0])
 	var is_all := str(skill.get("target", "")) in ["ally_all", "all"] or entry.has("hits")
 	return _from_row(["boss_all" if is_all else "boss_single", attribute, 4 if is_all else 1,
 		5 if is_all else 2, 3, 0.32 if is_all else 0.24, 0.24 if is_all else 0.18, 0.22, 10.0])

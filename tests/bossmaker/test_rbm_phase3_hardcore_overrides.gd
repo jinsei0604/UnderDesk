@@ -76,6 +76,10 @@ func _valid_value_for(field: String) -> Variant:
 		"heal_amount": return 456
 		"sp_amount": return 77
 		"sp_cost": return 123
+		# 味方の覚醒（2026-10-24）: 倍率は 1.0〜10.0 の 0.1 刻み、持続は 1〜99、SP消費率は 0〜100。
+		"awakening_multiplier": return 7.5
+		"awakening_turns": return 42
+		"awakening_sp_percent": return 35
 	return 0
 
 func test_player_facing_name_is_hardcore_while_internal_identifier_stays_advanced() -> void:
@@ -629,6 +633,8 @@ func test_every_hardcore_override_row_shows_only_its_caption_and_editable_curren
 		"atk_multiplier": "倍率", "heal_amount": "回復量", "sp_amount": "SP回復量",
 		"sp_cost": "SP消費", "buff_multiplier": "強化倍率", "duration_turns": "効果時間",
 		"new_rate": "防御軽減率", "reduction_rate": "被ダメージ軽減率",
+		# 味方の覚醒（2026-10-24）
+		"awakening_multiplier": "覚醒倍率", "awakening_turns": "持続ターン", "awakening_sp_percent": "SP消費率(%)",
 	}
 	for character_id_variant in RBMDefinitionLoader.KNOWN_ALLY_PATHS.keys():
 		var character_id := str(character_id_variant)

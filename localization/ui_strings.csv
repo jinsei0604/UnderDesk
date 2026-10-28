@@ -398,6 +398,21 @@ to craft a detailed boss battle."
 非公開,Hidden
 高難度,High Difficulty
 （SP不足）,(Not Enough SP)
+（覚醒中）,(Awakened)
+覚醒 残り%d,Awakened %d left
+覚醒 ×%s　残り%dターン,Awakened ×%s  %d turns left
+覚醒！ 能力 ×%s　%dターン,Awakened! All stats ×%s for %d turns
+覚醒が解けた,Awakening wore off
+すでに覚醒しています,Already awakened
+覚醒倍率,Awakening Multiplier
+SP消費率(%),SP Cost Rate (%)
+最大SPの%d%%,%d%% of Max SP
+消費SP：最大SPの%d%%,SP Cost: %d%% of Max SP
+消費SP：最大SPの%d%%（%d）,SP Cost: %d%% of Max SP (%d)
+効果：全能力 ×%s,Effect: All stats ×%s
+全能力：%s倍,All stats: ×%s
+全能力×%s（%dターン）,All stats ×%s (%d turns)
+効果時間：%dターン（次の自分の行動から）,Duration: %d Turns (from your next action)
 （なし）,(None)
 （戦闘不能）,(Down)
 （未設定）,(Not Set)

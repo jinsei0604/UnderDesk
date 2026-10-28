@@ -17,6 +17,10 @@ const SP_TOP := Color("7ad7ff")
 const SP_BOTTOM := Color("2f74c8")
 ## 見出し（BOSS・TURN ORDER・COMMAND・HP・SP・ACTIVE）の文字の大きさ。補足の文字の下限（UI_UX §2）。
 const CAPTION_SIZE := 12
+## 「覚醒」の札の色（ボスの HP バーの札と同じ。味方のカードの覚醒の札にも使う）。
+const AWAKENED_FILL := Color("3a0d33")
+const AWAKENED_EDGE := Color("ff7ad9")
+const AWAKENED_TEXT := Color("ffd6f1")
 
 static var _font: Font
 static var _styles: Dictionary = {}

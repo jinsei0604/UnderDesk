@@ -48,7 +48,25 @@ static func unit_from_ally_def(def: Dictionary, id: int) -> RBMUnit:
 	unit.max_sp = int(max_sp_value) if max_sp_value != null else RBMConstants.NO_SP
 	unit.sp = unit.max_sp if unit.has_sp_resource() else 0
 	unit.skills = _skills_from_def(def)
+	unit.remember_base_stats()
+	# 味方の覚醒（2026-10-24）: 必要SP = 覚醒前の最大SP × 消費率（%）、端数は切り上げ。戦闘中の技の一覧・SP不足の判定・
+	# SP の消費は、ほかの技と同じ sp_cost で行う。
+	# 技の辞書は呼び出し元の定義と共有なので、覚醒の技だけ複製してから書く。
+	for i in unit.skills.size():
+		if str(unit.skills[i].get("effect", "")) == AWAKENING_EFFECT:
+			var skill: Dictionary = unit.skills[i].duplicate(true)
+			skill["sp_cost"] = awakening_sp_cost(unit.base_max_sp, int(skill.get("awakening_sp_percent", 0)))
+			unit.skills[i] = skill
 	return unit
+
+## 味方の覚醒の技の種類（data_bossmaker/allies/*.json の "effect"）。
+const AWAKENING_EFFECT := "ally_awakening"
+
+## 覚醒に必要な SP（最大SP × 消費率、端数は切り上げ。SP を持たない時は 0）。
+static func awakening_sp_cost(max_sp: int, percent: int) -> int:
+	if max_sp == RBMConstants.NO_SP or max_sp <= 0 or percent <= 0:
+		return 0
+	return (max_sp * clampi(percent, 0, 100) + 99) / 100
 
 ## Boss units have no id of their own in Phase 1 (single-boss encounters only);
 ## weak/resist attributes are author-set (v0.1-A: "ボスの弱点・耐性は...作者が設定できる")

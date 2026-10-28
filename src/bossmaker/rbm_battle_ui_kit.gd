@@ -141,6 +141,7 @@ const REASON_LABELS := {
 	"invalid_target": "対象が無効です",
 	"insufficient_sp": "SPが足りません",
 	"target_downed": "対象は戦闘不能です",
+	"already_awakened": "すでに覚醒しています",
 }
 
 ## 値は表示用文字列——キー(heal等)は内部のeffect IDのため翻訳対象では
@@ -178,6 +179,8 @@ static func describe_entry(entry: Dictionary, battle: RBMBattle) -> Dictionary:
 			return {"actor_name": actor_name, "headline": TranslationServer.translate("防御"), "result_lines": []}
 		"none":
 			return {"actor_name": actor_name, "headline": TranslationServer.translate("行動しなかった"), "result_lines": []}
+		"awakening_end":
+			return {"actor_name": actor_name, "headline": TranslationServer.translate("覚醒が解けた"), "result_lines": []}
 		"skill":
 			return _describe_skill_entry(entry, actor_name, battle)
 		_:
@@ -233,6 +236,8 @@ static func _describe_skill_entry(entry: Dictionary, actor_name: String, battle:
 			result_lines.append("%d %s" % [int(entry["amount"]), unit_label])
 	elif entry.has("protecting"):
 		result_lines.append(TranslationServer.translate("%s をかばう") % actor_display_name(entry["protecting"], battle))
+	elif entry.has("awakening_multiplier"):
+		result_lines.append(TranslationServer.translate("覚醒！ 能力 ×%s　%dターン") % [_format_multiplier(float(entry["awakening_multiplier"])), int(entry.get("awakening_turns", 0))])
 
 	# カウンター（ブロック＋反射）: §11「カウンター発動」。ブロックした事実と
 	# 反射ダメージの両方を表示する。反射側の弱点/耐性は、反射に使われた
@@ -268,7 +273,8 @@ static func format_latest_info(entries: Array, battle: RBMBattle) -> String:
 		return ""
 	var chosen: Dictionary = entries[-1]
 	for i in range(entries.size() - 1, -1, -1):
-		if str((entries[i] as Dictionary).get("action", "")) != "none":
+		# 味方の覚醒が解けた（"awakening_end"）は、その直前の行動の結果を隠さないように選ばない（ログには残る）。
+		if not str((entries[i] as Dictionary).get("action", "")) in ["none", "awakening_end"]:
 			chosen = entries[i]
 			break
 	var described := describe_entry(chosen, battle)
@@ -418,6 +424,8 @@ static func _remaining_turns(effects: Dictionary, key: String, current_turn: int
 ## 状態が1つも無ければ空配列（呼び出し側が「現在の状態：なし」を表示する）。
 static func unit_state_lines(unit: RBMUnit, battle: RBMBattle) -> Array[String]:
 	var lines: Array[String] = []
+	if unit.awakened:
+		lines.append(TranslationServer.translate("覚醒 ×%s　残り%dターン") % [_format_multiplier(unit.awakening_multiplier), unit.awakening_turns_left])
 	if RBMConstants.timed_effect_active(unit.timed_effects, "atk_buff", battle.current_turn):
 		var mult := float(RBMConstants.timed_effect_value(unit.timed_effects, "atk_buff", battle.current_turn, 1.0))
 		lines.append(TranslationServer.translate("ATK強化 ×%s　残り%dターン") % [_format_multiplier(mult), _remaining_turns(unit.timed_effects, "atk_buff", battle.current_turn)])
@@ -515,8 +523,20 @@ static func skill_detail_lines(skill: Dictionary, is_ally: bool) -> Array[String
 			lines.append(TranslationServer.translate("効果：味方全体のダメージを継続軽減（鉄壁）"))
 		"guard_redirect":
 			lines.append(TranslationServer.translate("効果：指定した味方への攻撃をかばう"))
+		RBMDataLoader.AWAKENING_EFFECT:
+			lines.append_array(awakening_detail_lines(skill))
 		_:
 			pass
+	return lines
+
+## 味方の覚醒の技の説明（戦闘・ボス作成の画面で共通）。戦闘の中の技は sp_cost（最大SPの割合から計算済み）を持ち、
+## 消費SPは上の行で数値として出るので、割合の行は sp_cost を持たない時（ボス作成の画面）だけ出す。
+static func awakening_detail_lines(skill: Dictionary) -> Array[String]:
+	var lines: Array[String] = []
+	if not skill.has("sp_cost"):
+		lines.append(TranslationServer.translate("消費SP：最大SPの%d%%") % int(skill.get("awakening_sp_percent", 0)))
+	lines.append(TranslationServer.translate("効果：全能力 ×%s") % _format_multiplier(float(skill.get("awakening_multiplier", 1.0))))
+	lines.append(TranslationServer.translate("効果時間：%dターン（次の自分の行動から）") % int(skill.get("awakening_turns", 0)))
 	return lines
 
 ## 技の一覧の下の説明（3つの戦闘画面で共通）。まず今までどおり1項目1行で出し、技の一覧が見える範囲
@@ -600,8 +620,14 @@ static func _enclosing_scroll(node: Node) -> ScrollContainer:
 ## §15/Phase 3.5 Step 3: SP不足なら選択不可＋テキストへ補足——Step 3で確定した
 ## 唯一の判定条件(unit.sp < sp_cost)をそのまま踏襲する。
 static func skill_is_disabled(skill: Dictionary, unit: RBMUnit) -> bool:
+	# 味方の覚醒: 覚醒している間は重ねて使えない。
+	if _awakening_blocked(skill, unit):
+		return true
 	var sp_cost := int(skill.get("sp_cost", 0))
 	return unit.has_sp_resource() and unit.sp < sp_cost
+
+static func _awakening_blocked(skill: Dictionary, unit: RBMUnit) -> bool:
+	return str(skill.get("effect", "")) == RBMDataLoader.AWAKENING_EFFECT and unit.awakened
 
 static func skill_row_text(skill: Dictionary, unit: RBMUnit) -> String:
 	var sp_cost := int(skill.get("sp_cost", 0))
@@ -610,7 +636,11 @@ static func skill_row_text(skill: Dictionary, unit: RBMUnit) -> String:
 	## line()等、別の表示経路を使う）ため、ここは常に味方スキルとして
 	## 翻訳してよい。
 	var display_name := TranslationServer.translate(str(skill.get("display_name", skill.get("id", ""))))
-	var suffix: String = TranslationServer.translate("（SP不足）") if skill_is_disabled(skill, unit) else ""
+	var suffix: String = ""
+	if _awakening_blocked(skill, unit):
+		suffix = TranslationServer.translate("（覚醒中）")
+	elif skill_is_disabled(skill, unit):
+		suffix = TranslationServer.translate("（SP不足）")
 	return TranslationServer.translate("%s　SP %d%s") % [display_name, sp_cost, suffix]
 
 # =============================================================================

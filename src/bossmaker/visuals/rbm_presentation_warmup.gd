@@ -178,6 +178,16 @@ func plan_from(source: Dictionary) -> Array[String]:
 			_ask(out, entry.get("script"), str(entry.get("actor", "")), str(entry.get("kind", "")))
 		elif party.has(str(entry.get("actor", ""))):
 			later_skills.append(entry)
+	# 味方の覚醒（2026-10-24）: 覚醒の技を持つ味方ごとに、開始時の SP で使えれば今、使えなければ後で。
+	for unit in battle.party:
+		for skill in unit.skills:
+			if str(skill.get("effect", "")) != RBMDataLoader.AWAKENING_EFFECT:
+				continue
+			var awakening_entry := {"actor": str(unit.character_id), "kind": "awakening_ally", "script": _stage.AllyAwakening}
+			if int(unit.sp) >= int(skill.get("sp_cost", 0)):
+				_ask(out, awakening_entry["script"], awakening_entry["actor"], awakening_entry["kind"])
+			else:
+				later_skills.append(awakening_entry)
 	if can_awaken and _has_hp_condition(awakening):
 		_ask(out, awakening_script, boss_id, "awakening")
 	# 3. ボスの1ターン目の技 → 味方の被弾・防御の姿勢 → 1ターン目の終わりの指定行動

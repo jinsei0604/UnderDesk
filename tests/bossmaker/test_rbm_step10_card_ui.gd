@@ -628,7 +628,8 @@ func test_step4_performance_skill_list_scrolls_to_last_skill_without_overlapping
 		var vbar := scroll.get_v_scroll_bar()
 		assert_true(vbar.visible, "%s: 長いスキル一覧では性能パネル内部の縦スクロールを有効にすること" % mode_button)
 		assert_gt(vbar.max_value, vbar.page)
-		var last_card := step4._tab_content.find_child("CharacterSkillCard_hero_burst_slash", true, false) as Control
+		# 最後の技は味方の覚醒（2026-10-24 に hero_burst_slash の後ろへ追加）。
+		var last_card := step4._tab_content.find_child("CharacterSkillCard_hero_awakening", true, false) as Control
 		assert_not_null(last_card, "最後の実スキルも一覧に存在すること")
 		assert_true(step4._tab_row.is_visible_in_tree(), "タブ切替行はスクロール領域外で常に到達可能であること")
 		assert_false(scroll.get_global_rect().intersects(step4._tab_row.get_global_rect()), "スクロール領域とタブ切替行が重ならないこと")

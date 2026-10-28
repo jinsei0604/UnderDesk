@@ -254,6 +254,10 @@ func _presentation_unit_state(unit: RBMUnit) -> Dictionary:
 		"protecting_ally_id": unit.protecting_ally_id,
 		"next_attack_bonus_multiplier": unit.next_attack_bonus_multiplier,
 		"timed_effects": unit.timed_effects.duplicate(true),
+		# 味方の覚醒（2026-10-24）: 表示（覚醒の札・残りの回数・オーラ）が読むだけ。
+		"awakened": unit.awakened,
+		"awakening_multiplier": unit.awakening_multiplier,
+		"awakening_turns_left": unit.awakening_turns_left,
 	}
 
 
@@ -388,6 +392,8 @@ func snapshot() -> Dictionary:
 		# 巻き戻せるようにする——他のHARDCORE実行時状態と同じ扱い。
 		"is_awakened": is_awakened,
 		"awakening_used": awakening_used,
+		# 味方の覚醒で SPD が変わると行動順が変わる（ラウンドの始めに決め直す）。そのラウンドの順を戻せるように持つ。
+		"turn_order": turn_order.duplicate(),
 	}
 
 func _snapshot_unit(unit: RBMUnit) -> Dictionary:
@@ -405,6 +411,15 @@ func _snapshot_unit(unit: RBMUnit) -> Dictionary:
 		# skill Dictionary between a snapshot and the live unit.
 		"active_counter_skill_id": str(unit.active_counter_skill.get("id", "")),
 		"protecting_ally_id": unit.protecting_ally_id,
+		# 味方の覚醒（2026-10-24）: 覚醒中は最大HP・ATK・SPD・最大SP が変わっているので、それも戻す。
+		"max_hp": unit.max_hp,
+		"atk": unit.atk,
+		"spd": unit.spd,
+		"max_sp": unit.max_sp,
+		"awakened": unit.awakened,
+		"awakening_multiplier": unit.awakening_multiplier,
+		"awakening_turns_left": unit.awakening_turns_left,
+		"awakening_fresh": unit.awakening_fresh,
 	}
 
 ## Restores every field snapshot() captured, writing IN PLACE onto the
@@ -441,6 +456,10 @@ func restore(state: Dictionary) -> void:
 	_slot_use_counts = (state.get("slot_use_counts", {}) as Dictionary).duplicate(true)
 	is_awakened = bool(state.get("is_awakened", false))
 	awakening_used = bool(state.get("awakening_used", false))
+	if state.has("turn_order"):
+		turn_order.assign(state["turn_order"])
+	else:
+		turn_order = _compute_turn_order()
 
 func _restore_unit(unit: RBMUnit, data: Dictionary) -> void:
 	unit.hp = int(data["hp"])
@@ -452,6 +471,28 @@ func _restore_unit(unit: RBMUnit, data: Dictionary) -> void:
 	var counter_skill_id := str(data.get("active_counter_skill_id", ""))
 	unit.active_counter_skill = _find_skill(unit, counter_skill_id) if counter_skill_id != "" else {}
 	unit.protecting_ally_id = int(data["protecting_ally_id"])
+	# 味方の覚醒（2026-10-24）。キーが無い時は覚醒していない時の値。
+	unit.max_hp = int(data.get("max_hp", unit.base_max_hp))
+	unit.atk = int(data.get("atk", unit.base_atk))
+	unit.spd = int(data.get("spd", unit.base_spd))
+	unit.max_sp = int(data.get("max_sp", unit.base_max_sp))
+	unit.awakened = bool(data.get("awakened", false))
+	unit.awakening_multiplier = float(data.get("awakening_multiplier", 1.0))
+	unit.awakening_turns_left = int(data.get("awakening_turns_left", 0))
+	unit.awakening_fresh = bool(data.get("awakening_fresh", false))
+
+## 味方の覚醒（2026-10-24）: 覚醒した味方の行動が成立するたびに呼ぶ。発動した行動そのものは数えず、
+## 次の自分の行動から数え、残りが 0 になった行動の後で解く（解けたことを "awakening_end" としてログへ残す）。
+func _count_ally_awakening(unit: RBMUnit, log: Array[Dictionary]) -> void:
+	if unit == null or not unit.awakened or battle_over:
+		return
+	if unit.awakening_fresh:
+		unit.awakening_fresh = false
+		return
+	unit.awakening_turns_left -= 1
+	if unit.awakening_turns_left <= 0:
+		unit.end_awakening()
+		log.append(_log_entry({"actor": unit.id, "action": "awakening_end"}))
 
 ## ⚠️ LEGACY API — Codex最終差分レビュー⑪により明示: このメソッドは
 ## HARDCORE Creatorのボス行動選択（_resolve_boss_turn_actions()経由の
@@ -481,6 +522,8 @@ func resolve_turn(ally_actions: Dictionary) -> Dictionary:
 	# returned as-is regardless of whether current_turn advances afterward (Step 2
 	# fix #5: "turn" always means "the turn just resolved", never the next one).
 	var resolved_turn := current_turn
+	# 味方の覚醒で SPD が変わった時は、次のラウンドの行動順から反映する。
+	turn_order = _compute_turn_order()
 
 	# TURN START — reset per-turn postures, then pre-apply "防御" (only) for the
 	# WHOLE turn: it is a locked-in base command, not resolved lazily at the acting
@@ -522,7 +565,11 @@ func resolve_turn(ally_actions: Dictionary) -> Dictionary:
 			if not ally_actions.has(id_key):
 				log.append(_log_entry({"actor": acting.id, "action": "none", "failed": true, "reason": "unspecified_action"}))
 			else:
-				log.append(_log_entry(_resolve_ally_action(acting, ally_actions[id_key])))
+				var entry := _resolve_ally_action(acting, ally_actions[id_key])
+				log.append(_log_entry(entry))
+				if not bool(entry.get("action_voided", false)):
+					_check_battle_over()
+					_count_ally_awakening(acting, log)
 		else:
 			# May append more than one entry: Step 3 最終修正指示 §1 -- every
 			# 置換型 scripted action configured for this turn fires (not just
@@ -593,6 +640,8 @@ func advance_to_next_decision(stop_before_turn_processing: bool = false) -> Arra
 			# 個別にリセットする、下記参照）。
 			for unit in party:
 				unit.protecting_ally_id = -1
+			# 味方の覚醒で SPD が変わった時は、次のラウンドの行動順から反映する（ラウンドの途中では並べ替えない）。
+			turn_order = _compute_turn_order()
 			for scripted in _scripted_actions_for(current_turn, "turn_start_interrupt"):
 				log.append(_log_entry(_resolve_scripted_boss_action(scripted)))
 				_check_battle_over()
@@ -726,6 +775,7 @@ func resolve_pending_ally_action(action: Dictionary) -> Array[Dictionary]:
 		return log
 	_round_cursor += 1
 	_check_battle_over()
+	_count_ally_awakening(acting, log)
 	_maybe_trigger_awakening(log)
 	return log
 
@@ -833,6 +883,13 @@ func _resolve_ally_skill(unit: RBMUnit, skill_id: String, target_id: int) -> Dic
 			# action resolution — never pre-applied at TURN START.
 			unit.protecting_ally_id = target_id
 			result["protecting"] = target_id
+		RBMDataLoader.AWAKENING_EFFECT:
+			# 味方の覚醒（2026-10-24）: SP は上で覚醒前の値から払い済み。HP・SP は割合のまま最大値を変える。
+			var multiplier := float(skill.get("awakening_multiplier", 1.5))
+			var turns := int(skill.get("awakening_turns", 3))
+			unit.awaken(multiplier, turns)
+			result["awakening_multiplier"] = multiplier
+			result["awakening_turns"] = turns
 		_:
 			pass
 
@@ -866,6 +923,10 @@ func _validate_skill_target(caster: RBMUnit, skill: Dictionary, effect: String, 
 			var target := _unit_by_id(target_id)
 			if target == null or target.is_downed():
 				return {"valid": false, "reason": "invalid_target"}
+		RBMDataLoader.AWAKENING_EFFECT:
+			# 覚醒中は重ねて覚醒できない（SP を払わず、手番も使わない）。
+			if caster.awakened:
+				return {"valid": false, "reason": "already_awakened"}
 		_:
 			pass
 	return {"valid": true}

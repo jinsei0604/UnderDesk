@@ -419,8 +419,11 @@ func _add_hardcore_party_performance(character_id: String, master: Dictionary, a
 				"atk_multiplier": "倍率", "heal_amount": "回復量", "sp_amount": "SP回復量",
 				"sp_cost": "SP消費", "buff_multiplier": "強化倍率", "duration_turns": "効果時間",
 				"new_rate": "防御軽減率", "reduction_rate": "被ダメージ軽減率",
+				"awakening_multiplier": "覚醒倍率", "awakening_turns": "持続ターン", "awakening_sp_percent": "SP消費率(%)",
 			}.get(field, field)))
-			if ["atk_multiplier", "buff_multiplier", "new_rate", "reduction_rate"].has(field):
+			if field == "awakening_multiplier":
+				parts.append("%s %.1f" % [field_label, float(effective_skill[field])])
+			elif ["atk_multiplier", "buff_multiplier", "new_rate", "reduction_rate"].has(field):
 				parts.append("%s %.2f" % [field_label, float(effective_skill[field])])
 			else:
 				parts.append("%s %d" % [field_label, int(effective_skill[field])])

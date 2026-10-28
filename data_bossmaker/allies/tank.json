@@ -46,6 +46,14 @@
 			"duration_turns": 1,
 			"reduction_rate": 0.1,
 			"sp_cost": 0
+		},
+		{
+			"id": "tank_awakening",
+			"display_name": "覚醒",
+			"effect": "ally_awakening",
+			"awakening_multiplier": 1.5,
+			"awakening_turns": 3,
+			"awakening_sp_percent": 70
 		}
 	]
 }

@@ -98,7 +98,8 @@ func _advance(generation: int) -> void:
 	var entry: Dictionary = _entries[_cursor]
 	_entry_start_state = _display_state.duplicate(true)
 	entry_started.emit(entry)
-	if not can_animate() or str(entry.get("action", "none")) == "none" or bool(entry.get("failed", false)):
+	# 味方の覚醒が解けた（"awakening_end"）は動きを持たない。表示（数値・オーラ・札）だけすぐ進める。
+	if not can_animate() or str(entry.get("action", "none")) in ["none", "awakening_end"] or bool(entry.get("failed", false)):
 		_on_stage_impact(entry)
 		_on_stage_finished()
 		return
@@ -240,11 +241,23 @@ static func apply_status_snapshot(view: Control, state: Dictionary, animate := f
 		var card := view.find_child("PartyRow_%d" % unit_id, true, false) as Control
 		if card != null:
 			card.modulate = Color(1.0, 1.0, 1.0, 0.55 if hp <= 0 else 1.0)
+			apply_awakening_chip(card, unit_id, bool(unit.get("awakened", false)), int(unit.get("awakening_turns_left", 0)))
 	var boss_label := view.find_child("BossLabel", true, false) as Label
 	if boss_label != null:
 		var boss: Dictionary = state.get("boss", {})
 		boss_label.text = TranslationServer.translate("%s　（ターン%d）") % [str(boss.get("display_name", "")), int(state.get("turn", 1))]
 	apply_boss_bar(view, state, animate)
+
+## 味方のカードの「覚醒 残りN」の札（rbm_fullscreen_battle_ui.gd が作る。無いカードでは何もしない）。
+## 残りは「あと何回の自分の行動で解けるか」（発動した行動の間は設定した回数のまま）。
+static func apply_awakening_chip(card: Control, unit_id: int, awakened: bool, turns_left: int) -> void:
+	var chip := card.find_child("PartyRowAwakening_%d" % unit_id, true, false) as Control
+	if chip == null:
+		return
+	chip.visible = awakened
+	var text := chip.find_child("PartyRowAwakeningText_%d" % unit_id, true, false) as Label
+	if text != null:
+		text.text = TranslationServer.translate("覚醒 残り%d") % maxi(0, turns_left) if awakened else ""
 
 ## ボスの HP バー（rbm_boss_hp_bar.gd）へ、表示している状態のボスを入れる。挑戦で作者が HP を非公開にしている時は量を出さない
 ## （ボスの詳細と同じ設定）。演出の再生中は命中の瞬間（apply_status_snapshot）だけ、それ以外は戦闘画面の配置の更新から呼ぶ。

@@ -38,6 +38,14 @@
 			"effect": "sp_recover_all_no_self",
 			"sp_amount": 40,
 			"sp_cost": 60
+		},
+		{
+			"id": "healer_awakening",
+			"display_name": "覚醒",
+			"effect": "ally_awakening",
+			"awakening_multiplier": 1.5,
+			"awakening_turns": 3,
+			"awakening_sp_percent": 70
 		}
 	]
 }

@@ -41,6 +41,14 @@
 			"attribute": "FIRE",
 			"atk_multiplier": 2.2,
 			"sp_cost": 50
+		},
+		{
+			"id": "hero_awakening",
+			"display_name": "覚醒",
+			"effect": "ally_awakening",
+			"awakening_multiplier": 1.5,
+			"awakening_turns": 3,
+			"awakening_sp_percent": 70
 		}
 	]
 }

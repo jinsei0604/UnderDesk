@@ -51,6 +51,10 @@ var _waiting_script: Script
 var _waiting_asset := ""
 var _waiting_kind := ""
 var _waiting_seen_ready := false
+## 味方の覚醒（2026-10-24）: 発動の演出（Codex の発動シーンのつなぎ）と、覚醒している間の常時オーラ。表示専用。
+const AllyAwakening = preload("res://src/bossmaker/visuals/rbm_ally_awakening_presentation.gd")
+const AllyAwakeningAuras = preload("res://src/bossmaker/visuals/rbm_ally_awakening_auras.gd")
+var _ally_auras: Node
 const AstronautAwakening = preload("res://src/bossmaker/visuals/rbm_astronaut_awakening.gd")
 const AstronautAura = preload("res://src/bossmaker/visuals/rbm_astronaut_aura.gd")
 var _astronaut_aura: Node2D
@@ -239,6 +243,10 @@ func _ready() -> void:
 	_presentation_warmup = PresentationWarmup.new()
 	add_child(_presentation_warmup)
 	_presentation_warmup.configure(self)
+	_ally_auras = AllyAwakeningAuras.new()
+	_ally_auras.name = "AllyAwakeningAuras"
+	add_child(_ally_auras)
+	_ally_auras.configure(self)
 	_damage_numbers = DamageNumbers.new()
 	_damage_numbers.name = "DamageNumbers"
 	_damage_numbers.stage = self
@@ -253,6 +261,7 @@ func configure(battle: Variant, appearance_id: String = "") -> void:
 	if battle == null:
 		cancel()
 		if is_instance_valid(_damage_numbers): _damage_numbers.clear()
+		if is_instance_valid(_ally_auras): _ally_auras.clear()
 		return
 	if is_instance_valid(_samurai_stance): _samurai_stance.resume()
 	if is_instance_valid(_tank_state): _tank_state.resume()
@@ -264,6 +273,7 @@ func configure(battle: Variant, appearance_id: String = "") -> void:
 		return
 	cancel()
 	if is_instance_valid(_damage_numbers): _damage_numbers.clear()
+	if is_instance_valid(_ally_auras): _ally_auras.clear()
 	for visual in _visuals.values():
 		if is_instance_valid(visual):
 			remove_child(visual)
@@ -419,6 +429,7 @@ func set_state(snapshot: Dictionary) -> void:
 	if not _playing:
 		_sync_boss_appearance()
 		_reset_actors()
+	if is_instance_valid(_ally_auras): _ally_auras.sync()
 	_queue_visual_redraw()
 
 ## Starts playback and returns immediately; impact and finished are the only
@@ -442,6 +453,10 @@ func play_entry(entry: Dictionary, skill: Dictionary = {}) -> void:
 	if str(_profile["kind"]) == "normal" and str(_asset_ids.get(_actor, "")) in ["butler", "healer"]:
 		_profile["advance"] = 0.0
 	_targets = _entry_targets()
+	# 味方の覚醒（2026-10-24）: Codex の発動演出（rbm_ally_awakening_presentation.gd）。
+	if _entry.get("action", "") == "skill" and (str(_skill.get("effect", "")) == RBMDataLoader.AWAKENING_EFFECT or _entry.has("awakening_multiplier")) and _visuals.has(_actor) and AllyAwakening.has_presentation(str(_asset_ids.get(_actor, ""))):
+		_start_dedicated(AllyAwakening, str(_asset_ids.get(_actor, "")), "awakening_ally")
+		return
 	var normal = ATTACK_PRESENTATIONS.get(str(_asset_ids.get(_actor, "")))
 	if normal != null and _entry.get("action", "") == "attack" and _profile["kind"] == "normal" and _targets == ["boss"]:
 		_start_dedicated(normal, str(_asset_ids[_actor]), "normal")
@@ -1333,7 +1348,7 @@ func _counter_targets() -> Array[String]:
 
 func _is_supportive() -> bool:
 	return str(_profile.get("kind", "")) in ["fire_buff", "sp_single", "sp_all", "heal_single", "heal_all",
-		"iai", "counter_stance", "protect", "guard_boost", "iron_wall", "defend", "boss_buff"]
+		"iai", "counter_stance", "protect", "guard_boost", "iron_wall", "defend", "boss_buff", "awakening_ally"]
 
 func _foot(key: String) -> Vector2:
 	if not _visuals.has(key):

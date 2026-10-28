@@ -50,6 +50,7 @@ const SKILL_EFFECT_LABELS := {
 	"guard_redirect": "かばう",
 	"guard_boost": "防御強化",
 	"party_damage_reduction": "被ダメージ軽減",
+	"ally_awakening": "覚醒",
 }
 
 const SKILL_TARGET_LABELS := {
@@ -595,9 +596,11 @@ func _build_skills_edit_panel(character_id: String, master: Dictionary) -> void:
 		var effect_id := str(skill.get("effect", ""))
 		var target_id := str(skill.get("target", ""))
 		var target_text := tr(str(SKILL_TARGET_LABELS.get(target_id, target_id))) if not target_id.is_empty() else "-"
+		# 味方の覚醒の SP 消費は最大SPの割合（覚醒する前の最大SP から決まる）。
+		var sp_text := tr("最大SPの%d%%") % int(skill.get("awakening_sp_percent", 0)) if effect_id == RBMDataLoader.AWAKENING_EFFECT else str(int(skill.get("sp_cost", 0)))
 		label.text = tr("%s（%s、対象:%s、SP消費%s）") % [
 			tr(str(skill.get("display_name", skill_id))), tr(str(SKILL_EFFECT_LABELS.get(effect_id, effect_id))),
-			target_text, str(int(skill.get("sp_cost", 0))),
+			target_text, sp_text,
 		]
 		row.add_child(label)
 
@@ -722,6 +725,7 @@ func _add_skill_override_editor(parent: Control, character_id: String, master_sk
 		"atk_multiplier": "倍率", "heal_amount": "回復量", "sp_amount": "SP回復量",
 		"sp_cost": "SP消費", "buff_multiplier": "強化倍率", "duration_turns": "効果時間",
 		"new_rate": "防御軽減率", "reduction_rate": "被ダメージ軽減率",
+		"awakening_multiplier": "覚醒倍率", "awakening_turns": "持続ターン", "awakening_sp_percent": "SP消費率(%)",
 	}
 	for field in RBMDefinitionLoader.ally_skill_override_fields(master_skill):
 		var row := HBoxContainer.new()
@@ -743,6 +747,18 @@ func _add_skill_override_editor(parent: Control, character_id: String, master_sk
 			spin.min_value = 0.0
 			spin.max_value = 1.0
 			spin.step = 0.01
+			spin.allow_greater = false
+			spin.value = float(effective_skill[field])
+		elif field == "awakening_multiplier":
+			spin.min_value = RBMDefinitionLoader.AWAKENING_MULTIPLIER_MIN
+			spin.max_value = RBMDefinitionLoader.AWAKENING_MULTIPLIER_MAX
+			spin.step = 0.1
+			spin.allow_greater = false
+			spin.value = float(effective_skill[field])
+		elif field == "awakening_turns" or field == "awakening_sp_percent":
+			spin.min_value = 1.0 if field == "awakening_turns" else 0.0
+			spin.max_value = float(RBMDefinitionLoader.AWAKENING_TURNS_MAX if field == "awakening_turns" else 100)
+			spin.step = 1.0
 			spin.allow_greater = false
 			spin.value = float(effective_skill[field])
 		else:
@@ -800,6 +816,13 @@ func _add_skill_effect_lines(parent: Control, master: Dictionary, skill: Diction
 		"party_damage_reduction":
 			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, tr("パーティの被ダメージ軽減：%d%%") % int(round(float(skill.get("reduction_rate", 0.0)) * 100.0)))
 			_add_info_label(parent, "SkillDurationLabel_%s" % skill_id, tr("効果時間：%dターン") % int(skill.get("duration_turns", 1)))
+		"ally_awakening":
+			var percent := int(skill.get("awakening_sp_percent", 0))
+			var max_sp_value: Variant = master.get("max_sp", RBMConstants.NO_SP)
+			var max_sp := int(max_sp_value) if max_sp_value != null else RBMConstants.NO_SP
+			_add_info_label(parent, "SkillEffectLabel_%s" % skill_id, tr("全能力：%s倍") % str(float(skill.get("awakening_multiplier", 1.0))))
+			_add_info_label(parent, "SkillDurationLabel_%s" % skill_id, tr("効果時間：%dターン（次の自分の行動から）") % int(skill.get("awakening_turns", 1)))
+			_add_info_label(parent, "SkillSpCostLabel_%s" % skill_id, tr("消費SP：最大SPの%d%%（%d）") % [percent, RBMDataLoader.awakening_sp_cost(max_sp, percent)])
 
 func _add_info_label(parent: Control, node_name: String, text: String) -> Label:
 	var label := Label.new()

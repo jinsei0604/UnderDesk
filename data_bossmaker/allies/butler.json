@@ -40,6 +40,14 @@
 			"attribute": "ICE",
 			"atk_multiplier": 4.0,
 			"sp_cost": 60
+		},
+		{
+			"id": "butler_awakening",
+			"display_name": "覚醒",
+			"effect": "ally_awakening",
+			"awakening_multiplier": 1.5,
+			"awakening_turns": 3,
+			"awakening_sp_percent": 70
 		}
 	]
 }

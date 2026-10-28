@@ -109,9 +109,14 @@ static func skill_effect(skill: Dictionary) -> String:
 			return TranslationServer.translate("防御の軽減を%d%%に（%dターン）") % [int(round(float(skill.get("new_rate", 0.6)) * 100.0)), turns]
 		"party_damage_reduction":
 			return TranslationServer.translate("味方全員の被ダメージ-%d%%（%dターン）") % [int(round(float(skill.get("reduction_rate", 0.1)) * 100.0)), turns]
+		RBMDataLoader.AWAKENING_EFFECT:
+			return TranslationServer.translate("全能力×%s（%dターン）") % [_num(float(skill.get("awakening_multiplier", 1.5))), int(skill.get("awakening_turns", 3))]
 	return ""
 
 static func sp_text(skill: Dictionary) -> String:
+	# 味方の覚醒の SP は最大SPの割合。
+	if str(skill.get("effect", "")) == RBMDataLoader.AWAKENING_EFFECT:
+		return "SP %d%%" % int(skill.get("awakening_sp_percent", 0))
 	return "SP %d" % int(skill.get("sp_cost", 0))
 
 # ---------------------------------------------------------------------------
