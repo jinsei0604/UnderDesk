@@ -14,7 +14,8 @@ extends RefCounted
 ## 指定行動] → NORMAL ACTION PHASE (every living combatant acts once, in a fixed
 ## SPD-sorted order; the boss's own slot may be replaced by one or more
 ## 置換型 指定行動) → [割り込み型・ターン終了時 指定行動] → TURN END (turn-scoped
-## state, e.g. counter stance, clears).
+## state, e.g. defend/protect, clears; counter stance instead lasts until the
+## unit's own next slot — see the 2026-10-28 note below).
 ##
 ## 指定行動 (Step 3 修正指示 §6, and 最終修正指示 §1): boss_def["scripted_actions"]
 ## is an Array of {"turn":int, "skill_id":String,
@@ -75,6 +76,10 @@ extends RefCounted
 ## active_counter_skill)の意味は今回変更していない——ユーザーが明示的に
 ## 変更を求めたのは防御のみのため、両者とも旧来どおり「ラウンド境界で
 ## 一括リセット」のまま。
+## 2026-10-28 ユーザーの指示: カウンターも防御と同じく「使った後、本人の次の
+## 行動順が来る直前まで」続く（ラウンド境界では解かない。侍が行動順の最後でも
+## 次のラウンドのボスの攻撃へ反撃できる）。解くのは本人の番に着いた瞬間・
+## 反撃した瞬間・戦闘不能・戦闘終了（_check_battle_over()）。かばうは従来どおり。
 ##
 ## REWINDとの関係（Round 5-2で修正）: snapshot()/restore()は_round_cursor/
 ## _round_turn_start_firedを含む全状態を保存・復元する。呼び出し側
@@ -296,10 +301,21 @@ func _check_battle_over() -> void:
 	if boss.is_downed():
 		battle_over = true
 		winner = "ally"
+		_clear_counter_stances()
 		return
 	if _living_allies().is_empty():
 		battle_over = true
 		winner = "boss"
+		_clear_counter_stances()
+
+## カウンターの構えはラウンドをまたいで続くので、戦闘が終わった時にここで解く。
+func _clear_counter_stances() -> void:
+	for unit in party:
+		_clear_counter_stance(unit)
+
+func _clear_counter_stance(unit: RBMUnit) -> void:
+	unit.counter_pending_this_turn = false
+	unit.active_counter_skill = {}
 
 ## 覚醒（Awakening）— 通常のaction_sequence評価とは別の、独立したチェック。
 ## advance_to_next_decision()/resolve_pending_ally_action()が1件のログ
@@ -561,6 +577,8 @@ func resolve_turn(ally_actions: Dictionary) -> Dictionary:
 		if acting == null or acting.is_downed():
 			continue
 		if acting.is_ally:
+			# カウンターは本人の次の番が来る直前まで（advance_to_next_decision() と同じ）。
+			_clear_counter_stance(acting)
 			var id_key := str(acting.id)
 			if not ally_actions.has(id_key):
 				log.append(_log_entry({"actor": acting.id, "action": "none", "failed": true, "reason": "unspecified_action"}))
@@ -589,11 +607,8 @@ func resolve_turn(ally_actions: Dictionary) -> Dictionary:
 		_check_battle_over()
 
 	# TURN END — every turn-scoped posture clears here, regardless of whether it
-	# ever triggered, so state is fully at rest between resolve_turn() calls
-	# (Step 2 fix #4).
+	# ever triggered (Step 2 fix #4). カウンターは除く（2026-10-28: 本人の次の番まで続く）。
 	for unit in party:
-		unit.counter_pending_this_turn = false
-		unit.active_counter_skill = {}
 		unit.is_defending = false
 		unit.protecting_ally_id = -1
 
@@ -621,8 +636,8 @@ func resolve_turn(ally_actions: Dictionary) -> Dictionary:
 ##       is_at_fresh_turn_boundary()参照）。
 ## 停止した後にもう一度呼んでも安全（その時点で何もすることが無ければ
 ## 即座に空配列を返す）。ラウンドの最後のスロットまで処理し終えたら、
-## turn_end指定行動→ラウンド境界の後始末（かばう/カウンターのリセットのみ
-## ——防御は対象外、クラス冒頭コメント参照）→Turnを進める→（(c)で停止しな
+## turn_end指定行動→ラウンド境界の後始末（かばうのリセットのみ
+## ——防御・カウンターは対象外、クラス冒頭コメント参照）→Turnを進める→（(c)で停止しな
 ## ければ）次ラウンドのturn_start指定行動、と自動的に連続して処理し続ける
 ## （生存している味方が1人でもいる限り、そのラウンド内で必ずその味方の番に
 ## 行き当たるため、無限にラウンドをまたぎ続けることはない）。
@@ -674,6 +689,8 @@ func advance_to_next_decision(stop_before_turn_processing: bool = false) -> Arra
 				# 選ぶより前に、既にfalseになっていなければならない
 				# （resolve_pending_ally_action()側では二度と触らない）。
 				acting.is_defending = false
+				# カウンターも同じ瞬間に解く（2026-10-28: 使った後、本人の次の番が来る直前まで続く）。
+				_clear_counter_stance(acting)
 				return log  # 生存している味方の番 — 入力待ちで停止する。
 			for entry in _resolve_boss_turn_actions(acting):
 				log.append(_log_entry(entry))
@@ -692,8 +709,6 @@ func advance_to_next_decision(stop_before_turn_processing: bool = false) -> Arra
 				return log
 			_maybe_trigger_awakening(log)
 		for unit in party:
-			unit.counter_pending_this_turn = false
-			unit.active_counter_skill = {}
 			unit.protecting_ally_id = -1
 		current_turn += 1
 		_round_cursor = 0

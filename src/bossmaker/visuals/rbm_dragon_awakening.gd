@@ -7,6 +7,12 @@ const REVEAL_TIME := 3.04
 const REVEAL := REVEAL_TIME
 const DARK_START := 2.32
 const DARK_END := 2.68
+## 叫び声（2026-10-28）: 登場演出と同じ素材・同じ音量（enc:dragon_roar を +2dB）。解放（REVEAL_TIME）の瞬間、覚醒の音の爆発
+## （dragon_awakening.wav の 3.04 秒）と同時に鳴らし始める（ユーザーの指定）。登場演出と同じく最後まで鳴らす。
+## 途中で読み込むと止まるので、ここで先に読んでおく（RBMAudio は同じ物を load で受け取る）。
+const ROAR_STREAM := preload("res://assets_bossmaker/audio/encounter/dragon_roar.wav")
+const ROAR_TIME := REVEAL_TIME
+const ROAR_GAIN_DB := 2.0
 var age := -1.0
 var canvas_size := Vector2(1280, 720)
 var home := Vector2.ZERO
@@ -59,8 +65,9 @@ func advance(time: float) -> void:
 	if active and is_instance_valid(_stage):
 		if age >= 0.55 and not _erupted:
 			_erupted = true
-		if age >= 1.28 and not _roared:
+		if age >= ROAR_TIME and not _roared:
 			_roared = true
+			_play_sound("dragon_roar", ROAR_GAIN_DB)
 		if age >= DARK_START and not _revealed:
 			_revealed = true
 			_stage._awakened_appearance_applied = true

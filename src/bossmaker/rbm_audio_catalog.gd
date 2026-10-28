@@ -15,6 +15,7 @@ const FILES := {
   "astronaut_blackhole": "res://assets_bossmaker/audio/astronaut/blackhole.wav",
 
   "dragon_awakening": "res://assets_bossmaker/audio/dragon_awakening.wav",
+  "dragon_roar": "res://assets_bossmaker/audio/encounter/dragon_roar.wav",
   "dragon_normal_breath": "res://assets_bossmaker/audio/dragon_normal_breath.wav",
   "dragon_awakened_breath": "res://assets_bossmaker/audio/dragon_awakened_breath.wav",
   "dragon_awakened_meteors": "res://assets_bossmaker/audio/dragon_awakened_meteors.wav",

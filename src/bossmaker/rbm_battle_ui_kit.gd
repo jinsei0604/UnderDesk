@@ -245,7 +245,7 @@ static func _describe_skill_entry(entry: Dictionary, actor_name: String, battle:
 	# 保持しない）、今回は反射ダメージの数値のみを表示する——数値を捏造せず、
 	# 確実に取得できる情報だけを表示する方針。
 	if bool(entry.get("counter", false)) and bool(entry.get("blocked", false)):
-		result_lines.append(TranslationServer.translate("%s の攻撃を防いだ！") % (TranslationServer.translate("ボス") if str(actor) != "boss" else TranslationServer.translate("味方")))
+		result_lines.append(TranslationServer.translate("%s の攻撃を防いだ！") % (TranslationServer.translate("ボス") if str(actor) == "boss" else TranslationServer.translate("味方")))
 		if entry.has("reflected"):
 			result_lines.append(TranslationServer.translate("反撃！ %s に %d ダメージ") % [actor_display_name("boss", battle), int(entry["reflected"])])
 

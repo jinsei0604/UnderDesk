@@ -385,7 +385,8 @@ func test_iai_is_preserved_when_the_counter_does_not_trigger() -> void:
 	var boss_entry := _find_log_entry(result["log"], "boss")
 	assert_false(bool(boss_entry.get("blocked", false)), "counter had nothing left to intercept this turn")
 	assert_almost_eq(battle.party[0].next_attack_bonus_multiplier, 2.5, 0.0001, "iai must remain pending -- the counter never triggered")
-	assert_false(battle.party[0].counter_pending_this_turn, "counter stance clears at turn end regardless of trigger")
+	# 2026-10-28: the unused counter is no longer cleared at TURN END -- it carries into the next round.
+	assert_true(battle.party[0].counter_pending_this_turn, "an unused counter stance carries over until the samurai's own next slot")
 
 func test_iai_clears_when_the_samurai_is_downed() -> void:
 	# SPD 1 keeps the samurai (SPD 70) acting before the boss on every turn, so
@@ -756,3 +757,107 @@ func test_all_twenty_one_ally_skills_match_the_confirmed_spec() -> void:
 			for key in fields.keys():
 				assert_eq(skill.get(key, null), fields[key], "%s.%s" % [id, key])
 	assert_eq(seen.size(), 26, "exactly 21 skills + 5 awakenings accounted for")
+
+# ---------------------------------------------------------------------------
+# 2026-10-28: カウンターは「使った後、侍自身の次の行動順が来る直前まで」続く
+# （ラウンド境界では解かない）。本番の進め方 advance_to_next_decision() で確かめる。
+# ---------------------------------------------------------------------------
+
+func _counter(battle: RBMBattle) -> Array[Dictionary]:
+	return battle.resolve_pending_ally_action({"type": "skill", "skill_id": "samurai_counter"})
+
+func test_counter_used_last_in_the_round_blocks_the_boss_at_the_start_of_the_next_round() -> void:
+	# boss SPD 999 > samurai SPD 70: the samurai acts LAST every round.
+	var battle := RBMBattle.new(_one(samurai_def), _attacking_boss(50, 999), 1)
+	battle.advance_to_next_decision()
+	assert_eq(battle.pending_ally_id(), 0, "round 1: the boss has acted, the samurai is next")
+	_counter(battle)
+	assert_true(battle.party[0].counter_pending_this_turn)
+	var log := battle.advance_to_next_decision()
+	assert_eq(battle.current_turn, 2)
+	var boss_entry := _find_log_entry(log, "boss")
+	assert_true(bool(boss_entry.get("blocked", false)), "round 2: the boss's first attack is countered")
+	assert_true(bool(boss_entry.get("counter", false)))
+	# samurai ATK 280 x3.0 (counter skill) = 840 -- the reflected damage is unchanged.
+	assert_eq(int(boss_entry["reflected"]), 840)
+	assert_eq(battle.boss.hp, 100000 - 840)
+	assert_false(battle.party[0].counter_pending_this_turn, "consumed by the counter")
+
+func test_counter_used_first_in_the_round_still_blocks_the_boss_in_the_same_round() -> void:
+	var battle := RBMBattle.new(_one(samurai_def), _attacking_boss(50, 1), 1)
+	battle.advance_to_next_decision()
+	assert_eq(battle.pending_ally_id(), 0, "the samurai acts first")
+	_counter(battle)
+	var log := battle.advance_to_next_decision()
+	var boss_entry := _find_log_entry(log, "boss")
+	assert_true(bool(boss_entry.get("blocked", false)))
+	assert_eq(int(boss_entry["reflected"]), 840)
+	assert_eq(battle.current_turn, 2, "and it never reached a second round's boss slot")
+
+func test_an_unused_counter_survives_the_round_boundary_and_clears_when_the_samurai_s_own_slot_arrives() -> void:
+	# A boss with no actions never triggers the counter.
+	var battle := RBMBattle.new(_one(samurai_def), _neutral_boss(100000, 1, 999), 1)
+	battle.advance_to_next_decision()
+	_counter(battle)
+	battle.advance_to_next_decision(true)
+	assert_true(battle.is_at_fresh_turn_boundary(), "stopped at the round-2 boundary")
+	assert_true(battle.party[0].counter_pending_this_turn, "not cleared by the round end")
+	assert_eq(str(battle.party[0].active_counter_skill.get("id", "")), "samurai_counter")
+	# REWIND snapshots are taken at this boundary, so the stance must round-trip.
+	var snap := battle.snapshot()
+	battle.party[0].counter_pending_this_turn = false
+	battle.party[0].active_counter_skill = {}
+	battle.restore(snap)
+	assert_true(battle.party[0].counter_pending_this_turn)
+	assert_eq(str(battle.party[0].active_counter_skill.get("id", "")), "samurai_counter")
+	battle.advance_to_next_decision()
+	assert_eq(battle.pending_ally_id(), 0, "round 2: the samurai's own slot")
+	assert_false(battle.party[0].counter_pending_this_turn, "cleared just before the samurai's own next action")
+	assert_true(battle.party[0].active_counter_skill.is_empty())
+
+func test_counter_follows_the_samurai_s_own_slot_after_the_turn_order_is_recomputed() -> void:
+	# Round 1: the samurai acts last and arms the counter. Before round 2 the
+	# boss becomes slower, so the recomputed order puts the samurai FIRST: its
+	# own slot arrives before the boss's, so the stance ends there.
+	var battle := RBMBattle.new(_one(samurai_def), _attacking_boss(50, 999), 1)
+	battle.advance_to_next_decision()
+	_counter(battle)
+	battle.advance_to_next_decision(true)
+	battle.boss.spd = 1
+	battle.advance_to_next_decision()
+	assert_eq(battle.turn_order[0], "ally:0", "the order was recomputed for round 2")
+	assert_eq(battle.pending_ally_id(), 0)
+	assert_false(battle.party[0].counter_pending_this_turn, "the samurai's own slot came first -- the stance ended")
+	battle.resolve_pending_ally_action({"type": "defend"})
+	var boss_entry := _find_log_entry(battle.advance_to_next_decision(), "boss")
+	assert_false(bool(boss_entry.get("blocked", false)), "the boss's later hit is not countered")
+
+func test_counter_stance_is_cleared_when_the_battle_ends() -> void:
+	var battle := RBMBattle.new(_one(samurai_def), _neutral_boss(100000, 1, 999), 1)
+	battle.advance_to_next_decision()
+	_counter(battle)
+	battle.boss.hp = 0
+	battle._check_battle_over()
+	assert_true(battle.battle_over)
+	assert_false(battle.party[0].counter_pending_this_turn)
+	assert_true(battle.party[0].active_counter_skill.is_empty())
+
+func test_counter_stance_is_cleared_when_the_samurai_is_downed() -> void:
+	var battle := RBMBattle.new(_one(samurai_def), _neutral_boss(100000, 1, 999), 1)
+	battle.advance_to_next_decision()
+	_counter(battle)
+	# Damage dealt directly (not via a boss hit, which the stance would block).
+	battle._compute_and_apply_damage(battle.boss, battle.party[0], 1000.0, RBMConstants.Attribute.NEUTRAL, false)
+	assert_true(battle.party[0].is_downed())
+	assert_false(battle.party[0].counter_pending_this_turn)
+
+func test_counter_log_says_the_boss_attack_was_blocked() -> void:
+	# 2026-10-28: the counter line used to name the wrong side ("味方 の攻撃を防いだ！").
+	var battle := RBMBattle.new(_one(samurai_def), _attacking_boss(50, 1), 1)
+	battle.advance_to_next_decision()
+	_counter(battle)
+	var boss_entry := _find_log_entry(battle.advance_to_next_decision(), "boss")
+	assert_true(bool(boss_entry.get("counter", false)))
+	var lines: Array = RBMBattleUiKit.describe_entry(boss_entry, battle)["result_lines"]
+	assert_true(lines.has("ボス の攻撃を防いだ！"), str(lines))
+	assert_false(lines.has("味方 の攻撃を防いだ！"), str(lines))

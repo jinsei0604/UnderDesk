@@ -79,11 +79,17 @@ func test_iai_persists_through_normal_and_expires_on_attack_skill() -> void:
 	assert_eq(b.party[1].next_attack_bonus_multiplier,1.0)
 	f.stage.set_state(slash[0].visual_state);assert_eq(f.stage._samurai_stance.frame,-1);assert_true(f.stage._visuals["1"].visible)
 
-func test_counter_expires_at_turn_boundary_and_protected_response_is_unchanged() -> void:
+func test_counter_expires_at_the_samurai_s_next_slot_and_protected_response_is_unchanged() -> void:
 	var f:=_fixture();f.session.battle.resolve_pending_ally_action(_request("samurai_counter"))
 	f.stage.set_state(f.session.battle.presentation_state());assert_eq(f.stage._samurai_stance.frame,19)
+	# 2026-10-28: the stance is no longer cleared by the round end -- it lasts until the samurai's own next slot
+	# (unless a boss hit consumed it first). The pose follows the real state either way.
 	var turn: int=f.session.battle.current_turn
 	while f.session.battle.current_turn==turn:f.session.resolve_ally_action({"type":"defend"})
+	f.stage.set_state(f.session.battle.presentation_state())
+	assert_eq(f.stage._samurai_stance.frame,19 if f.session.battle.party[1].counter_pending_this_turn else -1)
+	while f.session.pending_ally_id()!=1:f.session.resolve_ally_action({"type":"defend"})
+	assert_false(f.session.battle.party[1].counter_pending_this_turn,"cleared at the samurai's own next slot")
 	f.stage.set_state(f.session.battle.presentation_state());assert_eq(f.stage._samurai_stance.frame,-1)
 	var counter:=Review.counter_fixture();assert_false(counter.is_empty())
 	if counter.is_empty():return

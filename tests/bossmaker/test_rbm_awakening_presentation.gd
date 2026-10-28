@@ -61,7 +61,8 @@ func test_awakening_entry_plays_and_emits_impact_and_finished_exactly_once() -> 
 	assert_eq(impacts.size(), 1)
 	assert_eq(impacts[0], entry)
 	assert_eq(finishes.size(), 1)
-	assert_eq(stage._sound.history,["dragon_awakening"],"Approved soundtrack plays once")
+	# 2026-10-28: 登場演出の叫び声（dragon_roar）を、吠える姿勢の瞬間に1回だけ足した。
+	assert_eq(stage._sound.history,["dragon_awakening","dragon_roar"],"Approved soundtrack and the intro roar each play once")
 	assert_false(stage.is_playing())
 	assert_null(stage._skill_presentation)
 	assert_false(is_instance_valid(driver))
@@ -154,3 +155,37 @@ func test_dragon_awakened_assets_use_idempotent_suffix_and_complete_pose_frames(
 	assert_true(RBMVisualAssets.has_awakened_design("dragon_awakened"))
 	assert_true(RBMVisualAssets.has_pose_frames("dragon_awakened"))
 	assert_eq(RBMVisualAssets.display_height("dragon_awakened"), RBMVisualAssets.display_height("dragon"))
+
+## 2026-10-28: 竜の覚醒の叫び声（登場演出と同じ素材 encounter/dragon_roar.wav）。解放の瞬間、覚醒の音の爆発と同時に
+## （吠える姿勢 pose 9 の始まり）1回だけ鳴る。キャンセルしてやり直しても1回ずつ。
+func test_roar_reuses_the_intro_clip_when_the_awakened_form_appears() -> void:
+	assert_eq(preload("res://src/bossmaker/rbm_audio_catalog.gd").FILES["dragon_roar"], "res://assets_bossmaker/audio/encounter/dragon_roar.wav", "same file as the intro")
+	assert_true(preload("res://src/bossmaker/visuals/encounter/intro/rbm_intro_dragon.gd").SOUNDS.has("enc:dragon_roar"), "the intro keeps its roar")
+	var session := _session()
+	var stage := _stage(session)
+	var entry := _awakening_entry(session)
+	stage._sound.history.clear()
+	stage.play_entry(entry)
+	var driver = stage._skill_presentation
+	assert_eq(Awakening.ROAR_TIME, Awakening.REVEAL_TIME, "together with the explosion in dragon_awakening.wav at the release")
+	assert_eq(int(driver._body_state(Awakening.ROAR_TIME).pose), 9, "the dragon is in its roar pose")
+	stage._tween.custom_step(Awakening.ROAR_TIME - .02)
+	assert_eq(stage._sound.history, ["dragon_awakening"])
+	stage._tween.custom_step(.03)
+	assert_eq(stage._sound.history, ["dragon_awakening", "dragon_roar"])
+	assert_true(stage._asset_ids["boss"] == "dragon_awakened", "the awakened form is already in place")
+	stage._tween.custom_step(Awakening.DURATION)
+	await get_tree().process_frame
+	assert_eq(stage._sound.history.count("dragon_roar"), 1)
+	# キャンセルの後にやり直しても、叫び声は1回ずつ。
+	var session2 := _session()
+	var stage2 := _stage(session2)
+	var entry2 := _awakening_entry(session2)
+	stage2._sound.history.clear()
+	stage2.play_entry(entry2)
+	stage2._tween.custom_step(Awakening.ROAR_TIME + .1)
+	stage2.cancel()
+	stage2.play_entry(entry2)
+	stage2._tween.custom_step(Awakening.DURATION)
+	await get_tree().process_frame
+	assert_eq(stage2._sound.history.count("dragon_roar"), 2)
