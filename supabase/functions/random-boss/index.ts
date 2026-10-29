@@ -25,6 +25,7 @@ import {
   requestedMode,
   toPublicRow,
 } from "../_shared/public_boss_query.ts";
+import { bodyRequestsDemo, demoCondition, isDemoPayload, requestedDemo } from "../_shared/edition.ts";
 
 // 0以上1未満の乱数(テストでは決まった値を渡す)。
 export type RandomSource = () => number;
@@ -43,6 +44,8 @@ export async function handleRandomBoss(req: Request, db: SupabaseCountingRestCli
   const mode = requestedMode(url);
   const exclude = (url.searchParams.get("exclude") ?? "").toLowerCase();
   const base = mode !== null ? [modeCondition(mode)] : [];
+  // 体験版(?edition=demo、2026-10-28): 体験版で挑戦できるボスだけから選ぶ。
+  if (requestedDemo(url)) base.push(demoCondition());
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     let conditions = isUuid(exclude) ? [...base, `id.neq.${exclude}`] : base;

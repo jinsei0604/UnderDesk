@@ -615,6 +615,22 @@ class StepNavColumn:
 			row.add_child(button)
 			_rows.append({"button": button, "accent": accent})
 
+	## 並ぶ STEP を差し替える（HARDCORE は「勝利条件」が増える、2026-10-29）。名前が同じなら何もしない。
+	func set_step_names(step_names: Array) -> void:
+		var current: Array = []
+		for entry in _rows:
+			current.append((entry["button"] as Button).text)
+		if current == step_names:
+			return
+		for child in get_children():
+			remove_child(child)
+			child.queue_free()
+		_rows.clear()
+		setup(step_names, _on_select)
+
+	func step_count() -> int:
+		return _rows.size()
+
 	func set_current_step(step: int) -> void:
 		for i in range(_rows.size()):
 			var is_current := (i + 1) == step
@@ -804,6 +820,11 @@ class BossProfilePanel:
 	## 引き継いだ——機能を削除したのではなく置き場所を変えただけ）。
 	func _actions_summary(draft: RBMCreatorDraft) -> String:
 		if draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED:
+			if not draft.turn_actions.is_empty():
+				var turn_lines: Array = []
+				for i in range(draft.turn_actions.size()):
+					turn_lines.append(tr("%dターン目 %s") % [i + 1, RBMActionPatternSummary.turn_line(draft.turn_actions[i], draft)])
+				return "\n".join(turn_lines)
 			if draft.action_sequence.is_empty():
 				return tr("（未設定）")
 			var lines: Array = []

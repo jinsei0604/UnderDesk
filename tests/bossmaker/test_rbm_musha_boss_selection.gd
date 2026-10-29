@@ -92,19 +92,18 @@ func test_audio_tracks_are_registered() -> void:
 		assert_true(ResourceLoader.exists(AudioCatalog.FILES[key]), key)
 
 # ---------------------------------------------------------------------------
-# ボス選択画面: 9体・縦スクロール・カード非縮小
+# ボス選択画面: 全ボスの一覧・縦スクロール・カード非縮小（2026-10-28 に一覧＋プロフィールへ作り直し）
 # ---------------------------------------------------------------------------
 
-func test_picker_shows_all_nine_bosses_with_unchanged_card_sizes() -> void:
+func test_picker_lists_every_boss_including_the_new_one_without_squeezing_cards() -> void:
 	var picker := _sized_picker()
 	await _frames()
 	var grid: GridContainer = _find(picker, "AppearanceGrid")
-	assert_eq(grid.columns, 3)
+	assert_eq(grid.columns, 1)
 	assert_eq(grid.get_child_count(), 10)
 	for card in grid.get_children():
-		assert_eq((card as Control).custom_minimum_size, RBMCreatorAppearancePicker.CARD_SIZE, "cards keep their size")
-		assert_gte((card as Control).size.x, RBMCreatorAppearancePicker.CARD_SIZE.x - 0.5, "%s is not squeezed horizontally" % card.name)
-		assert_gte((card as Control).size.y, RBMCreatorAppearancePicker.CARD_SIZE.y - 0.5, "%s is not squeezed vertically" % card.name)
+		assert_gte((card as Control).size.y, (card as Control).custom_minimum_size.y - 0.5, "%s is not squeezed vertically" % card.name)
+		assert_gte((card as Control).size.x, (card as Control).custom_minimum_size.x - 0.5, "%s is not squeezed horizontally" % card.name)
 	assert_not_null(_find(picker, "Appearance_" + MUSHA))
 	assert_not_null((_find(picker, "AppearancePreview_" + MUSHA) as TextureRect).texture, "the new boss card shows its image")
 
@@ -115,13 +114,9 @@ func test_picker_scrolls_vertically_only_and_reaches_the_new_boss() -> void:
 	assert_not_null(scroll)
 	assert_eq(scroll.horizontal_scroll_mode, ScrollContainer.SCROLL_MODE_DISABLED, "no horizontal scrolling")
 	assert_ne(scroll.vertical_scroll_mode, ScrollContainer.SCROLL_MODE_DISABLED, "vertical scrolling is available")
-	var hbar := scroll.get_h_scroll_bar()
-	assert_lte(hbar.max_value - hbar.page, 0.5, "cards always fit the width")
 	var vbar := scroll.get_v_scroll_bar()
-	assert_gt(vbar.max_value - vbar.page, 0.5, "three rows of cards exceed the visible height, so it scrolls")
-
+	assert_gt(vbar.max_value - vbar.page, 0.5, "ten boss cards exceed the visible height, so the list scrolls")
 	var musha_card := _find(picker, "Appearance_" + MUSHA) as Control
-	# 一番上では新ボス(3行目)は見切れている → 下へスクロールすると完全に見える。
 	scroll.scroll_vertical = 0
 	await _frames()
 	assert_false(scroll.get_global_rect().encloses(musha_card.get_global_rect()), "not fully visible before scrolling")
@@ -132,25 +127,8 @@ func test_picker_scrolls_vertically_only_and_reaches_the_new_boss() -> void:
 	await _frames()
 	assert_eq(scroll.scroll_horizontal, 0)
 
-func test_picker_stays_centered_and_unscrolled_when_everything_fits() -> void:
-	# 表示領域が十分大きければ従来どおり(スクロールせず中央寄せ)。
-	var host := Control.new()
-	host.size = Vector2(1280, 1400)
-	add_child_autofree(host)
-	var picker := RBMCreatorAppearancePicker.new()
-	picker.set_anchors_preset(Control.PRESET_FULL_RECT)
-	host.add_child(picker)
-	await _frames()
-	var scroll := _find(picker, "GridScroll") as ScrollContainer
-	var vbar := scroll.get_v_scroll_bar()
-	assert_lte(vbar.max_value - vbar.page, 0.5, "no scrolling needed")
-	var grid := _find(picker, "AppearanceGrid") as Control
-	var left_gap := grid.get_global_rect().position.x - scroll.get_global_rect().position.x
-	var right_gap := scroll.get_global_rect().end.x - grid.get_global_rect().end.x
-	assert_almost_eq(left_gap, right_gap, 1.5, "still horizontally centered")
-
 # ---------------------------------------------------------------------------
-# 選択の既存挙動(他ボスと統一)
+# 選択の既存挙動(他ボスと統一): カードで選び、「このボスにする」で決める
 # ---------------------------------------------------------------------------
 
 func test_selecting_the_new_boss_behaves_like_the_others() -> void:
@@ -159,10 +137,12 @@ func test_selecting_the_new_boss_behaves_like_the_others() -> void:
 	watch_signals(picker)
 	picker.open("appearance_golem")
 	(_find(picker, "Appearance_" + MUSHA) as Button).pressed.emit()
-	assert_signal_emitted_with_parameters(picker, "confirmed", [MUSHA])
+	assert_signal_not_emitted(picker, "confirmed", "a card only selects")
 	assert_eq(picker._selected_id, MUSHA)
 	assert_true((_find(picker, "Appearance_" + MUSHA) as Button).button_pressed)
 	assert_false((_find(picker, "Appearance_appearance_golem") as Button).button_pressed, "single selection highlight")
+	(_find(picker, "ConfirmAppearanceButton") as Button).pressed.emit()
+	assert_signal_emitted_with_parameters(picker, "confirmed", [MUSHA])
 
 func test_existing_bosses_still_select_and_back_restores_the_opened_boss() -> void:
 	var picker := _sized_picker()
@@ -170,6 +150,7 @@ func test_existing_bosses_still_select_and_back_restores_the_opened_boss() -> vo
 	watch_signals(picker)
 	picker.open("appearance_wolf")
 	(_find(picker, "Appearance_appearance_slime") as Button).pressed.emit()
+	(_find(picker, "ConfirmAppearanceButton") as Button).pressed.emit()
 	assert_signal_emitted_with_parameters(picker, "confirmed", ["appearance_slime"])
 	picker.select(MUSHA)
 	(_find(picker, "BackButton") as Button).pressed.emit()
@@ -180,10 +161,11 @@ func test_new_boss_shows_the_awakening_badge_and_an_enabled_preview_toggle() -> 
 	var picker := _sized_picker()
 	await _frames()
 	assert_not_null(_find(picker, "AwakeningCapableBadge_" + MUSHA))
-	var toggle := _find(picker, "AwakenedPreviewToggle_" + MUSHA) as Button
-	assert_not_null(toggle)
+	picker.open(MUSHA)
+	var toggle := _find(picker, "AwakenedPreviewToggle") as Button
+	assert_true(toggle.visible)
 	assert_false(toggle.disabled, "the awakened design exists")
-	var preview := _find(picker, "AppearancePreview_" + MUSHA) as TextureRect
+	var preview := _find(picker, "ProfileBossSprite") as TextureRect
 	var normal_texture := preview.texture
 	toggle.pressed.emit()
 	assert_ne(preview.texture, normal_texture, "the awakened design is previewed")
@@ -194,10 +176,13 @@ func test_awakening_preview_toggle_does_not_leak_into_other_cards_or_selection()
 	var picker := _sized_picker()
 	await _frames()
 	watch_signals(picker)
+	picker.open(MUSHA)
 	var dragon_preview := _find(picker, "AppearancePreview_appearance_dragon") as TextureRect
 	var dragon_texture := dragon_preview.texture
-	(_find(picker, "AwakenedPreviewToggle_" + MUSHA) as Button).pressed.emit()
+	(_find(picker, "AwakenedPreviewToggle") as Button).pressed.emit()
 	assert_eq(dragon_preview.texture, dragon_texture, "other cards are unaffected")
+	assert_false(picker.is_showing_awakened("appearance_dragon"))
+	assert_eq(picker._selected_id, MUSHA)
 	assert_signal_not_emitted(picker, "confirmed", "the toggle never selects a boss")
 
 # ---------------------------------------------------------------------------
@@ -248,16 +233,16 @@ func test_normal_and_awakened_previews_show_the_boss_at_the_same_size() -> void:
 	assert_almost_eq(float(awakened.top), float(normal.top), 0.01, "same vertical placement")
 	assert_almost_eq(float(awakened.center_x), float(normal.center_x), 0.01, "centered like the normal form")
 
-func test_awakened_preview_scale_matches_in_the_real_picker() -> void:
+func test_awakened_preview_keeps_the_boss_on_the_same_floor_in_the_real_picker() -> void:
 	var picker := _sized_picker()
 	await _frames()
-	var toggle := _find(picker, "AwakenedPreviewToggle_" + MUSHA) as Button
-	var preview := _find(picker, "AppearancePreview_" + MUSHA) as TextureRect
-	var normal_texture := preview.texture
-	# 表示上のキャラの高さ = (キャラのbbox高さ/キャンバス高さ) * プレビュー領域の高さ(高さで収まる前提)。
-	var area_height := preview.size.y
-	var normal_visible := float(_frame_ratios("musha").height) * minf(area_height, preview.size.x * normal_texture.get_height() / float(normal_texture.get_width()))
-	toggle.pressed.emit()
-	var awakened_texture := preview.texture
-	var awakened_visible := float(_frame_ratios("musha_awakened").height) * minf(area_height, preview.size.x * awakened_texture.get_height() / float(awakened_texture.get_width()))
-	assert_almost_eq(awakened_visible, normal_visible, 2.0, "the boss keeps the same on-screen size when toggling the awakened preview")
+	picker.open(MUSHA)
+	await _frames()
+	var preview := _find(picker, "ProfileBossSprite") as TextureRect
+	var normal_bottom := preview.position.y + preview.size.y
+	var normal_center := preview.position.x + preview.size.x / 2.0
+	(_find(picker, "AwakenedPreviewToggle") as Button).pressed.emit()
+	assert_almost_eq(preview.position.y + preview.size.y, normal_bottom, 1.0, "the awakened form stands on the same floor")
+	assert_almost_eq(preview.position.x + preview.size.x / 2.0, normal_center, 1.0, "and at the same place")
+	assert_lte(preview.size.x, RBMCreatorAppearancePicker.BOSS_FIT.x + 0.5)
+	assert_lte(preview.size.y, RBMCreatorAppearancePicker.BOSS_FIT.y + 0.5, "it fits the same box as the normal form")

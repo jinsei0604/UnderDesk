@@ -11,6 +11,7 @@
 // 一覧・検索・ランダムと同じく、公開した人に結びつく値は出さない)。
 
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
+import { bodyRequestsDemo, demoCondition, isDemoPayload, requestedDemo } from "../_shared/edition.ts";
 
 export interface BossDetailRow {
   id: string;
@@ -56,6 +57,10 @@ export async function handleGetBoss(req: Request, db: SupabaseRestClient): Promi
   }
   if (result.rows.length === 0) {
     return jsonResponse({ ok: false, error_kind: "not_found", message: "Boss not found or not published" }, 404);
+  }
+  // 体験版(?edition=demo、2026-10-28): 体験版で挑戦できないボスは渡さない(表示の範囲。権限ではない)。
+  if (requestedDemo(url) && !isDemoPayload(result.rows[0].payload)) {
+    return jsonResponse({ ok: false, error_kind: "demo_unavailable", message: "This boss is not available in the trial version" }, 403);
   }
   return jsonResponse({ ok: true, boss: result.rows[0] }, 200);
 }

@@ -272,6 +272,183 @@ func move_action_slot(slot_id: String, direction: int) -> bool:
 	action_sequence[target] = tmp
 	return true
 
+# ---------------------------------------------------------------------------
+# HARDCORE「通常行動」= ターンごとの行動（2026-10-28 ユーザー確定仕様）
+# ---------------------------------------------------------------------------
+## 配列の位置がそのまま戦闘のターン番号（0番目＝1ターン目）。最後の次は1ターン目へ戻る
+## （RBMActionPatternRules の TURN_MODE_* の説明を参照）。1件の形（著作形＝定義の形）:
+##   {"mode": "fixed"|"random"|"conditional",
+##    "entries": [{"skill_id": String,
+##                 "weight": float,                 # random の時だけ（合計100）
+##                 "conditions": Array,             # conditional の時だけ（1つ以上）
+##                 "condition_logic": "AND"|"OR"}], # conditional の時だけ
+##    "else_skill_id": String}                      # conditional の時だけ（どの条件も満たさない時）
+## fixed は entries を1件だけ持つ。これを1件でも作ると、旧方式の action_sequence は空にする
+## （同じボスに2つの決め方を残さない。旧方式のデータはテスト用なので変換しない、ユーザー確定）。
+var turn_actions: Array[Dictionary] = []
+
+func can_add_turn_action() -> bool:
+	return turn_actions.size() < RBMActionPatternRules.MAX_TURN_ACTIONS
+
+## 追加したターンの位置（0始まり）を返す。上限なら -1。
+func add_turn_action(turn: Dictionary) -> int:
+	if not can_add_turn_action():
+		return -1
+	action_sequence.clear()
+	turn_actions.append(normalized_turn_action(turn))
+	return turn_actions.size() - 1
+
+func update_turn_action(index: int, turn: Dictionary) -> void:
+	if index < 0 or index >= turn_actions.size():
+		return
+	turn_actions[index] = normalized_turn_action(turn)
+
+func remove_turn_action(index: int) -> void:
+	if index >= 0 and index < turn_actions.size():
+		turn_actions.remove_at(index)
+
+## 並べ替え（2026-10-29 ユーザー指示: 挿入型。2つを入れ替えるのではない）: from のターンを取り出して to の位置へ
+## 入れ、その間のターンは1つずつ詰める。例: [A,B,C,D] で 0→2 なら [B,C,A,D]。動いたら true。
+func move_turn_action(from: int, to: int) -> bool:
+	if from < 0 or from >= turn_actions.size() or to < 0 or to >= turn_actions.size() or from == to:
+		return false
+	var turn: Dictionary = turn_actions[from]
+	turn_actions.remove_at(from)
+	turn_actions.insert(to, turn)
+	return true
+
+## 決め方に関係するフィールドだけを残す（決め方を切り替えた後の余分な値を保存しない）。
+static func normalized_turn_action(turn: Dictionary) -> Dictionary:
+	var mode := str(turn.get("mode", RBMActionPatternRules.TURN_MODE_FIXED))
+	var entries: Array = []
+	for entry_variant in turn.get("entries", []):
+		if not (entry_variant is Dictionary):
+			continue
+		var entry: Dictionary = entry_variant
+		var out := {"skill_id": str(entry.get("skill_id", ""))}
+		match mode:
+			RBMActionPatternRules.TURN_MODE_RANDOM:
+				out["weight"] = float(entry.get("weight", 0.0))
+			RBMActionPatternRules.TURN_MODE_CONDITIONAL:
+				out["conditions"] = (entry.get("conditions", []) as Array).duplicate(true)
+				out["condition_logic"] = str(entry.get("condition_logic", RBMActionPatternRules.DEFAULT_CONDITION_LOGIC))
+		entries.append(out)
+	if mode == RBMActionPatternRules.TURN_MODE_FIXED:
+		entries = entries.slice(0, 1)
+	var normalized := {"mode": mode, "entries": entries}
+	if mode == RBMActionPatternRules.TURN_MODE_CONDITIONAL:
+		normalized["else_skill_id"] = str(turn.get("else_skill_id", ""))
+	return normalized
+
+## 1つのターンの設定の問題（無ければ空文字）。STEP3 の保存・次へ進めるかの判定に使う。
+func turn_action_problem(turn: Dictionary) -> String:
+	var entries: Array = turn.get("entries", [])
+	for entry in entries:
+		if find_skill(str((entry as Dictionary).get("skill_id", ""))).is_empty():
+			return TranslationServer.translate("行動が設定されていません")
+	match str(turn.get("mode", "")):
+		RBMActionPatternRules.TURN_MODE_FIXED:
+			if entries.size() != 1:
+				return TranslationServer.translate("行動が設定されていません")
+		RBMActionPatternRules.TURN_MODE_RANDOM:
+			if entries.size() < 2:
+				return TranslationServer.translate("使用率で抽選するには、行動を2つ以上追加してください")
+			var total := 0.0
+			for entry in entries:
+				total += float((entry as Dictionary).get("weight", 0.0))
+			if absf(total - 100.0) >= 0.05:
+				return TranslationServer.translate("使用率の合計を100%%にしてください（現在%.1f%%）") % total
+		RBMActionPatternRules.TURN_MODE_CONDITIONAL:
+			if entries.is_empty():
+				return TranslationServer.translate("条件を1つ以上追加してください")
+			for entry in entries:
+				var conditions: Array = (entry as Dictionary).get("conditions", [])
+				if conditions.is_empty():
+					return TranslationServer.translate("条件が設定されていない行動があります")
+				var problem := conditions_problem(conditions)
+				if not problem.is_empty():
+					return problem
+				if conditions.size() > 1 and not RBMActionPatternRules.CONDITION_LOGIC_TYPES.has(str((entry as Dictionary).get("condition_logic", ""))):
+					return TranslationServer.translate("条件の組み合わせ方が設定されていません")
+			if find_skill(str(turn.get("else_skill_id", ""))).is_empty():
+				return TranslationServer.translate("「それ以外」の行動を設定してください")
+		_:
+			return TranslationServer.translate("決め方が設定されていません")
+	return ""
+
+## そのターンが参照している行動（候補・それ以外・前回のボス行動の条件）。
+static func turn_action_skill_ids(turn: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	for entry_variant in turn.get("entries", []):
+		var entry: Dictionary = entry_variant
+		var sid := str(entry.get("skill_id", ""))
+		if not sid.is_empty() and not ids.has(sid):
+			ids.append(sid)
+		for condition in entry.get("conditions", []):
+			if str((condition as Dictionary).get("type", "")) == "last_boss_skill":
+				var cid := str((condition as Dictionary).get("skill_id", ""))
+				if not cid.is_empty() and not ids.has(cid):
+					ids.append(cid)
+	var else_id := str(turn.get("else_skill_id", ""))
+	if not else_id.is_empty() and not ids.has(else_id):
+		ids.append(else_id)
+	return ids
+
+func _resolved_turn_actions_for_definition() -> Array:
+	var out: Array = []
+	for turn in turn_actions:
+		var resolved := normalized_turn_action(turn)
+		for entry in resolved["entries"]:
+			if (entry as Dictionary).has("conditions"):
+				entry["conditions"] = _normalized_conditions(entry["conditions"])
+		out.append(resolved)
+	return out
+
+# ---------------------------------------------------------------------------
+# HARDCORE 限定の勝利条件（2026-10-29 ユーザー確定）。行動の発動条件とは別の項目。
+# ---------------------------------------------------------------------------
+## 空 {} ＝ ボスを撃破する（通常。初期値。勝利条件が無い旧データもこれ）。
+## {"type": "survive_turns", "turns": 1〜99} ＝ 指定ターンを生き残る。SIMPLE では使わない（SIMPLE へ切り替えると消す）。
+var victory_condition: Dictionary = {}
+
+func is_survival_victory() -> bool:
+	return creator_mode == CREATOR_MODE_ADVANCED and str(victory_condition.get("type", "")) == RBMActionPatternRules.VICTORY_SURVIVE_TURNS
+
+func survive_turns() -> int:
+	return int(victory_condition.get("turns", RBMActionPatternRules.SURVIVE_TURNS_DEFAULT)) if is_survival_victory() else 0
+
+## 挑戦の確認画面・オンラインの詳細の「勝利条件」に出す文（公開設定「勝利条件」が公開の時だけ呼び出し側が使う）。
+func win_condition_text() -> String:
+	if is_survival_victory():
+		return TranslationServer.translate("%dターン生き残る") % survive_turns()
+	return TranslationServer.translate("ボスのHPを0にする")
+
+func set_victory_defeat_boss() -> void:
+	victory_condition = {}
+
+func set_victory_survive_turns(turns: int) -> void:
+	victory_condition = {
+		"type": RBMActionPatternRules.VICTORY_SURVIVE_TURNS,
+		"turns": clampi(turns, RBMActionPatternRules.SURVIVE_TURNS_MIN, RBMActionPatternRules.SURVIVE_TURNS_MAX),
+	}
+
+## 定義・クリアチェックの記録に入れる形。通常（撃破）なら {}（キーごと省く）。
+func _victory_condition_for_definition() -> Dictionary:
+	if not is_survival_victory():
+		return {}
+	return {"type": RBMActionPatternRules.VICTORY_SURVIVE_TURNS, "turns": survive_turns()}
+
+static func _restore_victory_condition(raw: Variant) -> Dictionary:
+	if not (raw is Dictionary):
+		return {}
+	var victory: Dictionary = raw
+	if str(victory.get("type", "")) != RBMActionPatternRules.VICTORY_SURVIVE_TURNS:
+		return {}
+	return {
+		"type": RBMActionPatternRules.VICTORY_SURVIVE_TURNS,
+		"turns": clampi(int(victory.get("turns", RBMActionPatternRules.SURVIVE_TURNS_DEFAULT)), RBMActionPatternRules.SURVIVE_TURNS_MIN, RBMActionPatternRules.SURVIVE_TURNS_MAX),
+	}
+
 ## ランダム攻撃「自分で設定」の場合、候補確率の合計が100%であることを
 ## 要求する（既存のnormal_action_percentages・SIMPLE側と同じ検証方針を、
 ## 各ランダムスロットへ個別に適用する）。
@@ -283,13 +460,9 @@ func action_step_manual_percentage_total(slot: Dictionary) -> float:
 
 ## STEP 3 (HARDCORE)の入力検証。SIMPLE側のstep4_is_valid()とは独立
 ## （creator_modeがADVANCEDの時のみCreator UIが参照する）。
-## - action_sequenceが0件でも有効（「このボスは行動しません」という、SIMPLE
-##   でも許容されている状態と同じ扱い——旧「0パターンでも有効」を踏襲）
-## - conditions.size()>1の時のみcondition_logicが既知の値であること
-## - "自分で設定"の各ランダムスロットは確率合計100%であること
-## - 参照するボススキルskill_idが現存すること（削除済みskill_id混入の防止、
-##   通常はremove_skill()側のクリーンアップで発生し得ないはずだが、
-##   Draft状態の内部整合性を保証する最終防衛線として持つ）
+## - 通常行動（turn_actions）が1ターン以上あり、どのターンにも問題が無いこと
+##   （turn_action_problem()。2026-10-28 から旧 action_sequence は判定に使わない）
+## - ターン開始・終了時に追加する行動・覚醒の条件・回復の上限に問題が無いこと
 func step4_advanced_is_valid() -> bool:
 	if creator_mode != CREATOR_MODE_ADVANCED:
 		return true
@@ -297,25 +470,14 @@ func step4_advanced_is_valid() -> bool:
 		return false
 	if has_awakening() and not conditions_problem(awakening.get("conditions", [])).is_empty():
 		return false
-	for slot in action_sequence:
-		if not conditions_problem(slot.get("conditions", [])).is_empty():
+	# 2026-10-28: HARDCORE の通常行動はターンごとの設定。1ターン以上が必要（ユーザー確定、案A）。
+	if turn_actions.is_empty():
+		return false
+	for turn in turn_actions:
+		if not turn_action_problem(turn).is_empty():
 			return false
-		if int(slot.get("conditions", []).size()) > 1 and not RBMActionPatternRules.CONDITION_LOGIC_TYPES.has(str(slot.get("condition_logic", ""))):
-			return false
-		if str(slot.get("kind", "")) == RBMActionPatternRules.SLOT_KIND_SKILL:
-			if find_skill(str(slot.get("skill_id", ""))).is_empty():
-				return false
-		elif str(slot.get("kind", "")) == RBMActionPatternRules.SLOT_KIND_RANDOM:
-			var candidates: Array = slot.get("candidates", [])
-			if candidates.is_empty():
-				return false
-			for candidate in candidates:
-				if find_skill(str(candidate.get("skill_id", ""))).is_empty():
-					return false
-			if str(slot.get("mode", "")) == RBMActionPatternRules.RANDOM_MODE_MANUAL:
-				if absf(action_step_manual_percentage_total(slot) - 100.0) >= 0.05:
-					return false
-		else:
+	for entry in scripted_actions:
+		if find_skill(str(entry.get("skill_id", ""))).is_empty():
 			return false
 	return true
 
@@ -391,6 +553,9 @@ func condition_problem(condition: Dictionary) -> String:
 ## （normal_actions_enabled かつ 重み>0のスキルが2つ以上）。
 func has_random_action_variance() -> bool:
 	if creator_mode == CREATOR_MODE_ADVANCED:
+		for turn in turn_actions:
+			if str(turn.get("mode", "")) == RBMActionPatternRules.TURN_MODE_RANDOM and (turn.get("entries", []) as Array).size() > 1:
+				return true
 		for slot in action_sequence:
 			if str(slot.get("kind", "")) == RBMActionPatternRules.SLOT_KIND_RANDOM:
 				if (slot.get("candidates", []) as Array).size() > 1:
@@ -434,6 +599,8 @@ func _is_slot_simple_representable(slot: Dictionary) -> bool:
 	return true
 
 func has_advanced_only_settings() -> bool:
+	if not turn_actions.is_empty() or is_survival_victory():
+		return true
 	for slot in action_sequence:
 		if not _is_slot_simple_representable(slot):
 			return true
@@ -468,6 +635,8 @@ func set_creator_mode(mode: String) -> void:
 		# 先に確認ダイアログを経由させる責務を持つ（下記参照）——ここではもう
 		# 安全性を判断せず、常に破棄する。
 		action_sequence.clear()
+		turn_actions.clear()
+		victory_condition = {}
 	creator_mode = mode
 
 ## 変換順が重要: SIMPLEの既存挙動では、scripted_actionsの"replace"はその
@@ -573,6 +742,8 @@ func _resolved_prospective_simple_conversion_slots() -> Array:
 ## 自動的に元の状態のまま有効に戻る。逆変換ロジックは不要。
 func discard_advanced_settings_and_revert_to_simple() -> void:
 	action_sequence.clear()
+	turn_actions.clear()
+	victory_condition = {}
 	creator_mode = CREATOR_MODE_SIMPLE
 
 ## 「現在のaction_sequence（slot_id除く）」が「今この瞬間にSIMPLE側
@@ -582,6 +753,8 @@ func discard_advanced_settings_and_revert_to_simple() -> void:
 ## するだけで安全に戻せる（逆変換の必要が無い）。一致しない場合（本当に
 ## HARDCORE専用の内容が存在する）は確認対象のまま。
 func can_switch_to_simple_without_confirmation() -> bool:
+	if not turn_actions.is_empty() or is_survival_victory():
+		return false
 	var current := _slots_without_slot_id(_action_sequence_for_definition())
 	return current == _resolved_prospective_simple_conversion_slots()
 
@@ -815,6 +988,30 @@ func remove_skill(skill_id: String) -> void:
 			kept.append(entry)
 	scripted_actions = kept
 	_remove_boss_skill_from_action_sequence(skill_id)
+	_remove_boss_skill_from_turn_actions(skill_id)
+
+## ボススキル削除時、ターンごとの行動からも参照を取り除く（候補・条件の行・「それ以外」・
+## 前回のボス行動の条件）。ターン自体は残す——行動が足りなくなったターンは
+## turn_action_problem() で知らせ、作者が直す（勝手に別の行動へ置き換えない）。
+func _remove_boss_skill_from_turn_actions(skill_id: String) -> void:
+	for i in range(turn_actions.size()):
+		var turn: Dictionary = turn_actions[i].duplicate(true)
+		var kept_entries: Array = []
+		for entry_variant in turn.get("entries", []):
+			var entry: Dictionary = entry_variant
+			if str(entry.get("skill_id", "")) == skill_id:
+				continue
+			if entry.has("conditions"):
+				var kept_conditions: Array = []
+				for condition in entry["conditions"]:
+					if not (str(condition.get("type", "")) == "last_boss_skill" and str(condition.get("skill_id", "")) == skill_id):
+						kept_conditions.append(condition)
+				entry["conditions"] = kept_conditions
+			kept_entries.append(entry)
+		turn["entries"] = kept_entries
+		if str(turn.get("else_skill_id", "")) == skill_id:
+			turn["else_skill_id"] = ""
+		turn_actions[i] = turn
 
 ## ボススキル削除時、action_sequence内の参照も追随して整理する（既存
 ## remove_skill()のscripted_actionsクリーンアップと同じ精神）。新schemaでは
@@ -881,6 +1078,7 @@ func find_skill(skill_id: String) -> Dictionary:
 ## - HARDCORE action_sequence の固定攻撃スロット（kind:"skill"）
 ## - HARDCORE action_sequence のランダム攻撃候補（kind:"random"のcandidates）
 ## - HARDCORE条件の last_boss_skill
+## - HARDCORE turn_actions（候補・「それ以外」・条件の last_boss_skill、2026-10-28）
 ## 呼び出し元は、削除しようとしている「その1箇所の参照」自体は判定前に
 ## 既に取り除いておくこと（でなければ自分自身の参照によって常にtrueへ
 ## なってしまう——remove_skill_if_unreferenced()自身のコメント参照）。
@@ -891,6 +1089,9 @@ func is_boss_skill_referenced(skill_id: String) -> bool:
 		return true
 	for entry in scripted_actions:
 		if str(entry.get("skill_id", "")) == skill_id:
+			return true
+	for turn in turn_actions:
+		if turn_action_skill_ids(turn).has(skill_id):
 			return true
 	for slot in action_sequence:
 		if str(slot.get("kind", "")) == RBMActionPatternRules.SLOT_KIND_SKILL:
@@ -1380,6 +1581,15 @@ func to_definition() -> Dictionary:
 	if not sequence.is_empty():
 		boss["action_sequence"] = sequence
 		boss["advanced_ai_version"] = ADVANCED_AI_VERSION
+	# HARDCORE の通常行動（ターンごと、2026-10-28）。空ならキー自体を省略する（action_sequence と同じ慣習）。
+	var resolved_turn_actions := _resolved_turn_actions_for_definition()
+	if not resolved_turn_actions.is_empty():
+		boss["turn_actions"] = resolved_turn_actions
+		boss["advanced_ai_version"] = ADVANCED_AI_VERSION
+	# HARDCORE 限定の勝利条件（2026-10-29）。通常（撃破）ならキーごと省く（旧ボスと同じ定義のまま）。
+	var victory := _victory_condition_for_definition()
+	if not victory.is_empty():
+		boss["victory_condition"] = victory
 	# v0.1-C 多属性対応: the engine now supports any number of weak/resist
 	# attributes per unit (RBMUnit.weak_attributes/resist_attributes,
 	# RBMConstants.attribute_multiplier_for_lists) -- every attribute STEP 2
@@ -1621,7 +1831,7 @@ func _resolved_random_candidates(slot: Dictionary) -> Array:
 ## スロット方式へ変更）ため、旧記録との==比較は自然に一致しなくなる
 ## （新しいマイグレーションコードを追加する必要はない、ユーザー確定仕様）。
 func battle_content_snapshot() -> Dictionary:
-	return {
+	var snapshot := {
 		"hp": hp, "atk": atk, "spd": spd,
 		"weak_attributes": _sorted_string_copy(weak_attributes),
 		"resist_attributes": _sorted_string_copy(resist_attributes),
@@ -1632,6 +1842,14 @@ func battle_content_snapshot() -> Dictionary:
 		"awakening": _resolved_awakening_for_definition(),
 		"party": _party_by_character_id_for_snapshot(),
 	}
+	# ターンごとの行動は、ある時だけキーを足す（無いボスの今までの成功記録をそのまま有効に保つ）。
+	if not turn_actions.is_empty():
+		snapshot["turn_actions"] = _resolved_turn_actions_for_definition()
+	# 勝利条件も、指定ターンを生き残る時だけキーを足す（通常の勝利のボスの今までの成功記録をそのまま有効に保つ）。
+	var victory := _victory_condition_for_definition()
+	if not victory.is_empty():
+		snapshot["victory_condition"] = victory
+	return snapshot
 
 ## action_sequenceが空（SIMPLE、またはHARDCOREへ切り替えたが自動変換対象が
 ## 無かった場合）なら、現在のSIMPLE側フィールドから今この瞬間に変換したら
@@ -1774,6 +1992,10 @@ func to_saved_dict() -> Dictionary:
 		"creator_mode": creator_mode,
 		"action_sequence": action_sequence.duplicate(true),
 		"next_slot_ordinal": _next_slot_ordinal,
+		# HARDCORE の通常行動（ターンごと、2026-10-28）。フィールドが無い旧 stage は [] へ戻す。
+		"turn_actions": turn_actions.duplicate(true),
+		# HARDCORE 限定の勝利条件（2026-10-29）。フィールドが無い旧 stage は {}（ボスを撃破する）へ戻す。
+		"victory_condition": victory_condition.duplicate(true),
 		# フィールド自体が存在しない旧stage（覚醒機能が無かった頃に保存された
 		# もの）はawakening={}（未設定）へ安全にフォールバックする
 		# （restore_from_saved_dict()参照）。
@@ -1862,6 +2084,8 @@ func restore_from_saved_dict(data: Dictionary) -> void:
 	var saved_mode := str(data.get("creator_mode", CREATOR_MODE_SIMPLE))
 	creator_mode = saved_mode if saved_mode == CREATOR_MODE_SIMPLE or saved_mode == CREATOR_MODE_ADVANCED else CREATOR_MODE_SIMPLE
 	action_sequence = _restore_action_sequence(data.get("action_sequence", []))
+	turn_actions = _restore_turn_actions(data.get("turn_actions", []))
+	victory_condition = _restore_victory_condition(data.get("victory_condition", {}))
 	_next_slot_ordinal = int(data.get("next_slot_ordinal", 1))
 	# 覚醒: フィールド自体が存在しない旧stage（この機能以前に保存されたもの）
 	# はawakening={}（未設定）へ安全にフォールバックする——他の任意フィールド
@@ -1973,6 +2197,20 @@ func restore_clear_check_snapshot(raw: Dictionary) -> void:
 		"awakening": normalized_awakening,
 		"party": normalized_party,
 	}
+	# ターンごとの行動（2026-10-28）は、記録にある時だけ戻す（battle_content_snapshot() と同じ形）。
+	var raw_turn_actions: Variant = raw.get("turn_actions", [])
+	if raw_turn_actions is Array and not (raw_turn_actions as Array).is_empty():
+		var normalized_turns: Array = []
+		for turn in _restore_turn_actions(raw_turn_actions):
+			var resolved := normalized_turn_action(turn)
+			for entry in resolved["entries"]:
+				if (entry as Dictionary).has("conditions"):
+					entry["conditions"] = _normalized_conditions(entry["conditions"])
+			normalized_turns.append(resolved)
+		_clear_check_success_snapshot["turn_actions"] = normalized_turns
+	var raw_victory := _restore_victory_condition(raw.get("victory_condition", {}))
+	if not raw_victory.is_empty():
+		_clear_check_success_snapshot["victory_condition"] = raw_victory
 
 func _normalized_clear_check_awakening(raw: Dictionary) -> Dictionary:
 	if raw.is_empty():
@@ -2097,6 +2335,19 @@ func _restore_scripted_actions(raw: Array) -> Array[Dictionary]:
 ## 別関数）とは意図的に別物。ここでmode解決を行うと、保存→読込のたびに
 ## ランダム攻撃の"自分で設定"入力（各候補の個別重み）がUI上"均等"表示へ
 ## 巻き戻ってしまう回帰バグになるため、著作フィールドはそのまま保持する。
+func _restore_turn_actions(raw: Variant) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if not (raw is Array):
+		return out
+	for turn_variant in raw:
+		if turn_variant is Dictionary and RBMActionPatternRules.TURN_MODES.has(str((turn_variant as Dictionary).get("mode", ""))):
+			var turn := normalized_turn_action(turn_variant)
+			for entry in turn["entries"]:
+				if (entry as Dictionary).has("conditions"):
+					entry["conditions"] = _normalized_conditions(entry["conditions"])
+			out.append(turn)
+	return out
+
 func _restore_action_sequence(raw: Array) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for entry_variant in raw:

@@ -74,7 +74,7 @@ func test_creator_shows_japanese_after_switching_from_a_stale_english_startup_lo
 
 	var main := _enter_simple_creator(root)
 	await get_tree().process_frame
-	main.go_to_step(5)
+	main.go_to_step(main.summary_step())
 	var summary: Control = main._step_views[4]
 	assert_eq(_btn(summary, "BackButton").text, "戻る")
 	assert_eq(_btn(summary, "BackToCreatorListButton").text, "クリエイター一覧へ戻る")
@@ -95,7 +95,7 @@ func test_creator_shows_english_after_switching_from_japanese_startup_locale() -
 
 	var main := _enter_simple_creator(root)
 	await get_tree().process_frame
-	main.go_to_step(5)
+	main.go_to_step(main.summary_step())
 	var summary: Control = main._step_views[4]
 	assert_eq(_btn(summary, "BackToCreatorListButton").text, "Back to Creator List")
 	assert_eq(_btn(summary, "SaveButton").text, "Save")
@@ -127,7 +127,7 @@ func test_switching_locale_back_and_forth_does_not_get_stuck() -> void:
 	await get_tree().process_frame
 
 	var main := _enter_simple_creator(root)
-	main.go_to_step(5)
+	main.go_to_step(main.summary_step())
 	var summary: Control = main._step_views[4]
 	assert_eq(_btn(summary, "BackToCreatorListButton").text, "クリエイター一覧へ戻る")
 	assert_eq(_btn(summary, "SaveButton").text, "保存")

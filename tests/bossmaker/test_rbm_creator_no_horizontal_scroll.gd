@@ -23,11 +23,6 @@ func _make_root(mode: String) -> RBMGameRoot:
 	add_child_autofree(root)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var ticks := 0
-	while not root._top_monitor_battle._initialized and ticks < 300:
-		await get_tree().process_frame
-		ticks += 1
-	root._top_monitor_battle.stop_loop()
 	root._show_only(root.creator_entry)
 	root.creator_entry.enter_create()
 	root.creator_entry._on_new_pressed()
@@ -103,6 +98,26 @@ func _inside_scroll_or_clip(c: Control) -> bool:
 func _advanced(main: RBMCreatorMain) -> RBMCreatorStep4ActionPatterns:
 	return (main._step_views[2] as RBMCreatorStep4)._advanced_view
 
+## カード（ターン・行動・既存の行動）を押す（2026-10-28 の HARDCORE の画面はカードを押して開く）。
+func _click(node: Node, card_name: String) -> void:
+	var card := node.find_child(card_name, true, false) as Control
+	assert_not_null(card, "expected card %s" % card_name)
+	if card != null:
+		var release := InputEventMouseButton.new()
+		release.button_index = MOUSE_BUTTON_LEFT
+		release.pressed = false
+		card.gui_input.emit(release)
+	await _frames()
+
+## 長い名前の行動で、確定・使用率で抽選・条件で分岐のターンを1つずつ入れる。
+func _add_turns_with_long_names(main: RBMCreatorMain) -> void:
+	var ids := []
+	for skill in main.draft.skills:
+		ids.append(str(skill.get("skill_id", "")))
+	main.draft.add_turn_action({"mode": "fixed", "entries": [{"skill_id": ids[1]}]})
+	main.draft.add_turn_action({"mode": "random", "entries": [{"skill_id": ids[0], "weight": 50.0}, {"skill_id": ids[1], "weight": 50.0}]})
+	main.draft.add_turn_action({"mode": "conditional", "entries": [{"skill_id": ids[1], "conditions": [{"type": "last_boss_skill", "skill_id": ids[1]}, {"type": "hp_between", "percent_min": 10.0, "percent_max": 60.0}], "condition_logic": "OR"}], "else_skill_id": ids[1]})
+
 # ---------------------------------------------------------------------------
 # STEP1〜5(SIMPLE/HARDCORE、長いボス名)
 # ---------------------------------------------------------------------------
@@ -122,7 +137,7 @@ func test_steps_1_to_5_fit_in_both_modes_with_long_names() -> void:
 func test_step4_formation_and_bench_share_the_width_without_a_horizontal_scroll() -> void:
 	var root := await _make_root("advanced")
 	var main: RBMCreatorMain = root.creator_entry.main
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	await _frames()
 	var party := main._step_views[3] as RBMCreatorStep5Party
 	var canvas := party.find_child("PartyStepCanvas", true, false) as Control
@@ -151,24 +166,31 @@ func test_step4_formation_and_bench_share_the_width_without_a_horizontal_scroll(
 func test_advanced_step3_forms_fit_for_every_action_type() -> void:
 	var root := await _make_root("advanced")
 	var main: RBMCreatorMain = root.creator_entry.main
+	main.draft.appearance_id = "appearance_dragon"  # 覚醒を追加できる外見
 	main.go_to_step(3)
 	await _frames()
 	var adv := _advanced(main)
 	await _assert_fits(root, "list (empty)")
-	for skill in main.draft.skills:
-		main.draft.add_action_slot({"kind": "skill", "skill_id": str(skill.get("skill_id", "")), "conditions": [], "condition_logic": "AND", "max_uses": -1})
+	_add_turns_with_long_names(main)
+	main.draft.add_scripted_action(3, str(main.draft.skills[1].get("skill_id", "")), "turn_start_interrupt")
 	adv.refresh()
 	await _assert_fits(root, "list")
 
-	await _press(adv, "AddSlotButton")
+	await _press(adv, "AddTurnButton")
+	await _press(adv, "AddTurnEntryButton")
 	await _press(adv, "AddChoiceCreateNewButton")
 	adv._form._name_edit.text = LONG_NAME
 	for type_id in RBMActionEditorForm.TYPE_IDS:
+		if type_id == RBMActionEditorForm.AWAKENING:
+			continue  # 新しく作る行動は覚醒にならない（覚醒は覚醒の見出しから作る）
 		adv._form._type_option.select(RBMActionEditorForm.TYPE_IDS.find(type_id))
 		adv._form._on_type_selected(adv._form._type_option.selected)
 		await _frames()
 		await _assert_fits(root, "new form %s" % type_id)
+	await _press(adv, "EntryCancelButton")
+	await _press(adv, "TurnCancelButton")
 	# 覚醒: 自己強化+HP回復の両ブロックを開いた最も横幅を使う状態。
+	await _press(adv, "AddAwakeningButton")
 	await _press(adv._form, "AwakeningAddBuffButton")
 	await _press(adv._form, "AwakeningAddHealButton")
 	await _assert_fits(root, "awakening buff+heal")
@@ -179,69 +201,65 @@ func test_advanced_step3_every_condition_type_fits_including_long_names() -> voi
 	main.go_to_step(3)
 	await _frames()
 	var adv := _advanced(main)
-	await _press(adv, "AddSlotButton")
+	await _press(adv, "AddTurnButton")
+	await _press(adv, "TurnModeButton_conditional")
+	await _press(adv, "AddTurnEntryButton")
 	await _press(adv, "AddChoiceCreateNewButton")
 	adv._form._name_edit.text = LONG_NAME
 	await _press(adv, "AddConditionButton")
 	for condition_type in RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES:
-		var index: int = adv._active_condition_types.find(condition_type)
-		adv._condition_type_option.select(index)
-		adv._condition_type_option.item_selected.emit(index)
+		adv._select_condition_type(condition_type)
 		await _assert_fits(root, "condition %s" % condition_type)
-	# 長い名前の行動を選ぶと、条件行のラベルが長くなる。
-	var lbs: int = adv._active_condition_types.find("last_boss_skill")
-	adv._condition_type_option.select(lbs)
-	adv._condition_type_option.item_selected.emit(lbs)
-	adv._condition_boss_skill_option.select(1)
-	adv._condition_boss_skill_option.item_selected.emit(1)
+	# 一番長いカテゴリ名（特定キャラクターの状態）とキャラクター名の条件行を積む。
+	adv._select_condition_type("character_downed")
+	adv._condition_character_option.select(1)
+	adv._condition_character_option.item_selected.emit(1)
 	for i in range(3):
 		await _press(adv, "AddConditionButton")
 	await _assert_fits(root, "stacked conditions")
-	adv._uses_limited_check.button_pressed = true
-	await _assert_fits(root, "limited uses")
+	# ターンの設定へ戻ると、長い条件文の行のカードが並ぶ。
+	await _press(adv, "EntryConfirmButton")
+	await _assert_fits(root, "conditional turn with long rows")
 
 func test_advanced_step3_awakening_conditions_and_edit_screens_fit() -> void:
 	var root := await _make_root("advanced")
 	var main: RBMCreatorMain = root.creator_entry.main
+	main.draft.appearance_id = "appearance_dragon"
 	main.go_to_step(3)
 	await _frames()
 	var adv := _advanced(main)
-	await _press(adv, "AddSlotButton")
-	await _press(adv, "AddChoiceCreateNewButton")
-	adv._form._type_option.select(RBMActionEditorForm.TYPE_IDS.find(RBMActionEditorForm.AWAKENING))
-	adv._form._on_type_selected(adv._form._type_option.selected)
+	adv.refresh()
+	await _press(adv, "AddAwakeningButton")
 	await _press(adv._form, "AwakeningAddHealButton")
 	await _press(adv, "AddConditionButton")
 	for condition_type in RBMActionPatternRules.AWAKENING_UI_CONDITION_TYPES:
-		var index: int = adv._active_condition_types.find(condition_type)
-		adv._condition_type_option.select(index)
-		adv._condition_type_option.item_selected.emit(index)
+		adv._select_condition_type(condition_type)
 		await _assert_fits(root, "awakening condition %s" % condition_type)
-	await _press(adv, "SkillSlotConfirmButton")
-	await _press(adv, "EditAwakeningButton")
+	await _press(adv, "EntryConfirmButton")
+	await _click(adv, "AwakeningCardButton")
 	await _assert_fits(root, "awakening edit")
-	await _press(adv, "SkillSlotCancelButton")
+	await _press(adv, "EntryCancelButton")
 
-	# 既存スロット(長い名前)の編集/性能編集、ランダム攻撃。
-	for skill in main.draft.skills:
-		main.draft.add_action_slot({"kind": "skill", "skill_id": str(skill.get("skill_id", "")), "conditions": [], "condition_logic": "AND", "max_uses": -1})
+	# 長い名前の行動のターン・行動の詳細・性能の編集、使用率で抽選する候補。
+	_add_turns_with_long_names(main)
 	adv.refresh()
-	await _press(adv, "EditSlotButton_1")
-	await _assert_fits(root, "edit slot with a long name")
-	await _press(adv, "SkillSlotEditPerformanceButton")
+	await _click(adv, "TurnCard_0")
+	await _assert_fits(root, "turn with a long name")
+	await _click(adv, "TurnEntryCard_0")
+	await _assert_fits(root, "action detail with a long name")
+	await _press(adv, "EntryEditPerformanceButton")
 	await _assert_fits(root, "edit performance")
 	await _press(adv, "CancelActionButton")
-	await _press(adv, "SkillSlotCancelButton")
-	await _press(adv, "AddSlotButton")
-	await _press(adv, "AddChoiceCreateRandomButton")
-	await _press(adv, "RandomAddCandidateButton")
-	await _press(adv, "RandomAddChoicePickExistingButton")
-	(adv._random_pick_existing_list.find_child("RandomPickExistingSkillButton_1", true, false) as Button).pressed.emit()
-	await _frames()
-	adv._random_mode_option.select(RBMActionPatternRules.RANDOM_MODES.find(RBMActionPatternRules.RANDOM_MODE_MANUAL))
-	adv._on_random_mode_selected(adv._random_mode_option.selected)
-	await _press(adv, "AddConditionButton")
-	await _assert_fits(root, "random editor with a condition")
+	await _press(adv, "EntryCancelButton")
+	await _press(adv, "TurnCancelButton")
+	await _click(adv, "TurnCard_1")
+	await _assert_fits(root, "random turn with a long name")
+	await _click(adv, "TurnEntryCard_1")
+	await _assert_fits(root, "random candidate detail")
+	await _press(adv, "EntryCancelButton")
+	await _press(adv, "TurnCancelButton")
+	await _click(adv, "TurnCard_2")
+	await _assert_fits(root, "conditional turn with long rows")
 
 # ---------------------------------------------------------------------------
 # SIMPLE STEP3
@@ -277,7 +295,9 @@ func test_vertical_scroll_is_kept_and_horizontal_never_moves() -> void:
 	assert_ne(scroll.vertical_scroll_mode, ScrollContainer.SCROLL_MODE_DISABLED, "vertical scrolling stays available")
 	assert_eq(scroll.horizontal_scroll_mode, ScrollContainer.SCROLL_MODE_DISABLED)
 
-	await _press(adv, "AddSlotButton")
+	await _press(adv, "AddTurnButton")
+	await _press(adv, "TurnModeButton_conditional")
+	await _press(adv, "AddTurnEntryButton")
 	await _press(adv, "AddChoiceCreateNewButton")
 	for i in range(12):
 		await _press(adv, "AddConditionButton")
@@ -291,3 +311,4 @@ func test_vertical_scroll_is_kept_and_horizontal_never_moves() -> void:
 	scroll.scroll_vertical = 100
 	await _frames()
 	assert_gt(scroll.scroll_vertical, 0, "vertical scrolling still works")
+

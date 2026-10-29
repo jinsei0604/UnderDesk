@@ -26,6 +26,8 @@ const SCREEN_SIZE := Vector2(1280.0, 720.0)
 var home_rect: Rect2
 var label_key: String
 var other_panel: RBMHomeMonitorPanel
+## 2026-10-28: 上に重ねるカードの絵（RBMHomeCardArt、RBMGameRoot が付ける）。無ければ今までどおりの枠だけ。
+var card_art: RBMHomeCardArt
 
 var _state: _State = _State.IDLE
 var _run_token := 0
@@ -93,6 +95,10 @@ func _ready() -> void:
 func reset_to_idle() -> void:
 	_run_token += 1
 	_state = _State.IDLE
+	if card_art != null:
+		card_art.reset()
+		clip_contents = false
+		_panel_draw.visible = false
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	z_index = 0
 	position = home_rect.position
@@ -120,11 +126,21 @@ func reset_to_idle() -> void:
 
 ## ロケール切替時、RBMGameRootから呼ばれる。BOOT中でなければラベルの
 ## 表示言語だけを更新する（BOOT中の一瞬の切替を避けるだけの単純なガード）。
+## カードの絵を付ける（RBMGameRoot から）。ふだんはカードだけを見せ、元の枠は起動演出の時だけ描く。
+func attach_card_art(art: RBMHomeCardArt) -> void:
+	card_art = art
+	clip_contents = false
+	_panel_draw.visible = false
+
 func refresh_locale() -> void:
 	if _state == _State.IDLE:
 		_label.text = tr(label_key)
+		if card_art != null:
+			card_art.refresh_locale()
 
 func set_dim(on: bool) -> void:
+	if card_art != null:
+		card_art.set_dim(on)
 	var tw := _panel_draw.create_tween()
 	tw.tween_property(_panel_draw, "dim", 0.18 if on else 0.0, 0.18)
 
@@ -134,6 +150,8 @@ func set_interactive(on: bool) -> void:
 func _on_mouse_entered() -> void:
 	if _state != _State.IDLE:
 		return
+	if card_art != null:
+		card_art.set_hover(true)
 	var tw := _panel_draw.create_tween()
 	tw.tween_property(_panel_draw, "border_intensity", 0.85, 0.18)
 	var tw2 := _panel_draw.create_tween()
@@ -152,6 +170,8 @@ func _on_mouse_entered() -> void:
 func _on_mouse_exited() -> void:
 	if _state != _State.IDLE:
 		return
+	if card_art != null:
+		card_art.set_hover(false)
 	var tw := _panel_draw.create_tween()
 	tw.tween_property(_panel_draw, "border_intensity", 0.4, 0.18)
 	var tw2 := _panel_draw.create_tween()
@@ -205,6 +225,11 @@ func _ease_in_out_cubic(x: float) -> float:
 
 func _run_boot_and_expand(token: int) -> void:
 	z_index = 5
+	if card_art != null:
+		# 押した後はカードの絵を消し、ここからは今までの起動演出（照準・全画面へ広がる）を見せる。
+		clip_contents = true
+		card_art.begin_boot()
+		_panel_draw.visible = true
 	if is_instance_valid(other_panel):
 		other_panel.set_dim(true)
 

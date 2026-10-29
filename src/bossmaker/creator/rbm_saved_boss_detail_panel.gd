@@ -59,6 +59,10 @@ func _status_line(summary: Dictionary, _draft: RBMCreatorDraft) -> Array:
 			return [tr("挑戦可能（クリアチェック前）"), S.MUTED]
 	return [tr("下書き（未完成の項目があります）"), S.MUTED]
 
+## 作者自身のボスなので、詳細情報の2ページ目（ページ送りの矢印）は出さない。
+func _detail_page_enabled() -> bool:
+	return false
+
 func _party_note_text() -> String:
 	return tr("挑戦する人が使う固定メンバー")
 

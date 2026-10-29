@@ -184,7 +184,7 @@ func test_escape_closes_the_party_status_sheet_first() -> void:
 	var main := await _start_simple(entry)
 	main.draft.boss_name = "パーティのボス"
 	main.draft.add_party_character("hero")
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	var party: RBMCreatorStep5Party = main._step_views[3]
 	party._selected_character_id = "hero"
 	party.open_status_sheet()

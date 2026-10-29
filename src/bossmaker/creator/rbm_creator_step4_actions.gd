@@ -57,7 +57,6 @@ var _normal_capacity_notice: Label
 var _add_normal_button: Button
 var _equalize_button: Button
 var _percentage_total_label: Label
-var _percent_rows: Dictionary = {}  # skill_id -> {"slider":HSlider,"spin":SpinBox}
 var _scripted_list: VBoxContainer
 var _scripted_capacity_notice: Label
 var _add_scripted_button: Button
@@ -188,7 +187,6 @@ func _build_list_view() -> VBoxContainer:
 	view.name = "ListView"
 
 	_section_header(view, tr("通常行動"), "NormalActionHeader")
-	_hint_label(view, tr("ボスが毎ターン使う行動です。使用率の割合で選ばれます。"), "NormalActionHint")
 	_normal_list = VBoxContainer.new()
 	_normal_list.name = "NormalActionList"
 	view.add_child(_normal_list)
@@ -216,7 +214,6 @@ func _build_list_view() -> VBoxContainer:
 	view.add_child(separator)
 
 	_section_header(view, tr("指定行動"), "ScriptedActionHeader")
-	_hint_label(view, tr("決まったターンに使う行動です。"), "ScriptedActionHint")
 	_scripted_list = VBoxContainer.new()
 	_scripted_list.name = "ScriptedActionList"
 	view.add_child(_scripted_list)
@@ -244,62 +241,63 @@ func _clear(container: Node) -> void:
 		container.remove_child(child)
 		child.queue_free()
 
+## 通常行動のカード（2026-10-28 ユーザー指示）: カード全体を押すと「通常行動の設定」を開く（使用率の変更・削除もそこで行う）。
+## 一覧には編集・削除のボタンと使用率の入力を置かず、使用率はカードの右側に読むだけで出す。
+## 見た目は作成画面のボタンと同じ（テーマの Button の枠。マウスを重ねた時・キーボードで選んだ時も同じ）。
 func _rebuild_normal_list() -> void:
 	_clear(_normal_list)
-	_percent_rows.clear()
 	var ids := _normal_skill_ids()
 	for i in range(ids.size()):
 		var skill_id := ids[i]
 		var skill := draft.find_skill(skill_id)
-		var card := VBoxContainer.new()
+		var card := PanelContainer.new()
 		card.name = "NormalActionCard_%s" % skill_id
+		card.focus_mode = Control.FOCUS_ALL
+		card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		card.mouse_filter = Control.MOUSE_FILTER_STOP
 		_normal_list.add_child(card)
-		_card_title(card, i + 1, str(skill.get("name", "")), "NormalActionName_%s" % skill_id)
-		_wrap_label(card, RBMActionPatternSummary.skill_performance_line(skill), "NormalActionDetail_%s" % skill_id)
-
-		var pct := float(draft.normal_action_percentages.get(skill_id, 0.0))
-		var percent_row := HBoxContainer.new()
-		percent_row.name = "NormalActionPercentRow_%s" % skill_id
-		card.add_child(percent_row)
-		percent_row.add_child(_new_label(tr("使用率")))
-		var slider := HSlider.new()
-		slider.name = "PercentSlider_%s" % skill_id
-		slider.min_value = 0.0
-		slider.max_value = 100.0
-		slider.step = 0.1
-		slider.value = pct
-		slider.custom_minimum_size = PERCENT_SLIDER_MIN_SIZE
-		slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		slider.value_changed.connect(_on_percentage_control_changed.bind(skill_id))
-		percent_row.add_child(slider)
-		var spin := SpinBox.new()
-		spin.name = "PercentSpin_%s" % skill_id
-		spin.min_value = 0.0
-		spin.max_value = 100.0
-		spin.step = 0.1
-		spin.suffix = "%"
-		spin.value = pct
-		spin.value_changed.connect(_on_percentage_control_changed.bind(skill_id))
-		percent_row.add_child(spin)
-		_percent_rows[skill_id] = {"slider": slider, "spin": spin}
-		if pct < 0.05:
-			var zero_note := _hint_label(card, tr("使用率が0%の行動は使われません"), "NormalActionZeroNote_%s" % skill_id)
-			zero_note.add_theme_color_override("font_color", WARNING_COLOR)
-
+		_style_normal_card(card, "normal")
+		card.mouse_entered.connect(func(): _style_normal_card(card, "hover"))
+		card.mouse_exited.connect(func(): _style_normal_card(card, "focus" if card.has_focus() else "normal"))
+		card.focus_entered.connect(func(): _style_normal_card(card, "focus"))
+		card.focus_exited.connect(func(): _style_normal_card(card, "normal"))
+		card.gui_input.connect(_on_normal_card_gui_input.bind(skill_id))
 		var row := HBoxContainer.new()
-		row.name = "NormalActionButtons_%s" % skill_id
+		row.name = "NormalActionCardRow_%s" % skill_id
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(row)
-		var edit_button := Button.new()
-		edit_button.name = "EditNormalActionButton_%s" % skill_id
-		edit_button.text = tr("編集")
-		edit_button.pressed.connect(_on_edit_normal_pressed.bind(skill_id))
-		row.add_child(edit_button)
-		var delete_button := Button.new()
-		delete_button.name = "DeleteNormalActionButton_%s" % skill_id
-		delete_button.text = tr("削除")
-		delete_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
-		delete_button.pressed.connect(_on_delete_normal_pressed.bind(skill_id))
-		row.add_child(delete_button)
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(info)
+		_card_title(info, i + 1, str(skill.get("name", "")), "NormalActionName_%s" % skill_id)
+		_wrap_label(info, RBMActionPatternSummary.skill_performance_line(skill), "NormalActionDetail_%s" % skill_id)
+		var pct := float(draft.normal_action_percentages.get(skill_id, 0.0))
+		if pct < 0.05:
+			var zero_note := _hint_label(info, tr("使用率が0%の行動は使われません"), "NormalActionZeroNote_%s" % skill_id)
+			zero_note.add_theme_color_override("font_color", WARNING_COLOR)
+		var percent := _new_label(tr("使用率 %.1f%%") % pct)
+		percent.name = "NormalActionPercent_%s" % skill_id
+		percent.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		percent.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		row.add_child(percent)
+		for child in card.find_children("*", "Control", true, false):
+			(child as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+## カードの枠: テーマの Button の枠をそのまま使う（state: normal / hover / focus）。
+func _style_normal_card(card: PanelContainer, state: String) -> void:
+	if not is_instance_valid(card):
+		return
+	var box := card.get_theme_stylebox(state if state != "focus" else "hover", "Button")
+	card.add_theme_stylebox_override("panel", box)
+
+## カードを押した（離した）・キーボードで決定した時に「通常行動の設定」を開く。
+func _on_normal_card_gui_input(event: InputEvent, skill_id: String) -> void:
+	var mouse := event as InputEventMouseButton
+	var released := mouse != null and mouse.button_index == MOUSE_BUTTON_LEFT and not mouse.pressed
+	if released or event.is_action_pressed("ui_accept"):
+		get_viewport().set_input_as_handled()
+		_on_edit_normal_pressed(skill_id)
 
 func _rebuild_scripted_list() -> void:
 	_clear(_scripted_list)
@@ -363,9 +361,6 @@ func set_percentage(skill_id: String, value: float) -> void:
 	draft.normal_action_percentages[skill_id] = clampf(value, 0.0, 100.0)
 	_sync_normal_actions_enabled_flag()
 	refresh()
-
-func _on_percentage_control_changed(v: float, skill_id: String) -> void:
-	set_percentage(skill_id, v)
 
 func _on_equalize_pressed() -> void:
 	draft.equalize_normal_action_percentages_among_normal_actions()

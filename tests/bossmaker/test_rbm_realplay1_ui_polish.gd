@@ -221,11 +221,19 @@ func test_step3_percentage_slider_is_draggable() -> void:
 	# 追加のトグル操作なしでそのまま行が存在する。
 	step3.refresh()
 	await get_tree().process_frame
-	assert_gt(step3._percent_rows.size(), 0, "sanity: at least one normal-action percentage row must exist once a skill was added")
-	for skill_id in step3._percent_rows.keys():
-		var slider: HSlider = step3._percent_rows[skill_id]["slider"]
-		_assert_slider_is_draggable(slider, "STEP3 percentage slider (%s)" % skill_id)
-		_assert_slider_not_covered(main, slider, "STEP3 percentage slider (%s)" % skill_id)
+	# 2026-10-28: 一覧には使用率の入力が無く、カードの右に読むだけで出す。使用率はカードを押して開く
+	# 「通常行動の設定」のスライダーで変える——そのスライダーがつかめること・覆われていないことを確かめる。
+	var normal_ids: Array = step3._normal_skill_ids()
+	assert_gt(normal_ids.size(), 0, "sanity: at least one normal action exists once a skill was added")
+	for skill_id in normal_ids:
+		assert_null(step3._normal_list.find_child("PercentSlider_%s" % skill_id, true, false), "no slider in the list")
+		assert_not_null(step3._normal_list.find_child("NormalActionPercent_%s" % skill_id, true, false), "read-only usage on the card")
+		step3._on_edit_normal_pressed(str(skill_id))
+		await get_tree().process_frame
+		var slider: HSlider = step3._editor_percent_slider
+		_assert_slider_is_draggable(slider, "STEP3 editor percentage slider (%s)" % skill_id)
+		_assert_slider_not_covered(main, slider, "STEP3 editor percentage slider (%s)" % skill_id)
+		step3._close_editor()
 
 # ---------------------------------------------------------------------------
 # 実機プレイ改善①§11: 味方ステータス表示の簡潔化

@@ -70,6 +70,9 @@ const KNOWN_ALLY_PATHS := {
 const ALLY_OVERRIDE_INT_MAX := 1000000000
 const ALLY_OVERRIDE_MULTIPLIER_MAX := 1000.0
 const ALLY_STAT_OVERRIDE_FIELDS: Array[String] = ["hp", "atk", "spd", "max_sp"]
+## 味方の能力の上限（2026-10-28 ユーザー指示: ボスの上限に合わせる。以前は ALLY_OVERRIDE_INT_MAX＝10億だった）。
+## 最大SP はボスに無いので HP と同じ 99,999。技の値（倍率・回復量・SP消費など）の上限は変えていない。
+const ALLY_STAT_OVERRIDE_MAX := {"hp": BOSS_HP_MAX, "atk": BOSS_ATK_MAX, "spd": BOSS_SPD_MAX, "max_sp": 99999}
 const ALLY_SKILL_OVERRIDE_FIELDS_BY_EFFECT := {
 	"damage": ["atk_multiplier", "sp_cost"],
 	"heal": ["heal_amount", "sp_cost"],
@@ -114,7 +117,10 @@ static func validate_ally_stat_override_value(field: String, value: Variant) -> 
 	return ALLY_STAT_OVERRIDE_FIELDS.has(field) \
 		and _is_integral_number(value) \
 		and int(value) >= 1 \
-		and int(value) <= ALLY_OVERRIDE_INT_MAX
+		and int(value) <= ally_stat_override_max(field)
+
+static func ally_stat_override_max(field: String) -> int:
+	return int(ALLY_STAT_OVERRIDE_MAX.get(field, ALLY_OVERRIDE_INT_MAX))
 
 static func validate_ally_skill_override_value(field: String, value: Variant) -> bool:
 	match field:
@@ -444,6 +450,8 @@ static func _resolve_author_boss(boss_entry: Dictionary, errors: Array[String]) 
 	# RBMCreatorDraft.to_definition()参照）。
 	var action_sequence: Array = boss_entry.get("action_sequence", [])
 	var resolved_action_sequence := _resolve_action_sequence(action_sequence, known_boss_skill_ids, errors)
+	# HARDCORE の通常行動（ターンごと、2026-10-28）。空ならキーが無いのと同じ（戦闘は今までの経路）。
+	var resolved_turn_actions := _resolve_turn_actions(boss_entry.get("turn_actions", []), known_boss_skill_ids, errors)
 
 	# 覚醒（Awakening）: 通常actionsとは独立したトップレベルの特別イベント。
 	# キー自体が無い（覚醒未設定、または覚醒実装以前の旧ボスデータ）なら
@@ -470,8 +478,121 @@ static func _resolve_author_boss(boss_entry: Dictionary, errors: Array[String]) 
 		"normal_action_candidates": resolved_candidates,
 		"scripted_actions": resolved_scripted,
 		"action_sequence": resolved_action_sequence,
+		"turn_actions": resolved_turn_actions,
 		"awakening": resolved_awakening,
+		"victory_condition": _resolve_victory_condition(boss_entry.get("victory_condition", {}), errors),
 	}
+
+## HARDCORE 限定の勝利条件（2026-10-29）。キーが無い・空なら通常（{}）。「指定ターンを生き残る」は turns が 1〜99。
+static func _resolve_victory_condition(raw: Variant, errors: Array[String]) -> Dictionary:
+	if not (raw is Dictionary) or (raw as Dictionary).is_empty():
+		return {}
+	var victory: Dictionary = raw
+	var victory_type := str(victory.get("type", ""))
+	match victory_type:
+		RBMActionPatternRules.VICTORY_DEFEAT_BOSS:
+			return {}
+		RBMActionPatternRules.VICTORY_SURVIVE_TURNS:
+			var turns := int(victory.get("turns", 0))
+			if turns < RBMActionPatternRules.SURVIVE_TURNS_MIN or turns > RBMActionPatternRules.SURVIVE_TURNS_MAX:
+				errors.append("victory_condition survive_turns must be between %d and %d (got %d)" % [RBMActionPatternRules.SURVIVE_TURNS_MIN, RBMActionPatternRules.SURVIVE_TURNS_MAX, turns])
+				return {}
+			return {"type": victory_type, "turns": turns}
+	errors.append("victory_condition has an unknown type: %s" % victory_type)
+	return {}
+
+## HARDCORE の通常行動（ターンごと、2026-10-28）の検証・解決。形は RBMCreatorDraft.turn_actions の
+## 説明を参照。fixed は行動1つ、random は2つ以上で使用率の合計が100、conditional は条件つきの行動が
+## 1つ以上（どれも条件1つ以上）と「それ以外」の行動を持つこと。
+static func _resolve_turn_actions(raw: Variant, known_boss_skill_ids: Dictionary, errors: Array[String]) -> Array:
+	var resolved: Array = []
+	if not (raw is Array):
+		errors.append("turn_actions is not an array")
+		return resolved
+	if (raw as Array).size() > RBMActionPatternRules.MAX_TURN_ACTIONS:
+		errors.append("turn_actions exceeds the max of %d turns (got %d)" % [RBMActionPatternRules.MAX_TURN_ACTIONS, (raw as Array).size()])
+		return resolved
+	var known_ally_skill_ids := {}
+	var known_ally_skill_ids_loaded := false
+	for index in range((raw as Array).size()):
+		var label := "turn_actions[%d]" % index
+		var turn_variant: Variant = raw[index]
+		if not (turn_variant is Dictionary):
+			errors.append("%s is not an object" % label)
+			continue
+		var turn: Dictionary = turn_variant
+		var mode := str(turn.get("mode", ""))
+		if not RBMActionPatternRules.TURN_MODES.has(mode):
+			errors.append("%s has an unknown mode: %s" % [label, mode])
+			continue
+		var entries: Variant = turn.get("entries", [])
+		if not (entries is Array) or (entries as Array).size() > RBMActionPatternRules.MAX_TURN_ENTRIES:
+			errors.append("%s has an invalid entries list" % label)
+			continue
+		var resolved_entries: Array = []
+		var ok := true
+		var total := 0.0
+		for entry_variant in entries:
+			if not (entry_variant is Dictionary):
+				errors.append("%s has a non-object entry" % label)
+				ok = false
+				break
+			var entry: Dictionary = entry_variant
+			var skill_id := str(entry.get("skill_id", ""))
+			if not known_boss_skill_ids.has(skill_id):
+				errors.append("%s references unknown boss skill_id: %s" % [label, skill_id])
+				ok = false
+				break
+			var out := {"skill_id": skill_id}
+			if mode == RBMActionPatternRules.TURN_MODE_RANDOM:
+				var weight := float(entry.get("weight", -1.0))
+				if weight < 0.0 or weight > 100.0:
+					errors.append("%s weight out of range [0,100]: %f" % [label, weight])
+					ok = false
+					break
+				total += weight
+				out["weight"] = weight
+			elif mode == RBMActionPatternRules.TURN_MODE_CONDITIONAL:
+				var conditions: Variant = entry.get("conditions", [])
+				if not (conditions is Array) or (conditions as Array).is_empty():
+					errors.append("%s has a conditional entry without conditions" % label)
+					ok = false
+					break
+				var logic := str(entry.get("condition_logic", RBMActionPatternRules.DEFAULT_CONDITION_LOGIC))
+				if not RBMActionPatternRules.CONDITION_LOGIC_TYPES.has(logic):
+					errors.append("%s has an unknown condition_logic: %s" % [label, logic])
+					ok = false
+					break
+				if not known_ally_skill_ids_loaded:
+					known_ally_skill_ids = _known_ally_skill_ids()
+					known_ally_skill_ids_loaded = true
+				var resolved_conditions: Variant = _resolve_conditions(label, conditions, known_boss_skill_ids, known_ally_skill_ids, errors)
+				if resolved_conditions == null:
+					ok = false
+					break
+				out["conditions"] = resolved_conditions
+				out["condition_logic"] = logic
+			resolved_entries.append(out)
+		if not ok:
+			continue
+		var resolved_turn := {"mode": mode, "entries": resolved_entries}
+		match mode:
+			RBMActionPatternRules.TURN_MODE_FIXED:
+				if resolved_entries.size() != 1:
+					errors.append("%s (fixed) must have exactly one entry" % label)
+					continue
+			RBMActionPatternRules.TURN_MODE_RANDOM:
+				if resolved_entries.size() < 2 or absf(total - 100.0) >= 0.05:
+					errors.append("%s (random) needs two or more entries whose weights total 100 (got %d, %.2f)" % [label, resolved_entries.size(), total])
+					continue
+			RBMActionPatternRules.TURN_MODE_CONDITIONAL:
+				var else_skill_id := str(turn.get("else_skill_id", ""))
+				if resolved_entries.is_empty() or not known_boss_skill_ids.has(else_skill_id):
+					errors.append("%s (conditional) needs one or more conditional entries and a known else_skill_id: %s" % [label, else_skill_id])
+					continue
+				resolved_turn["else_skill_id"] = else_skill_id
+		resolved.append(resolved_turn)
+	return resolved
 
 # ---------------------------------------------------------------------------
 # HARDCORE Creator「攻撃（action_sequence）」の検証・解決

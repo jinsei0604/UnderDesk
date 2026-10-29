@@ -257,7 +257,7 @@ func test_step2_navigation_retains_all_immediate_changes() -> void:
 ## 流れは無くなり、仲間の札で選んで「編成に入れる」でその場で入る。編成の仕様（1〜4人・重複なし）は変えていない。
 func test_step4_only_party_members_stand_in_the_formation_and_all_five_are_on_the_bench() -> void:
 	var main := await _new_creator_main()
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	await get_tree().process_frame
 	var step4: RBMCreatorStep5Party = main._step_views[3]
 	step4.toggle_character("hero")
@@ -274,7 +274,7 @@ func test_step4_only_party_members_stand_in_the_formation_and_all_five_are_on_th
 
 func test_step4_bench_tile_shows_that_character_in_the_sheet_without_changing_the_draft() -> void:
 	var main := await _new_creator_main()
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	await get_tree().process_frame
 	var step4: RBMCreatorStep5Party = main._step_views[3]
 	step4.toggle_character("hero")
@@ -289,7 +289,7 @@ func test_step4_bench_tile_shows_that_character_in_the_sheet_without_changing_th
 
 func test_step4_add_button_adds_the_shown_character_right_away() -> void:
 	var main := await _new_creator_main()
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	await get_tree().process_frame
 	var step4: RBMCreatorStep5Party = main._step_views[3]
 	_btn(step4, "SelectCharacterButton_hero").pressed.emit()
@@ -305,7 +305,7 @@ func test_step4_add_button_adds_the_shown_character_right_away() -> void:
 
 func test_step4_party_cap_blocks_a_fifth_member_and_says_why() -> void:
 	var main := await _new_creator_main()
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	await get_tree().process_frame
 	var step4: RBMCreatorStep5Party = main._step_views[3]
 	for id in ["hero", "butler", "healer", "samurai"]:
@@ -325,7 +325,7 @@ func test_step4_party_cap_blocks_a_fifth_member_and_says_why() -> void:
 
 func test_step4_party_built_in_the_ui_round_trips_through_real_save_and_load() -> void:
 	var main := await _new_creator_main()
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	await get_tree().process_frame
 	var step4: RBMCreatorStep5Party = main._step_views[3]
 	main.draft.boss_name = "編成保存テスト"
@@ -346,7 +346,7 @@ func test_step4_party_built_in_the_ui_round_trips_through_real_save_and_load() -
 
 func test_step4_remove_button_removes_from_party() -> void:
 	var main := await _new_creator_main()
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	await get_tree().process_frame
 	var step4: RBMCreatorStep5Party = main._step_views[3]
 	step4.toggle_character("hero")
@@ -373,7 +373,7 @@ func test_step4_a_character_cannot_appear_twice_in_the_party() -> void:
 ## 人物の札は、マスターデータ（HARDCOREの調整後の値）から役割・属性・能力・得意技を出す。
 func test_step4_character_sheet_shows_role_attribute_stats_and_signature_from_real_data() -> void:
 	var main := await _new_creator_main()
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	await get_tree().process_frame
 	var step4: RBMCreatorStep5Party = main._step_views[3]
 	var expected := {"hero": ["攻撃役", "炎", "炎纏い"], "butler": ["魔法攻撃役", "氷", "氷属性大魔法"], "healer": ["回復役", "雷", "全体HP回復"], "samurai": ["攻撃役", "風", "カウンター"], "tank": ["防御役", "無", "かばう"]}
@@ -392,7 +392,7 @@ func test_step4_character_sheet_shows_role_attribute_stats_and_signature_from_re
 ## ステータス編集を開く・閉じる。編成に入っていない人では開かない。
 func test_step4_status_edit_opens_over_the_formation_and_closes() -> void:
 	var main := await _new_creator_main()
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	await get_tree().process_frame
 	var step4: RBMCreatorStep5Party = main._step_views[3]
 	step4.toggle_character("hero")
@@ -614,7 +614,7 @@ func test_step4_performance_skill_list_scrolls_to_last_skill_without_overlapping
 		_btn(root.creator_entry, mode_button).pressed.emit()
 		await get_tree().process_frame
 		var main: RBMCreatorMain = root.creator_entry.main
-		main.go_to_step(4)
+		main.go_to_step(main.party_step())
 		await get_tree().process_frame
 		var step4: RBMCreatorStep5Party = main._step_views[3]
 		step4.toggle_character("hero")

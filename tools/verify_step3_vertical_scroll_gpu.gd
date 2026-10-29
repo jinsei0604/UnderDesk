@@ -34,7 +34,6 @@ func run_gpu_verification(tree: SceneTree, output_dir: String) -> int:
 	var root := RBMGameRoot.new()
 	tree.root.add_child(root)
 	await _frames(4)
-	root._top_monitor_battle.stop_loop()
 	root._show_only(root.creator_entry)
 	root.creator_entry.enter_create()
 	root.creator_entry._on_new_pressed()

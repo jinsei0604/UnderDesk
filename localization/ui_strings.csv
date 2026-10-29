@@ -742,3 +742,153 @@ HP回復：HP%d,HP Heal: %d HP
 ゴーレム,Golem
 保存したボス,Saved Boss
 ぬいぐるみ,Patchwork Teddy
+作成する,Create
+ランキング,Rankings
+公開されたボス戦に挑む,Play published boss battles
+自分だけのボス戦を作って公開する,Make and share your own boss battle
+ボスを選ぶ,Choose a Boss
+外見と攻撃の雰囲気を見て、作るボスを決めます,Pick your boss by its look and the feel of its attacks
+%d体,%d bosses
+覚醒なし,No Awakening
+覚醒後,Awakened
+特徴,Traits
+攻撃のプレビュー,Attack Preview
+覚醒後の攻撃のプレビュー,Awakened Attack Preview
+それぞれループ再生します（準備中）,Each plays on a loop (coming soon)
+プレビュー準備中,Preview coming soon
+覚醒後の単体攻撃,Awakened Single Strike
+覚醒後の全体攻撃,Awakened Full Blast
+通常に戻す,Back to Normal
+このボスにする,Choose This Boss
+選択中：%s,Selected: %s
+%s（覚醒後）,%s (Awakened)
+製品版限定,Full Version Only
+製品版で利用できます,Available in the full version
+体験版で保存できるボスは%d体までです。保存したボス戦を削除するか、上書き保存してください。,The trial version can save up to %d bosses. Delete a saved boss battle or overwrite one.
+このボスは体験版では遊べません。製品版で挑戦できます。,This boss is not available in the trial version. You can challenge it in the full version.
+体験版で公開できるボスは%d体までです。公開中のボスを非公開にすると入れ替えられます。,The trial version can publish up to %d bosses. Unpublish one to publish another.
+ガイド,Guide
+体験版ガイド,Trial Guide
+前へ,Previous
+引き継ぐ,Carry Over
+あとで,Later
+体験版のデータが見つかりました。保存したボス戦%d体と討伐記録を製品版に引き継ぎますか？\n製品版のデータは上書き・削除しません。,Trial data was found. Carry over %d saved boss battles and your defeat records to the full version?\nYour full-version data will not be overwritten or deleted.
+体験版から保存したボス戦%d体を引き継ぎました。,Carried over %d saved boss battles from the trial.
+引き継げなかったデータがあります。もう一度お試しください。,Some data could not be carried over. Please try again.
+ぷるぷると弾む赤いスライム,A bouncy red slime
+体を伸ばして素早く殴りかかる,Stretches out to throw quick punches
+青い毛並みの素早い狼,A swift wolf with blue fur
+鋭い牙で飛びかかる,Lunges with sharp fangs
+黒い鎧に身を包んだ騎士,A knight clad in black armor
+大剣で重い一撃を放つ,Swings a greatsword for heavy blows
+大きな翼を持つ緑の竜,A green dragon with great wings
+炎の息で焼き払う,Scorches foes with fiery breath
+黒い体と赤い翼の覚醒した姿,"Awakened, with a black body and red wings"
+黒い炎の息と隕石で攻め立てる,Attacks with black flame and falling meteors
+炎のような衣をまとう幽霊,A ghost draped in flame-like robes
+ふわりと漂いながら襲いかかる,Drifts in softly before it strikes
+岩でできた巨大なゴーレム,A giant golem made of stone
+拳で地面を叩きつける,Pounds the ground with its fists
+墨をまとう朽ちた機械の武者,A decayed machine warrior wreathed in ink
+刀の一閃で斬りかかる,Strikes with a single flash of its blade
+墨に染まり力を増した姿,Steeped in ink and stronger than before
+墨の刃が戦場をおおう,Blades of ink sweep across the battlefield
+宇宙から来た謎の飛行士,A mysterious astronaut from beyond the stars
+重力をあやつって戦う,Fights by bending gravity
+宇宙の力を解き放った姿,Unleashes the power of the cosmos
+惑星やブラックホールを呼び出す,Calls down planets and black holes
+礼儀正しい異形の紳士,"A courteous, monstrous gentleman"
+優雅な身のこなしから攻撃を仕掛ける,"Attacks from graceful, elegant moves"
+本性を現した異形の姿,"Its true, monstrous form revealed"
+紳士の面影はもうない,Nothing of the gentleman remains
+つぎはぎだらけのぬいぐるみ,A plush toy covered in patches
+かわいい見た目で油断を誘う,Its cute looks lower your guard
+覚醒して恐ろしい姿に変わったぬいぐるみ,Awakened into a terrifying form
+かわいさの奥に恐ろしさがひそむ,Something frightening hides behind the cuteness
+基本の戦い方,How to Battle
+味方の番になったら「通常攻撃」「スキル」「防御」から行動を選びます。,"On each party member's turn, choose Attack, Skill, or Defend."
+スキルは SP を使います。SP が足りないスキルは選べません。,Skills cost SP. You can't choose a skill without enough SP.
+ボスの弱点の属性で攻撃するとダメージが増え、耐性のある属性だと減ります。,Attacks using the boss's weak attribute deal more damage; resisted attributes deal less.
+「防御」を選ぶと、次の自分の番まで受けるダメージが減ります。,Defend reduces the damage you take until your next turn.
+ボスの HP を 0 にすれば勝利です。味方が全員倒れると敗北です。,"Reduce the boss's HP to 0 to win. If your whole party falls, you lose."
+SIMPLE でボスを作る,Making a Boss in SIMPLE
+「ボス作成」の「新しいボス戦を作る」から作り始めます。体験版は SIMPLE で作ります。,Start from Boss Creator with Create New Boss Battle. The trial uses SIMPLE mode.
+「外見と基本情報」「能力」「行動」「攻略パーティ」の順に設定します。,"Set up Appearance, Stats, Actions, and Party, in that order."
+「行動」では技を作り、それぞれを使う割合を決めます。,"In Actions, create skills and set how often each one is used."
+「最終確認」でクリアチェックに勝つと、そのボス戦をオンラインに公開できます。,Win the Clear Check in Final Review to publish your boss battle online.
+体験版でできること,What You Can Do in the Trial
+ボスの外見は竜・スライム・幽霊・朽ちた機械武者の4体から選べます。,"Choose your boss's look from four: Dragon, Slime, Ghost, and Decayed Machine Warrior."
+保存できるボスは5体、オンラインに公開できるボスは2体までです。,You can save up to 5 bosses and publish up to 2 online.
+オンラインでは、この4体で作られた SIMPLE のボス戦に挑戦できます。,"Online, you can challenge SIMPLE boss battles made with these four bosses."
+HARDCORE でのボス作成は製品版で遊べます。,Building bosses in HARDCORE mode is available in the full version.
+体験版で作ったボスと討伐記録は、同じPCの製品版に引き継げます。,Bosses and defeat records from the trial can be carried over to the full version on the same PC.
+体験版から引き継ぐ,Carry Over from Trial
+使用率 %.1f%%,Usage Rate %.1f%%
+%dターン目 %s,Turn %d %s
+%dターン目の候補,Turn %d Candidate
+%dターン目の次は1ターン目に戻ります,"After turn %d, it goes back to turn 1."
+%dターン目の行動,Turn %d Action
+%dターン目の設定,Turn %d Settings
+%dターン目・%s,Turn %d - %s
+%dターン目・それ以外,Turn %d - Otherwise
+%dターン目・条件 %d,Turn %d - Condition %d
+%dターン目：%s,Turn %d: %s
+■ 条件,■ Conditions
+「それ以外」の行動を設定してください,Set the Otherwise action.
+このターンを削除,Delete This Turn
+それ以外,Otherwise
+それ以外 → %s,Otherwise → %s
+どの条件も満たさない時に使います,Used when none of the conditions are met.
+ターン開始・終了時に追加する行動,Extra Actions at Turn Start/End
+使用率で抽選,Draw by Usage Rate
+使用率で抽選するには、行動を2つ以上追加してください,"To draw by usage rate, add two or more actions."
+使用率の合計: %.1f%%,Total usage rate: %.1f%%
+使用率の合計を100%%にしてください（現在%.1f%%）,Make the usage rates add up to 100%% (currently %.1f%%)
+条件 %d,Condition %d
+条件が設定されていない行動があります,An action has no condition.
+条件で分岐,Branch by Condition
+条件の組み合わせ方が設定されていません,How to combine the conditions is not set.
+条件を1つ以上つけてください,Add at least one condition.
+条件を1つ以上追加してください,Add at least one condition.
+決め方,How to Choose
+決め方が設定されていません,How to choose is not set.
+確定,Fixed
+行動の設定に不備があります,There is a problem with the action settings.
+通常行動を1ターン以上追加してください,Add normal actions for at least one turn.
+選べる行動がありません,No actions to choose from.
+（条件なし）,(No condition)
+＋ ターンを追加する,+ Add Turn
+＋ 候補を追加する,+ Add Candidate
+＋ 条件を追加する,+ Add Condition
+＋ 行動を設定する,+ Set Action
+＋ 覚醒を追加する,+ Add Awakening
+＋ 追加する,+ Add
+長押ししてから動かすと、ターンの順番を変えられます,"Press and hold, then drag to change the order of turns."
+以下,At Most
+以上,At Least
+以降,From
+まで,Until
+ごと,Every
+ちょうど,Exactly
+生存,Alive
+戦闘不能,Down
+状態,State
+条件,Condition
+ターン数,Turns
+数値,Value
+比較方法,Comparison
+攻略側生存人数,Surviving Allies
+特定キャラクターの状態,Character Status
+%d〜%dターン,%d to %d turns
+%dターン生き残る,Survive %d turns
+まだ%sは倒れない…！！,%s won't fall yet…!!
+ボスの HP を0にすると勝利です。,You win by bringing the boss's HP to 0.
+ボスを撃破する（通常）,Defeat the Boss (Standard)
+指定したターンの終わりまで味方が1人でも生き残れば勝利です。ボスの HP を0にしても戦闘は終わらず、ボスは行動を続けます。途中で味方が全滅すると敗北です。,"You win if at least one ally is still standing at the end of the set turn. Bringing the boss's HP to 0 does not end the battle, and the boss keeps acting. You lose if your whole party falls before then."
+指定ターンを生き残る,Survive Set Turns
+挑戦する人に勝利条件を見せるかどうかは、最終確認の公開設定「勝利条件」で決められます。,"Whether challengers can see this is set by the Win Condition visibility option in the Final Review."
+生き残るターン数,Turns to Survive
+生き残るターン数を%d〜%dで設定してください,Set the turns to survive between %d and %d.
+耐久成功！,SURVIVED!
+%s の猛攻を耐え抜いた！,You withstood %s's onslaught!
+クリアターン %d　｜　クリアタイム %s,Turns %d　|　Clear Time %s

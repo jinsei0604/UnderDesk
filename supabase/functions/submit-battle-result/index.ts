@@ -14,6 +14,7 @@ import { SteamTicketVerifier } from "../steam-auth/steam_ticket_verifier.ts";
 import { RealSteamWebApiClient } from "../steam-auth/steam_web_api_client.ts";
 import { WEB_API_IDENTITY } from "../steam-auth/index.ts";
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
+import { demoBossRejection } from "../_shared/edition.ts";
 import { firstClearRate, isUuid, issueBattleTicket, submitBattleResult } from "../_shared/battle_tickets.ts";
 
 export const MAX_RESULTS_PER_REQUEST = 20;
@@ -127,7 +128,11 @@ export async function handleSubmitBattleResult(
   }
 
   const response: SubmitBattleResultResponseBody = { ok: true, results };
-  if (isUuid(nextBossId)) {
+  // 体験版のチケットで範囲外のボスの次の戦闘チケットは出さない(2026-10-28、_shared/edition.ts)。
+  const nextDemoRejected = isUuid(nextBossId) ? await demoBossRejection(db, nextBossId, verification.edition) : null;
+  if (nextDemoRejected !== null) {
+    response.next_ticket_status = nextDemoRejected;
+  } else if (isUuid(nextBossId)) {
     const issued = await issueBattleTicket(db, nextBossId, steamId);
     if (!issued.ok) {
       console.error("submit-battle-result: ticket error", issued.errorMessage);

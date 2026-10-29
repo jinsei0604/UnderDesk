@@ -286,7 +286,8 @@ func _refresh() -> void:
 ## §9: 現在のRBMBattle唯一の勝利条件（boss.hp<=0、RBMBattle._check_battle_over()
 ## 参照）をそのまま説明するだけの固定文字列。
 func _win_condition_text() -> String:
-	return tr("ボスのHPを0にする")
+	# HARDCORE の勝利条件「指定ターンを生き残る」（2026-10-29）の時は、その文に差し替わる。
+	return _draft.win_condition_text()
 
 ## §10: 現在のDefinition/RBMBattleに特殊条件の概念が無いため常に「なし」。
 ## 将来特殊条件システムが追加された際、この関数の中身だけを差し替えれば

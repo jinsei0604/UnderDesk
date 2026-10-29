@@ -25,7 +25,8 @@ EXPECTED_VERSION="4.7.2.stable"
 case "$KIND" in
   release) PRESET="Windows Desktop"; MODE="--export-release" ;;
   verify)  PRESET="Windows Desktop Verify"; MODE="--export-debug" ;;
-  *) echo "種類は release か verify"; exit 2 ;;
+  demo)    PRESET="Windows Desktop Demo"; MODE="--export-release" ;;  # 体験版（AppID 5521380。docs/DEMO_EDITION.md）
+  *) echo "種類は release / verify / demo"; exit 2 ;;
 esac
 
 # 1. 版をそろえる（本体とテンプレート）

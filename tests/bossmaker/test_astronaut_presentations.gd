@@ -161,6 +161,7 @@ func test_picker_name_art_and_awakening_are_available() -> void:
 	var seen: Array = []
 	picker.confirmed.connect(func(id): seen.append(id))
 	picker.find_child("Appearance_appearance_astronaut",true,false).pressed.emit()
+	picker.find_child("ConfirmAppearanceButton",true,false).pressed.emit()
 	assert_eq(seen,["appearance_astronaut"])
 
 func test_guarded_meteor_and_planet_follow_the_redirected_recipient() -> void:

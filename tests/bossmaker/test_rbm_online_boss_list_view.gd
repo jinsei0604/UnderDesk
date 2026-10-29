@@ -1228,3 +1228,111 @@ func test_an_online_boss_without_an_author_message_shows_none() -> void:
 	await get_tree().process_frame
 
 	assert_eq(_detail_text(view, "DetailMessage"), TranslationServer.translate("（なし）"))
+
+# ---------------------------------------------------------------------------
+# 2026-10-28: 右側の詳細のページ送り（1=基本情報、2=詳細情報）と情報公開設定
+
+func _skills_text(view: RBMOnlineBossListView) -> String:
+	var lines: Array = []
+	var list := _detail_node(view, "DetailSkillsList")
+	if list != null:
+		for child in list.get_children():
+			lines.append((child as Label).text)
+	return "\n".join(lines)
+
+func test_the_detail_page_shows_every_public_item_and_comes_back() -> void:
+	var api := _api_with_two_bosses()
+	var view := _view_with(api)
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_ONLINE, "オンライン")
+	_card(view, "a").pressed.emit()
+	await get_tree().process_frame
+	assert_eq(view._detail.current_page(), 1)
+	assert_null(_detail_node(view, "DetailPrevPageButton"))
+	var next := _detail_node(view, "DetailNextPageButton") as Button
+	assert_not_null(next, "a right arrow at the right edge")
+	assert_almost_eq(next.position.y + next.size.y / 2.0, view._detail._height() / 2.0, 1.0, "vertically centered")
+	assert_gt(next.position.x, view._detail._width() - 60.0, "at the right edge")
+	next.pressed.emit()
+	assert_eq(view._detail.current_page(), 2)
+	assert_null(_detail_node(view, "DetailNextPageButton"))
+	assert_null(_detail_node(view, "DetailMessage"), "page 1 contents are gone")
+	assert_eq(_detail_text(view, "DetailStatValue_hp"), "4800")
+	assert_eq(_detail_text(view, "DetailStatValue_atk"), "100")
+	assert_eq(_detail_text(view, "DetailStatValue_spd"), "50")
+	assert_eq(_detail_text(view, "DetailPage2Weak"), TranslationServer.translate("氷"))
+	assert_eq(_detail_text(view, "DetailPage2Resist"), TranslationServer.translate("なし"))
+	assert_eq(_detail_text(view, "DetailPage2WinCondition"), TranslationServer.translate("ボスのHPを0にする"))
+	assert_eq(_detail_text(view, "DetailPage2SpecialCondition"), TranslationServer.translate("なし"))
+	assert_string_contains(_skills_text(view), "斬撃")
+	assert_not_null(_detail_node(view, "DetailChallengeButton"), "challenge stays reachable")
+	var back := _detail_node(view, "DetailPrevPageButton") as Button
+	assert_not_null(back, "a left arrow to go back")
+	assert_lt(back.position.x, 20.0)
+	back.pressed.emit()
+	assert_eq(view._detail.current_page(), 1)
+	assert_eq(_detail_text(view, "DetailBossHpValue"), "4800")
+
+func test_hidden_items_never_appear_on_the_detail_page() -> void:
+	var payload := _published_payload("秘密のボス")
+	var visibility: Dictionary = payload["draft_fields"]["challenge_info_visibility"]
+	for key in RBMCreatorDraft.CHALLENGE_INFO_VISIBILITY_KEYS:
+		visibility[key] = false
+	var view := _view_with(_api_with_two_bosses(payload))
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_ONLINE, "オンライン")
+	_card(view, "a").pressed.emit()
+	await get_tree().process_frame
+	view._detail.show_page(2)
+	for key in ["hp", "atk", "spd"]:
+		assert_eq(_detail_text(view, "DetailStatValue_%s" % key), TranslationServer.translate("？？？"))
+	assert_eq(_detail_text(view, "DetailPage2Weak"), TranslationServer.translate("？？？"))
+	assert_eq(_detail_text(view, "DetailPage2Resist"), TranslationServer.translate("？？？"))
+	assert_eq(_detail_text(view, "DetailPage2WinCondition"), TranslationServer.translate("非公開"))
+	assert_eq(_detail_text(view, "DetailPage2SpecialCondition"), TranslationServer.translate("非公開"))
+	assert_eq(_skills_text(view), TranslationServer.translate("非公開"))
+	# 値そのものがどの文字にも出ていない。
+	var all_text := ""
+	for node in view._detail.find_children("*", "Label", true, false):
+		all_text += (node as Label).text + "\n"
+	for secret in ["4800", "100", "50", "斬撃", TranslationServer.translate("氷")]:
+		assert_false(all_text.contains(secret), "hidden value %s must not be shown" % secret)
+
+func test_some_public_items_only_still_lays_out_and_mixes_correctly() -> void:
+	var payload := _published_payload("一部だけ公開")
+	var visibility: Dictionary = payload["draft_fields"]["challenge_info_visibility"]
+	for key in ["atk", "resist_attributes", "boss_skills", "special_condition"]:
+		visibility[key] = false
+	var view := _view_with(_api_with_two_bosses(payload))
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_ONLINE, "オンライン")
+	_card(view, "a").pressed.emit()
+	await get_tree().process_frame
+	view._detail.show_page(2)
+	assert_eq(_detail_text(view, "DetailStatValue_hp"), "4800")
+	assert_eq(_detail_text(view, "DetailStatValue_atk"), TranslationServer.translate("？？？"))
+	assert_eq(_detail_text(view, "DetailPage2Resist"), TranslationServer.translate("？？？"))
+	assert_eq(_skills_text(view), TranslationServer.translate("非公開"))
+	var box := _detail_node(view, "DetailSkillsBox") as Control
+	var go := _detail_node(view, "DetailChallengeButton") as Control
+	assert_lt(box.position.y + box.size.y, go.position.y, "the skills box stays above the challenge button")
+
+func test_choosing_another_boss_returns_to_the_basic_page() -> void:
+	var view := _view_with(_api_with_two_bosses())
+	await view.refresh_with("", RBMOnlineBossListView.CATEGORY_ONLINE, "オンライン")
+	_card(view, "a").pressed.emit()
+	await get_tree().process_frame
+	view._detail.show_page(2)
+	assert_eq(view._detail.current_page(), 2)
+	_card(view, "b").pressed.emit()
+	await get_tree().process_frame
+	assert_eq(view._detail.current_page(), 1)
+	assert_not_null(_detail_node(view, "DetailNextPageButton"))
+	assert_null(_detail_node(view, "DetailPrevPageButton"))
+
+func test_the_saved_boss_panel_has_no_detail_page() -> void:
+	var panel := RBMSavedBossDetailPanel.new()
+	add_child_autofree(panel)
+	var draft := RBMCreatorDraft.new()
+	draft.boss_name = "自分のボス"
+	panel.show_boss({"boss_name": "自分のボス"}, draft)
+	assert_null(panel.find_child("DetailNextPageButton", true, false))
+	panel.show_page(2)
+	assert_eq(panel.current_page(), 1)

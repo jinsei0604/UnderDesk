@@ -142,601 +142,507 @@ func test_switching_back_to_simple_with_advanced_only_settings_needs_confirmatio
 	assert_true(creator.draft.action_sequence.is_empty())
 
 # ---------------------------------------------------------------------------
-# §3: トップ画面は「攻撃」の一覧だけ
+# 2026-10-28 作り直し（ユーザー確定・案A）: HARDCORE の「通常行動」はターンごとの設定。
+# ① 一覧（ターンのカード）→ ② ターンの設定（決め方: 確定 / 使用率で抽選 / 条件で分岐）→ ③ 行動の詳細。
+# 旧「攻撃の一覧・3択（ランダム攻撃を作る）・使用回数・↑↓・一覧の削除ボタン」は廃止した。
+# 以下は旧テストと同じ観点（追加の流れ・キャンセル・条件・抽選・性能編集・削除の後片付け・検証）を新しい画面で確かめる。
 # ---------------------------------------------------------------------------
+
+func _click(node: Node, card_name: String) -> void:
+	var card := node.find_child(card_name, true, false) as Control
+	assert_not_null(card, "card %s" % card_name)
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	card.gui_input.emit(release)
+
+func _sid(creator: RBMCreatorMain, index: int) -> String:
+	return str(creator.draft.skills[index].get("skill_id", ""))
+
+func _fixed_turn(skill_id: String) -> Dictionary:
+	return {"mode": "fixed", "entries": [{"skill_id": skill_id}]}
+
+func _card_text(advanced: RBMCreatorStep4ActionPatterns, card_name: String) -> String:
+	return "\n".join(_all_label_texts(advanced.find_child(card_name, true, false)))
 
 func test_list_view_shows_only_attacks_heading_and_add_button_when_empty() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
 	assert_true(advanced._list_view.visible)
-	assert_eq(advanced._slot_list.get_child_count(), 0)
-	assert_true(_btn(advanced, "AddSlotButton").visible)
+	assert_eq(advanced._turn_list.get_child_count(), 0)
+	assert_true(_btn(advanced, "AddTurnButton").visible)
+	assert_true(_btn(advanced, "AddExtraActionButton").visible)
+	assert_false(advanced._turn_loop_note.visible, "no loop note without turns")
 
 func test_slot_list_card_shows_ordinal_name_performance_condition_and_uses() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
-	creator.draft.add_action_slot({
-		"kind": "skill", "skill_id": skill_id,
-		"conditions": [{"type": "hp_at_most", "percent": 30.0}],
-		"condition_logic": "AND", "max_uses": 2,
-	})
+	creator.draft.add_turn_action(_fixed_turn(_sid(creator, 0)))
+	creator.draft.add_turn_action({"mode": "conditional", "entries": [{"skill_id": _sid(creator, 1), "conditions": [{"type": "hp_at_most", "percent": 30.0}], "condition_logic": "AND"}], "else_skill_id": _sid(creator, 0)})
 	advanced.refresh()
-	var card: VBoxContainer = advanced._slot_list.get_child(0)
-	var texts := PackedStringArray()
-	for child in card.get_children():
-		if child is Label:
-			texts.append((child as Label).text)
-	var joined := "\n".join(texts)
-	assert_true(joined.contains("01"), "番号が表示される: %s" % joined)
-	assert_true(joined.contains("HPが30%以下"), "条件が読める形で載っていること: %s" % joined)
-	assert_true(joined.contains("斬撃"), "行動名がそのまま載っていること: %s" % joined)
-	assert_true(joined.contains("使用回数：2回"), "使用回数が読める形で載っていること: %s" % joined)
-
-# ---------------------------------------------------------------------------
-# §4: 追加方法の3択
-# ---------------------------------------------------------------------------
+	var fixed := _card_text(advanced, "TurnCard_0")
+	assert_true(fixed.contains(tr("%dターン目") % 1), "ターン番号: %s" % fixed)
+	assert_true(fixed.contains("斬撃"), "行動名: %s" % fixed)
+	assert_true(fixed.contains("威力100"), "性能: %s" % fixed)
+	var conditional := _card_text(advanced, "TurnCard_1")
+	assert_true(conditional.contains("HPが30%以下"), "条件が読める形で載っていること: %s" % conditional)
+	assert_true(conditional.contains("咆哮"))
+	assert_true(conditional.contains(tr("それ以外 → %s") % "斬撃"))
+	assert_false(conditional.contains("使用回数"), "使用回数は廃止")
+	assert_true(advanced._turn_loop_note.visible)
 
 func test_add_slot_button_opens_the_three_way_add_choice() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	_btn(advanced, "AddSlotButton").pressed.emit()
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	assert_true(advanced._turn_view.visible, "a new turn opens its settings")
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
 	assert_true(advanced._add_choice_view.visible)
 	assert_true(_btn(advanced, "AddChoicePickExistingButton").visible)
 	assert_true(_btn(advanced, "AddChoiceCreateNewButton").visible)
-	assert_true(_btn(advanced, "AddChoiceCreateRandomButton").visible)
+	assert_null(advanced.find_child("AddChoiceCreateRandomButton", true, false), "「ランダム攻撃を作る」は無い（抽選はターンの決め方で選ぶ）")
 
 func test_add_choice_cancel_returns_to_list() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	_btn(advanced, "AddSlotButton").pressed.emit()
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
 	_btn(advanced, "AddChoiceCancelButton").pressed.emit()
+	assert_true(advanced._turn_view.visible, "back to the turn settings")
+	_btn(advanced, "TurnCancelButton").pressed.emit()
 	assert_true(advanced._list_view.visible)
+	assert_true(creator.draft.turn_actions.is_empty())
 
-## §6: 「新しく攻撃を作る」を選んだ瞬間、性能フォーム・発動条件・使用回数
-## が同一画面へ同時に表示される（確定ボタンは1つだけ）。
 func test_add_choice_create_new_opens_skill_slot_view_with_form_active() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	_btn(advanced, "AddSlotButton").pressed.emit()
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
 	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
-	assert_true(advanced._skill_slot_view.visible)
-	assert_true(advanced._skill_slot_form_active)
-	assert_true(advanced._form.visible)
-	assert_true(advanced._condition_uses_block.visible)
-	assert_eq(advanced._form.get_parent(), advanced._skill_slot_form_slot)
-	assert_eq(advanced._condition_uses_block.get_parent(), advanced._skill_slot_condition_uses_slot)
-	assert_eq(_btn(advanced, "SkillSlotConfirmButton").text, "攻撃を追加")
-	assert_false(_btn(advanced, "SkillSlotDeleteButton").visible)
+	assert_true(advanced._entry_view.visible)
+	assert_true(advanced._form.visible, "the performance form is open for a new action")
+	assert_false(advanced._performance_summary_row.visible)
+	assert_false(advanced._condition_block.visible, "a fixed turn has no conditions")
+	assert_false(advanced._weight_block.visible, "a fixed turn has no usage rate")
 
 func test_add_choice_create_random_opens_random_editor_view() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateRandomButton").pressed.emit()
-	assert_true(advanced._random_editor_view.visible)
-	assert_eq(_btn(advanced, "RandomConfirmButton").text, "ランダム攻撃を追加")
-	assert_false(_btn(advanced, "RandomDeleteButton").visible)
-
-# ---------------------------------------------------------------------------
-# §5: 既存の攻撃から選ぶ
-# ---------------------------------------------------------------------------
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "TurnModeButton_random").pressed.emit()
+	assert_true(_btn(advanced, "EqualizeTurnButton").visible)
+	assert_true(advanced._turn_total_label.visible)
+	assert_eq(_btn(advanced, "AddTurnEntryButton").text, tr("＋ 候補を追加する"))
 
 func test_pick_existing_then_confirm_adds_a_slot_referencing_the_chosen_skill() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
 	var skills_before := creator.draft.skills.size()
-
-	_btn(advanced, "AddSlotButton").pressed.emit()
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
 	_btn(advanced, "AddChoicePickExistingButton").pressed.emit()
 	assert_true(advanced._pick_existing_view.visible)
-
-	var select_button: Button = advanced._pick_existing_list.find_child("PickExistingSkillButton_0", true, false)
-	assert_not_null(select_button)
-	select_button.pressed.emit()
-
-	assert_true(advanced._skill_slot_view.visible)
-	assert_false(advanced._skill_slot_form_active, "既存を選んだ直後はフォームを開かず性能サマリのみ表示する")
-	assert_true(advanced._skill_slot_performance_summary_row.visible)
-
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
-	assert_eq(creator.draft.action_sequence.size(), 1)
-	assert_eq(str(creator.draft.action_sequence[0].get("skill_id", "")), skill_id)
-	assert_eq(creator.draft.skills.size(), skills_before, "既存skillを選んだだけなので新規skillは作られない")
+	_click(advanced, "PickExistingSkillCard_1")
+	assert_true(advanced._performance_summary_row.visible, "an existing action shows its summary, not the form")
+	_btn(advanced, "EntryConfirmButton").pressed.emit()
+	_btn(advanced, "TurnConfirmButton").pressed.emit()
+	assert_eq(creator.draft.turn_actions, [_fixed_turn(_sid(creator, 1))])
+	assert_eq(creator.draft.skills.size(), skills_before, "no new action is created")
 
 func test_pick_existing_cancel_returns_to_add_choice() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	_btn(advanced, "AddSlotButton").pressed.emit()
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
 	_btn(advanced, "AddChoicePickExistingButton").pressed.emit()
 	_btn(advanced, "PickExistingCancelButton").pressed.emit()
 	assert_true(advanced._add_choice_view.visible)
-
-# ---------------------------------------------------------------------------
-# §6: 新しく攻撃を作る（性能+条件+使用回数を1画面で確定）
-# ---------------------------------------------------------------------------
 
 func test_create_new_attack_flow_creates_skill_and_slot_atomically_on_confirm() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
 	var skills_before := creator.draft.skills.size()
-
-	_btn(advanced, "AddSlotButton").pressed.emit()
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
 	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
 	advanced._form._name_edit.text = "新しい攻撃"
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
-
-	assert_eq(creator.draft.skills.size(), skills_before + 1, "新しいskillが1つ作られる")
-	assert_eq(creator.draft.action_sequence.size(), 1, "同時にスロットも1つ追加される")
-	var slot: Dictionary = creator.draft.action_sequence[0]
-	var new_skill_id := str(slot.get("skill_id", ""))
-	assert_eq(str(creator.draft.find_skill(new_skill_id).get("name", "")), "新しい攻撃")
-	assert_true(advanced._list_view.visible, "確定後は一覧画面へ戻る")
+	assert_eq(creator.draft.skills.size(), skills_before, "nothing is created before the detail screen is saved")
+	_btn(advanced, "EntryConfirmButton").pressed.emit()
+	assert_eq(creator.draft.skills.size(), skills_before + 1)
+	assert_true(creator.draft.turn_actions.is_empty(), "the turn is written only when the turn is saved")
+	_btn(advanced, "TurnConfirmButton").pressed.emit()
+	assert_eq(creator.draft.turn_actions.size(), 1)
+	assert_eq(str(creator.draft.find_skill(str(creator.draft.turn_actions[0]["entries"][0]["skill_id"])).get("name", "")), "新しい攻撃")
 
 func test_cancelling_new_creation_flow_does_not_leave_a_provisional_skill() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
 	var skills_before := creator.draft.skills.size()
-
-	_btn(advanced, "AddSlotButton").pressed.emit()
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
 	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
-	advanced._form._name_edit.text = "使い捨て"
-	_btn(advanced, "SkillSlotCancelButton").pressed.emit()
-	assert_eq(creator.draft.skills.size(), skills_before, "confirmする前は何もdraftへ書き込まれていない")
-	assert_true(creator.draft.action_sequence.is_empty())
+	advanced._form._name_edit.text = "取り消す攻撃"
+	_btn(advanced, "EntryCancelButton").pressed.emit()
+	assert_eq(creator.draft.skills.size(), skills_before)
+	assert_true(advanced._turn_view.visible)
 
-# ---------------------------------------------------------------------------
-# §7/§8: 発動条件・使用回数（skill_slot_view内の共有ブロック経由）
-# ---------------------------------------------------------------------------
+func _open_new_conditional_row(advanced: RBMCreatorStep4ActionPatterns) -> void:
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "TurnModeButton_conditional").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
+	_btn(advanced, "AddChoicePickExistingButton").pressed.emit()
+	_click(advanced, "PickExistingSkillCard_0")
+
+func _finish_conditional_turn(advanced: RBMCreatorStep4ActionPatterns) -> void:
+	_btn(advanced, "EntryConfirmButton").pressed.emit()
+	_click(advanced, "TurnElseCard")
+	_btn(advanced, "AddChoicePickExistingButton").pressed.emit()
+	_click(advanced, "PickExistingSkillCard_1")
+	_btn(advanced, "EntryConfirmButton").pressed.emit()
+	_btn(advanced, "TurnConfirmButton").pressed.emit()
 
 func test_ui_add_condition_button_flow_saves_the_condition_into_the_slot() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
-	assert_eq(advanced._pending_conditions.size(), 0)
-
+	_open_new_conditional_row(advanced)
+	assert_true(advanced._condition_block.visible)
 	_btn(advanced, "AddConditionButton").pressed.emit()
-	assert_true(advanced._condition_editor.visible)
-	assert_eq(advanced._pending_conditions.size(), 1, "「＋ 条件をつける」を押した時点で条件が下書きへ作られる")
-	advanced._condition_percent_spin.value = 42.0
-
-	assert_null(advanced.find_child("ConfirmConditionButton", true, false), "内側の「追加する」は存在しない")
-	assert_null(advanced.find_child("CancelConditionButton", true, false), "内側のキャンセルは存在しない")
-	assert_eq(advanced._pending_conditions.size(), 1)
-	assert_eq(str(advanced._pending_conditions[0].get("type", "")), "hp_at_most")
-	assert_eq(float(advanced._pending_conditions[0].get("percent", -1.0)), 42.0)
-
-	advanced._form._name_edit.text = "行動"
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
-	var slot: Dictionary = creator.draft.action_sequence[0]
-	var conditions: Array = slot.get("conditions", [])
-	assert_eq(conditions.size(), 1)
-	assert_eq(str(conditions[0].get("type", "")), "hp_at_most")
-	assert_eq(float(conditions[0].get("percent", -1.0)), 42.0)
+	advanced._condition_percent_spin.value = 40.0
+	_finish_conditional_turn(advanced)
+	var turn: Dictionary = creator.draft.turn_actions[0]
+	assert_eq(turn["entries"][0]["conditions"], [{"type": "hp_at_most", "percent": 40.0}])
+	assert_eq(str(turn["else_skill_id"]), _sid(creator, 1))
 
 func test_condition_logic_option_hidden_until_a_second_condition_exists() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
-	assert_false(advanced._condition_logic_option.visible, "条件0件ではAND/ORは無意味なので隠す")
-
+	_open_new_conditional_row(advanced)
 	_btn(advanced, "AddConditionButton").pressed.emit()
-	assert_eq(advanced._pending_conditions.size(), 1)
-	assert_false(advanced._condition_logic_option.visible, "条件1件のままではAND/ORを出さない")
-
+	assert_false(advanced._condition_logic_option.visible)
 	_btn(advanced, "AddConditionButton").pressed.emit()
-	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES.find("turn_at"))
-	advanced._on_condition_type_selected(advanced._condition_type_option.selected)
-	assert_eq(advanced._pending_conditions.size(), 2)
-	assert_eq(str(advanced._pending_conditions[1].get("type", "")), "turn_at", "種類の変更は即座に下書きへ反映される")
-	assert_true(advanced._condition_logic_option.visible, "2件目を追加した瞬間だけAND/ORが現れる")
+	assert_true(advanced._condition_logic_option.visible)
 
 func test_ui_condition_logic_option_toggles_and_or_into_the_saved_slot() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
-	assert_eq(advanced._pending_condition_logic, "AND")
+	_open_new_conditional_row(advanced)
+	_btn(advanced, "AddConditionButton").pressed.emit()
+	_btn(advanced, "AddConditionButton").pressed.emit()
+	var or_index := RBMActionPatternRules.CONDITION_LOGIC_TYPES.find("OR")
+	advanced._condition_logic_option.select(or_index)
+	advanced._condition_logic_option.item_selected.emit(or_index)
+	_finish_conditional_turn(advanced)
+	assert_eq(str(creator.draft.turn_actions[0]["entries"][0]["condition_logic"]), "OR")
 
-	advanced._condition_logic_option.select(RBMActionPatternRules.CONDITION_LOGIC_TYPES.find("OR"))
-	advanced._on_condition_logic_selected(advanced._condition_logic_option.selected)
-	assert_eq(advanced._pending_condition_logic, "OR")
-
-	advanced._form._name_edit.text = "行動"
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
-	var slot: Dictionary = creator.draft.action_sequence[0]
-	assert_eq(str(slot.get("condition_logic", "")), "OR")
-
+## 使用回数は廃止（2026-10-28 ユーザー確定）: どの画面にも使用回数の入力が無い。
 func test_uses_default_unlimited_and_switching_to_limited_saves_max_uses() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
-	assert_eq(advanced._pending_max_uses, RBMActionPatternRules.UNLIMITED_USES)
-	assert_true(advanced._uses_unlimited_check.button_pressed)
+	_open_new_conditional_row(advanced)
+	for node_name in ["UsesUnlimitedCheck", "UsesLimitedCheck", "UsesCountSpin"]:
+		assert_null(advanced.find_child(node_name, true, false), node_name)
+	assert_false(_all_label_texts(advanced).has(tr("■ 使用回数")))
 
-	advanced._uses_limited_check.button_pressed = true
-	advanced._on_uses_limited_toggled(true)
-	advanced._uses_count_spin.value = 3.0
-	assert_eq(advanced._pending_max_uses, 3)
-
-	advanced._form._name_edit.text = "行動"
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
-	var slot: Dictionary = creator.draft.action_sequence[0]
-	assert_eq(int(slot.get("max_uses", -99)), 3)
-
-## §2/§7: last_boss_skill条件は「前回使った行動」として見せる（唯一の
-## 既存スキル参照）。
+## 2026-10-29: 条件は2段階（カテゴリ4つ→比較方法と値）。長い1つのプルダウンは無く、「前回使った行動」などは選べない。
 func test_last_boss_skill_condition_is_labeled_as_previous_action_not_existing_skill() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+	_open_new_conditional_row(advanced)
 	_btn(advanced, "AddConditionButton").pressed.emit()
-
-	var label: Label = advanced._condition_boss_skill_row.get_child(0)
-	assert_eq(label.text, "前回使った行動", "「既存スキルを選択」という文言は使わない")
-
-	advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES.find("last_boss_skill"))
-	advanced._on_condition_type_selected(advanced._condition_type_option.selected)
-	assert_true(advanced._condition_boss_skill_row.visible)
-	assert_eq(advanced._condition_boss_skill_option.item_count, creator.draft.skills.size())
-
-	advanced._condition_boss_skill_option.select(1)
-	advanced._condition_boss_skill_option.item_selected.emit(1)
-	assert_eq(str(advanced._pending_conditions[0].get("skill_id", "")), str(creator.draft.skills[1].get("skill_id", "")))
-
-# ---------------------------------------------------------------------------
-# §10/§11/§12: ランダム攻撃
-# ---------------------------------------------------------------------------
+	var categories := advanced._condition_category_option
+	assert_eq(categories.item_count, 4)
+	for i in range(4):
+		assert_eq(categories.get_item_text(i), tr(str(RBMActionPatternRules.CONDITION_CATEGORIES[i]["label"])))
+	assert_eq(advanced._condition_compare_option.item_count, 2, "ボスHP: 以下・以上だけ")
+	assert_eq(advanced._condition_compare_option.get_item_text(0), tr("以下"))
+	assert_eq(advanced._condition_compare_option.get_item_text(1), tr("以上"))
+	assert_null(advanced.find_child("ConditionTypeOption", true, false), "the long dropdown is gone")
+	assert_false(_all_label_texts(advanced).has(tr("前回使った行動")))
 
 func test_random_slot_creation_with_pick_existing_candidate() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "TurnModeButton_random").pressed.emit()
+	for card_index in [0, 1]:
+		_btn(advanced, "AddTurnEntryButton").pressed.emit()
+		_btn(advanced, "AddChoicePickExistingButton").pressed.emit()
+		_click(advanced, "PickExistingSkillCard_%d" % card_index)
+		_btn(advanced, "EntryConfirmButton").pressed.emit()
+	_btn(advanced, "EqualizeTurnButton").pressed.emit()
+	_btn(advanced, "TurnConfirmButton").pressed.emit()
+	assert_eq(creator.draft.turn_actions, [{"mode": "random", "entries": [{"skill_id": _sid(creator, 0), "weight": 50.0}, {"skill_id": _sid(creator, 1), "weight": 50.0}]}])
 
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateRandomButton").pressed.emit()
-	assert_true(advanced._random_editor_view.visible)
-
-	_btn(advanced, "RandomAddCandidateButton").pressed.emit()
-	assert_true(advanced._random_add_choice_view.visible)
-	_btn(advanced, "RandomAddChoicePickExistingButton").pressed.emit()
-	assert_true(advanced._random_pick_existing_view.visible)
-
-	var select_button: Button = advanced._random_pick_existing_list.find_child("RandomPickExistingSkillButton_0", true, false)
-	assert_not_null(select_button)
-	select_button.pressed.emit()
-
-	assert_true(advanced._random_editor_view.visible)
-	assert_eq(advanced._random_candidates.size(), 1)
-	assert_eq(str(advanced._random_candidates[0].get("skill_id", "")), skill_id)
-
-	_btn(advanced, "RandomConfirmButton").pressed.emit()
-	assert_eq(creator.draft.action_sequence.size(), 1)
-	var slot: Dictionary = creator.draft.action_sequence[0]
-	assert_eq(str(slot.get("kind", "")), "random")
-	assert_eq((slot.get("candidates", []) as Array).size(), 1)
-
-## §11: 新規作成されたスキルはdraft.skillsの共有ライブラリへ保存されるため、
-## 別の配置の「既存の攻撃から選ぶ」一覧にも現れる（再利用可能なことの
-## 直接証明）。
+## 同じターンに既にある候補は「既存の行動から選ぶ」に出さない（同じ行動を2回並べない）。
 func test_random_slot_new_candidate_creates_a_reusable_skill() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	var skills_before := creator.draft.skills.size()
-
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateRandomButton").pressed.emit()
-	_btn(advanced, "RandomAddCandidateButton").pressed.emit()
-	_btn(advanced, "RandomAddChoiceCreateNewButton").pressed.emit()
-	assert_true(advanced._random_create_new_view.visible)
-	_fill_and_save_form(advanced._form, "新規候補")
-
-	assert_true(advanced._random_editor_view.visible, "保存後、ランダム編集画面へ自動的に戻る")
-	assert_eq(creator.draft.skills.size(), skills_before + 1)
-	assert_eq(advanced._random_candidates.size(), 1)
-	var new_skill_id := str(advanced._random_candidates[0].get("skill_id", ""))
-	assert_eq(str(creator.draft.find_skill(new_skill_id).get("name", "")), "新規候補")
-	_btn(advanced, "RandomConfirmButton").pressed.emit()
-
-	_btn(advanced, "AddSlotButton").pressed.emit()
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "TurnModeButton_random").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
+	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+	advanced._form._name_edit.text = "新しい候補"
+	_btn(advanced, "EntryConfirmButton").pressed.emit()
+	var new_id := str(advanced._pending_entries()[0]["skill_id"])
+	assert_false(creator.draft.find_skill(new_id).is_empty(), "the new candidate is a real, reusable action")
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
 	_btn(advanced, "AddChoicePickExistingButton").pressed.emit()
-	var expected_button_name := ""
-	for i in range(creator.draft.skills.size()):
-		if str(creator.draft.skills[i].get("skill_id", "")) == new_skill_id:
-			expected_button_name = "PickExistingSkillButton_%d" % i
-	assert_ne(expected_button_name, "")
-	assert_not_null(advanced._pick_existing_list.find_child(expected_button_name, true, false), "ランダム攻撃内で新規作成した攻撃が、別の配置の「既存の攻撃から選ぶ」一覧にも現れる")
+	assert_null(advanced.find_child("PickExistingSkillCard_2", true, false), "already a candidate of this turn")
+	assert_not_null(advanced.find_child("PickExistingSkillCard_0", true, false))
 
 func test_random_slot_manual_mode_weights_are_saved() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "TurnModeButton_random").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
+	_btn(advanced, "AddChoicePickExistingButton").pressed.emit()
+	_click(advanced, "PickExistingSkillCard_0")
+	advanced._weight_spin.value = 70.0
+	_btn(advanced, "EntryConfirmButton").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
+	_btn(advanced, "AddChoicePickExistingButton").pressed.emit()
+	_click(advanced, "PickExistingSkillCard_1")
+	assert_almost_eq(advanced._weight_spin.value, 30.0, 0.001, "a new candidate starts with the rest of 100%")
+	_btn(advanced, "EntryConfirmButton").pressed.emit()
+	_btn(advanced, "TurnConfirmButton").pressed.emit()
+	var weights := []
+	for entry in creator.draft.turn_actions[0]["entries"]:
+		weights.append(float(entry["weight"]))
+	assert_eq(weights, [70.0, 30.0])
 
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateRandomButton").pressed.emit()
-	advanced._random_mode_option.select(RBMActionPatternRules.RANDOM_MODES.find(RBMActionPatternRules.RANDOM_MODE_MANUAL))
-	advanced._on_random_mode_selected(advanced._random_mode_option.selected)
-
-	_btn(advanced, "RandomAddCandidateButton").pressed.emit()
-	_btn(advanced, "RandomAddChoiceCreateNewButton").pressed.emit()
-	_fill_and_save_form(advanced._form, "候補A")
-	_btn(advanced, "RandomAddCandidateButton").pressed.emit()
-	_btn(advanced, "RandomAddChoiceCreateNewButton").pressed.emit()
-	_fill_and_save_form(advanced._form, "候補B")
-
-	advanced._set_random_candidate_weight(0, 70.0)
-	advanced._set_random_candidate_weight(1, 30.0)
-
-	_btn(advanced, "RandomConfirmButton").pressed.emit()
-	var slot: Dictionary = creator.draft.action_sequence[0]
-	assert_eq(str(slot.get("mode", "")), "manual")
-	var candidates: Array = slot.get("candidates", [])
-	assert_eq(candidates.size(), 2)
-	assert_eq(float(candidates[0].get("weight", -1.0)), 70.0)
-	assert_eq(float(candidates[1].get("weight", -1.0)), 30.0)
-
-## §12確定（非常に重要）: ランダム候補の行に条件・使用回数のコントロールが
-## 一切存在しない——候補側にその概念自体が無いことのUI上の直接証明。
 func test_random_candidate_rows_have_no_condition_or_uses_controls() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateRandomButton").pressed.emit()
-	_btn(advanced, "RandomAddCandidateButton").pressed.emit()
-	_btn(advanced, "RandomAddChoiceCreateNewButton").pressed.emit()
-	_fill_and_save_form(advanced._form, "候補A")
-
-	var row: HBoxContainer = advanced._random_candidate_list.find_child("RandomCandidateRow_0", true, false)
-	assert_not_null(row)
-	var found_condition_or_uses := false
-	for child in row.get_children():
-		if str(child.name).contains("Condition") or str(child.name).contains("Uses"):
-			found_condition_or_uses = true
-	assert_false(found_condition_or_uses)
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "TurnModeButton_random").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
+	_btn(advanced, "AddChoicePickExistingButton").pressed.emit()
+	_click(advanced, "PickExistingSkillCard_0")
+	assert_false(advanced._condition_block.visible)
+	assert_true(advanced._weight_block.visible)
+	assert_null(advanced.find_child("UsesCountSpin", true, false))
 
 func test_random_add_candidate_choice_cancel_returns_to_random_editor() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateRandomButton").pressed.emit()
-	_btn(advanced, "RandomAddCandidateButton").pressed.emit()
-	_btn(advanced, "RandomAddChoiceCancelButton").pressed.emit()
-	assert_true(advanced._random_editor_view.visible)
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "TurnModeButton_random").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
+	_btn(advanced, "AddChoiceCancelButton").pressed.emit()
+	assert_true(advanced._turn_view.visible)
+	assert_true(_btn(advanced, "TurnModeButton_random").button_pressed, "the turn keeps its way of choosing")
 
 func test_cancelling_random_slot_edit_cleans_up_newly_created_candidate_skills() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
 	var skills_before := creator.draft.skills.size()
-
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateRandomButton").pressed.emit()
-	_btn(advanced, "RandomAddCandidateButton").pressed.emit()
-	_btn(advanced, "RandomAddChoiceCreateNewButton").pressed.emit()
-	_fill_and_save_form(advanced._form, "候補A")
-	assert_eq(creator.draft.skills.size(), skills_before + 1)
-
-	_btn(advanced, "RandomCancelButton").pressed.emit()
-	assert_eq(creator.draft.skills.size(), skills_before, "キャンセル時、未保存の新規作成候補skillは片付く")
-	assert_true(creator.draft.action_sequence.is_empty())
-
-# ---------------------------------------------------------------------------
-# §19: 編集は「性能編集」と「配置(条件/使用回数)編集」を区別する
-# ---------------------------------------------------------------------------
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "TurnModeButton_random").pressed.emit()
+	for candidate_name in ["候補A", "候補B"]:
+		_btn(advanced, "AddTurnEntryButton").pressed.emit()
+		_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+		advanced._form._name_edit.text = candidate_name
+		_btn(advanced, "EntryConfirmButton").pressed.emit()
+	assert_eq(creator.draft.skills.size(), skills_before + 2, "sanity")
+	_btn(advanced, "TurnCancelButton").pressed.emit()
+	assert_eq(creator.draft.skills.size(), skills_before, "cancelling the turn removes the actions created in it")
+	assert_true(creator.draft.turn_actions.is_empty())
 
 func test_editing_existing_slot_shows_performance_summary_not_form_by_default() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
-	creator.draft.add_action_slot({"kind": "skill", "skill_id": skill_id, "conditions": [], "condition_logic": "AND", "max_uses": -1})
+	creator.draft.add_turn_action(_fixed_turn(_sid(creator, 0)))
 	advanced.refresh()
-
-	var edit_button: Button = advanced._slot_list.find_child("EditSlotButton_0", true, false)
-	assert_not_null(edit_button)
-	edit_button.pressed.emit()
-
-	assert_true(advanced._skill_slot_view.visible)
-	assert_false(advanced._skill_slot_form_active)
-	assert_true(advanced._skill_slot_performance_summary_row.visible)
-	assert_eq(_btn(advanced, "SkillSlotConfirmButton").text, "保存")
-	assert_true(_btn(advanced, "SkillSlotDeleteButton").visible)
+	_click(advanced, "TurnCard_0")
+	_click(advanced, "TurnEntryCard_0")
+	assert_true(advanced._performance_summary_row.visible)
+	assert_false(advanced._form.visible)
+	assert_true(advanced._performance_summary_label.text.contains("斬撃"))
+	assert_true(_btn(advanced, "EntryDeleteButton").visible, "deleting is on the detail screen")
 
 func test_edit_performance_button_opens_the_shared_form_inline() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
-	creator.draft.add_action_slot({"kind": "skill", "skill_id": skill_id, "conditions": [], "condition_logic": "AND", "max_uses": -1})
+	creator.draft.add_turn_action(_fixed_turn(_sid(creator, 0)))
 	advanced.refresh()
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
-	assert_true(advanced._skill_slot_form_active)
+	_click(advanced, "TurnCard_0")
+	_click(advanced, "TurnEntryCard_0")
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
 	assert_true(advanced._form.visible)
-	assert_eq(advanced._form._name_edit.text, str(creator.draft.skills[0].get("name", "")))
-
-	advanced._form._name_edit.text = "改名された攻撃"
+	assert_eq(advanced._form._name_edit.text, "斬撃")
+	assert_false(advanced._entry_actions_row.visible, "the outer save row hides while the form has its own save")
+	advanced._form._name_edit.text = "斬撃改"
 	_btn(advanced._form, "SaveActionButton").pressed.emit()
-	assert_false(advanced._skill_slot_form_active, "性能保存後はフォームが閉じ配置編集画面へ戻る")
-	assert_eq(str(creator.draft.find_skill(skill_id).get("name", "")), "改名された攻撃")
+	assert_false(advanced._form.visible)
+	assert_eq(str(creator.draft.find_skill(_sid(creator, 0)).get("name", "")), "斬撃改")
 
-## §19安全性の核心例: 同じ攻撃性能を2つの配置へ置いた状態で、片方の
-## 性能編集を行っても、もう片方の配置自身の条件/使用回数には一切影響しない
-## （性能は共有、配置は独立）。
+## 同じ行動を2つのターンで使っている時、性能の変更は両方に効くが、もう一方のターンの条件は変わらない。
 func test_editing_shared_skill_performance_does_not_affect_other_slots_own_condition_and_uses() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
-	creator.draft.add_action_slot({"kind": "skill", "skill_id": skill_id, "conditions": [{"type": "turn_at", "turn": 1}], "condition_logic": "AND", "max_uses": -1})
-	var slot_id_2: String = creator.draft.add_action_slot({"kind": "skill", "skill_id": skill_id, "conditions": [{"type": "turn_at", "turn": 5}], "condition_logic": "AND", "max_uses": 2})
+	creator.draft.add_turn_action(_fixed_turn(_sid(creator, 0)))
+	creator.draft.add_turn_action({"mode": "conditional", "entries": [{"skill_id": _sid(creator, 0), "conditions": [{"type": "turn_at", "turn": 2}], "condition_logic": "AND"}], "else_skill_id": _sid(creator, 1)})
 	advanced.refresh()
-
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
-	advanced._form._name_edit.text = "共有攻撃・改名"
+	_click(advanced, "TurnCard_0")
+	_click(advanced, "TurnEntryCard_0")
+	assert_true(advanced._shared_skill_notice.visible, "tells the author the action is used elsewhere too")
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
+	advanced._form._attack_multiplier_spin.value = 2.0
 	_btn(advanced._form, "SaveActionButton").pressed.emit()
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
-
-	assert_eq(str(creator.draft.find_skill(skill_id).get("name", "")), "共有攻撃・改名", "性能(name)は共有スキルなので両方の配置から見える")
-	var slot2 := creator.draft.find_action_slot(slot_id_2)
-	assert_eq(int((slot2.get("conditions", []) as Array)[0].get("turn", -1)), 5, "他方の配置自身の条件は無傷")
-	assert_eq(int(slot2.get("max_uses", -99)), 2, "他方の配置自身の使用回数は無傷")
+	_btn(advanced, "EntryConfirmButton").pressed.emit()
+	_btn(advanced, "TurnConfirmButton").pressed.emit()
+	assert_eq(float(creator.draft.find_skill(_sid(creator, 0)).get("atk_multiplier", -1.0)), 2.0)
+	assert_eq(creator.draft.turn_actions[1]["entries"][0]["conditions"], [{"type": "turn_at", "turn": 2}])
 
 func test_cancelling_performance_edit_restores_the_original_skill_content() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
-	var original_name := str(creator.draft.skills[0].get("name", ""))
-	creator.draft.add_action_slot({"kind": "skill", "skill_id": skill_id, "conditions": [], "condition_logic": "AND", "max_uses": -1})
+	creator.draft.add_turn_action(_fixed_turn(_sid(creator, 0)))
 	advanced.refresh()
-
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
-	advanced._form._name_edit.text = "編集中の一時的な名前"
+	var original := creator.draft.find_skill(_sid(creator, 0)).duplicate(true)
+	_click(advanced, "TurnCard_0")
+	_click(advanced, "TurnEntryCard_0")
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
+	advanced._form._attack_multiplier_spin.value = 7.0
 	_btn(advanced._form, "SaveActionButton").pressed.emit()
-	assert_eq(str(creator.draft.find_skill(skill_id).get("name", "")), "編集中の一時的な名前", "sanity: フォーム保存で即座に反映される")
-
-	_btn(advanced, "SkillSlotCancelButton").pressed.emit()
-	assert_eq(str(creator.draft.find_skill(skill_id).get("name", "")), original_name, "配置編集全体をキャンセルすると、性能編集で変更した内容も元へ戻る")
+	_btn(advanced, "EntryCancelButton").pressed.emit()
+	_btn(advanced, "TurnCancelButton").pressed.emit()
+	assert_eq(creator.draft.find_skill(_sid(creator, 0)), original)
 
 func test_cancelling_an_edit_of_an_existing_slot_does_not_delete_pre_existing_skills() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
-	creator.draft.add_action_slot({"kind": "skill", "skill_id": skill_id, "conditions": [], "condition_logic": "AND", "max_uses": -1})
+	creator.draft.add_turn_action(_fixed_turn(_sid(creator, 0)))
 	advanced.refresh()
 	var skills_before := creator.draft.skills.size()
+	_click(advanced, "TurnCard_0")
+	_btn(advanced, "TurnCancelButton").pressed.emit()
+	assert_eq(creator.draft.skills.size(), skills_before)
+	assert_eq(creator.draft.turn_actions, [_fixed_turn(_sid(creator, 0))])
 
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	_btn(advanced, "SkillSlotCancelButton").pressed.emit()
-	assert_eq(creator.draft.skills.size(), skills_before, "編集開始前から存在していたskillはキャンセルでも消えない")
-	assert_false(creator.draft.find_skill(skill_id).is_empty())
-
-# ---------------------------------------------------------------------------
-# §20: ↑↓並び替え（スロット全体を1単位として移動）
-# ---------------------------------------------------------------------------
-
+## 一覧のカードには編集・削除・↑↓のボタンを置かない（カード全体を押して開く、2026-10-28）。並べ替えは
+## 右の四方向矢印のつまみの長押し＋ドラッグ（挿入型、2026-10-29。詳しくは test_rbm_hardcore_turn_actions.gd）。
 func test_move_slot_up_and_down_changes_array_order() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
-	var first_id: String = creator.draft.add_action_slot({"kind": "skill", "skill_id": skill_id, "conditions": [], "condition_logic": "AND", "max_uses": -1})
-	var second_id: String = creator.draft.add_action_slot({"kind": "skill", "skill_id": skill_id, "conditions": [], "condition_logic": "AND", "max_uses": -1})
+	creator.draft.add_turn_action(_fixed_turn(_sid(creator, 0)))
+	creator.draft.add_turn_action(_fixed_turn(_sid(creator, 1)))
 	advanced.refresh()
-
-	assert_eq(str(creator.draft.action_sequence[0].get("slot_id", "")), first_id)
-	var up_button: Button = advanced._slot_list.find_child("MoveSlotUpButton_1", true, false)
-	assert_not_null(up_button)
-	up_button.pressed.emit()
-	assert_eq(str(creator.draft.action_sequence[0].get("slot_id", "")), second_id)
-	assert_eq(str(creator.draft.action_sequence[1].get("slot_id", "")), first_id)
-
-	var down_button: Button = advanced._slot_list.find_child("MoveSlotDownButton_0", true, false)
-	assert_not_null(down_button)
-	down_button.pressed.emit()
-	assert_eq(str(creator.draft.action_sequence[0].get("slot_id", "")), first_id)
-	assert_eq(str(creator.draft.action_sequence[1].get("slot_id", "")), second_id)
-
-# ---------------------------------------------------------------------------
-# 削除の安全性
-# ---------------------------------------------------------------------------
+	var buttons := advanced._turn_list.find_children("*", "BaseButton", true, false)
+	assert_eq(buttons.size(), 2, "one move handle per turn card")
+	for b in buttons:
+		assert_true(b is RBMTurnMoveHandle, "only the move handle: %s" % b.name)
+	advanced.draft.move_turn_action(1, 0)
+	advanced.refresh()
+	assert_eq(advanced.draft.turn_actions, [_fixed_turn(_sid(creator, 1)), _fixed_turn(_sid(creator, 0))])
+	var card := advanced.find_child("TurnCard_1", true, false) as Control
+	assert_eq(card.mouse_filter, Control.MOUSE_FILTER_STOP, "the whole card is clickable")
+	_click(advanced, "TurnCard_1")
+	assert_eq(advanced._turn_title.text, tr("%dターン目の設定") % 2)
 
 func test_deleting_a_slot_from_its_edit_screen_removes_it_and_cleans_up_unreferenced_skill() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
-	var skills_before := creator.draft.skills.size()
-	creator.draft.add_action_slot({"kind": "skill", "skill_id": skill_id, "conditions": [], "condition_logic": "AND", "max_uses": -1})
-	advanced.refresh()
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
+	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+	advanced._form._name_edit.text = "消す攻撃"
+	_btn(advanced, "EntryConfirmButton").pressed.emit()
+	_btn(advanced, "TurnConfirmButton").pressed.emit()
+	var new_id := str(creator.draft.turn_actions[0]["entries"][0]["skill_id"])
+	_click(advanced, "TurnCard_0")
+	_btn(advanced, "TurnDeleteButton").pressed.emit()
+	assert_true(creator.draft.turn_actions.is_empty())
+	assert_true(creator.draft.find_skill(new_id).is_empty(), "the unreferenced action is cleaned up")
 
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	_btn(advanced, "SkillSlotDeleteButton").pressed.emit()
-	assert_true(creator.draft.action_sequence.is_empty())
-	assert_eq(creator.draft.skills.size(), skills_before - 1, "他から参照されなくなったskillは実体も削除される")
-
+## 一覧から直接は消せない（2026-10-28）。ターンの中の行動を消してターンを保存すると、使われなくなった行動は片付く。
 func test_deleting_a_slot_from_the_list_directly_also_cleans_up_unreferenced_skill() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
-	var skills_before := creator.draft.skills.size()
-	creator.draft.add_action_slot({"kind": "skill", "skill_id": skill_id, "conditions": [], "condition_logic": "AND", "max_uses": -1})
-	advanced.refresh()
-
-	var delete_button: Button = advanced._slot_list.find_child("DeleteSlotButton_0", true, false)
-	assert_not_null(delete_button)
-	delete_button.pressed.emit()
-	assert_true(creator.draft.action_sequence.is_empty())
-	assert_eq(creator.draft.skills.size(), skills_before - 1)
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "TurnModeButton_random").pressed.emit()
+	for candidate_name in ["残す", "消す"]:
+		_btn(advanced, "AddTurnEntryButton").pressed.emit()
+		_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+		advanced._form._name_edit.text = candidate_name
+		_btn(advanced, "EntryConfirmButton").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
+	_btn(advanced, "AddChoicePickExistingButton").pressed.emit()
+	_click(advanced, "PickExistingSkillCard_0")
+	_btn(advanced, "EntryConfirmButton").pressed.emit()
+	_btn(advanced, "TurnConfirmButton").pressed.emit()
+	var removed_id := str(creator.draft.turn_actions[0]["entries"][1]["skill_id"])
+	_click(advanced, "TurnCard_0")
+	_click(advanced, "TurnEntryCard_1")
+	_btn(advanced, "EntryDeleteButton").pressed.emit()
+	_btn(advanced, "TurnConfirmButton").pressed.emit()
+	assert_eq((creator.draft.turn_actions[0]["entries"] as Array).size(), 2)
+	assert_true(creator.draft.find_skill(removed_id).is_empty())
+	assert_null(advanced._turn_list.find_child("DeleteSlotButton_0", true, false))
 
 func test_deleting_one_slot_does_not_delete_a_skill_still_used_by_another_slot() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
-	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
-	var skills_before := creator.draft.skills.size()
-	creator.draft.add_action_slot({"kind": "skill", "skill_id": skill_id, "conditions": [], "condition_logic": "AND", "max_uses": -1})
-	creator.draft.add_action_slot({"kind": "skill", "skill_id": skill_id, "conditions": [{"type": "turn_at_least", "turn": 3}], "condition_logic": "AND", "max_uses": -1})
+	creator.draft.add_turn_action(_fixed_turn(_sid(creator, 0)))
+	creator.draft.add_turn_action(_fixed_turn(_sid(creator, 0)))
 	advanced.refresh()
-
-	var delete_button: Button = advanced._slot_list.find_child("DeleteSlotButton_0", true, false)
-	delete_button.pressed.emit()
-	assert_eq(creator.draft.action_sequence.size(), 1, "もう1つの配置は残る")
-	assert_eq(creator.draft.skills.size(), skills_before, "まだ別配置から参照されているのでskill自体は消えない")
+	_click(advanced, "TurnCard_0")
+	_btn(advanced, "TurnDeleteButton").pressed.emit()
+	assert_eq(creator.draft.turn_actions.size(), 1)
+	assert_false(creator.draft.find_skill(_sid(creator, 0)).is_empty(), "still used by the other turn")
 
 func test_deleting_a_random_slot_removes_it_and_cleans_up_all_its_candidate_skills() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	var advanced := _open_advanced(creator)._advanced_view
 	var skills_before := creator.draft.skills.size()
-
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateRandomButton").pressed.emit()
-	_btn(advanced, "RandomAddCandidateButton").pressed.emit()
-	_btn(advanced, "RandomAddChoiceCreateNewButton").pressed.emit()
-	_fill_and_save_form(advanced._form, "候補A")
-	_btn(advanced, "RandomConfirmButton").pressed.emit()
-	assert_eq(creator.draft.skills.size(), skills_before + 1)
-
-	var edit_button: Button = advanced._slot_list.find_child("EditSlotButton_0", true, false)
-	edit_button.pressed.emit()
-	assert_true(advanced._random_editor_view.visible)
-	_btn(advanced, "RandomDeleteButton").pressed.emit()
-	assert_true(creator.draft.action_sequence.is_empty())
-	assert_eq(creator.draft.skills.size(), skills_before, "ランダム攻撃自体を削除すると、その候補として作られたskillも片付く")
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "TurnModeButton_random").pressed.emit()
+	for candidate_name in ["候補A", "候補B"]:
+		_btn(advanced, "AddTurnEntryButton").pressed.emit()
+		_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+		advanced._form._name_edit.text = candidate_name
+		_btn(advanced, "EntryConfirmButton").pressed.emit()
+	_btn(advanced, "TurnConfirmButton").pressed.emit()
+	assert_eq(creator.draft.skills.size(), skills_before + 2, "sanity")
+	_click(advanced, "TurnCard_0")
+	_btn(advanced, "TurnDeleteButton").pressed.emit()
+	assert_true(creator.draft.turn_actions.is_empty())
+	assert_eq(creator.draft.skills.size(), skills_before)
 
 # ---------------------------------------------------------------------------
-# ステップ検証委譲（is_step_valid/validation_message）
+# 検証
 # ---------------------------------------------------------------------------
 
 func test_step3_is_step_valid_delegates_to_the_currently_visible_mode() -> void:
@@ -747,15 +653,14 @@ func test_step3_is_step_valid_delegates_to_the_currently_visible_mode() -> void:
 
 	creator.draft.set_creator_mode(RBMCreatorDraft.CREATOR_MODE_ADVANCED)
 	step3.refresh()
-	creator.draft.action_sequence.clear()
-	assert_true(step3.is_step_valid(), "zero action_sequence overall is valid — the boss simply has no HARDCORE AI configured")
+	assert_false(step3.is_step_valid(), "HARDCORE needs at least one turn (案A)")
+	assert_eq(step3.validation_message(), tr("通常行動を1ターン以上追加してください"))
 
-	creator.draft.add_action_slot({"kind": "random", "candidates": [], "conditions": [], "condition_logic": "AND", "max_uses": -1})
-	assert_false(step3.is_step_valid(), "a registered random slot with zero candidates is what's actually invalid")
-	assert_ne(step3.validation_message(), "")
+	creator.draft.add_turn_action({"mode": "random", "entries": [{"skill_id": _sid(creator, 0), "weight": 100.0}]})
+	assert_false(step3.is_step_valid(), "a random turn needs two or more candidates")
+	assert_true(step3.validation_message().begins_with(tr("%dターン目：%s") % [1, ""]), step3.validation_message())
 
-	creator.draft.action_sequence.clear()
-	creator.draft.add_action_slot({"kind": "skill", "skill_id": str(creator.draft.skills[0].get("skill_id", "")), "conditions": [], "condition_logic": "AND", "max_uses": -1})
+	creator.draft.update_turn_action(0, _fixed_turn(_sid(creator, 0)))
 	assert_true(step3.is_step_valid())
 
 # ---------------------------------------------------------------------------

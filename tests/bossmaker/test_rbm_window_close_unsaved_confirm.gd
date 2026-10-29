@@ -22,11 +22,6 @@ func _make_root() -> RBMGameRoot:
 	add_child_autofree(root)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var ticks := 0
-	while not root._top_monitor_battle._initialized and ticks < 300:
-		await get_tree().process_frame
-		ticks += 1
-	root._top_monitor_battle.stop_loop()
 	await get_tree().process_frame
 	return root
 

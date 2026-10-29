@@ -58,6 +58,16 @@ func _request(url: String, method: HTTPClient.Method, body: String = "") -> Dict
 	var config_error := _config_error()
 	if not config_error.is_empty():
 		return config_error
+	# 体験版（RBMEdition）: サーバーへ体験版であることを伝える（一覧の ?edition=demo と、本文の "edition"）。
+	# サーバーは Steam のチケットのアプリで本人の版を確かめ、体験版の範囲・上限をかける。製品版は何も足さない。
+	if RBMEdition.is_demo():
+		if method == HTTPClient.METHOD_GET:
+			url += ("&" if url.contains("?") else "?") + "edition=%s" % RBMEdition.DEMO_EDITION
+		elif not body.is_empty():
+			var parsed_body = JSON.parse_string(body)
+			if parsed_body is Dictionary:
+				parsed_body["edition"] = RBMEdition.DEMO_EDITION
+				body = JSON.stringify(parsed_body)
 	var http := HTTPRequest.new()
 	http.name = "BossApiRequest"
 	http.timeout = REQUEST_TIMEOUT_SECONDS
@@ -68,7 +78,24 @@ func _request(url: String, method: HTTPClient.Method, body: String = "") -> Dict
 		return RBMSupabaseResponse.network_error("HTTPRequest.request() returned error code %d" % request_error)
 	var completed: Array = await http.request_completed
 	http.queue_free()
-	return _interpret(completed)
+	return _limit_to_edition(_interpret(completed))
+
+## 体験版: 一覧・ランキング・検索・ランダムの行を体験版で挑戦できるボス（SIMPLE・体験版の4体）だけにし、
+## 範囲外のボスの詳細（get-boss）は開かない。サーバー側でも同じ範囲に絞る（まだ古いサーバーでも正しく出るよう、ここでも絞る）。
+static func _limit_to_edition(response: Dictionary) -> Dictionary:
+	if not RBMEdition.is_demo() or not bool(response.get("ok", false)):
+		return response
+	if response.get("bosses") is Array:
+		var kept: Array = []
+		for row in response["bosses"]:
+			if row is Dictionary and RBMEdition.allows_online_boss(str(row.get("creator_mode", RBMCreatorDraft.CREATOR_MODE_SIMPLE)), str(row.get("appearance_id", ""))):
+				kept.append(row)
+		response["bosses"] = kept
+	if response.get("boss") is Dictionary and (response["boss"] as Dictionary).get("payload") is Dictionary:
+		var fields = ((response["boss"] as Dictionary)["payload"] as Dictionary).get("draft_fields", {})
+		if fields is Dictionary and not RBMEdition.allows_online_boss(str(fields.get("creator_mode", RBMCreatorDraft.CREATOR_MODE_SIMPLE)), str(fields.get("appearance_id", ""))):
+			return {"ok": false, "error_kind": "demo_unavailable", "message": "This boss is not available in the trial version."}
+	return response
 
 func _interpret(completed: Array) -> Dictionary:
 	var result := int(completed[0])

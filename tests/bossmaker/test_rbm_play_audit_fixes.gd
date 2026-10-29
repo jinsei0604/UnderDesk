@@ -192,7 +192,7 @@ func test_simple_cancel_after_editing_performance_restores_the_action() -> void:
 	var simple := _simple(main)
 	_add_normal_via_ui(simple, "かみつき")
 	var skill_id := str(main.draft.skills[0].get("skill_id", ""))
-	_btn(simple, "EditNormalActionButton_%s" % skill_id).pressed.emit()
+	_open_normal_card(simple, skill_id)
 	_btn(simple, "EditPerformanceButton").pressed.emit()
 	simple._form._name_edit.text = "変えた名前"
 	simple._form._on_save_pressed()
@@ -232,28 +232,30 @@ func _open_advanced(main: RBMCreatorMain) -> RBMCreatorStep4ActionPatterns:
 	main.go_to_step(3)
 	return (main._step_views[2] as RBMCreatorStep4)._advanced_view
 
+## 2026-10-28: HARDCORE の抽選はターンの決め方「使用率で抽選」になった。合計が100%でなければターンを保存しない。
 func test_hardcore_manual_random_never_confirms_with_a_total_other_than_100() -> void:
 	var main := await _new_main()
 	var advanced := _open_advanced(main)
 	var a := main.draft.add_skill({"name": "A", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 1.0})
 	var b := main.draft.add_skill({"name": "B", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 1.0})
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateRandomButton").pressed.emit()
-	advanced._on_random_add_choice_pick_existing_pressed()
-	advanced._on_random_pick_existing_skill_selected(a)
-	advanced._on_random_add_choice_pick_existing_pressed()
-	advanced._on_random_pick_existing_skill_selected(b)
-	advanced._random_mode_option.select(RBMActionPatternRules.RANDOM_MODES.find(RBMActionPatternRules.RANDOM_MODE_MANUAL))
-	advanced._on_random_mode_selected(advanced._random_mode_option.selected)
-	assert_almost_eq(advanced._random_manual_total(), 100.0, 0.001, "全部0%なら「自分で設定」へ切り替えた時に均等に分ける")
-	advanced._set_random_candidate_weight(0, 10.0)
-	assert_true(advanced._random_total_label.visible)
-	assert_true(advanced._random_total_label.text.contains("100%"), advanced._random_total_label.text)
-	_btn(advanced, "RandomConfirmButton").pressed.emit()
-	assert_true(main.draft.action_sequence.is_empty(), "合計が100%でなければ確定しない")
-	advanced._set_random_candidate_weight(0, 50.0)
-	_btn(advanced, "RandomConfirmButton").pressed.emit()
-	assert_eq(main.draft.action_sequence.size(), 1)
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "TurnModeButton_random").pressed.emit()
+	for pair in [[a, 10.0], [b, 50.0]]:
+		_btn(advanced, "AddTurnEntryButton").pressed.emit()
+		advanced._on_add_choice_pick_existing_pressed()
+		advanced._on_pick_existing_selected(pair[0])
+		advanced._weight_spin.value = pair[1]
+		_btn(advanced, "EntryConfirmButton").pressed.emit()
+	assert_true(advanced._turn_total_label.visible)
+	assert_eq(advanced._turn_total_label.text, tr("使用率の合計: %.1f%%") % 60.0)
+	_btn(advanced, "TurnConfirmButton").pressed.emit()
+	assert_true(main.draft.turn_actions.is_empty(), "合計が100%でなければ保存しない")
+	var problem := advanced.find_child("TurnProblemLabel", true, false) as Label
+	assert_true(problem.visible)
+	assert_true(problem.text.contains("100%"), problem.text)
+	_btn(advanced, "EqualizeTurnButton").pressed.emit()
+	_btn(advanced, "TurnConfirmButton").pressed.emit()
+	assert_eq(main.draft.turn_actions.size(), 1)
 
 # =============================================================================
 # 回復量の上限 99,999
@@ -732,3 +734,51 @@ func _parse_csv(text: String) -> Array:
 		row.append(field)
 		rows.append(row)
 	return rows
+
+## 2026-10-28: 通常行動はカードを押して「通常行動の設定」を開く（一覧の編集・削除のボタンは無くなった）。
+func _open_normal_card(simple: RBMCreatorStep4Actions, skill_id: String) -> void:
+	var card := simple._normal_list.find_child("NormalActionCard_%s" % skill_id, true, false) as Control
+	assert_not_null(card, "the normal action card exists")
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	card.gui_input.emit(release)
+
+## 2026-10-28 ユーザー指示: SIMPLE の行動一覧。通常行動はカードを押して設定を開く（一覧の編集・削除・使用率の入力は無し、
+## 使用率はカードの右に読むだけ）。「均等にする」と追加のボタンは残し、見出しの下の説明文は消した。
+func test_simple_action_list_uses_clickable_cards_with_read_only_usage() -> void:
+	var main := await _new_main()
+	var simple := _simple(main)
+	_add_normal_via_ui(simple, "かみつき")
+	_add_normal_via_ui(simple, "ひっかき")
+	var ids: Array = simple._normal_skill_ids()
+	assert_eq(ids.size(), 2)
+	for skill_id in ids:
+		var card := simple._normal_list.find_child("NormalActionCard_%s" % skill_id, true, false) as Control
+		assert_not_null(card)
+		assert_eq(card.mouse_filter, Control.MOUSE_FILTER_STOP, "the whole card is clickable")
+		for node in card.find_children("*", "Control", true, false):
+			assert_eq((node as Control).mouse_filter, Control.MOUSE_FILTER_IGNORE, "%s does not swallow the click" % node.name)
+		assert_eq(card.find_children("*", "BaseButton", true, false).size(), 0, "no edit/delete buttons in the list")
+		assert_eq(card.find_children("*", "Range", true, false).size(), 0, "no slider or number box in the list")
+		var percent := card.find_child("NormalActionPercent_%s" % skill_id, true, false) as Label
+		assert_eq(percent.text, tr("使用率 %.1f%%") % float(main.draft.normal_action_percentages[skill_id]))
+	assert_null(simple.find_child("NormalActionHint", true, false), "the explanation under 通常行動 is gone")
+	assert_null(simple.find_child("ScriptedActionHint", true, false), "the explanation under 指定行動 is gone")
+	assert_not_null(_btn(simple, "EqualizeButton"))
+	assert_not_null(_btn(simple, "AddNormalActionButton"))
+	assert_not_null(_btn(simple, "AddScriptedActionButton"))
+	# カードを押すと「通常行動の設定」が開き、そこで使用率を変えて保存すると一覧の表示も変わる
+	var first := str(ids[0])
+	_open_normal_card(simple, first)
+	assert_true(simple._editor_view.visible)
+	assert_true(_btn(simple, "ActionDeleteButton").visible, "deleting stays inside the settings screen")
+	simple._editor_percent_spin.value = 70.0
+	_btn(simple, "ActionConfirmButton").pressed.emit()
+	assert_true(simple._list_view.visible)
+	assert_almost_eq(float(main.draft.normal_action_percentages[first]), 70.0, 0.001)
+	var shown := simple._normal_list.find_child("NormalActionPercent_%s" % first, true, false) as Label
+	assert_eq(shown.text, tr("使用率 %.1f%%") % 70.0)
+	# 「均等にする」は今までどおり
+	_btn(simple, "EqualizeButton").pressed.emit()
+	assert_almost_eq(float(main.draft.normal_action_percentages[first]), 50.0, 0.001)

@@ -21,11 +21,6 @@ func _make_root() -> RBMGameRoot:
 	add_child_autoqfree(root)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var ticks := 0
-	while not root._top_monitor_battle._initialized and ticks < 300:
-		await get_tree().process_frame
-		ticks += 1
-	root._top_monitor_battle.stop_loop()
 	return root
 
 func _open_step4(root: RBMGameRoot, mode: String, party_ids: Array, open_sheet: bool = true) -> RBMCreatorStep5Party:
@@ -41,7 +36,7 @@ func _open_step4(root: RBMGameRoot, mode: String, party_ids: Array, open_sheet: 
 	for id in party_ids:
 		main.draft.add_party_character(id)
 	main._refresh()
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	await _frames(3)
 	var party: RBMCreatorStep5Party = main._step_views[3]
 	party.select_character(str(party_ids[0]))
@@ -198,7 +193,7 @@ func test_customized_members_keep_the_edit_button_visible_without_scrolling_the_
 		main.draft.add_party_character(id)
 		main.draft.set_ally_stat_override(id, "hp", 1500)
 	main._refresh()
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	await _frames(3)
 	var party: RBMCreatorStep5Party = main._step_views[3]
 	party.select_character("hero")

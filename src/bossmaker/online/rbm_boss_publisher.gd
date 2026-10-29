@@ -119,6 +119,14 @@ func publish(draft: RBMCreatorDraft, boss_id: String = "") -> bool:
 		_fail(str(built.get("error", "unknown")), "Clear Checkを再確認してください。")
 		return false
 	var payload: Dictionary = built["payload"]
+	# 体験版: SIMPLE・体験版の4体だけ、公開は1人2体まで（公開中のボスの更新は数えない）。サーバーでも同じ制限をかける。
+	if RBMEdition.is_demo():
+		if not RBMEdition.allows_online_boss(draft.creator_mode, draft.appearance_id):
+			_fail("demo_not_allowed", "")
+			return false
+		if not draft.is_online_published() and RBMLocalStageRepository.online_published_count(draft.online_boss_id()) >= RBMEdition.DEMO_MAX_ONLINE_PUBLISHED:
+			_fail("demo_publish_limit", "")
+			return false
 
 	RBMLoadingState.begin(LOADING_OP_PUBLISH)
 

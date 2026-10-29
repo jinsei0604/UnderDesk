@@ -41,6 +41,11 @@ const DEFEAT := {
 ## 共通の倒れ方（専用の倒れ方が覚醒前のコマ絵に依存するボスを、覚醒した後に倒した時）。
 const GENERIC := preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_generic.gd")
 const BEFORE_AWAKENING_ONLY := ["musha", "gentleman"]
+## 耐久勝利（HARDCORE の勝利条件「指定ターンを生き残る」で勝った時、2026-10-29）の演出。撃破の演出（DEFEAT）は使わない。
+## ボスごとの耐久勝利専用の退場モーションは、ここへ「ボスの素材 ID: スクリプト」を足すだけで差し替わる（覚醒後は
+## "<id>_awakened"、無ければ覚醒前の id のものを使う）。無いボスは共通の SURVIVAL_GENERIC（ボスは倒れない）。
+const SURVIVAL := {}
+const SURVIVAL_GENERIC := preload("res://src/bossmaker/visuals/encounter/defeat/rbm_survival_generic.gd")
 ## 全ボス共通の音（とどめの一撃・ファンファーレ・味方の小さな音）。
 const COMMON_SOUNDS := ["enc:final_hit", "enc:fanfare_b", "enc:sparkle", "enc:watch_tick", "enc:sheathe", "enc:hammer_thud", "game:wind_swing"]
 ## 倒れ方が終わる少し前から、味方の反応とファンファーレを始める
@@ -52,6 +57,8 @@ var boss := "golem"
 var boss_name := ""
 var turn := 1
 var clear_seconds := 0.0
+## 耐久勝利（撃破の演出の代わりに survival_script() を使い、文字は「耐久成功！」）。
+var survival := false
 var stage: Control
 var view: Control
 var hud: Control
@@ -99,6 +106,15 @@ static func defeat_script(asset_id: String) -> Script:
 			return DEFEAT[base]
 	return null
 
+## 耐久勝利の演出のスクリプト（ボス専用が無ければ共通）。
+static func survival_script(asset_id: String) -> Script:
+	if SURVIVAL.has(asset_id):
+		return SURVIVAL[asset_id]
+	var base := asset_id.trim_suffix("_awakened")
+	if SURVIVAL.has(base):
+		return SURVIVAL[base]
+	return SURVIVAL_GENERIC
+
 ## このボスの勝利演出があるか。
 static func has_victory(asset_id: String) -> bool:
 	return defeat_script(asset_id) != null
@@ -125,9 +141,9 @@ static func warm_paths(boss_id: String, party: Array) -> Array[String]:
 static func final_blow_keys() -> Array:
 	return ["enc:final_hit"]
 
-## 勝利演出で鳴らす音の鍵（共通の音＋倒れ方の SOUNDS）。
-static func victory_keys(asset_id: String) -> Array:
-	var script := defeat_script(asset_id)
+## 勝利演出で鳴らす音の鍵（共通の音＋倒れ方の SOUNDS。耐久勝利なら耐久勝利の演出の SOUNDS）。
+static func victory_keys(asset_id: String, for_survival: bool = false) -> Array:
+	var script := survival_script(asset_id) if for_survival else defeat_script(asset_id)
 	var keys: Array = COMMON_SOUNDS.duplicate()
 	if script != null:
 		keys.append_array(Array(script.get_script_constant_map().get("SOUNDS", [])))
@@ -215,7 +231,7 @@ func _attach() -> void:
 	banner = Banner.new()
 	banner.p = self
 	overlay.extra_draw.append(banner.draw)
-	defeat = defeat_script(boss).new()
+	defeat = (survival_script(boss) if survival else defeat_script(boss)).new()
 	_aura_guard = AuraGuard.new()
 	_aura_guard.attach(stage,boss,top)
 	defeat.p = self

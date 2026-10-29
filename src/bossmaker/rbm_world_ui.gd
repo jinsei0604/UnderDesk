@@ -334,7 +334,7 @@ func creator_layout(main: RBMCreatorMain) -> void:
 			party_column.add_theme_constant_override("separation",8)
 	# Refresh rebuilds some controls. Common conversion is applied after each refresh.
 	main._header.get_node("WorldProgressStrip").queue_redraw()
-	if main.current_step == 5: summary_layout(main._step_views[4])
+	if main.current_step == main.summary_step(): summary_layout(main._step_views[4])  # 最終確認のビューはいつも index 4（HARDCORE は6STEP目）
 
 func summary_layout(summary: RBMCreatorStep7Summary) -> void:
 	var content: VBoxContainer = summary._content
@@ -384,7 +384,7 @@ class ProgressStrip:
 	func _ready() -> void: mouse_filter = Control.MOUSE_FILTER_IGNORE
 	func _draw() -> void:
 		draw_rect(Rect2(0,size.y-2,size.x,2),Color("1c3236"))
-		for i in range(creator.STEP_COUNT):
+		for i in range(creator.step_count()):
 			var at := Vector2(size.x-260+i*20,12)
 			draw_rect(Rect2(at,Vector2(12,12)),Color("43efff") if i+1 == creator.current_step else Color("2f5b61"))
 			if i+1 != creator.current_step: draw_rect(Rect2(at+Vector2(2,2),Vector2(8,8)),Color("06090d"))

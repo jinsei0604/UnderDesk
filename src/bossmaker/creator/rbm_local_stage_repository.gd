@@ -38,7 +38,10 @@ static var _under_gut := -1
 static func stages_dir() -> String:
 	if not _stages_dir_override.is_empty():
 		return _stages_dir_override
-	return GUT_DEFAULT_ROOT + "/stages" if running_under_gut() else DEFAULT_STAGES_DIR
+	if running_under_gut():
+		return GUT_DEFAULT_ROOT + "/stages"
+	# 体験版は製品版と別の置き場（user://bossmaker_demo、RBMEdition）。討伐記録・挑戦の記録・送信待ちも stages の隣なので一緒に分かれる。
+	return RBMEdition.DEMO_DATA_ROOT + "/stages" if RBMEdition.is_demo() else DEFAULT_STAGES_DIR
 
 ## GUT（自動テスト）の中で動いているか（起動の引数に addons/gut/ がある）。本物のゲームでは常に false。
 static func running_under_gut() -> bool:
@@ -258,7 +261,41 @@ static func record_challenge_clear(stage_id: String) -> bool:
 ## JSONを1つ書き出す（初回保存にも「新しいボスとして保存」にも使う——両者は
 ## Repository視点では同一の操作。current_stage_idの切り替えはRBMCreatorMain側
 ## の責務）。
+## 保存してあるボスの数（stages_dir() の中の <stage_id>.json）。体験版の保存の上限に使う。
+static func stage_count() -> int:
+	var dir := DirAccess.open(stages_dir())
+	if dir == null:
+		return 0
+	var count := 0
+	for file_name in dir.get_files():
+		if file_name.ends_with(".json") and _is_valid_stage_id(file_name.get_basename()):
+			count += 1
+	return count
+
+## 手元の保存のうち、オンラインに公開中のボスの数（exclude_boss_id の公開 id は数えない）。体験版の公開の上限の事前確認に使う。
+static func online_published_count(exclude_boss_id: String = "") -> int:
+	var dir := DirAccess.open(stages_dir())
+	if dir == null:
+		return 0
+	var count := 0
+	for file_name in dir.get_files():
+		if not file_name.ends_with(".json") or not _is_valid_stage_id(file_name.get_basename()):
+			continue
+		var loaded := load_stage(file_name.get_basename())
+		var data = loaded.get("draft_data", {})
+		if bool(loaded.get("ok", false)) and data is Dictionary and bool(data.get("online_published", false)):
+			var boss_id := str(data.get("online_boss_id", ""))
+			if exclude_boss_id.is_empty() or boss_id != exclude_boss_id:
+				count += 1
+	return count
+
+## 体験版は手元に保存できるボスの数に上限がある（RBMEdition.DEMO_MAX_LOCAL_SAVES）。製品版は無制限のまま。
+static func demo_save_limit_reached() -> bool:
+	return RBMEdition.is_demo() and stage_count() >= RBMEdition.DEMO_MAX_LOCAL_SAVES
+
 static func save_new(draft: RBMCreatorDraft) -> Dictionary:
+	if demo_save_limit_reached():
+		return {"ok": false, "error": "demo_save_limit"}
 	var stage_id := generate_unique_stage_id()
 	var now := int(Time.get_unix_time_from_system())
 	var payload := _build_payload(stage_id, now, now, draft)
@@ -429,6 +466,14 @@ static func _validate_draft_shape(draft_data: Dictionary) -> bool:
 	if draft_data.has("action_sequence"):
 		if not (draft_data["action_sequence"] is Array) or not _validate_action_sequence_array(draft_data["action_sequence"]):
 			return false
+	if draft_data.has("turn_actions"):
+		if not (draft_data["turn_actions"] is Array) or not _validate_turn_actions_array(draft_data["turn_actions"]):
+			return false
+	# HARDCORE 限定の勝利条件（2026-10-29）。フィールドが無い旧 stage は常に合格（ボスを撃破する）。
+	if draft_data.has("victory_condition"):
+		var victory: Variant = draft_data["victory_condition"]
+		if not (victory is Dictionary) or not _optional_string_ok(victory, "type") or not _optional_numeric_ok(victory, "turns"):
+			return false
 	# Codex最終差分レビュー⑥の修正: advanced_ai_versionはHARDCORE AI
 	# サブシステム自体のバージョン印（RBMCreatorDraft.ADVANCED_AI_VERSION、
 	# 保存全体のsave_format_versionとは独立、rbm_creator_draft.gd参照）。
@@ -527,6 +572,28 @@ static func _validate_action_sequence_conditions_array(raw: Array) -> bool:
 		for field in ["percent", "percent_min", "percent_max", "turn", "n", "turn_min", "turn_max", "count"]:
 			if not _optional_numeric_ok(entry, field):
 				return false
+	return true
+
+## HARDCORE の通常行動（ターンごと、2026-10-28）の型確認。意味の検証は RBMDefinitionLoader の責務。
+static func _validate_turn_actions_array(raw: Array) -> bool:
+	for turn_variant in raw:
+		if not (turn_variant is Dictionary):
+			return false
+		var turn: Dictionary = turn_variant
+		if not _optional_string_ok(turn, "mode") or not _optional_string_ok(turn, "else_skill_id"):
+			return false
+		if turn.has("entries"):
+			if not (turn["entries"] is Array):
+				return false
+			for entry_variant in turn["entries"]:
+				if not (entry_variant is Dictionary):
+					return false
+				var entry: Dictionary = entry_variant
+				if not _optional_string_ok(entry, "skill_id") or not _optional_string_ok(entry, "condition_logic") or not _optional_numeric_ok(entry, "weight"):
+					return false
+				if entry.has("conditions"):
+					if not (entry["conditions"] is Array) or not _validate_action_sequence_conditions_array(entry["conditions"]):
+						return false
 	return true
 
 ## §12確定: ランダム攻撃スロットの候補は「参照するskill_idと抽選重み」

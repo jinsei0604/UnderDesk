@@ -96,7 +96,7 @@ func _advance_to_final_step(main: RBMCreatorMain) -> void:
 	for _i in range(RBMCreatorMain.STEP_COUNT - 1):
 		_btn(main, "NextButton").pressed.emit()
 		await get_tree().process_frame
-	assert_eq(main.current_step, RBMCreatorMain.STEP_COUNT, "sanity: must be on the final STEP after advancing")
+	assert_eq(main.current_step, main.summary_step(), "sanity: must be on the final STEP after advancing")
 
 # =============================================================================
 # item1: 公開設定へ「勝利条件」「特殊条件」を追加
@@ -285,7 +285,7 @@ func test_save_view_plain_back_button_still_returns_to_step7_unaffected() -> voi
 	_btn(main._save_view, "SaveBackButton").pressed.emit()
 	await get_tree().process_frame
 	assert_true(main._steps_root.visible, "the plain 戻る (not a successful save) must still return to the STEP screens")
-	assert_eq(main.current_step, RBMCreatorMain.STEP_COUNT)
+	assert_eq(main.current_step, main.summary_step())
 
 # =============================================================================
 # item3/5/6: TEST BATTLE等での不要なCreator STEPナビゲーション非表示
@@ -319,7 +319,7 @@ func test_step_nav_row_is_hidden_during_test_battle_and_quit_test_still_works() 
 	## そしてSTEP5自身は共有_nav_row（戻る/最終確認へ戻る/次へ）を使わない
 	## 明示的な例外のため、STEP5へ戻ってもnav_rowは引き続き非表示のままで
 	## 正しい（代わりにSTEP5自身の下部バー「← 戻る/保存/公開」が使える）。
-	assert_eq(main.current_step, RBMCreatorMain.STEP_COUNT, "sanity: quitting must return to STEP5, the step TEST BATTLE was launched from")
+	assert_eq(main.current_step, main.summary_step(), "sanity: quitting must return to STEP5, the step TEST BATTLE was launched from")
 	assert_false(main._nav_row.visible, "STEP5 itself never shows the shared nav row, even after returning to it")
 	var step7_after_quit: RBMCreatorStep7Summary = main._step_views[RBMCreatorMain.STEP_COUNT - 1]
 	assert_true(step7_after_quit.visible)
@@ -347,7 +347,7 @@ func test_step_nav_row_is_hidden_during_clear_check() -> void:
 	## Creator UI改修（2026-09-05）§19: 上のTEST BATTLE版と同じ理由——CLEAR
 	## CHECKもSTEP5から起動するため、戻り先のSTEP5自身は共有_nav_rowを
 	## 使わない例外のまま。
-	assert_eq(main.current_step, RBMCreatorMain.STEP_COUNT, "sanity: quitting must return to STEP5, the step CLEAR CHECK was launched from")
+	assert_eq(main.current_step, main.summary_step(), "sanity: quitting must return to STEP5, the step CLEAR CHECK was launched from")
 	assert_false(main._nav_row.visible, "STEP5 itself never shows the shared nav row, even after returning to it")
 
 func test_step_nav_row_is_hidden_during_save_flow() -> void:

@@ -131,7 +131,7 @@ func _advance_to_final_step(main: RBMCreatorMain) -> void:
 	for _i in range(RBMCreatorMain.STEP_COUNT - 1):
 		_btn(main, "NextButton").pressed.emit()
 		await get_tree().process_frame
-	assert_eq(main.current_step, RBMCreatorMain.STEP_COUNT, "sanity: must be on the final STEP after advancing through all NextButton presses")
+	assert_eq(main.current_step, main.summary_step(), "sanity: must be on the final STEP after advancing through all NextButton presses")
 
 # =============================================================================
 # item1: 「作者備考」→「作者メッセージ」
@@ -274,7 +274,7 @@ func test_editing_a_saved_stage_starts_on_the_final_step_and_its_back_button_rea
 	await get_tree().process_frame
 
 	assert_true(main.visible, "sanity: the real Creator STEP screens must be showing again")
-	assert_eq(main.current_step, RBMCreatorMain.STEP_COUNT, "editing a saved stage must start on the final confirmation STEP, not STEP1")
+	assert_eq(main.current_step, main.summary_step(), "editing a saved stage must start on the final confirmation STEP, not STEP1")
 	assert_true(main.has_reached_summary, "showing the final STEP first must count as 'reached summary' so 最終確認へ戻る stays consistent with other entry points")
 	assert_eq(main.current_stage_id, stage_id)
 	assert_false(main.has_unsaved_changes(), "loading a just-saved stage must still report no unsaved changes, exactly as before this change")
@@ -286,7 +286,7 @@ func test_editing_a_saved_stage_starts_on_the_final_step_and_its_back_button_rea
 	# PartySkills）…がこの変更後も正しく機能すること。
 	_btn(main, "BackButton").pressed.emit()
 	await get_tree().process_frame
-	assert_eq(main.current_step, RBMCreatorMain.STEP_COUNT - 1, "the final confirmation screen's existing 戻る chain must still correctly reach the previous STEP")
+	assert_eq(main.current_step, main.summary_step() - 1, "the final confirmation screen's existing 戻る chain must still correctly reach the previous STEP")
 	var previous_step_view: Control = main._step_views[RBMCreatorMain.STEP_COUNT - 2]
 	assert_true(previous_step_view.visible, "the previous STEP's own view must actually be the one visible after 戻る")
 

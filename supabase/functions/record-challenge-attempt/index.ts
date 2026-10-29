@@ -24,6 +24,7 @@ import { SteamTicketVerifier } from "../steam-auth/steam_ticket_verifier.ts";
 import { RealSteamWebApiClient } from "../steam-auth/steam_web_api_client.ts";
 import { WEB_API_IDENTITY } from "../steam-auth/index.ts";
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
+import { demoBossRejection } from "../_shared/edition.ts";
 import { issueBattleTicket } from "../_shared/battle_tickets.ts";
 
 export interface RecordChallengeAttemptRequestBody {
@@ -100,6 +101,11 @@ export async function handleRecordChallengeAttempt(
     return jsonResponse({ ok: false, error_kind: verification.errorKind, message: verification.message }, status);
   }
   const challengerSteamId = verification.steamId as string;
+  // 体験版のチケットで、体験版の範囲外のボスは記録しない(2026-10-28、_shared/edition.ts)。
+  const demoRejected = await demoBossRejection(db, bossId, verification.edition);
+  if (demoRejected !== null) {
+    return jsonResponse({ ok: false, error_kind: demoRejected, message: "This boss is not available in the trial version" }, demoRejected === "db_error" ? 502 : 403);
+  }
 
   // 公開中のbossにしか挑戦記録を作らない——get-bossと同じ
   // 「存在しない」と「非公開」を区別しない安全な合成(not_foundへ統一)。

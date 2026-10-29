@@ -146,20 +146,17 @@ func _build_status_sheet() -> void:
 	_sheet_layer.offset_bottom = -CONTENT_BOTTOM_MARGIN_PX
 	_sheet_layer.visible = false
 	add_child(_sheet_layer)
-	# 後ろの編成の画面を暗くし、押せないようにする。
+	# 開いている間は後ろの編成の画面（_canvas）を隠す（_refresh_selected_settings）。透けて見えないように、
+	# 半透明の暗幕ではなく、編集の画面だけを欄いっぱいに出す。これは押した操作を後ろへ通さない受け止めだけ。
 	var dim := ColorRect.new()
 	dim.name = "StatusEditDim"
-	dim.color = Color(0, 0, 0, 0.55)
+	dim.color = Color(0, 0, 0, 0)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	_sheet_layer.add_child(dim)
 	var sheet := PanelContainer.new()
 	sheet.name = "StatusEditSheet"
 	sheet.set_anchors_preset(Control.PRESET_FULL_RECT)
-	sheet.offset_left = 12
-	sheet.offset_right = -12
-	sheet.offset_top = 8
-	sheet.offset_bottom = -8
 	var style := S.box(Color("0a1218"), S.ACCENT_SOFT)
 	style.content_margin_left = 16
 	style.content_margin_right = 16
@@ -198,6 +195,9 @@ func _build_status_sheet() -> void:
 
 	_tab_row = HBoxContainer.new()
 	_tab_row.name = "SelectedCharacterTabRow"
+	# 選んでいるタブを紺＋水色ではっきり見せる（共通の再配色で押した状態の見分けが消えないように）。
+	_tab_row.set_meta("world_skip", true)
+	_tab_row.add_theme_constant_override("separation", 6)
 	_selected_settings_panel.add_child(_tab_row)
 	_skills_tab_button = Button.new()
 	_skills_tab_button.name = "SkillsTabButton"
@@ -313,10 +313,32 @@ func _on_reset_all_overrides_pressed() -> void:
 	refresh()
 
 func _on_tab_selected(tab: String) -> void:
+	# タブを切り替えても、使用可能スキルの編集中の選択（決定前）はそのまま残す（性能調整の値は変えた時に draft へ入る）。
 	_selected_tab = tab
-	_skills_editing = false
-	_staged_allowed.clear()
 	refresh()
+
+## タブの見た目: 選んでいるタブ＝水色の枠と文字・下に水色の線、選んでいないタブ＝控えめな銀系。
+func _style_tab(button: Button, selected: bool) -> void:
+	var style := S.box(Color("0f2a30") if selected else Color("0b1117"), S.ACCENT if selected else Color("2a3840"), 1)
+	if selected:
+		style.border_width_bottom = 3
+	style.content_margin_left = 18
+	style.content_margin_right = 18
+	style.content_margin_top = 6
+	style.content_margin_bottom = 6
+	var hover := style.duplicate() as StyleBoxFlat
+	if not selected:
+		hover.bg_color = Color("16232c")
+		hover.border_color = S.SILVER
+	for state in ["normal", "pressed"]:
+		button.add_theme_stylebox_override(state, style)
+	for state in ["hover", "hover_pressed"]:
+		button.add_theme_stylebox_override(state, hover)
+	button.add_theme_stylebox_override("focus", S.focus_ring())
+	var text := S.ACCENT if selected else Color(S.TEXT, 0.6)
+	for color in ["font_color", "font_pressed_color", "font_hover_color", "font_hover_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(color, text)
+	button.add_theme_font_size_override("font_size", 15)
 
 # ---------------------------------------------------------------------------
 # refresh — 編成の画面とステータス編集
@@ -504,6 +526,8 @@ func _skill_label(character_id: String, skill: Dictionary) -> String:
 func _refresh_selected_settings() -> void:
 	var has_selection := draft.party_character_ids.has(_selected_character_id)
 	_sheet_layer.visible = _status_sheet_open and has_selection
+	# 選んでいる画面だけを出す: ステータス編集を開いている間は、後ろの編成の画面を描かない・押せない。
+	_canvas.visible = not _sheet_layer.visible
 	_selected_empty_label.visible = not has_selection
 	_selected_header_label.visible = has_selection
 	_tab_row.visible = has_selection
@@ -522,6 +546,8 @@ func _refresh_selected_settings() -> void:
 	_selected_header_label.text = "%s　%s" % [tr("ステータス編集"), K.name_of(_selected_character_id)]
 	_skills_tab_button.button_pressed = (_selected_tab == TAB_SKILLS)
 	_performance_tab_button.button_pressed = (_selected_tab == TAB_PERFORMANCE)
+	_style_tab(_skills_tab_button, _selected_tab == TAB_SKILLS)
+	_style_tab(_performance_tab_button, _selected_tab == TAB_PERFORMANCE)
 
 	for child in _tab_content.get_children():
 		_tab_content.remove_child(child)
@@ -708,7 +734,7 @@ func _build_stat_override_editor(character_id: String, effective: Dictionary) ->
 		var spin := SpinBox.new()
 		spin.name = "AllyStatOverrideSpin_%s_%s" % [character_id, field]
 		spin.min_value = 1.0
-		spin.max_value = float(RBMDefinitionLoader.ALLY_OVERRIDE_INT_MAX)
+		spin.max_value = float(RBMDefinitionLoader.ally_stat_override_max(field))
 		spin.step = 1.0
 		spin.value = float(effective[field])
 		spin.value_changed.connect(_on_stat_override_changed.bind(character_id, field))

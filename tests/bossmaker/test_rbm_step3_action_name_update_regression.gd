@@ -23,6 +23,9 @@ extends GutTest
 ## 2. 万一(_pressed.emit()での直接呼び出し等)外側の[保存]が内側フォームの
 ##    開いたまま呼ばれても、_on_skill_slot_confirm_pressed()がフォームの
 ##    現在値をdraft.update_skill()へ反映してから続行する防御を追加。
+##
+## 2026-10-28: HARDCORE の行動の画面を作り直した（ターンごとの通常行動）。上の外側の行・保存は、今は
+## 「行動の詳細」の EntryActionsRow / EntryConfirmButton（_on_entry_confirm_pressed() に同じ防御）にあたる。
 
 const TEST_DIR := "user://bossmaker_test_step3_action_name/stages"
 
@@ -74,6 +77,35 @@ func _advanced_view(creator: RBMCreatorMain) -> RBMCreatorStep4ActionPatterns:
 	var step3: RBMCreatorStep4 = creator._step_views[2]
 	return step3._advanced_view
 
+func _click(node: Node, card_name: String) -> void:
+	var card := node.find_child(card_name, true, false) as Control
+	assert_not_null(card, "card %s" % card_name)
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	card.gui_input.emit(release)
+
+## 2026-10-28: HARDCORE の通常行動はターンごと。ターンを足して、確定で使う行動を新しく作る画面を開く。
+func _start_new_turn_action(advanced: RBMCreatorStep4ActionPatterns) -> void:
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
+	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+
+## 外側の保存: 行動の詳細の「保存」→（ターンの設定に戻っていれば）ターンの「保存」。
+func _save(advanced: RBMCreatorStep4ActionPatterns) -> void:
+	_btn(advanced, "EntryConfirmButton").pressed.emit()
+	if advanced._turn_view.visible:
+		_btn(advanced, "TurnConfirmButton").pressed.emit()
+
+## 1ターン目の行動の詳細を開く。
+func _open_entry(advanced: RBMCreatorStep4ActionPatterns) -> void:
+	_click(advanced, "TurnCard_0")
+	_click(advanced, "TurnEntryCard_0")
+
+## ボスのプロフィールの行動の要約（HARDCORE は「1ターン目 行動名」）。
+func _profile_line(action_name: String) -> String:
+	return tr("%dターン目 %s") % [1, action_name]
+
 ## §11 (ユーザー要求のステップ1〜6): ゴーレムアタック→無属性への改名が
 ## Draft・BOSS PROFILE ACTIONS・再編集時の読み込みすべてへ正しく反映される
 ## ことを、実際のボタン操作(公開API/シグナル経由)で確認する。
@@ -82,40 +114,37 @@ func test_renaming_an_existing_action_updates_draft_and_boss_profile_actions() -
 	_fill_minimum_valid_boss(creator, "ゴーレム試験ボス")
 	var advanced := _advanced_view(creator)
 
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+	_start_new_turn_action(advanced)
 	advanced._form._name_edit.text = "ゴーレムアタック"
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
-	assert_eq(creator._boss_profile_panel._actions_label.text, "01 ゴーレムアタック", "sanity: 作成直後は元の名前が表示される")
+	assert_eq(creator._boss_profile_panel._actions_label.text, _profile_line("ゴーレムアタック"), "sanity: 作成直後は元の名前が表示される")
 
 	# ステップ2〜3: 既存攻撃の編集画面を開き、行動名を「無属性」へ変更して保存する。
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
+	_open_entry(advanced)
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
 	advanced._form._name_edit.text = "無属性"
 	_btn(advanced._form, "SaveActionButton").pressed.emit()
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 
 	# ステップ4: 保存されたデータのnameが「無属性」になっていること。
 	assert_eq(str(creator.draft.find_skill(skill_id).get("name", "")), "無属性", "保存データ自体が新しい名前へ更新されること")
 
 	# ステップ5: 右側ACTIONS表示も「無属性」になっていること。
-	assert_eq(creator._boss_profile_panel._actions_label.text, "01 無属性", "BOSS PROFILE > ACTIONS が即座に新しい名前へ更新されること")
+	assert_eq(creator._boss_profile_panel._actions_label.text, _profile_line("無属性"), "BOSS PROFILE > ACTIONS が即座に新しい名前へ更新されること")
 
 	# 攻撃一覧(SlotList)自身のカード表示も併せて確認。
-	var card: VBoxContainer = advanced._slot_list.get_child(0)
 	var card_texts := PackedStringArray()
-	for child in card.get_children():
-		if child is Label:
-			card_texts.append((child as Label).text)
+	for label in advanced.find_child("TurnCard_0", true, false).find_children("*", "Label", true, false):
+		card_texts.append((label as Label).text)
 	assert_true("\n".join(card_texts).contains("無属性"), "STEP3内の攻撃一覧カードも新しい名前へ更新されること")
 
 	# ステップ6: 再度編集画面を開いても「無属性」が読み込まれること。
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
+	_open_entry(advanced)
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
 	assert_eq(advanced._form._name_edit.text, "無属性", "再編集時の行動名フィールドにも新しい名前が読み込まれること")
 	_btn(advanced._form, "CancelActionButton").pressed.emit()
-	_btn(advanced, "SkillSlotCancelButton").pressed.emit()
+	_btn(advanced, "EntryCancelButton").pressed.emit()
 
 ## ステップ7: 保存→再ロード後も「無属性」が維持されること。
 func test_renamed_action_survives_save_and_reload() -> void:
@@ -123,16 +152,15 @@ func test_renamed_action_survives_save_and_reload() -> void:
 	_fill_minimum_valid_boss(creator, "リロード試験ボス")
 	var advanced := _advanced_view(creator)
 
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+	_start_new_turn_action(advanced)
 	advanced._form._name_edit.text = "ゴーレムアタック"
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
+	_open_entry(advanced)
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
 	advanced._form._name_edit.text = "無属性"
 	_btn(advanced._form, "SaveActionButton").pressed.emit()
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 
 	var save_result := creator.press_save_as_new()
 	assert_true(bool(save_result.get("ok", false)), "sanity: %s" % [save_result])
@@ -146,7 +174,7 @@ func test_renamed_action_survives_save_and_reload() -> void:
 
 	creator2.go_to_step(3)
 	var step3_2: RBMCreatorStep4 = creator2._step_views[2]
-	assert_eq(creator2._boss_profile_panel._actions_label.text, "01 無属性", "再ロード後、BOSS PROFILE > ACTIONSも新しい名前のまま")
+	assert_eq(creator2._boss_profile_panel._actions_label.text, _profile_line("無属性"), "再ロード後、BOSS PROFILE > ACTIONSも新しい名前のまま")
 
 ## ゴーレム固有の不具合ではないことの確認(別のボス名・別の攻撃名で再現)。
 func test_rename_fix_is_not_specific_to_any_particular_boss_or_action_name() -> void:
@@ -154,20 +182,19 @@ func test_rename_fix_is_not_specific_to_any_particular_boss_or_action_name() -> 
 	_fill_minimum_valid_boss(creator, "竜の試験ボス")
 	var advanced := _advanced_view(creator)
 
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+	_start_new_turn_action(advanced)
 	advanced._form._name_edit.text = "ドラゴンブレス"
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
 
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
+	_open_entry(advanced)
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
 	advanced._form._name_edit.text = "業火の吐息"
 	_btn(advanced._form, "SaveActionButton").pressed.emit()
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 
 	assert_eq(str(creator.draft.find_skill(skill_id).get("name", "")), "業火の吐息")
-	assert_eq(creator._boss_profile_panel._actions_label.text, "01 業火の吐息")
+	assert_eq(creator._boss_profile_panel._actions_label.text, _profile_line("業火の吐息"))
 
 # ---------------------------------------------------------------------------
 # 根本原因そのものの直接検証: 外側の[保存]が内側フォームを開いたままの状態を
@@ -179,18 +206,17 @@ func test_outer_actions_row_is_hidden_while_the_inline_performance_form_is_open(
 	_fill_minimum_valid_boss(creator, "テストボス")
 	var advanced := _advanced_view(creator)
 
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+	_start_new_turn_action(advanced)
 	advanced._form._name_edit.text = "ゴーレムアタック"
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	assert_true(advanced._skill_slot_actions_row.visible, "性能編集を開く前は外側の保存/キャンセル/削除行が見えている")
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
-	assert_false(advanced._skill_slot_actions_row.visible, "内側フォームが開いている間は外側の保存/キャンセル/削除行を隠す")
+	_open_entry(advanced)
+	assert_true(advanced._entry_actions_row.visible, "性能編集を開く前は外側の保存/キャンセル/削除行が見えている")
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
+	assert_false(advanced._entry_actions_row.visible, "内側フォームが開いている間は外側の保存/キャンセル/削除行を隠す")
 
 	_btn(advanced._form, "SaveActionButton").pressed.emit()
-	assert_true(advanced._skill_slot_actions_row.visible, "内側フォームの保存後は外側の行が再び見えるようになる")
+	assert_true(advanced._entry_actions_row.visible, "内側フォームの保存後は外側の行が再び見えるようになる")
 
 ## 万一(直接呼び出し等)外側の[保存]が内側フォームの開いたまま実行されても、
 ## 入力中の内容を握りつぶさない防御そのものの検証(_on_skill_slot_confirm_
@@ -200,18 +226,17 @@ func test_outer_confirm_defensively_commits_pending_form_data_even_if_form_still
 	_fill_minimum_valid_boss(creator, "防御テストボス")
 	var advanced := _advanced_view(creator)
 
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+	_start_new_turn_action(advanced)
 	advanced._form._name_edit.text = "ゴーレムアタック"
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
 
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
+	_open_entry(advanced)
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
 	advanced._form._name_edit.text = "無属性"
 	# 内側フォーム自身のSaveActionButtonを押さず、直接外側のSkillSlotConfirmButton
 	# を呼ぶ(通常のUI操作では(1)により到達しないが、防御ロジック自体を検証する)。
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 
 	assert_eq(str(creator.draft.find_skill(skill_id).get("name", "")), "無属性", "外側の保存だけでも、開いたままのフォームの入力内容が失われないこと")
 
@@ -222,19 +247,18 @@ func test_attribute_field_is_also_protected_by_the_same_fix() -> void:
 	_fill_minimum_valid_boss(creator, "属性テストボス")
 	var advanced := _advanced_view(creator)
 
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+	_start_new_turn_action(advanced)
 	advanced._form._name_edit.text = "斬撃"
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
 	assert_eq(str(creator.draft.find_skill(skill_id).get("attribute", "")), "NEUTRAL", "sanity")
 
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
+	_open_entry(advanced)
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
 	var fire_index: int = RBMDefinitionLoader.VALID_ATTRIBUTES.find("FIRE")
 	advanced._form._attack_attribute_option.select(fire_index)
 	_btn(advanced._form, "SaveActionButton").pressed.emit()
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 
 	assert_eq(str(creator.draft.find_skill(skill_id).get("attribute", "")), "FIRE", "属性の変更も正しく保存されること")
 
@@ -245,26 +269,25 @@ func test_renaming_multiple_times_in_one_session_keeps_the_final_name() -> void:
 	_fill_minimum_valid_boss(creator, "多重改名テストボス")
 	var advanced := _advanced_view(creator)
 
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+	_start_new_turn_action(advanced)
 	advanced._form._name_edit.text = "ゴーレムアタック"
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
 
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
+	_open_entry(advanced)
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
 	advanced._form._name_edit.text = "仮の名前1"
 	_btn(advanced._form, "SaveActionButton").pressed.emit()
 	assert_eq(str(creator.draft.find_skill(skill_id).get("name", "")), "仮の名前1")
 
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
 	assert_eq(advanced._form._name_edit.text, "仮の名前1", "再度性能編集を開くと直前に保存した名前が読み込まれる")
 	advanced._form._name_edit.text = "無属性"
 	_btn(advanced._form, "SaveActionButton").pressed.emit()
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 
 	assert_eq(str(creator.draft.find_skill(skill_id).get("name", "")), "無属性", "最後に保存した名前が最終的に維持される")
-	assert_eq(creator._boss_profile_panel._actions_label.text, "01 無属性")
+	assert_eq(creator._boss_profile_panel._actions_label.text, _profile_line("無属性"))
 
 ## §6: 名前だけを変更した場合、他の攻撃設定(種類/対象/属性/ATK倍率/条件/
 ## 使用回数)が変化しないこと。
@@ -273,20 +296,19 @@ func test_renaming_only_the_name_does_not_change_other_action_settings() -> void
 	_fill_minimum_valid_boss(creator, "無変更確認ボス")
 	var advanced := _advanced_view(creator)
 
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+	_start_new_turn_action(advanced)
 	advanced._form._name_edit.text = "ゴーレムアタック"
 	advanced._form._attack_target_option.select(1)  # 全体
 	advanced._form._attack_attribute_option.select(RBMDefinitionLoader.VALID_ATTRIBUTES.find("ICE"))
 	advanced._form._attack_multiplier_spin.value = 2.5
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
 
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
+	_open_entry(advanced)
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
 	advanced._form._name_edit.text = "無属性"
 	_btn(advanced._form, "SaveActionButton").pressed.emit()
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 
 	var skill := creator.draft.find_skill(skill_id)
 	assert_eq(str(skill.get("name", "")), "無属性")
@@ -302,17 +324,16 @@ func test_renamed_action_name_propagates_to_definition_used_by_test_battle_and_c
 	_fill_minimum_valid_boss(creator, "Definition確認ボス")
 	var advanced := _advanced_view(creator)
 
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+	_start_new_turn_action(advanced)
 	advanced._form._name_edit.text = "ゴーレムアタック"
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 	var skill_id := str(creator.draft.skills[0].get("skill_id", ""))
 
-	advanced._slot_list.find_child("EditSlotButton_0", true, false).pressed.emit()
-	_btn(advanced, "SkillSlotEditPerformanceButton").pressed.emit()
+	_open_entry(advanced)
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
 	advanced._form._name_edit.text = "無属性"
 	_btn(advanced._form, "SaveActionButton").pressed.emit()
-	_btn(advanced, "SkillSlotConfirmButton").pressed.emit()
+	_save(advanced)
 
 	var definition := creator.draft.to_definition()
 	var found_name := ""
@@ -322,27 +343,29 @@ func test_renamed_action_name_propagates_to_definition_used_by_test_battle_and_c
 	assert_eq(found_name, "無属性", "Test Battle/Clear Checkが参照するDefinitionにも新しい名前が伝播すること")
 
 # ---------------------------------------------------------------------------
-# 類似不具合の再調査: ランダム攻撃の候補性能編集は別画面(_show_only)へ
-# 切り替える構造のため、同種の「外側の保存ボタンが同時に見える」状況が
-# そもそも起こり得ないことを構造的に確認する。
+# 類似不具合の再調査: 使用率で抽選する候補の性能編集でも、外側の保存ボタンが同時に見えないこと
+# （2026-10-28 からは候補も確定の行動と同じ「行動の詳細」で性能を編集する）。
 # ---------------------------------------------------------------------------
 
 func test_random_candidate_performance_edit_does_not_expose_the_outer_confirm_button_simultaneously() -> void:
 	var creator := _new_creator()
-	_fill_minimum_valid_boss(creator, "ランダム攻撃確認ボス")
+	_fill_minimum_valid_boss(creator, "抽選確認ボス")
 	var advanced := _advanced_view(creator)
 
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateRandomButton").pressed.emit()
-	_btn(advanced, "RandomAddCandidateButton").pressed.emit()
-	_btn(advanced, "RandomAddChoiceCreateNewButton").pressed.emit()
-	advanced._form._name_edit.text = "ランダム候補A"
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "TurnModeButton_random").pressed.emit()
+	for candidate_name in ["抽選候補A", "抽選候補B"]:
+		_btn(advanced, "AddTurnEntryButton").pressed.emit()
+		_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
+		advanced._form._name_edit.text = candidate_name
+		_btn(advanced, "EntryConfirmButton").pressed.emit()
+
+	_click(advanced, "TurnEntryCard_0")
+	_btn(advanced, "EntryEditPerformanceButton").pressed.emit()
+	assert_false(_btn(advanced, "EntryConfirmButton").is_visible_in_tree(), "候補の性能編集中は外側の保存ボタンが画面上に見えていないこと")
+	advanced._form._name_edit.text = "抽選候補A改"
 	_btn(advanced._form, "SaveActionButton").pressed.emit()
 
-	_btn(advanced, "EditRandomCandidateButton_0").pressed.emit()
-	assert_false(_btn(advanced, "RandomConfirmButton").is_visible_in_tree(), "候補の性能編集中は外側のRandomConfirmButtonが画面上に見えていないこと(別ビューへ切り替わっているため)")
-	advanced._form._name_edit.text = "ランダム候補A改"
-	_btn(advanced._form, "SaveActionButton").pressed.emit()
+	var candidate_skill_id := str((advanced._pending_entries()[0] as Dictionary).get("skill_id", ""))
+	assert_eq(str(creator.draft.find_skill(candidate_skill_id).get("name", "")), "抽選候補A改")
 
-	var candidate_skill_id := str((advanced._random_candidates[0] as Dictionary).get("skill_id", ""))
-	assert_eq(str(creator.draft.find_skill(candidate_skill_id).get("name", "")), "ランダム候補A改")

@@ -41,6 +41,8 @@ var _intro_wait := -1.0     # 登場の素材を待っている間の経過秒�
 var _intro_done_fn: Callable
 var _victory: Node2D
 var _victory_state := "none"  # none / final / waiting / playing / shown
+## 耐久勝利（HARDCORE の勝利条件「指定ターンを生き残る」、2026-10-29）の演出を出しているか。
+var _victory_survival := false
 var _victory_wait := 0.0
 var _clock_start_ms := -1
 var clear_seconds := 0.0
@@ -206,6 +208,7 @@ func _finish_intro() -> void:
 # 勝利
 
 ## presenter の entry_impact ごとに呼ぶ。味方の勝ちで決着した命中なら、とどめのスローを始める。
+## 耐久勝利（"survived" の行、2026-10-29）なら撃破の演出は使わず、耐久成功の演出（VictoryPlayer.survival_script()）を始める。
 func on_impact(entry: Dictionary) -> void:
 	if not active or _victory_state != "none":
 		return
@@ -213,17 +216,21 @@ func on_impact(entry: Dictionary) -> void:
 	if not bool(vs.get("battle_over", false)) or str(vs.get("winner", "")) != "ally":
 		return
 	var boss := boss_asset()
-	if not VictoryPlayer.has_victory(boss) or not is_instance_valid(stage()):
+	var survival := str(entry.get("action", "")) == "survived"
+	if (not survival and not VictoryPlayer.has_victory(boss)) or not is_instance_valid(stage()):
 		return
+	_victory_survival = survival
 	final_turn = int(vs.get("turn", 1))
 	clear_seconds = maxf(0.0, (Time.get_ticks_msec() - _clock_start_ms) / 1000.0) if _clock_start_ms >= 0 else 0.0
 	timeline.append(["final_impact", Time.get_ticks_msec()])
-	audio.hold(VictoryPlayer.final_blow_keys(), allow_load)
+	if not survival:
+		audio.hold(VictoryPlayer.final_blow_keys(), allow_load)
 	var p: Node2D = VictoryPlayer.new()
 	p.boss = boss
 	p.boss_name = boss_name
 	p.turn = final_turn
 	p.clear_seconds = clear_seconds
+	p.survival = survival
 	p.setup(stage(), view, hud(), audio)
 	p.show_result_fn = _on_victory_show_result
 	_victory = p
@@ -242,12 +249,13 @@ func on_presentation_finished() -> bool:
 
 func _victory_ready() -> bool:
 	var boss := boss_asset()
-	return _assets_ready([[boss, "victory"]] + _ally_kinds("victory_ally"))
+	# 耐久勝利の共通の演出はボスの撃破の素材を使わない（味方の反応の素材だけ待つ）。
+	return _assets_ready(([] if _victory_survival else [[boss, "victory"]]) + _ally_kinds("victory_ally"))
 
 func _begin_victory() -> void:
 	_victory_state = "playing"
 	timeline.append(["victory_begin", Time.get_ticks_msec()])
-	audio.hold(VictoryPlayer.victory_keys(boss_asset()), allow_load)
+	audio.hold(VictoryPlayer.victory_keys(boss_asset(), _victory_survival), allow_load)
 	(_victory.get_script() as Script).call("hold_ally_sheets", party_assets(), allow_load)
 	_victory.call("begin")
 
@@ -292,6 +300,7 @@ func cancel() -> void:
 		_victory.call("cancel")
 	_victory = null
 	_victory_state = "none"
+	_victory_survival = false
 	if is_instance_valid(audio):
 		audio.stop_all()
 	# 前の画面が閉じた後の黒い幕は、ここでは外さない（戦闘を始め直す時、登場が始まるまで黒のまま待つため。

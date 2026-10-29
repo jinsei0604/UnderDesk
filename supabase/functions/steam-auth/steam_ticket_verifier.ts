@@ -30,6 +30,8 @@ export interface SteamVerificationResult {
   steamId: string | null;
   errorKind: SteamVerificationErrorKind;
   message: string;
+  // 2026-10-28 体験版: どちらのアプリ(製品版/体験版)のチケットとして確かめられたか。成功した時だけ入る。
+  edition?: "full" | "demo";
 }
 
 function fail(
@@ -45,18 +47,49 @@ export interface SteamTicketVerifierOptions {
   // を返し、実HTTP呼び出しへは進まない(ダミー鍵をコードに書く必要がない
   // 設計、ユーザー確定方針)。
   publisherWebApiKey: string | undefined;
+  // 2026-10-28 体験版のAppID(Steamworksで体験版のアプリを作ったら環境変数 STEAM_DEMO_APP_ID に入れる)。
+  // 省略時は環境変数から読む。0・未設定なら体験版のチケットは受け付けない(今までどおり)。
+  demoAppId?: number;
+}
+
+// 製品版のAppIDで確かめて失敗した時だけ、体験版のAppIDでも確かめる(製品版のチケットの扱いは変えない)。
+const DEMO_RETRY_KINDS = new Set<SteamVerificationErrorKind>(["appid_mismatch", "invalid_ticket", "expired_or_invalid_response"]);
+
+function demoAppIdFromEnv(): number {
+  try {
+    const value = Number(Deno.env.get("STEAM_DEMO_APP_ID") ?? "0");
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
 }
 
 export class SteamTicketVerifier {
   private readonly client: SteamWebApiClient;
   private readonly publisherWebApiKey: string | undefined;
+  private readonly demoAppId: number;
 
   constructor(options: SteamTicketVerifierOptions) {
     this.client = options.client;
     this.publisherWebApiKey = options.publisherWebApiKey;
+    this.demoAppId = options.demoAppId ?? demoAppIdFromEnv();
   }
 
   async verifyTicket(
+    ticketHex: string,
+    appId: number,
+    identity: string,
+  ): Promise<SteamVerificationResult> {
+    const full = await this.verifyFor(ticketHex, appId, identity);
+    if (full.ok) return { ...full, edition: "full" };
+    if (this.demoAppId > 0 && this.demoAppId !== appId && DEMO_RETRY_KINDS.has(full.errorKind)) {
+      const demo = await this.verifyFor(ticketHex, this.demoAppId, identity);
+      if (demo.ok) return { ...demo, edition: "demo" };
+    }
+    return full;
+  }
+
+  private async verifyFor(
     ticketHex: string,
     appId: number,
     identity: string,

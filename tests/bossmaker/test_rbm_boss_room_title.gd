@@ -92,11 +92,6 @@ func test_real_game_home_and_creator_return_do_not_replay_title() -> void:
 	var root := RBMGameRoot.new()
 	add_child_autofree(root)
 	await get_tree().process_frame
-	var ticks := 0
-	while not root._top_monitor_battle._initialized and ticks < 300:
-		await get_tree().process_frame
-		ticks += 1
-	root._top_monitor_battle.stop_loop()
 	var title: Control = root._title_boot_launcher
 	assert_eq(root._title_screen.get_child(-1), title, "title blocks even the later-created locale button")
 	title._start_button.pressed.emit()
@@ -112,7 +107,6 @@ func test_real_game_home_and_creator_return_do_not_replay_title() -> void:
 	assert_true(root._title_screen.visible)
 	assert_false(title.visible)
 	assert_eq(title.selected_room_id, room_id)
-	root._top_monitor_battle.stop_loop()
 
 func test_all_rooms_use_the_same_full_window_start_with_one_click_sound() -> void:
 	for room_id in Catalog.ROOMS.keys():

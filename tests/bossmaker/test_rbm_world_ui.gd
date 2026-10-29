@@ -32,29 +32,22 @@ func test_background_is_authoring_metadata_not_combat_content() -> void:
 	assert_eq(draft.to_definition(),definition)
 	assert_ne(draft.full_authoring_snapshot(),authoring)
 
-func test_summary_buttons_follow_draft_and_reopening() -> void:
+func test_summary_has_no_day_night_selector_and_keeps_the_saved_background() -> void:
+	# 2026-10-28: the STEP5 day/night selector was removed (user request). The saved value stays for
+	# old saves and published bosses (a boss without its own background still uses it).
 	var main := await _main()
+	main.draft.battle_background = "day"
 	main.go_to_step(5)
 	await get_tree().process_frame
-	var day: Button = main.find_child("DayBackgroundButton",true,false)
-	var night: Button = main.find_child("NightBackgroundButton",true,false)
-	day.pressed.emit()
+	assert_null(main.find_child("BackgroundTimeSelector",true,false))
+	assert_null(main.find_child("DayBackgroundButton",true,false))
+	assert_null(main.find_child("NightBackgroundButton",true,false))
 	assert_eq(main.draft.battle_background,"day")
-	assert_true(day.button_pressed)
-	assert_false(night.button_pressed)
 	main.go_to_step(2)
 	main.go_to_step(5)
-	# Reopening Step 5 rebuilds RBMWorldUi's WorldSummaryColumns wrapper, which
-	# queue_free()s the previous one -- give the engine a frame to actually process
-	# that deferred free before the test ends (real gameplay always gets one; a
-	# fully synchronous test does not unless it awaits here), otherwise GUT's
-	# orphan-node count flags it even though nothing is actually leaking.
 	await get_tree().process_frame
-	assert_true(day.button_pressed)
-	night.pressed.emit()
-	assert_eq(main.draft.battle_background,"night")
-	assert_true(night.button_pressed)
-	assert_false(day.button_pressed)
+	assert_null(main.find_child("DayBackgroundButton",true,false))
+	assert_eq(main.draft.battle_background,"day")
 
 func test_stat_typing_commits_without_enter_and_attributes_remain_exclusive() -> void:
 	var main := await _main()

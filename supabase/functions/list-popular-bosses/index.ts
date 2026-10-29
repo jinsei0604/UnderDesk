@@ -32,6 +32,7 @@
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
 import { selectAllPages } from "../_shared/select_all_pages.ts";
 import { BossSummaryDbRow, modeCondition, publicBossQuery, toPublicRow } from "../_shared/public_boss_query.ts";
+import { bodyRequestsDemo, demoCondition, isDemoPayload, requestedDemo } from "../_shared/edition.ts";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -99,7 +100,7 @@ export async function handleListPopularBosses(req: Request, db: SupabaseRestClie
   const bossesLookup = await selectAllPages<BossSummaryDbRow>(
     db,
     "bosses",
-    publicBossQuery(modeFilter !== null ? [modeCondition(modeFilter)] : [], ""),
+    publicBossQuery([...(modeFilter !== null ? [modeCondition(modeFilter)] : []), ...(requestedDemo(url) ? [demoCondition()] : [])], ""),
   );
   if (!bossesLookup.ok) {
     return jsonResponse({ ok: false, error_kind: "db_error", message: bossesLookup.errorMessage ?? "" }, 502);

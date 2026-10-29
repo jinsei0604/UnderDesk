@@ -143,43 +143,41 @@ func test_step4_advanced_is_valid_true_in_simple_mode_regardless_of_content() ->
 	# HARDCORE専用の検証は一切適用されない（SIMPLE表示中はHARDCORE検証対象外）。
 	assert_true(draft.step4_advanced_is_valid())
 
-func test_step4_advanced_is_valid_false_for_random_slot_with_no_candidates() -> void:
+## 2026-10-28: HARDCORE の検証はターンごとの通常行動（turn_actions）が対象。旧方式（action_sequence）の
+## 中身は判定に使わない。旧テストと同じ観点（候補なし・合計が100でない・存在しない行動・不明なAND/OR）を
+## ターンの形で確かめる。
+func _turn_draft() -> RBMCreatorDraft:
 	var draft := _draft_with_two_skills()
 	draft.set_creator_mode("advanced")
 	draft.action_sequence.clear()
-	draft.add_action_slot(_bare_random_slot([]))
+	return draft
+
+func test_step4_advanced_is_valid_false_for_random_slot_with_no_candidates() -> void:
+	var draft := _turn_draft()
+	draft.add_turn_action({"mode": "random", "entries": []})
 	assert_false(draft.step4_advanced_is_valid())
 
 func test_step4_advanced_is_valid_false_for_manual_random_slot_not_summing_to_100() -> void:
-	var draft := _draft_with_two_skills()
-	draft.set_creator_mode("advanced")
-	draft.action_sequence.clear()
-	draft.add_action_slot(_bare_random_slot([{"skill_id": "boss_skill_1", "weight": 30.0}]))
+	var draft := _turn_draft()
+	draft.add_turn_action({"mode": "random", "entries": [{"skill_id": "boss_skill_1", "weight": 30.0}, {"skill_id": "boss_skill_2", "weight": 40.0}]})
 	assert_false(draft.step4_advanced_is_valid())
 
 func test_step4_advanced_is_valid_true_for_manual_random_slot_summing_to_100() -> void:
-	var draft := _draft_with_two_skills()
-	draft.set_creator_mode("advanced")
-	draft.action_sequence.clear()
-	draft.add_action_slot(_bare_random_slot([{"skill_id": "boss_skill_1", "weight": 60.0}, {"skill_id": "boss_skill_2", "weight": 40.0}]))
+	var draft := _turn_draft()
+	draft.add_turn_action({"mode": "random", "entries": [{"skill_id": "boss_skill_1", "weight": 60.0}, {"skill_id": "boss_skill_2", "weight": 40.0}]})
 	assert_true(draft.step4_advanced_is_valid())
 
 func test_step4_advanced_is_valid_false_for_skill_slot_referencing_unknown_skill() -> void:
-	var draft := _draft_with_two_skills()
-	draft.set_creator_mode("advanced")
-	draft.action_sequence.clear()
-	draft.add_action_slot(_bare_slot("not_a_real_skill"))
+	var draft := _turn_draft()
+	draft.add_turn_action({"mode": "fixed", "entries": [{"skill_id": "not_a_real_skill"}]})
 	assert_false(draft.step4_advanced_is_valid())
 
 func test_step4_advanced_is_valid_false_for_multi_condition_slot_with_unknown_logic() -> void:
-	var draft := _draft_with_two_skills()
-	draft.set_creator_mode("advanced")
-	draft.action_sequence.clear()
-	var slot := _bare_slot()
-	slot["conditions"] = [{"type": "turn_at_least", "turn": 1}, {"type": "hp_at_most", "percent": 50.0}]
-	slot["condition_logic"] = "XOR"
-	draft.add_action_slot(slot)
+	var draft := _turn_draft()
+	draft.add_turn_action({"mode": "conditional", "entries": [{"skill_id": "boss_skill_1", "conditions": [{"type": "turn_at_least", "turn": 1}, {"type": "hp_at_most", "percent": 50.0}], "condition_logic": "XOR"}], "else_skill_id": "boss_skill_2"})
 	assert_false(draft.step4_advanced_is_valid())
+	draft.turn_actions[0]["entries"][0]["condition_logic"] = "OR"
+	assert_true(draft.step4_advanced_is_valid())
 
 # ---------------------------------------------------------------------------
 # SIMPLE → HARDCORE 自動変換（切替直後の戦闘内容が変化しない設計）

@@ -36,6 +36,35 @@ const STEP_NAMES := [
 	"外見と基本情報", "能力", "行動", "攻略パーティ", "最終確認",
 ]
 
+## HARDCORE は「勝利条件」の STEP が増えて6STEP（2026-10-29 ユーザー確定）。STEP_COUNT・STEP_NAMES は SIMPLE の
+## 5STEP のまま残し、今の STEP の数・名前・どのビューを出すかは step_count()/step_names()/_view_index() で決める。
+## 勝利条件のビューは _step_views の末尾（index 5）に置き、攻略パーティ(3)・最終確認(4)の index は変えない。
+const HARDCORE_STEP_NAMES := [
+	"外見と基本情報", "能力", "行動", "勝利条件", "攻略パーティ", "最終確認",
+]
+const HARDCORE_VIEW_ORDER := [0, 1, 2, 5, 3, 4]
+const VICTORY_VIEW_INDEX := 5
+
+func _is_hardcore_steps() -> bool:
+	return draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED
+
+func step_count() -> int:
+	return HARDCORE_STEP_NAMES.size() if _is_hardcore_steps() else STEP_COUNT
+
+func step_names() -> Array:
+	return HARDCORE_STEP_NAMES if _is_hardcore_steps() else STEP_NAMES
+
+## 最終確認の STEP 番号（SIMPLE 5、HARDCORE 6）。
+func summary_step() -> int:
+	return step_count()
+
+## 攻略パーティの STEP 番号（SIMPLE 4、HARDCORE 5）。
+func party_step() -> int:
+	return step_count() - 1
+
+func _view_index(step: int) -> int:
+	return int(HARDCORE_VIEW_ORDER[step - 1]) if _is_hardcore_steps() else step - 1
+
 ## Phase 1 Step 6 — 保存・再編集（§45/§46: 保存I/O自体はRBMLocalStageRepository
 ## 側の責務。ここは「どのstageを編集中か」「未保存変更があるか」というCreator
 ## セッション状態の統括のみを持つ）。
@@ -171,7 +200,7 @@ func _build_ui() -> void:
 	_step_nav_column = RBMCreatorUiKit.StepNavColumn.new()
 	_step_frame.add_child(_step_nav_column)
 	var translated_step_names: Array = []
-	for step_name in STEP_NAMES.slice(0, 4):
+	for step_name in STEP_NAMES.slice(0, STEP_COUNT - 1):
 		translated_step_names.append(tr(step_name))
 	_step_nav_column.setup(translated_step_names, go_to_step)
 
@@ -187,6 +216,8 @@ func _build_ui() -> void:
 		RBMCreatorStep1Basic, RBMCreatorStep2Stats,
 		RBMCreatorStep4, RBMCreatorStep5Party,
 		RBMCreatorStep7Summary,
+		# HARDCORE だけの「勝利条件」（2026-10-29）。表示の順は HARDCORE_VIEW_ORDER（行動の次）。
+		RBMCreatorStepVictory,
 	]
 	for i in range(step_scripts.size()):
 		var view = step_scripts[i].new()
@@ -347,10 +378,10 @@ func _build_ui() -> void:
 # ---------------------------------------------------------------------------
 
 func _current_view() -> Node:
-	return _step_views[current_step - 1]
+	return _step_views[_view_index(current_step)]
 
 func go_to_step(step: int) -> void:
-	if step < 1 or step > STEP_COUNT:
+	if step < 1 or step > step_count():
 		return
 	current_step = step
 	_refresh()
@@ -370,10 +401,10 @@ func press_next() -> bool:
 		if _current_view().has_method("show_invalid_reason"):
 			_current_view().call("show_invalid_reason")
 		return false
-	if current_step >= STEP_COUNT:
+	if current_step >= step_count():
 		return false
 	current_step += 1
-	if current_step == STEP_COUNT:
+	if current_step == step_count():
 		has_reached_summary = true
 	_refresh()
 	return true
@@ -388,7 +419,7 @@ func press_back() -> void:
 func press_return_to_summary() -> bool:
 	if not has_reached_summary:
 		return false
-	current_step = STEP_COUNT
+	current_step = summary_step()
 	_refresh()
 	return true
 
@@ -452,7 +483,7 @@ func press_test_battle() -> Dictionary:
 
 func _on_test_battle_return_to_creator() -> void:
 	_show_only(_steps_root)
-	go_to_step(STEP_COUNT)
+	go_to_step(summary_step())
 
 # ---------------------------------------------------------------------------
 # CLEAR CHECK (Phase 1 Step 5, §4/§5)
@@ -486,7 +517,7 @@ func press_clear_check_start(rng_seed: int = -1) -> Dictionary:
 ## record) is untouched by navigation alone.
 func _on_clear_check_return_to_creator() -> void:
 	_show_only(_steps_root)
-	go_to_step(STEP_COUNT)
+	go_to_step(summary_step())
 
 # ---------------------------------------------------------------------------
 # 保存 (Phase 1 Step 6, §23/§24/§25/§26/§38/§39/§40)
@@ -507,6 +538,8 @@ func press_save_as_new() -> Dictionary:
 	var limit_error := _heal_limit_save_error()
 	if not limit_error.is_empty():
 		return limit_error
+	if RBMLocalStageRepository.demo_save_limit_reached():
+		return {"ok": false, "error": "demo_save_limit", "message": tr("体験版で保存できるボスは%d体までです。保存したボス戦を削除するか、上書き保存してください。") % RBMEdition.DEMO_MAX_LOCAL_SAVES}
 	var result := RBMLocalStageRepository.save_new(draft)
 	if bool(result.get("ok", false)):
 		current_stage_id = str(result.get("stage_id", ""))
@@ -575,7 +608,7 @@ func press_unpublish() -> Dictionary:
 
 func _on_save_return_to_creator() -> void:
 	_show_only(_steps_root)
-	go_to_step(STEP_COUNT)
+	go_to_step(summary_step())
 
 ## 実機プレイ改善③ item4: 保存成功画面の「クリエイター一覧に戻る」専用の
 ## ハンドラ。STEP7へは一切戻さず、exited_to_saved_listをそのまま外側
@@ -644,7 +677,7 @@ func start_loaded(stage_id: String) -> Dictionary:
 	# 「STEP7を最初に見せる」こと自体がまさに「最終確認へ到達済み」の
 	# 状態そのものであるため（press_return_to_summary()やSTEP7以外の
 	# STEPで表示される「最終確認へ戻る」ボタンの表示条件と整合させる）。
-	current_step = STEP_COUNT
+	current_step = summary_step()
 	has_reached_summary = true
 	# §34-7: 保存時authoring snapshotは「復元後Draftから」生成する——保存
 	# ファイル自体に別途埋め込まれた値を読むのではなく、restore直後のdraftを
@@ -770,12 +803,13 @@ func _refresh() -> void:
 	## published自体の詳細はRBMCreatorDraft.sync_published_with_clear_check()
 	## 参照）。
 	draft.sync_published_with_clear_check()
+	current_step = clampi(current_step, 1, step_count())
 	for i in range(_step_views.size()):
-		_step_views[i].visible = (i + 1 == current_step)
+		_step_views[i].visible = (i == _view_index(current_step))
 	_current_view().refresh()
 	_back_button.disabled = current_step <= 1
-	_return_to_summary_button.visible = has_reached_summary and current_step != STEP_COUNT
-	_next_button.visible = current_step < STEP_COUNT
+	_return_to_summary_button.visible = has_reached_summary and current_step != summary_step()
+	_next_button.visible = current_step < summary_step()
 	## Creator UI改修（2026-09-05）§4/§13/§19: STEP5（最終確認）は共通フレーム
 	## （左STEPナビ／右BOSS PROFILE）を持たない明示的な例外、かつ「← 戻る /
 	## [保存][公開]」という専用の下部バーを自分自身の内容として持つため、
@@ -783,11 +817,15 @@ func _refresh() -> void:
 	## （§19のASCIIモックアップに無い「次へ」「STEP n/総数」の重複表示を
 	## 避ける——_headerは引き続き表示する、こちらは常設のタイトルバーで
 	## モックアップが定める中央コンテンツ領域の外側にあるため）。
-	var on_summary := current_step == STEP_COUNT
+	var on_summary := current_step == summary_step()
 	_step_nav_column.visible = not on_summary
 	_boss_profile_panel.visible = not on_summary
 	_nav_row.visible = not on_summary
 	if not on_summary:
+		var nav_names: Array = []
+		for step_name in step_names().slice(0, step_count() - 1):
+			nav_names.append(tr(step_name))
+		_step_nav_column.set_step_names(nav_names)
 		_step_nav_column.set_current_step(current_step)
 		## UI再配色パス: STEP2(能力)表示中だけ、中央スライダーと重複する
 		## HP/ATK/SPD/弱点/耐性をBOSS PROFILE側で一時的に隠す——他のSTEPでは
@@ -800,8 +838,8 @@ func _refresh() -> void:
 	## Creator本体UI刷新（2026-09-04）§3: 現在の工程名とSTEP n / 総数は、
 	## 実際の工程数・現在位置から都度算出する（デザイン例の固定文言を
 	## 埋め込まない）。
-	_header.title_label.text = tr("ボス作成 ｜ %s") % tr(STEP_NAMES[current_step - 1])
-	_header.step_label.text = "STEP %d / %d" % [current_step, STEP_COUNT]
+	_header.title_label.text = tr("ボス作成 ｜ %s") % tr(step_names()[current_step - 1])
+	_header.step_label.text = "STEP %d / %d" % [current_step, step_count()]
 	_update_battle_preparation(on_summary)
 	_refresh_world_ui.call_deferred()
 

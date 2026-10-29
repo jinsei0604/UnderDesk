@@ -22,6 +22,7 @@ import { SteamTicketVerifier } from "../steam-auth/steam_ticket_verifier.ts";
 import { RealSteamWebApiClient } from "../steam-auth/steam_web_api_client.ts";
 import { WEB_API_IDENTITY } from "../steam-auth/index.ts";
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
+import { DEMO_MAX_PUBLISHED, isDemoPayload } from "../_shared/edition.ts";
 
 const BATTLE_HASH_PATTERN = /^[0-9a-f]{64}$/;
 const MAX_PAYLOAD_BYTES = 262144; // 256KiB -- generous for a single boss definition, rejects abuse.
@@ -157,6 +158,20 @@ export async function handlePublish(
     return jsonResponse({ ok: false, error_kind: verification.errorKind, message: verification.message }, status);
   }
   const ownerSteamId = verification.steamId as string;
+
+  // --- 体験版(体験版のアプリのチケット、2026-10-28): SIMPLE・体験版の4体だけ、公開は1人2体まで(このボスの更新は数えない) ---
+  if (verification.edition === "demo") {
+    if (!isDemoPayload(payload)) {
+      return jsonResponse({ ok: false, error_kind: "demo_not_allowed", message: "This boss cannot be published from the trial version" }, 403);
+    }
+    const published = await db.select<BossRow>("bosses", `owner_steam_id=eq.${ownerSteamId}&is_published=eq.true&select=id`);
+    if (!published.ok) {
+      return jsonResponse({ ok: false, error_kind: "db_error", message: published.errorMessage ?? "" }, 502);
+    }
+    if (published.rows.filter((row) => row.id !== bossId).length >= DEMO_MAX_PUBLISHED) {
+      return jsonResponse({ ok: false, error_kind: "demo_publish_limit", message: "The trial version can publish up to 2 bosses" }, 403);
+    }
+  }
 
   // --- ownership + revision resolution ---
   let revision = 1;

@@ -293,12 +293,6 @@ func test_a_disabled_bgm_plays_and_loads_nothing() -> void:
 	assert_eq(_bgm(view).current_track(), "", "使わない設定の画面では鳴らさない")
 	assert_true(_bgm(view)._streams.is_empty(), "曲も読まない")
 
-func test_the_home_monitor_preview_disables_its_bgm_before_the_battle_starts() -> void:
-	var source := FileAccess.get_file_as_string("res://src/bossmaker/home_monitor/rbm_home_top_monitor_battle_preview.gd")
-	var disable_at := source.find("RBMBattleBgm.NODE_NAME) as RBMBattleBgm).enabled = false")
-	assert_gt(disable_at, -1, "モニターのプレビューは BGM を使わない設定にする")
-	assert_lt(disable_at, source.find("_view.start_battle("), "戦闘を始める前に")
-
 ## 覚醒後の曲が無いボスは覚醒後も覚醒前の曲を続け、音量も覚醒前の曲の値のまま。
 func test_a_boss_without_an_awakened_track_keeps_the_normal_track_and_its_volume() -> void:
 	var view := _fake_view("appearance_golem")

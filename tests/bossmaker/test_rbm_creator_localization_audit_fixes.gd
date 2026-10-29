@@ -71,7 +71,7 @@ func test_skill_override_field_labels_translate_to_english() -> void:
 	add_child_autofree(main)
 	main.draft.set_creator_mode(RBMCreatorDraft.CREATOR_MODE_ADVANCED)
 	main.draft.add_party_character("hero")
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	var step := main._step_views[3] as RBMCreatorStep5Party
 	step.refresh()
 	(step.find_child("SelectCharacterButton_hero", true, false) as Button).pressed.emit()
@@ -88,7 +88,7 @@ func test_skill_override_field_labels_stay_japanese_in_japanese() -> void:
 	add_child_autofree(main)
 	main.draft.set_creator_mode(RBMCreatorDraft.CREATOR_MODE_ADVANCED)
 	main.draft.add_party_character("hero")
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	var step := main._step_views[3] as RBMCreatorStep5Party
 	step.refresh()
 	(step.find_child("SelectCharacterButton_hero", true, false) as Button).pressed.emit()

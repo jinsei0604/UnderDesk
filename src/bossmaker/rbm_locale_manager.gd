@@ -25,7 +25,8 @@ const _SETTINGS_PATH := "user://bossmaker/settings.json"
 static func settings_path() -> String:
 	if RBMLocalStageRepository.running_under_gut():
 		return RBMLocalStageRepository.GUT_DEFAULT_ROOT + "/settings.json"
-	return _SETTINGS_PATH
+	# 体験版は製品版と別の置き場（RBMEdition.data_root()）。製品版は今までどおり _SETTINGS_PATH。
+	return _SETTINGS_PATH if not RBMEdition.is_demo() else RBMEdition.data_root() + "/settings.json"
 
 var _locale: String = DEFAULT_LOCALE
 

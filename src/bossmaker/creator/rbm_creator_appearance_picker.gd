@@ -2,261 +2,465 @@ class_name RBMCreatorAppearancePicker
 extends Control
 
 const VisualAssets = preload("res://src/bossmaker/visuals/rbm_visual_assets.gd")
+const S := preload("res://src/bossmaker/challenge/rbm_challenge_list_style.gd")
+const Menu := preload("res://src/bossmaker/challenge/rbm_menu_ui.gd")
 
-## Phase 1 Step 4 §1-3 — dedicated "ボス外見一覧" page (grid, current-selection
-## highlight, 選択/戻る). Grid is built directly from
-## RBMCreatorAppearanceCatalog.all(), so adding more entries later needs no
-## change here.
-##
-## 画面全体を使ったレイアウト・即決定への再設計(2回目の改修)§1-2: この
-## Controlは_steps_root(RBMCreatorMain.gd)と同じ「root_column(VBoxContainer)
-## の兄弟」として配置される——_steps_rootがsize_flags_vertical=EXPAND_FILLを
-## 明示しているのと同じ理由で、これを付けないとroot_column内で自分の
-## 最小サイズ(=中身が小さい間はごく小さい矩形)しか確保できず、「画面左上に
-## 小さくまとまる」原因になっていた。
+## ボス選択（ボスの外見を選ぶ画面）。2026-10-28 ユーザー承認の案（prototypes/menu_boss_select_designs_2026-10-28）で作り直した:
+## 左にボスのカードの一覧（スクロール）、右に選んだボスのプロフィール（戦闘と同じ背景の上の立ち絵・名前・特徴・
+## 覚醒できるボスだけ「覚醒後を見る」／「通常に戻す」・単体攻撃と全体攻撃のプレビュー枠・「このボスにする」）。
+## カードを押すと選ぶだけで、決定は「このボスにする」（以前の「押した瞬間に決定」から変更）。
+## プレビュー枠の中身は仮表示（攻撃の動画はまだ入れない。ユーザーの指示）。一覧は RBMCreatorAppearanceCatalog.all() から作る。
+## RBMCreatorMain の root_column の中に置かれ、見た目は紺＋水色（RBMMenuUi）を自分で持つ（共通の再配色を受けない）。
 
 signal confirmed(appearance_id: String)
 signal cancelled
 
-## カード1枚のサイズ——「ボス画像が主役、名前は下に添える」構成で、画像
-## 表示領域(IMAGE_AREA_MIN_SIZE)がカード全体の残り高さをsize_flags_vertical=
-## EXPAND_FILLで自動的に占有するため、覚醒対応カード(バッジ+切替ボタン行が
-## 追加で挟まる)でも非対応カードでも、ハードコードした個別倍率無しで
-## 「画像が7〜8割」の見え方になる。
-const CARD_SIZE := Vector2(340, 260)
-const CARD_INNER_MARGIN := 12
-const CARD_SEPARATION := 6
-## 画像表示領域の最小サイズ——旧実装の200x96よりさらに拡大。実際の表示
-## サイズはEXPAND_FILLによりこれより大きくなる(カード内の余った高さを
-## 全て画像へ渡すため)。
-const IMAGE_AREA_MIN_SIZE := Vector2(280, 160)
-const GRID_SEPARATION := 24
-## 「戻る」ボタンの下に置く行と、画面全体に対する余白——RBMCreatorTestBattleView
-## の CONTENT_SIDE_MARGIN_PX/CONTENT_TOP_MARGIN_PX と同じ技法(この画面自身の
-## 矩形いっぱいにanchorしたcolumnへ、offsetでピクセル単位の余白を持たせる)。
-const CONTENT_SIDE_MARGIN_PX := 60.0
-const CONTENT_TOP_MARGIN_PX := 40.0
-const CONTENT_BOTTOM_MARGIN_PX := 24.0
-## バッジ/切替ボタンはどちらもこの小さいフォントサイズへ揃える——控えめな
-## 補助表示として統一する。
-const OVERLAY_FONT_SIZE := RBMUiTheme.FONT_SIZE_SMALL
+const LIST_WIDTH := 400.0
+const CARD_HEIGHT := 84.0
+const THUMB_SIZE := Vector2(84, 68)
+const THUMB_FIT := Vector2(72, 60)
+const STAGE_HEIGHT := 250.0
+const BOSS_FIT := Vector2(300, 196)
+## プロフィールの特徴（ボスごと、通常／覚醒後）。表示用の文言（翻訳する）。
+const FEATURES := {
+	"appearance_slime": {"normal": ["ぷるぷると弾む赤いスライム", "体を伸ばして素早く殴りかかる"]},
+	"appearance_wolf": {"normal": ["青い毛並みの素早い狼", "鋭い牙で飛びかかる"]},
+	"appearance_knight": {"normal": ["黒い鎧に身を包んだ騎士", "大剣で重い一撃を放つ"]},
+	"appearance_dragon": {"normal": ["大きな翼を持つ緑の竜", "炎の息で焼き払う"], "awakened": ["黒い体と赤い翼の覚醒した姿", "黒い炎の息と隕石で攻め立てる"]},
+	"appearance_ghost": {"normal": ["炎のような衣をまとう幽霊", "ふわりと漂いながら襲いかかる"]},
+	"appearance_golem": {"normal": ["岩でできた巨大なゴーレム", "拳で地面を叩きつける"]},
+	"appearance_musha": {"normal": ["墨をまとう朽ちた機械の武者", "刀の一閃で斬りかかる"], "awakened": ["墨に染まり力を増した姿", "墨の刃が戦場をおおう"]},
+	"appearance_astronaut": {"normal": ["宇宙から来た謎の飛行士", "重力をあやつって戦う"], "awakened": ["宇宙の力を解き放った姿", "惑星やブラックホールを呼び出す"]},
+	"appearance_gentleman": {"normal": ["礼儀正しい異形の紳士", "優雅な身のこなしから攻撃を仕掛ける"], "awakened": ["本性を現した異形の姿", "紳士の面影はもうない"]},
+	"appearance_plush": {"normal": ["つぎはぎだらけのぬいぐるみ", "かわいい見た目で油断を誘う"], "awakened": ["覚醒して恐ろしい姿に変わったぬいぐるみ", "かわいさの奥に恐ろしさがひそむ"]},
+}
 
 var _selected_id: String = ""
 var _opened_with_id: String = ""
-var _entry_buttons: Dictionary = {}  # id(String) -> Button（カード全体そのもの）
-## 覚醒(Awakening)後プレビュー——カードごとに完全に独立した状態
-## (id -> bool)。あるカードの切替が他のカードへ波及しないようにするため、
-## 単一の共有状態ではなく必ずid別に保持する。
+var _entry_buttons: Dictionary = {}  # id(String) -> Button（一覧のカード）
+var _entries: Dictionary = {}  # id(String) -> カタログの1件
+## 覚醒後のプレビュー（ボスごとに独立。開き直すと全部通常へ戻る）。
 var _preview_awakened: Dictionary = {}  # id(String) -> bool
-var _preview_swatches: Dictionary = {}  # id(String) -> TextureRect
-var _preview_toggle_buttons: Dictionary = {}  # id(String) -> Button（覚醒対応の外見のみ存在）
+var _grid: GridContainer
+var _count_label: Label
+var _stage_bg: TextureRect
+var _boss_sprite: TextureRect
+var _boss_shadow: TextureRect
+var _state_tag: Label
+var _name_label: Label
+var _features: VBoxContainer
+var _toggle: Button
+var _preview_title: Label
+var _preview_captions: Array[Label] = []
+var _preview_frames: Array[Panel] = []
+var _selected_label: Label
+var _confirm_button: Button
 
 func _ready() -> void:
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
+	set_meta("world_skip", true)
+	# 見出しの下の線など、この画面の外へはみ出す飾りを切る。
+	clip_contents = true
 	_build_ui()
 
 func _build_ui() -> void:
-	var column := VBoxContainer.new()
-	column.name = "Column"
-	column.anchor_right = 1.0
-	column.anchor_bottom = 1.0
-	column.offset_left = CONTENT_SIDE_MARGIN_PX
-	column.offset_right = -CONTENT_SIDE_MARGIN_PX
-	column.offset_top = CONTENT_TOP_MARGIN_PX
-	column.offset_bottom = -CONTENT_BOTTOM_MARGIN_PX
-	add_child(column)
-	column.add_child(Label.new())  # title placeholder
-
-	## グリッド自体はカードの最小サイズぶんしか場所を取らないため、
-	## 余った縦横の空間はCenterContainerで中央へ寄せる——「画面全体を使う」
-	## ことと「カード同士を無理に密着・引き伸ばしさせない」ことを両立する。
-	## ボスの数が増えて行数が表示領域を超えても、カードを縮小して詰め込まず
-	## 縦スクロールで全ボスを選べるようにする(横スクロールは無し——3列の
-	## カードは常に表示幅へ収まる)。カード全体が収まる間は、従来どおり
-	## CenterContainerが表示領域の中央へ寄せる(EXPAND_FILLでスクロール領域
-	## いっぱいへ広がり、超えた時だけ中身の高さぶんスクロールする)。
-	var grid_scroll := ScrollContainer.new()
-	grid_scroll.name = "GridScroll"
-	grid_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	grid_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	column.add_child(grid_scroll)
-	var grid_center := CenterContainer.new()
-	grid_center.name = "GridCenter"
-	grid_center.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	grid_center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid_scroll.add_child(grid_center)
-
-	var grid := GridContainer.new()
-	grid.name = "AppearanceGrid"
-	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", GRID_SEPARATION)
-	grid.add_theme_constant_override("v_separation", GRID_SEPARATION)
-	grid_center.add_child(grid)
-	for entry in RBMCreatorAppearanceCatalog.all():
-		_build_card(grid, entry)
-
-	var actions := HBoxContainer.new()
-	column.add_child(actions)
+	Menu.add_backdrop(self, "PickerBackdrop")
 	var back_button := Button.new()
 	back_button.name = "BackButton"
-	back_button.text = tr("戻る")
-	back_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
 	back_button.pressed.connect(_on_back_pressed)
-	actions.add_child(back_button)
+	Menu.header(self, back_button, tr("戻る"), tr("ボスを選ぶ"), tr("外見と攻撃の雰囲気を見て、作るボスを決めます"), "PickerTitleLabel", "PickerSubtitleLabel")
 
-## `entry`はRBMCreatorAppearanceCatalog.all()の1件と同じ形
-## ({"id","name","supports_awakening"})——実運用では常にそこから呼ぶが、
-## 独立したメソッドに切り出してあるのは、「覚醒対応の外見が来たらどう描画するか」
-## (覚醒後アセットがまだ無い場合など)を、テスト側がその場限りのfixture
-## Dictionaryを直接渡して検証できるようにするため(RBMCreatorAppearanceCatalog.
-## ENTRIESはGodotのconstとして実行時読み取り専用のため書き換えられない——
-## 本物のボスデータの覚醒対応を書き換えずに済む)。
-##
-## カード構造の再設計§5-7/§9: カード全体(画像+名前+バッジ/切替ボタン)を
-## 1つのButton(`card`)にし、押した瞬間に選択即決定する。中身の画像/名前/
-## バッジ等は`mouse_filter = MOUSE_FILTER_IGNORE`にして、クリックが自分の
-## 手前で消費されず必ず`card`まで届くようにする——ただし「覚醒後を見る」
-## トグルボタンだけは実在のButtonのまま(既定のMOUSE_FILTER_STOP)残すため、
-## そのボタン領域を押した場合はGodotの通常のヒットテスト(最も手前の実在
-## Controlが優先される)によって`card`側のpressedは発火しない。
+	var body := HBoxContainer.new()
+	body.name = "PickerBody"
+	body.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	body.offset_left = 24
+	body.offset_right = -24
+	body.offset_top = 92
+	body.offset_bottom = -18
+	body.add_theme_constant_override("separation", 16)
+	add_child(body)
+	body.add_child(_build_list())
+	body.add_child(_build_profile())
+
+	var first := ""
+	for entry in RBMCreatorAppearanceCatalog.all():
+		# 体験版は竜・スライム・幽霊・機械武者だけ（RBMEdition）。製品版は全員。
+		if not RBMEdition.allows_appearance(str(entry["id"])):
+			continue
+		_build_card(_grid, entry)
+		if first.is_empty():
+			first = str(entry["id"])
+	_count_label.text = tr("%d体") % _entries.size()
+	if not first.is_empty():
+		select(first)
+
+# ---------------------------------------------------------------------------
+# 左: ボスの一覧
+
+func _build_list() -> Panel:
+	var panel := Panel.new()
+	panel.name = "BossListPanel"
+	panel.custom_minimum_size = Vector2(LIST_WIDTH, 0)
+	panel.add_theme_stylebox_override("panel", S.box(Color(S.PANEL, 0.92), S.PANEL_EDGE))
+	Menu.section(panel, tr("ボス一覧"), Vector2(16, 12), "BossListTitle")
+	_count_label = S.label(panel, "", Rect2(250, 12, 134, 28), 13, S.MUTED, "BossListCount")
+	_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var scroll := ScrollContainer.new()
+	scroll.name = "GridScroll"
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scroll.offset_left = 8
+	scroll.offset_right = -8
+	scroll.offset_top = 50
+	scroll.offset_bottom = -8
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel.add_child(scroll)
+	S.style_scrollbar(scroll.get_v_scroll_bar())
+	_grid = GridContainer.new()
+	_grid.name = "AppearanceGrid"
+	_grid.columns = 1
+	_grid.add_theme_constant_override("v_separation", 8)
+	_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(_grid)
+	return panel
+
+## 一覧のカード1枚（押すと選ぶ。決定は「このボスにする」）。`entry` は RBMCreatorAppearanceCatalog.all() の1件と同じ形
+## （{"id","name","supports_awakening"}）。テストがその場の fixture を渡して確かめられるよう、独立したメソッドにしてある。
 func _build_card(grid: GridContainer, entry: Dictionary) -> void:
 	var id := str(entry["id"])
-	var supports_awakening: bool = bool(entry.get("supports_awakening", false))
-
+	_entries[id] = entry
+	_preview_awakened[id] = false
 	var card := Button.new()
 	card.name = "Appearance_%s" % id
 	card.toggle_mode = true
-	card.custom_minimum_size = CARD_SIZE
+	card.custom_minimum_size = Vector2(LIST_WIDTH - 36, CARD_HEIGHT)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	Menu.card_styles(card, false)
+	var selected := S.box(Color("0f2a30", 0.96), S.ACCENT)
+	selected.shadow_color = Color(S.ACCENT, 0.2)
+	selected.shadow_size = 6
+	card.add_theme_stylebox_override("pressed", selected)
+	card.add_theme_stylebox_override("hover_pressed", selected)
 	card.pressed.connect(_on_card_pressed.bind(id))
 	grid.add_child(card)
 	_entry_buttons[id] = card
+	var bar := ColorRect.new()
+	bar.name = "SelectedBar"
+	bar.color = S.ACCENT
+	bar.size = Vector2(4, CARD_HEIGHT)
+	bar.visible = false
+	card.add_child(bar)
+	var area := Panel.new()
+	area.name = "AppearancePreviewArea_%s" % id
+	area.position = Vector2(10, 8)
+	area.size = THUMB_SIZE
+	area.add_theme_stylebox_override("panel", S.box(S.INSET, Color("1a2830")))
+	card.add_child(area)
+	var thumb := TextureRect.new()
+	thumb.name = "AppearancePreview_%s" % id
+	thumb.texture = S.fitted_sprite(VisualAssets.boss_asset(id), THUMB_FIT)
+	if thumb.texture == null:
+		thumb.texture = VisualAssets.texture(VisualAssets.boss_asset(id), 0)
+	thumb.position = Vector2(6, 4)
+	thumb.size = THUMB_SIZE - Vector2(12, 8)
+	thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	thumb.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	area.add_child(thumb)
+	var name_label := S.label(card, tr(str(entry["name"])), Rect2(108, 12, LIST_WIDTH - 36 - 120, 30), 18, S.SILVER, "AppearanceName_%s" % id)
+	name_label.clip_text = true
+	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	if bool(entry.get("supports_awakening", false)):
+		Menu.tag(card, tr("覚醒あり"), Vector2(108, 48), S.HARD, S.HARD_EDGE, Color(S.INSET, 0.9), false, "AwakeningCapableBadge_%s" % id)
+	else:
+		S.label(card, tr("覚醒なし"), Rect2(108, 46, 160, 24), 12, S.DIM, "NoAwakeningLabel_%s" % id)
+	_ignore_mouse(card)
 
-	var margin := MarginContainer.new()
-	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", CARD_INNER_MARGIN)
-	margin.add_theme_constant_override("margin_right", CARD_INNER_MARGIN)
-	margin.add_theme_constant_override("margin_top", CARD_INNER_MARGIN)
-	margin.add_theme_constant_override("margin_bottom", CARD_INNER_MARGIN)
-	card.add_child(margin)
+func _ignore_mouse(card: Control) -> void:
+	for child in card.find_children("*", "Control", true, false):
+		(child as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var content := VBoxContainer.new()
-	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_theme_constant_override("separation", CARD_SEPARATION)
-	margin.add_child(content)
+# ---------------------------------------------------------------------------
+# 右: プロフィール
 
-	## 画像表示領域: size_flags_vertical=EXPAND_FILLにより、カード内で
-	## 名前ラベル(・覚醒対応カードのみ追加される下記overlay_row)が使う分を
-	## 除いた残り高さを丸ごと画像に渡す——「画像が主役」をボスごとの
-	## 特別扱い無しで実現する。
-	var preview_area := Control.new()
-	preview_area.name = "AppearancePreviewArea_%s" % id
-	preview_area.custom_minimum_size = IMAGE_AREA_MIN_SIZE
-	preview_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	preview_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(preview_area)
+func _build_profile() -> Panel:
+	var panel := Panel.new()
+	panel.name = "AppearanceProfile"
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.clip_contents = true
+	panel.add_theme_stylebox_override("panel", S.box(Color(S.PANEL, 0.96), S.PANEL_EDGE))
+	var column := VBoxContainer.new()
+	column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	column.offset_left = 1
+	column.offset_right = -1
+	column.offset_top = 1
+	column.offset_bottom = -12
+	column.add_theme_constant_override("separation", 10)
+	panel.add_child(column)
 
-	var swatch := TextureRect.new()
-	swatch.name = "AppearancePreview_%s" % id
-	swatch.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	swatch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	swatch.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	swatch.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	preview_area.add_child(swatch)
-	_preview_swatches[id] = swatch
-	_preview_awakened[id] = false
+	# 立ち絵の舞台（戦闘と同じ背景）と、右側の名前・特徴・覚醒の切り替え
+	var stage := Control.new()
+	stage.name = "ProfileStage"
+	stage.custom_minimum_size = Vector2(0, STAGE_HEIGHT)
+	stage.clip_contents = true
+	column.add_child(stage)
+	_stage_bg = TextureRect.new()
+	_stage_bg.name = "ProfileStageBackground"
+	_stage_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_stage_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_stage_bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_stage_bg.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	stage.add_child(_stage_bg)
+	var shade := S.gradient_rect(stage, Rect2(0, 0, 100, 100), Color(S.PANEL, 0.0), Color(S.PANEL, 0.95), true, 0.40, 0.66)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var fade := S.gradient_rect(stage, Rect2(0, 0, 100, 60), Color(S.PANEL, 0.0), Color(S.PANEL, 1.0))
+	fade.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	fade.offset_top = -60
+	_boss_shadow = S.floor_shadow(stage, Rect2(0, 0, 260, 30))
+	_boss_sprite = TextureRect.new()
+	_boss_sprite.name = "ProfileBossSprite"
+	_boss_sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_boss_sprite.stretch_mode = TextureRect.STRETCH_SCALE
+	_boss_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	stage.add_child(_boss_sprite)
+	var info := VBoxContainer.new()
+	info.name = "ProfileInfo"
+	info.anchor_left = 0.555
+	info.anchor_right = 1.0
+	info.anchor_bottom = 1.0
+	info.offset_left = 0
+	info.offset_right = -20
+	info.offset_top = 20
+	info.offset_bottom = -12
+	info.add_theme_constant_override("separation", 6)
+	stage.add_child(info)
+	var tag_row := HBoxContainer.new()
+	info.add_child(tag_row)
+	_state_tag = Menu.tag(tag_row, "", Vector2.ZERO, S.HARD, S.HARD_EDGE, Color(S.INSET, 0.9), false, "ProfileStateTag")
+	_name_label = Menu.shadow(S.label(info, "", Rect2(0, 0, 10, 44), 28, S.TEXT, "ProfileBossName"))
+	_name_label.custom_minimum_size = Vector2(0, 44)
+	_name_label.clip_text = true
+	_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	var rule := ColorRect.new()
+	rule.color = S.PANEL_EDGE
+	rule.custom_minimum_size = Vector2(0, 1)
+	info.add_child(rule)
+	var caption := S.label(info, tr("特徴"), Rect2(0, 0, 10, 22), 13, S.DIM, "ProfileFeaturesCaption")
+	caption.custom_minimum_size = Vector2(0, 22)
+	_features = VBoxContainer.new()
+	_features.name = "ProfileFeatures"
+	_features.add_theme_constant_override("separation", 2)
+	_features.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	info.add_child(_features)
+	_toggle = Button.new()
+	_toggle.name = "AwakenedPreviewToggle"
+	_toggle.custom_minimum_size = Vector2(200, 40)
+	_toggle.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_toggle.add_theme_font_size_override("font_size", 15)
+	_toggle.pressed.connect(func(): _on_preview_toggle_pressed(_selected_id))
+	info.add_child(_toggle)
+	stage.resized.connect(_place_boss)
 
-	if supports_awakening:
-		## バッジ/切替ボタンは、画像の上に重ねるのではなく画像の「下」の
-		## 専用の行に置く——画像・名前・バッジ・ボタンのいずれとも重ならない
-		## ようにするため(前回のGPU検証で発見した重なりバグの再発防止)。
-		var overlay_row := HBoxContainer.new()
-		overlay_row.name = "AwakeningOverlayRow_%s" % id
-		overlay_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		content.add_child(overlay_row)
+	# 攻撃のプレビュー（枠だけ・中身は仮表示）
+	var head := Control.new()
+	head.custom_minimum_size = Vector2(0, 30)
+	column.add_child(head)
+	_preview_title = Menu.section(head, "", Vector2(16, 2), "PreviewTitle")
+	var note := S.label(head, tr("それぞれループ再生します（準備中）"), Rect2(0, 0, 10, 26), 12, S.MUTED, "PreviewNote")
+	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	note.anchor_left = 0.4
+	note.anchor_right = 1.0
+	note.offset_left = 0
+	note.offset_right = -16
+	note.offset_top = 2
+	note.offset_bottom = 28
+	var frames := HBoxContainer.new()
+	frames.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	frames.add_theme_constant_override("separation", 8)
+	column.add_child(frames)
+	var frames_left := Control.new()
+	frames_left.custom_minimum_size = Vector2(6, 0)
+	frames.add_child(frames_left)
+	for node_name in ["SingleAttackPreview", "AllAttackPreview"]:
+		frames.add_child(_preview_frame(node_name))
+	var frames_right := Control.new()
+	frames_right.custom_minimum_size = Vector2(6, 0)
+	frames.add_child(frames_right)
 
-		var toggle_button := Button.new()
-		toggle_button.name = "AwakenedPreviewToggle_%s" % id
-		toggle_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
-		toggle_button.text = tr("覚醒後を見る")
-		toggle_button.add_theme_font_size_override("font_size", OVERLAY_FONT_SIZE)
-		# B項: supports_awakening==trueでも覚醒後アセットがまだ制作
-		# されていない場合はdisabledにする——「覚醒対応」と「素材が
-		# 実在する」は別概念(§3確定)。
-		toggle_button.disabled = not VisualAssets.has_awakened_design(VisualAssets.boss_asset(id))
-		toggle_button.pressed.connect(_on_preview_toggle_pressed.bind(id))
-		overlay_row.add_child(toggle_button)
-		_preview_toggle_buttons[id] = toggle_button
+	# 決定
+	var bottom := HBoxContainer.new()
+	bottom.custom_minimum_size = Vector2(0, 56)
+	column.add_child(bottom)
+	var bottom_left := Control.new()
+	bottom_left.custom_minimum_size = Vector2(22, 0)
+	bottom.add_child(bottom_left)
+	_selected_label = S.label(bottom, "", Rect2(0, 0, 10, 56), 15, S.SILVER, "SelectedBossLabel")
+	_selected_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_selected_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_selected_label.clip_text = true
+	_selected_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_confirm_button = Button.new()
+	_confirm_button.name = "ConfirmAppearanceButton"
+	_confirm_button.text = tr("このボスにする")
+	_confirm_button.icon = Menu.icon("right", S.ACCENT)
+	_confirm_button.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_confirm_button.custom_minimum_size = Vector2(300, 52)
+	_confirm_button.add_theme_font_size_override("font_size", 20)
+	S.button_style(_confirm_button, true)
+	_confirm_button.pressed.connect(_on_confirm_pressed)
+	bottom.add_child(_confirm_button)
+	var bottom_right := Control.new()
+	bottom_right.custom_minimum_size = Vector2(14, 0)
+	bottom.add_child(bottom_right)
+	return panel
 
-		var spacer := Control.new()
-		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		overlay_row.add_child(spacer)
+## 攻撃のプレビュー枠（仮表示: 格子・再生の三角・「プレビュー準備中」）。中身の動画はまだ入れない。
+func _preview_frame(node_name: String) -> Panel:
+	var box := Panel.new()
+	box.name = node_name
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.clip_contents = true
+	box.add_theme_stylebox_override("panel", S.box(S.INSET, Color("1f3a44")))
+	var grid := Control.new()
+	grid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(grid)
+	grid.draw.connect(func():
+		for gx in range(0, int(grid.size.x), 20):
+			grid.draw_rect(Rect2(gx, 0, 1, grid.size.y), Color(S.ACCENT, 0.05))
+		for gy in range(0, int(grid.size.y), 20):
+			grid.draw_rect(Rect2(0, gy, grid.size.x, 1), Color(S.ACCENT, 0.05))
+		var c := (grid.size / 2.0 + Vector2(0, -6)).round()
+		for row in range(-12, 13, 3):
+			grid.draw_rect(Rect2(c.x - 9, c.y + row, 24 - absi(row) * 2, 3), Color(S.SILVER, 0.55)))
+	grid.resized.connect(grid.queue_redraw)
+	var cap := Menu.shadow(S.label(box, "", Rect2(14, 10, 260, 24), 15, S.TEXT, "PreviewCaption"))
+	_preview_captions.append(cap)
+	var loop := Menu.tag(box, "LOOP", Vector2.ZERO, S.MUTED, Color("2a3a44"), Color(S.INSET, 0.9), true, "PreviewLoopTag")
+	loop.anchor_left = 1.0
+	loop.anchor_right = 1.0
+	loop.offset_left = -62
+	loop.offset_right = -12
+	loop.offset_top = 12
+	loop.offset_bottom = 30
+	var wait := S.label(box, tr("プレビュー準備中"), Rect2(0, 0, 10, 24), 13, S.MUTED, "PreviewPending")
+	wait.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	wait.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	wait.anchor_left = 0.0
+	wait.anchor_right = 1.0
+	wait.offset_left = 0
+	wait.offset_right = 0
+	wait.offset_top = 20
+	wait.offset_bottom = 44
+	_preview_frames.append(box)
+	return box
 
-		var badge := Label.new()
-		badge.name = "AwakeningCapableBadge_%s" % id
-		badge.text = tr("覚醒可能")
-		badge.theme_type_variation = RBMUiTheme.VARIATION_SMALL_LABEL
-		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		overlay_row.add_child(badge)
+func _place_boss() -> void:
+	if _boss_sprite.texture == null:
+		return
+	var stage := _boss_sprite.get_parent() as Control
+	var cx := roundf(stage.size.x * 0.555 / 2.0)
+	var foot := stage.size.y - 18.0
+	_boss_sprite.size = S.fitted_size(_boss_sprite.texture, BOSS_FIT)
+	_boss_sprite.position = Vector2(cx - _boss_sprite.size.x / 2.0, foot - _boss_sprite.size.y).round()
+	_boss_shadow.position = Vector2(cx - 130, foot - 20)
 
-	_refresh_preview_texture(id)
+# ---------------------------------------------------------------------------
+# 状態
 
-	var name_label := Label.new()
-	name_label.name = "AppearanceName_%s" % id
-	name_label.text = tr(str(entry["name"]))
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(name_label)
-
-## 画面を開き直すたびに、全カードのプレビューを必ず通常状態へ戻す——
-## 前回覚醒後を見ていた状態を持ち越さない（確定仕様）。ボス選択そのもの
-## (_selected_id/select())とは完全に別の状態のため、ここでは触れない。
+## 画面を開き直すたびに、覚醒後のプレビューを全部通常へ戻し、今のボスを選んだ状態にする。
 func open(current_appearance_id: String) -> void:
 	_opened_with_id = current_appearance_id
 	for id in _preview_awakened.keys():
 		_preview_awakened[id] = false
-		_refresh_preview_texture(id)
-	select(current_appearance_id)
+	select(current_appearance_id if _entries.has(current_appearance_id) else _selected_id)
 
 func select(appearance_id: String) -> void:
 	_selected_id = appearance_id
 	for id in _entry_buttons.keys():
-		(_entry_buttons[id] as Button).button_pressed = (id == appearance_id)
+		var card := _entry_buttons[id] as Button
+		card.button_pressed = (id == appearance_id)
+		(card.get_node("SelectedBar") as CanvasItem).visible = card.button_pressed
+		(card.find_child("AppearanceName_%s" % id, false, false) as Label).add_theme_color_override("font_color", S.TEXT if card.button_pressed else S.SILVER)
+	_refresh_profile()
 
-## カード(画像+名前を含むカード全体)を押した瞬間に選択即決定する——
-## 二段階確認(旧「決定」ボタン)は廃止(§6-7確定)。
+func selected_appearance_id() -> String:
+	return _selected_id
+
+## 一覧のカードを押した時: 選んでプロフィールを出すだけ（決定は「このボスにする」）。
 func _on_card_pressed(id: String) -> void:
 	select(id)
-	confirmed.emit(id)
 
-## 覚醒後プレビュー切替——これはあくまで画像プレビューであり、ボス選択
-## 操作(_selected_id/select()/confirmedシグナル)には一切触れない。押した
-## カードのidだけを更新するため、他のカードの表示には波及しない。
-## card自体のButtonより手前にある実在のButtonのため、Godotの通常の
-## ヒットテストにより、このボタンを押してもcardのpressedは発火しない
-## (§9確定)。
+func _on_confirm_pressed() -> void:
+	if _entries.has(_selected_id):
+		confirmed.emit(_selected_id)
+
+## 覚醒後のプレビューの切り替え（表示だけ。選んでいるボス・決定には触れない）。
 func _on_preview_toggle_pressed(id: String) -> void:
-	_preview_awakened[id] = not bool(_preview_awakened.get(id, false))
-	_refresh_preview_texture(id)
-
-func _refresh_preview_texture(id: String) -> void:
-	var swatch: TextureRect = _preview_swatches.get(id)
-	if not is_instance_valid(swatch):
+	if not _entries.has(id):
 		return
-	var asset_id := VisualAssets.boss_asset(id)
-	var awakened: bool = bool(_preview_awakened.get(id, false))
-	var effective_asset_id := VisualAssets.awakened_asset_id(asset_id) if awakened else asset_id
-	swatch.texture = VisualAssets.texture(effective_asset_id, 0)
-	var toggle_button: Button = _preview_toggle_buttons.get(id)
-	if is_instance_valid(toggle_button):
-		toggle_button.text = tr("通常時を見る") if awakened else tr("覚醒後を見る")
+	_preview_awakened[id] = not bool(_preview_awakened.get(id, false))
+	if id == _selected_id:
+		_refresh_profile()
 
-## 「戻る」は選択内容を変更しない——開いた時点のboss idへ表示上のハイライト
-## だけ戻してから閉じる(§8確定)。
+func is_showing_awakened(id: String) -> bool:
+	return bool(_preview_awakened.get(id, false))
+
+## 旧名（一覧のカードの絵を切り替えていた頃）。今はプロフィールの絵を描き直す。
+func _refresh_preview_texture(id: String) -> void:
+	if id == _selected_id:
+		_refresh_profile()
+
+func _refresh_profile() -> void:
+	if not _entries.has(_selected_id):
+		return
+	var entry: Dictionary = _entries[_selected_id]
+	var asset := VisualAssets.boss_asset(_selected_id)
+	var supports := bool(entry.get("supports_awakening", false))
+	var has_awakened := supports and VisualAssets.has_awakened_design(asset)
+	var awakened := has_awakened and bool(_preview_awakened.get(_selected_id, false))
+	var shown := VisualAssets.awakened_asset_id(asset) if awakened else asset
+	_stage_bg.texture = RBMBattleBackgrounds.texture_for(shown, "night")
+	_boss_sprite.texture = S.fitted_sprite(shown, BOSS_FIT)
+	if _boss_sprite.texture == null:
+		_boss_sprite.texture = VisualAssets.texture(shown, 0)
+	_place_boss()
+	var name := tr(str(entry["name"]))
+	_name_label.text = (tr("%s（覚醒後）") % name) if awakened else name
+	_state_tag.visible = supports
+	_state_tag.text = tr("覚醒後") if awakened else tr("覚醒あり")
+	for child in _features.get_children():
+		_features.remove_child(child)
+		child.queue_free()
+	var lines: Dictionary = FEATURES.get(_selected_id, {})
+	for line in lines.get("awakened" if awakened else "normal", lines.get("normal", [])):
+		var l := S.label(_features, "・" + tr(str(line)), Rect2(0, 0, 10, 24), 14, S.SILVER)
+		l.custom_minimum_size = Vector2(0, 24)
+		l.clip_text = true
+		l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_toggle.visible = supports
+	_toggle.disabled = not has_awakened
+	_toggle.text = tr("通常に戻す") if awakened else tr("覚醒後を見る")
+	_toggle.icon = Menu.icon("left" if awakened else "right", S.SILVER if awakened else S.HARD)
+	_toggle.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT if awakened else HORIZONTAL_ALIGNMENT_RIGHT
+	if awakened:
+		S.button_style(_toggle)
+		_toggle.remove_theme_color_override("font_color")
+	else:
+		S.button_style(_toggle)
+		var st := S.box(Color("2a1410", 0.95), S.HARD)
+		st.content_margin_left = 16
+		st.content_margin_right = 16
+		_toggle.add_theme_stylebox_override("normal", st)
+		_toggle.add_theme_color_override("font_color", Color("ffd0c2"))
+	_preview_title.text = tr("覚醒後の攻撃のプレビュー") if awakened else tr("攻撃のプレビュー")
+	var captions := [tr("覚醒後の単体攻撃"), tr("覚醒後の全体攻撃")] if awakened else [tr("単体攻撃"), tr("全体攻撃")]
+	for i in _preview_captions.size():
+		_preview_captions[i].text = captions[i]
+		_preview_frames[i].add_theme_stylebox_override("panel", S.box(S.INSET, Color(S.HARD_EDGE, 0.8) if awakened else Color("1f3a44")))
+	# 決めるのはボスそのもの（覚醒後の姿を見ていても同じボス）。
+	_selected_label.text = tr("選択中：%s") % name
+
+## 「戻る」は選択内容を変えない——開いた時のボスへ選び直してから閉じる。
 func _on_back_pressed() -> void:
 	select(_opened_with_id)
 	cancelled.emit()

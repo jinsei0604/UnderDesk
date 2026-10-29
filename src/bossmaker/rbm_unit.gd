@@ -130,8 +130,12 @@ func _apply_awakening_stats(multiplier: float) -> void:
 		sp = carry_ratio(sp, max_sp, new_max_sp)
 		max_sp = new_max_sp
 
+## HARDCORE の勝利条件「指定ターンを生き残る」（2026-10-29）のボスだけ true。HP が0になっても倒れた扱いに
+## しない（行動を続け、攻撃も受ける。HP は0のまま下がらない）。勝敗は RBMBattle がターン数で決める。
+var never_downed: bool = false
+
 func is_downed() -> bool:
-	return hp <= 0
+	return hp <= 0 and not never_downed
 
 func has_sp_resource() -> bool:
 	return max_sp != RBMConstants.NO_SP

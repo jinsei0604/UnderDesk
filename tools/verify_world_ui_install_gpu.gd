@@ -163,8 +163,9 @@ func run_gpu_verification(tree: SceneTree, output_dir_override: String = "", rec
 	main.go_to_step(5)
 	await settle()
 	var combat_before := main.draft.battle_content_snapshot().duplicate(true)
-	click(main,"DayBackgroundButton")
-	check(main.draft.battle_background=="day","Day button selects day")
+	# 2026-10-28: STEP5 の昼/夜の選択は削除した。保存・読み込みの互換（古い保存の "day"）は値を直接入れて確かめる。
+	check(main.find_child("DayBackgroundButton",true,false)==null,"no day/night selector on STEP5")
+	main.draft.battle_background = "day"
 	check(main.draft.battle_content_snapshot()==combat_before,"background excluded from combat content")
 	var saved := main.draft.to_saved_dict()
 	var restored := RBMCreatorDraft.new()
@@ -183,8 +184,7 @@ func run_gpu_verification(tree: SceneTree, output_dir_override: String = "", rec
 	view = main._test_battle_view
 	await verify_mode("test")
 	check(not view.visible and main._steps_root.visible,"test Exit returns to Creator")
-	click(main,"NightBackgroundButton")
-	check(main.draft.battle_background=="night","Night button selects night")
+	main.draft.battle_background = "night"
 	await shot("summary-night",game)
 	main.press_clear_check()
 	await settle()

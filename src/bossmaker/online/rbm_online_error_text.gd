@@ -18,6 +18,10 @@ static func describe(response: Dictionary) -> String:
 			return TranslationServer.translate("Steamとの認証に失敗しました。Steamを起動し直して、もう一度お試しください。")
 		"http_5xx":
 			return TranslationServer.translate("サーバーが応答できない状態です。しばらくしてからもう一度お試しください。")
+		"demo_unavailable", "demo_not_allowed":
+			return TranslationServer.translate("このボスは体験版では遊べません。製品版で挑戦できます。")
+		"demo_publish_limit":
+			return TranslationServer.translate("体験版で公開できるボスは%d体までです。公開中のボスを非公開にすると入れ替えられます。") % RBMEdition.DEMO_MAX_ONLINE_PUBLISHED
 		"not_found":
 			return TranslationServer.translate("見つかりませんでした。公開が取り下げられた可能性があります。")
 		"unsupported_schema_version":

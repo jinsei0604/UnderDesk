@@ -252,6 +252,12 @@ func _mode_card(index: int, category: String, title: String, description: String
 		y += 36
 	var cta := M.cta_strip(card, Rect2(20, MODE_CARD_SIZE.y - 76, 560, 56), tr("この方法で作成を始める"), 17)
 	M.on_highlight(card, func(on: bool) -> void: cta.set_lit(1.0 if on else 0.0, 1.0 if on else 0.0))
+	# 体験版: HARDCORE は製品版限定（押せない。札と帯の文で知らせる）。製品版は今までどおり。
+	if node_name == "ChooseAdvancedModeButton" and not RBMEdition.allows_creator_mode(RBMCreatorDraft.CREATOR_MODE_ADVANCED):
+		card.disabled = true
+		card.mouse_default_cursor_shape = Control.CURSOR_ARROW
+		M.tag(card, tr("製品版限定"), Vector2(MODE_CARD_SIZE.x - 132, 30), S.HARD, S.HARD_EDGE, Color(S.INSET, 0.9), false, "FullVersionOnlyTag")
+		cta.label.text = tr("製品版で利用できます")
 
 # ---------------------------------------------------------------------------
 # 保存したボス戦の一覧
@@ -446,6 +452,8 @@ func _on_choose_simple_mode_pressed() -> void:
 	_show_creator()
 
 func _on_choose_advanced_mode_pressed() -> void:
+	if not RBMEdition.allows_creator_mode(RBMCreatorDraft.CREATOR_MODE_ADVANCED):
+		return
 	main.start_new()
 	main.draft.set_creator_mode(RBMCreatorDraft.CREATOR_MODE_ADVANCED)
 	_mode_choice_panel.visible = false

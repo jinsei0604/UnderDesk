@@ -137,8 +137,8 @@ func test_returning_from_challenge_shows_title_screen_again() -> void:
 # §16/§17: 1280x720内に主要UIが収まること
 # =============================================================================
 
-## 確かめる対象は、ユーザーが実際に見る主要タイトルUI(左下/右下のホームモニターと
-## 上中央の戦闘モニター)。非表示の論理ボタン(ChallengeModeButton/CreateModeButton)は
+## 確かめる対象は、ユーザーが実際に見る主要タイトルUI(「挑戦」「ボス作成」のカード。
+## 2026-10-28 に上中央の戦闘モニターは削除)。非表示の論理ボタン(ChallengeModeButton/CreateModeButton)は
 ## 画面に出ないので対象にしない。
 func test_title_screen_primary_ui_stays_within_viewport_at_1280x720() -> void:
 	var root := await _make_root()
@@ -149,15 +149,12 @@ func test_title_screen_primary_ui_stays_within_viewport_at_1280x720() -> void:
 	_assert_within_viewport(challenge_monitor, viewport, "挑戦 home monitor")
 	var creator_monitor := _visible_control(root, "CreatorHomeMonitor")
 	_assert_within_viewport(creator_monitor, viewport, "ボス作成 home monitor")
-	var top_monitor := _visible_control(root, "TopMonitorBattlePreview")
-	_assert_within_viewport(top_monitor, viewport, "top-center battle monitor")
+	assert_null(root.find_child("TopMonitorBattlePreview", true, false), "the top battle loop was removed (2026-10-28)")
 
-	# §3: 中央は意図的に空ける——挑戦/作成は画面下部にあること
-	# （上半分ではなく、viewportの垂直中央より下に位置すること）。今は左下/右下の
-	# ホームモニターがその挑戦/作成にあたる。
+	# 2026-10-28: 2枚のカードは画面の縦の中央に並ぶ（ユーザー承認）。
 	for monitor in [challenge_monitor, creator_monitor]:
 		var center_y: float = monitor.global_position.y + monitor.size.y * 0.5
-		assert_gt(center_y, viewport.size.y * 0.5, "%s must sit in the bottom half of the screen, per §3" % monitor.name)
+		assert_almost_eq(center_y, viewport.size.y * 0.5, 2.0, "%s must sit in the vertical center" % monitor.name)
 
 func _visible_control(node: Node, control_name: String) -> Control:
 	var found := node.find_child(control_name, true, false) as Control

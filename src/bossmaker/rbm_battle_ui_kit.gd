@@ -181,6 +181,12 @@ static func describe_entry(entry: Dictionary, battle: RBMBattle) -> Dictionary:
 			return {"actor_name": actor_name, "headline": TranslationServer.translate("行動しなかった"), "result_lines": []}
 		"awakening_end":
 			return {"actor_name": actor_name, "headline": TranslationServer.translate("覚醒が解けた"), "result_lines": []}
+		"endure":
+			# HARDCORE の勝利条件「指定ターンを生き残る」のボスの HP が初めて0になった時（2026-10-29）。話し手の名前は付けない。
+			return {"actor_name": "", "headline": TranslationServer.translate("まだ%sは倒れない…！！") % battle.boss.display_name, "result_lines": []}
+		"survived":
+			# 「指定ターンを生き残る」で勝った時（2026-10-29）。必要なターン数は書かない（非公開の勝利条件を明かさない）。
+			return {"actor_name": "", "headline": TranslationServer.translate("耐久成功！"), "result_lines": []}
 		"skill":
 			return _describe_skill_entry(entry, actor_name, battle)
 		_:
@@ -251,6 +257,12 @@ static func _describe_skill_entry(entry: Dictionary, actor_name: String, battle:
 
 	return {"actor_name": actor_name, "headline": headline, "result_lines": result_lines}
 
+## 「話し手：見出し」の1行。話し手が無い行（"endure" など）は見出しだけ。
+static func _headline_line(described: Dictionary) -> String:
+	if str(described.get("actor_name", "")).is_empty():
+		return str(described.get("headline", ""))
+	return TranslationServer.translate("%s：%s") % [described["actor_name"], described["headline"]]
+
 static func _append_weak_resist_line(result_lines: Array, skill: Dictionary, target: RBMUnit) -> void:
 	match attribute_hit_kind(skill, target):
 		"weak":
@@ -279,7 +291,7 @@ static func format_latest_info(entries: Array, battle: RBMBattle) -> String:
 			break
 	var described := describe_entry(chosen, battle)
 	var lines: Array[String] = []
-	lines.append(TranslationServer.translate("%s：%s") % [described["actor_name"], described["headline"]])
+	lines.append(_headline_line(described))
 	var result_rows := _pack_result_lines(described["result_lines"] as Array)
 	if not result_rows.is_empty():
 		# 見出しと結果の間の空行は、結果が2行以内の時だけ（欄の高さ112pxに全員分が収まるように。QA-07）
@@ -323,7 +335,7 @@ static func format_log_lines_for_batch(entries: Array, battle: RBMBattle) -> Arr
 	var lines: Array[String] = []
 	for entry in entries:
 		var described := describe_entry(entry, battle)
-		lines.append(TranslationServer.translate("%s：%s") % [described["actor_name"], described["headline"]])
+		lines.append(_headline_line(described))
 		for line in described["result_lines"]:
 			lines.append(TranslationServer.translate("→ %s") % str(line))
 	return lines
@@ -346,7 +358,7 @@ static func format_log_window_text(history: Array[Dictionary], battle: RBMBattle
 			current_turn = entry_turn
 			current_lines = []
 		var described := describe_entry(entry, battle)
-		current_lines.append(TranslationServer.translate("%s：%s") % [described["actor_name"], described["headline"]])
+		current_lines.append(_headline_line(described))
 		for line in described["result_lines"]:
 			current_lines.append(TranslationServer.translate("→ %s") % str(line))
 	if current_turn != -1:

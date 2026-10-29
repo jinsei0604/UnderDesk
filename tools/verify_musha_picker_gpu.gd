@@ -17,7 +17,6 @@ func run_gpu_verification(tree: SceneTree, output_dir: String) -> int:
 	var root := RBMGameRoot.new()
 	tree.root.add_child(root)
 	await _frames(4)
-	root._top_monitor_battle.stop_loop()
 	root._show_only(root.creator_entry)
 	root.creator_entry.enter_create()
 	root.creator_entry._on_new_pressed()
@@ -59,6 +58,9 @@ func run_gpu_verification(tree: SceneTree, output_dir: String) -> int:
 	picker.confirmed.connect(func(id): confirmed_ids.append(id))
 	var click_at := card.get_global_rect().get_center()
 	_click(click_at)
+	await _frames(4)
+	# 2026-10-28: カードは選ぶだけ。決定は「このボスにする」を実際にクリックする。
+	_click((picker.find_child("ConfirmAppearanceButton", true, false) as Control).get_global_rect().get_center())
 	await _frames(8)
 	print("MPK_CLICK confirmed=%s draft_appearance=%s picker_visible=%s" % [str(confirmed_ids), main.draft.appearance_id, picker.visible])
 	tree.root.get_texture().get_image().save_png(output_dir + "/picker_3_after_select.png")

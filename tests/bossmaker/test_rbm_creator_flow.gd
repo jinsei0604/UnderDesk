@@ -523,7 +523,7 @@ func test_step7_return_to_summary_only_after_first_reaching_it() -> void:
 	assert_true(creator.has_reached_summary)
 	creator.press_back()
 	assert_true(creator.press_return_to_summary())
-	assert_eq(creator.current_step, RBMCreatorMain.STEP_COUNT)
+	assert_eq(creator.current_step, creator.summary_step())
 
 func test_step7_party_damage_preview_and_atk_self_buff_variants_are_shown() -> void:
 	var creator := _new_creator()
@@ -658,7 +658,7 @@ func test_step8_returning_to_creator_preserves_draft_settings() -> void:
 	var name_before := creator.draft.boss_name
 	creator._test_battle_view.return_to_creator_requested.emit()
 	assert_eq(creator.draft.boss_name, name_before)
-	assert_eq(creator.current_step, RBMCreatorMain.STEP_COUNT)
+	assert_eq(creator.current_step, creator.summary_step())
 	assert_false(creator._test_battle_view.visible)
 
 func test_step8_retry_restarts_the_battle() -> void:
@@ -743,7 +743,7 @@ func test_full_end_to_end_flow_step1_through_rewind_and_re_test() -> void:
 	assert_true(creator.press_next())
 
 	# STEP 5 (最終確認、旧STEP7)
-	assert_eq(creator.current_step, RBMCreatorMain.STEP_COUNT)
+	assert_eq(creator.current_step, creator.summary_step())
 	assert_true(creator.has_reached_summary)
 	var step5_summary: RBMCreatorStep7Summary = creator._step_views[4]
 	step5_summary.refresh()
@@ -765,7 +765,7 @@ func test_full_end_to_end_flow_step1_through_rewind_and_re_test() -> void:
 
 	# back to Creator
 	view.return_to_creator_requested.emit()
-	assert_eq(creator.current_step, RBMCreatorMain.STEP_COUNT)
+	assert_eq(creator.current_step, creator.summary_step())
 	assert_eq(creator.draft.boss_name, "エンドツーエンド・ボス", "settings survived the whole trip")
 
 	# 修正: edit STEP 2's HP

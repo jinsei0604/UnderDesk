@@ -119,7 +119,7 @@ func test_full_phase1_journey_launch_through_challenge_result() -> void:
 	assert_eq(main.draft.spd, 1)
 
 	# 最終テスト補強⑦: STEP4(パーティ)を実UI経由で操作する（2026-10-17 から仲間の札→「編成に入れる」）。
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	var step4_party: RBMCreatorStep5Party = main._step_views[3]
 	# 2026-10-17 STEP4 刷新（案C）: 仲間の札で選んで「編成に入れる」。
 	_btn(step4_party, "SelectCharacterButton_hero").pressed.emit()
@@ -157,7 +157,7 @@ func test_full_phase1_journey_launch_through_challenge_result() -> void:
 		_btn(main, "NextButton").pressed.emit()
 		await get_tree().process_frame
 		assert_eq(main.current_step, expected_step + 1, "a real 次へ press must advance from STEP %d" % expected_step)
-	assert_eq(main.current_step, RBMCreatorMain.STEP_COUNT)
+	assert_eq(main.current_step, main.summary_step())
 	assert_true(main.has_reached_summary)
 
 	var step7: RBMCreatorStep7Summary = main._step_views[4]
@@ -184,7 +184,7 @@ func test_full_phase1_journey_launch_through_challenge_result() -> void:
 	_btn(tb_view, "ReturnToCreatorButton").pressed.emit()
 	await get_tree().process_frame
 	assert_true(main._steps_root.visible, "must be back on the STEP1-7 Creator screen")
-	assert_eq(main.current_step, RBMCreatorMain.STEP_COUNT)
+	assert_eq(main.current_step, main.summary_step())
 
 	# =========================================================================
 	# 8. Clear Check

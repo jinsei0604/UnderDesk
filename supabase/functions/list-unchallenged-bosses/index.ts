@@ -30,6 +30,7 @@ import {
   publicBossQuery,
   toPublicRow,
 } from "../_shared/public_boss_query.ts";
+import { bodyRequestsDemo, demoCondition, isDemoPayload, requestedDemo } from "../_shared/edition.ts";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -143,6 +144,8 @@ export async function handleListUnchallengedBosses(
   // DBで並べ、SCAN_PAGE件ずつ読んで、自分が挑戦済みのものを除き、limit件集まるか最後まで読んだら終わる
   // (modeはDBで絞る。payloadは読まない)。
   const conditions: string[] = modeFilter !== null ? [modeCondition(modeFilter)] : [];
+  // 体験版(本文の "edition": "demo"、2026-10-28): 体験版で挑戦できるボスだけ。
+  if (bodyRequestsDemo(body)) conditions.push(demoCondition());
   const page: BossSummaryDbRow[] = [];
   let after: BossSummaryDbRow | null = null;
   while (page.length < limit) {

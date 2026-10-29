@@ -100,7 +100,7 @@ func test_confirm_back_returns_to_step7_without_starting_battle_and_keeps_draft(
 	creator._clear_check_view._on_confirm_back_pressed()
 	assert_true(creator._steps_root.visible)
 	assert_false(creator._clear_check_view.visible)
-	assert_eq(creator.current_step, RBMCreatorMain.STEP_COUNT)
+	assert_eq(creator.current_step, creator.summary_step())
 	assert_null(creator._clear_check_view.session, "no battle/session was ever constructed")
 	assert_eq(creator.draft.boss_name, "テストボス", "draft is untouched")
 
@@ -259,7 +259,7 @@ func test_defeat_return_to_creator_preserves_draft() -> void:
 	view.act_defend(view.session.battle.party[0].id)
 	view._on_return_pressed()
 	assert_true(creator._steps_root.visible)
-	assert_eq(creator.current_step, RBMCreatorMain.STEP_COUNT)
+	assert_eq(creator.current_step, creator.summary_step())
 	assert_eq(creator.draft.boss_name, "強敵", "draft preserved after a defeat + Creatorに戻る")
 	assert_false(creator.draft.has_ever_cleared())
 	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally
@@ -819,7 +819,7 @@ func test_mid_battle_return_to_creator_aborts_without_success_and_keeps_draft() 
 
 	view._on_return_pressed()
 	assert_true(creator._steps_root.visible, "back on the STEP views")
-	assert_eq(creator.current_step, RBMCreatorMain.STEP_COUNT, "specifically STEP 7")
+	assert_eq(creator.current_step, creator.summary_step(), "specifically STEP 7")
 	assert_eq(creator.draft.boss_name, "多ターンボス", "draft preserved")
 	assert_false(creator.draft.has_ever_cleared(), "an abort mid-battle is never a success")
 	await get_tree().process_frame # drain queued UI-rebuild frees (remove_child+queue_free, see rbm_battle_ui_kit.gd) before GUT's orphan check; real gameplay always gets this frame naturally

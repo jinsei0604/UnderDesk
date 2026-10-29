@@ -208,7 +208,9 @@ func test_override_ranges_reject_nan_inf_fractional_integers_and_out_of_range_va
 	var draft := _draft()
 	assert_false(draft.set_ally_stat_override("hero", "hp", 0))
 	assert_false(draft.set_ally_stat_override("hero", "hp", 1.5))
-	assert_false(draft.set_ally_stat_override("hero", "hp", RBMDefinitionLoader.ALLY_OVERRIDE_INT_MAX + 1))
+	assert_false(draft.set_ally_stat_override("hero", "hp", RBMDefinitionLoader.BOSS_HP_MAX + 1))
+	assert_false(draft.set_ally_stat_override("hero", "atk", RBMDefinitionLoader.BOSS_ATK_MAX + 1))
+	assert_false(draft.set_ally_stat_override("hero", "spd", RBMDefinitionLoader.BOSS_SPD_MAX + 1))
 	assert_false(draft.set_ally_skill_override("hero", "hero_slash", "atk_multiplier", NAN))
 	assert_false(draft.set_ally_skill_override("hero", "hero_slash", "atk_multiplier", INF))
 	assert_false(draft.set_ally_skill_override("hero", "hero_slash", "sp_cost", 1.5))
@@ -219,9 +221,10 @@ func test_override_ranges_reject_nan_inf_fractional_integers_and_out_of_range_va
 func test_every_override_range_accepts_its_exact_lower_and_upper_bound() -> void:
 	for field in RBMDefinitionLoader.ALLY_STAT_OVERRIDE_FIELDS:
 		assert_true(RBMDefinitionLoader.validate_ally_stat_override_value(field, 1), "%s lower" % field)
-		assert_true(RBMDefinitionLoader.validate_ally_stat_override_value(field, 1000000000), "%s upper" % field)
+		var upper := RBMDefinitionLoader.ally_stat_override_max(field)
+		assert_true(RBMDefinitionLoader.validate_ally_stat_override_value(field, upper), "%s upper" % field)
 		assert_false(RBMDefinitionLoader.validate_ally_stat_override_value(field, 0), "%s below" % field)
-		assert_false(RBMDefinitionLoader.validate_ally_stat_override_value(field, 1000000001), "%s above" % field)
+		assert_false(RBMDefinitionLoader.validate_ally_stat_override_value(field, upper + 1), "%s above" % field)
 	for field in ["heal_amount", "sp_amount", "sp_cost"]:
 		assert_true(RBMDefinitionLoader.validate_ally_skill_override_value(field, 0), "%s lower" % field)
 		assert_true(RBMDefinitionLoader.validate_ally_skill_override_value(field, 1000000000), "%s upper" % field)
@@ -586,7 +589,7 @@ func test_hardcore_party_ui_edits_and_resets_via_real_controls_without_draft_sid
 	await get_tree().process_frame
 	main.draft.set_creator_mode(RBMCreatorDraft.CREATOR_MODE_ADVANCED)
 	main.draft.add_party_character("hero")
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	var step := main._step_views[3] as RBMCreatorStep5Party
 	step.refresh()
 	await get_tree().process_frame
@@ -626,7 +629,7 @@ func test_every_hardcore_override_row_shows_only_its_caption_and_editable_curren
 	add_child_autofree(main)
 	await get_tree().process_frame
 	main.draft.set_creator_mode(RBMCreatorDraft.CREATOR_MODE_ADVANCED)
-	main.go_to_step(4)
+	main.go_to_step(main.party_step())
 	var step := main._step_views[3] as RBMCreatorStep5Party
 	var stat_labels := {"hp": "HP", "atk": "ATK", "spd": "SPD", "max_sp": "Max SP"}
 	var skill_labels := {
@@ -691,3 +694,15 @@ func test_challenge_confirm_shows_effective_values_only_for_hardcore_and_does_no
 		if (node as Label).name.begins_with("PartyPerformance"):
 			simple_has_performance = true
 	assert_false(simple_has_performance, "SIMPLE keeps its established master-only presentation")
+
+## 2026-10-28 ユーザー指示: 味方の能力の上限はボスに合わせる（HP 99,999・ATK 9,999・SPD 500、最大SP は 99,999）。
+func test_ally_stat_limits_match_the_boss_limits() -> void:
+	assert_eq(RBMDefinitionLoader.ally_stat_override_max("hp"), RBMDefinitionLoader.BOSS_HP_MAX)
+	assert_eq(RBMDefinitionLoader.ally_stat_override_max("atk"), RBMDefinitionLoader.BOSS_ATK_MAX)
+	assert_eq(RBMDefinitionLoader.ally_stat_override_max("spd"), RBMDefinitionLoader.BOSS_SPD_MAX)
+	assert_eq(RBMDefinitionLoader.ally_stat_override_max("max_sp"), 99999)
+	assert_false(RBMDefinitionLoader.validate_ally_stat_override_value("hp", 1000000000), "the old 1-billion limit is gone")
+	for character_id in ["hero", "butler", "healer", "samurai", "tank"]:
+		var master := RBMDataLoader.load_dict("res://data_bossmaker/allies/%s.json" % character_id)
+		for field in RBMDefinitionLoader.ALLY_STAT_OVERRIDE_FIELDS:
+			assert_lte(int(master.get(field, 0)), RBMDefinitionLoader.ally_stat_override_max(field), "%s.%s standard value fits the limit" % [character_id, field])

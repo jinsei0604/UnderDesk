@@ -110,18 +110,17 @@ func test_awakening_type_disabled_when_appearance_does_not_support_it_even_if_un
 	creator.draft.appearance_id = "appearance_slime"
 	assert_false(creator.draft.has_awakening())
 	var advanced := _open_advanced(creator)
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
-	assert_true(advanced._form._type_option.is_item_disabled(RBMActionEditorForm.TYPE_IDS.find(RBMActionEditorForm.AWAKENING)))
+	## 2026-10-28: 覚醒は覚醒の見出しの「＋ 覚醒を追加する」から作る。対応していない外見では押せない。
+	assert_true(_btn(advanced, "AddAwakeningButton").disabled)
 
 func test_awakening_type_available_for_approved_dragon() -> void:
 	var creator := _new_creator()
 	_fill_minimum_valid_boss(creator)
 	creator.draft.appearance_id = "appearance_dragon"
 	var advanced := _open_advanced(creator)
-	_btn(advanced, "AddSlotButton").pressed.emit()
-	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
-	assert_false(advanced._form._type_option.is_item_disabled(RBMActionEditorForm.TYPE_IDS.find(RBMActionEditorForm.AWAKENING)))
+	assert_false(_btn(advanced, "AddAwakeningButton").disabled)
+	_btn(advanced, "AddAwakeningButton").pressed.emit()
+	assert_true(advanced._form._awakening_fields.visible, "the awakening settings open")
 
 func test_awakening_availability_combines_support_and_configured_state_correctly() -> void:
 	var table := [

@@ -184,6 +184,14 @@ var awakening: Dictionary = {}
 var is_awakened: bool = false
 var awakening_used: bool = false
 
+## HARDCORE の勝利条件「指定ターンを生き残る」（2026-10-29 ユーザー確定）。0 なら通常（ボスの HP を0にすれば勝利）。
+## 1以上なら、ボスの HP が0になっても戦闘は続き（ボスは行動を続ける、RBMUnit.never_downed）、
+## survive_turns ターン目の終わり（ターン終了時に追加する行動の後）に味方が1人でも生きていれば勝利、
+## それまでに味方が全滅したら敗北。boss_def["victory_condition"] が無い旧ボスは常に 0。
+var survive_turns: int = 0
+## 「まだ［ボス名］は倒れない…！！」を出したか（1戦闘に1回だけ。回復して再び0になっても出さない）。
+var endure_announced: bool = false
+
 var rng: RandomNumberGenerator
 
 func _init(ally_defs: Array[Dictionary], p_boss_def: Dictionary, rng_seed: int = 0) -> void:
@@ -200,6 +208,10 @@ func _init(ally_defs: Array[Dictionary], p_boss_def: Dictionary, rng_seed: int =
 	# 初期化する（Clear Check/Challenge/Test問わず、再戦時に前回Battleの
 	# 覚醒状態が持ち越されないようにするための唯一の初期化箇所）。
 	awakening = (p_boss_def.get("awakening", {}) as Dictionary).duplicate(true)
+	var victory: Dictionary = p_boss_def.get("victory_condition", {})
+	if str(victory.get("type", "")) == RBMActionPatternRules.VICTORY_SURVIVE_TURNS:
+		survive_turns = int(victory.get("turns", 0))
+	boss.never_downed = survive_turns > 0
 
 ## v0.1-B §10 (confirmed): SPD descending; equal SPD favors an ally over the boss;
 ## no random tie-break. Allies never share SPD with each other in the fixed
@@ -308,6 +320,28 @@ func _check_battle_over() -> void:
 		winner = "boss"
 		_clear_counter_stances()
 
+## 「指定ターンを生き残る」: survive_turns ターン目の終わりに、味方が1人でも生きていれば勝利。
+## ターン終了時に追加する行動の後、ターンを1つ進める前に呼ぶ（その中で全滅したら先に敗北が決まっている）。
+## 勝った時は「耐久成功」の行（"survived"）を足す。表示層はこの行で、撃破の演出ではなく耐久成功の演出を出す
+## （RBMEncounterDirector。2026-10-29 ユーザー確定）。
+func _check_survival_victory(log: Array[Dictionary]) -> void:
+	if battle_over or survive_turns <= 0 or current_turn < survive_turns:
+		return
+	if _living_allies().is_empty():
+		return
+	battle_over = true
+	winner = "ally"
+	_clear_counter_stances()
+	log.append(_log_entry({"actor": "boss", "action": "survived"}))
+
+## 「指定ターンを生き残る」のボスの HP が初めて0になった直後に、1回だけメッセージの行を足す
+## （RBMBattleUiKit.describe_entry() の "endure"。戦闘は続き、ボスも行動を続ける）。
+func _maybe_announce_endure(log: Array[Dictionary]) -> void:
+	if survive_turns <= 0 or endure_announced or battle_over or boss.hp > 0:
+		return
+	endure_announced = true
+	log.append(_log_entry({"actor": "boss", "action": "endure"}))
+
 ## カウンターの構えはラウンドをまたいで続くので、戦闘が終わった時にここで解く。
 func _clear_counter_stances() -> void:
 	for unit in party:
@@ -334,6 +368,8 @@ func _clear_counter_stance(unit: RBMUnit) -> void:
 ## しない（Buffの期限管理はtimed_effect_active()が現在ターンとの比較で
 ## その場ごとに判定するだけで、is_awakenedへは一切書き戻さない）。
 func _maybe_trigger_awakening(log: Array[Dictionary]) -> void:
+	## 行動を1つ解決した直後の共通の点。「まだ倒れない」の行を、覚醒より先に足す（HP0 になった攻撃のすぐ後に出る）。
+	_maybe_announce_endure(log)
 	if battle_over or awakening_used or awakening.is_empty():
 		return
 	if not _evaluate_condition_group(awakening):
@@ -408,6 +444,8 @@ func snapshot() -> Dictionary:
 		# 巻き戻せるようにする——他のHARDCORE実行時状態と同じ扱い。
 		"is_awakened": is_awakened,
 		"awakening_used": awakening_used,
+		# 「まだ倒れない」を出したか（1戦闘に1回）も巻き戻す。
+		"endure_announced": endure_announced,
 		# 味方の覚醒で SPD が変わると行動順が変わる（ラウンドの始めに決め直す）。そのラウンドの順を戻せるように持つ。
 		"turn_order": turn_order.duplicate(),
 	}
@@ -472,6 +510,7 @@ func restore(state: Dictionary) -> void:
 	_slot_use_counts = (state.get("slot_use_counts", {}) as Dictionary).duplicate(true)
 	is_awakened = bool(state.get("is_awakened", false))
 	awakening_used = bool(state.get("awakening_used", false))
+	endure_announced = bool(state.get("endure_announced", false))
 	if state.has("turn_order"):
 		turn_order.assign(state["turn_order"])
 	else:
@@ -568,6 +607,7 @@ func resolve_turn(ally_actions: Dictionary) -> Dictionary:
 			break
 		log.append(_log_entry(_resolve_scripted_boss_action(scripted)))
 		_check_battle_over()
+		_maybe_announce_endure(log)
 
 	# NORMAL ACTION PHASE
 	for token in turn_order:
@@ -596,6 +636,7 @@ func resolve_turn(ally_actions: Dictionary) -> Dictionary:
 			for entry in _resolve_boss_turn_actions(acting):
 				log.append(_log_entry(entry))
 		_check_battle_over()
+		_maybe_announce_endure(log)
 
 	# 割り込み型・ターン終了時 指定行動 — an SPD-ignoring EXTRA boss action, after
 	# every living combatant (including the boss's own NORMAL ACTION PHASE turn)
@@ -605,6 +646,7 @@ func resolve_turn(ally_actions: Dictionary) -> Dictionary:
 			break
 		log.append(_log_entry(_resolve_scripted_boss_action(scripted)))
 		_check_battle_over()
+		_maybe_announce_endure(log)
 
 	# TURN END — every turn-scoped posture clears here, regardless of whether it
 	# ever triggered (Step 2 fix #4). カウンターは除く（2026-10-28: 本人の次の番まで続く）。
@@ -612,6 +654,7 @@ func resolve_turn(ally_actions: Dictionary) -> Dictionary:
 		unit.is_defending = false
 		unit.protecting_ally_id = -1
 
+	_check_survival_victory(log)
 	if not battle_over:
 		current_turn += 1
 
@@ -708,6 +751,9 @@ func advance_to_next_decision(stop_before_turn_processing: bool = false) -> Arra
 			if battle_over:
 				return log
 			_maybe_trigger_awakening(log)
+		_check_survival_victory(log)
+		if battle_over:
+			return log
 		for unit in party:
 			unit.protecting_ally_id = -1
 		current_turn += 1
@@ -1059,6 +1105,10 @@ func _pick_weighted_skill_id(candidates: Array) -> String:
 ## 常に無条件で個別に発火し続ける（advance_to_next_decision()/resolve_turn()
 ## 自身の既存ループ、この関数の外）。
 func _resolve_boss_turn_actions(unit: RBMUnit) -> Array[Dictionary]:
+	# HARDCORE の通常行動（ターンごと、2026-10-28）。あれば最優先で、旧方式・SIMPLE の経路は見ない。
+	var turn_actions: Array = boss_def.get("turn_actions", [])
+	if not turn_actions.is_empty():
+		return _resolve_turn_plan_boss_turn(turn_actions)
 	var action_sequence: Array = boss_def.get("action_sequence", [])
 	if not action_sequence.is_empty():
 		return _resolve_hardcore_boss_turn(action_sequence)
@@ -1286,6 +1336,30 @@ func _resolve_hardcore_boss_turn(action_sequence: Array) -> Array[Dictionary]:
 		_boss_action_cursor = (index + 1) % slot_count
 		return [_apply_boss_skill(boss, skill)]
 	return [{"actor": "boss", "action": "none"}]
+
+## HARDCORE の通常行動（ターンごと、2026-10-28 ユーザー確定仕様）。N ターン目には N 番目の設定を使い、
+## 最後の設定の次は1番目へ戻る（前のターンの結果で位置がずれることは無い）。
+##   fixed       … その行動
+##   random      … 使用率で抽選（SIMPLE と同じ _pick_weighted_skill_id、乱数を1回使う）
+##   conditional … 上から順に条件を見て最初に満たした行動、どれも満たさなければ「それ以外」（乱数は使わない）
+func _resolve_turn_plan_boss_turn(turn_actions: Array) -> Array[Dictionary]:
+	var turn: Dictionary = turn_actions[(maxi(current_turn, 1) - 1) % turn_actions.size()]
+	var skill := _find_skill(boss, _turn_plan_skill_id(turn))
+	if skill.is_empty():
+		return [{"actor": "boss", "action": "none"}]  # 読み込みで検証済みのため通常は起きない防御。
+	return [_apply_boss_skill(boss, skill)]
+
+func _turn_plan_skill_id(turn: Dictionary) -> String:
+	var entries: Array = turn.get("entries", [])
+	match str(turn.get("mode", "")):
+		RBMActionPatternRules.TURN_MODE_RANDOM:
+			return _pick_weighted_skill_id(entries)
+		RBMActionPatternRules.TURN_MODE_CONDITIONAL:
+			for entry in entries:
+				if _evaluate_condition_group(entry):
+					return str((entry as Dictionary).get("skill_id", ""))
+			return str(turn.get("else_skill_id", ""))
+	return "" if entries.is_empty() else str((entries[0] as Dictionary).get("skill_id", ""))
 
 ## §16確定仕様の発動可否ゲート: 条件成立かつ使用回数上限未到達。旧仕様に
 ## あった発動確率・Cooldownは§9で完全に廃止したため、この2条件だけで判定

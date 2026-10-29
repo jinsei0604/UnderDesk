@@ -382,7 +382,6 @@ func test_step3_long_action_editor_scrolls_to_bottom_without_overlapping_form_or
 	assert_false(wrapper._simple_view._scroll_container.is_ancestor_of(main._back_button), "戻る/次へはスクロール領域の外側に固定すること")
 
 	main.draft.set_creator_mode(RBMCreatorDraft.CREATOR_MODE_ADVANCED)
-	main.draft.action_sequence.clear()
 	wrapper.refresh()
 	await get_tree().process_frame
 	var advanced := wrapper._advanced_view
@@ -391,13 +390,15 @@ func test_step3_long_action_editor_scrolls_to_bottom_without_overlapping_form_or
 	assert_false(scroll.is_ancestor_of(main._back_button))
 	assert_false(scroll.is_ancestor_of(main._next_button))
 
-	_btn(advanced, "AddSlotButton").pressed.emit()
+	## 2026-10-28: 条件は「条件で分岐」のターンの行（行動の詳細）で付ける。
+	_btn(advanced, "AddTurnButton").pressed.emit()
+	_btn(advanced, "TurnModeButton_conditional").pressed.emit()
+	_btn(advanced, "AddTurnEntryButton").pressed.emit()
 	_btn(advanced, "AddChoiceCreateNewButton").pressed.emit()
 	## 条件カードを十分積み、フォーム展開後のcontentを確実にviewportより高くする。
 	for turn in range(1, 13):
 		_btn(advanced, "AddConditionButton").pressed.emit()
-		advanced._condition_type_option.select(RBMActionPatternRules.NORMAL_ACTION_UI_CONDITION_TYPES.find("turn_at"))
-		advanced._on_condition_type_selected(advanced._condition_type_option.selected)
+		advanced._select_condition_type("turn_at")
 		advanced._condition_turn_spin.value = float(turn)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -409,8 +410,8 @@ func test_step3_long_action_editor_scrolls_to_bottom_without_overlapping_form_or
 	assert_true(vbar.visible, "contentがviewportを超えた時に縦スクロールが有効になること")
 	assert_gt(vbar.max_value, vbar.page, "最下部へ移動できる実スクロール範囲が存在すること")
 
-	var confirm_button := _btn(advanced, "SkillSlotConfirmButton")
-	var cancel_button := _btn(advanced, "SkillSlotCancelButton")
+	var confirm_button := _btn(advanced, "EntryConfirmButton")
+	var cancel_button := _btn(advanced, "EntryCancelButton")
 	var form_bottom := advanced._form.global_position.y + advanced._form.size.y
 	assert_true(form_bottom <= confirm_button.global_position.y + EPSILON, "行動フォームの下端が確定/キャンセル行へ重ならないこと")
 	assert_false(advanced._form.get_global_rect().intersects(confirm_button.get_global_rect()), "行動フォームと確定ボタンのRectが交差しないこと")

@@ -16,6 +16,8 @@ signal entry_partial(state: Dictionary)
 signal finished
 ## HUD の HP・SP のバーが新しい値へ動く時間(表示だけ。数値の文字はすぐ変わる)。
 const BAR_EASE_TIME := 0.2
+## 「まだ［ボス名］は倒れない…！！」を読めるように止める時間（秒）。
+const ENDURE_MESSAGE_HOLD_SEC := 1.5
 
 var enabled: bool = DisplayServer.get_name() != "headless"
 var _stage: Node
@@ -98,8 +100,18 @@ func _advance(generation: int) -> void:
 	var entry: Dictionary = _entries[_cursor]
 	_entry_start_state = _display_state.duplicate(true)
 	entry_started.emit(entry)
-	# 味方の覚醒が解けた（"awakening_end"）は動きを持たない。表示（数値・オーラ・札）だけすぐ進める。
-	if not can_animate() or str(entry.get("action", "none")) in ["none", "awakening_end"] or bool(entry.get("failed", false)):
+	# 「まだ［ボス名］は倒れない…！！」（"endure"、2026-10-29）は動きを持たないが、次の行動の文に上書きされる前に
+	# 読めるよう、少しだけ止める（新しい演出は作らない）。
+	if str(entry.get("action", "")) == "endure" and can_animate():
+		_on_stage_impact(entry)
+		var hold_generation := _generation
+		get_tree().create_timer(ENDURE_MESSAGE_HOLD_SEC).timeout.connect(func():
+			if hold_generation == _generation:
+				_on_stage_finished())
+		return
+	# 味方の覚醒が解けた（"awakening_end"）・耐久成功（"survived"、勝利の演出は RBMEncounterDirector が出す）は動きを持たない。
+# 表示（数値・オーラ・札）だけすぐ進める。
+	if not can_animate() or str(entry.get("action", "none")) in ["none", "awakening_end", "endure", "survived"] or bool(entry.get("failed", false)):
 		_on_stage_impact(entry)
 		_on_stage_finished()
 		return

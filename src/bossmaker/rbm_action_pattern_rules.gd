@@ -50,22 +50,43 @@ const NORMAL_CONDITION_TYPES: Array[String] = [
 ## RBMBattleの条件判定・RBMActionPatternSummaryの表示のいずれからも削除
 ## していない——引き続き正しく読み込み・判定・表示される（新規に選べなく
 ## なるだけ）。
+## 2026-10-29 ユーザー確定: 新しく選べるのは4カテゴリ（ボスHP・ターン・攻略側生存人数・特定キャラクターの状態）の
+## 11種類だけ（下の CONDITION_CATEGORIES）。それ以外の旧条件は、保存済みのデータでは消さずに使い続ける。
 const NORMAL_ACTION_UI_CONDITION_TYPES: Array[String] = [
-	"hp_at_most", "hp_at_least", "hp_between",
+	"hp_at_most", "hp_at_least",
 	"turn_at", "turn_at_least", "turn_at_most", "turn_every_n",
 	"allies_at_most", "allies_at_least", "allies_exactly",
 	"character_alive", "character_downed",
-	"last_boss_skill", "last_received_skill", "last_received_attribute", "weak_hit",
 ]
 
-## 覚醒(Awakening)側のCreator UIの「条件の種類」ドロップダウンに表示する
-## 選択肢——覚醒は「条件は1個だけ・戦闘中に1回きり」という性質のため、
-## 確定仕様の6種類のみに絞る（ボスHP○%以下・○ターン目・攻略側生存人数
-## ○人以下・特定キャラクターが戦闘不能・前回受けたスキル・前回受けた属性）。
+## 覚醒(Awakening)側の新しく選べる条件。2026-10-29 ユーザー確定: 行動と同じ4カテゴリ（下の CONDITION_CATEGORIES）。
+## 旧6種類のうち「前回受けたスキル」「前回受けた属性」は新しく選べなくした（保存済みの条件は消さず、読み込み・判定も今までどおり）。
 const AWAKENING_UI_CONDITION_TYPES: Array[String] = [
-	"hp_at_most", "turn_at", "allies_at_most", "character_downed",
-	"last_received_skill", "last_received_attribute",
+	"hp_at_most", "hp_at_least",
+	"turn_at", "turn_at_least", "turn_at_most", "turn_every_n",
+	"allies_at_most", "allies_at_least", "allies_exactly",
+	"character_alive", "character_downed",
 ]
+
+## 発動条件の2段階の選び方（2026-10-29 ユーザー確定）。第1段階はカテゴリ（4つ）、第2段階はカテゴリごとの比較方法と値。
+## 行動（条件で分岐の行）と覚醒の両方で使う。ここに無い条件（ボスHPの範囲・○〜○ターン・前回の行動/受けたスキル/属性/弱点）は
+## 新しく選べないが、保存済みのデータでは消さずに読み込み・判定・表示を続ける（NORMAL_CONDITION_TYPES は変えない）。
+## compare_labels は types と同じ順（表示用、tr() で訳す）。
+const CONDITION_CATEGORIES := [
+	{"id": "boss_hp", "label": "ボスHP", "types": ["hp_at_most", "hp_at_least"], "compare_labels": ["以下", "以上"]},
+	{"id": "turn", "label": "ターン", "types": ["turn_at", "turn_at_least", "turn_at_most", "turn_every_n"], "compare_labels": ["ちょうど", "以降", "まで", "ごと"]},
+	{"id": "allies", "label": "攻略側生存人数", "types": ["allies_at_most", "allies_at_least", "allies_exactly"], "compare_labels": ["以下", "以上", "ちょうど"]},
+	{"id": "character", "label": "特定キャラクターの状態", "types": ["character_alive", "character_downed"], "compare_labels": ["生存", "戦闘不能"]},
+]
+
+## 条件の種類が、どのカテゴリの何番目の比較方法か（新しく選べない種類なら [-1, -1]）。
+static func condition_category_position(condition_type: String) -> Array:
+	for i in range(CONDITION_CATEGORIES.size()):
+		var types: Array = CONDITION_CATEGORIES[i]["types"]
+		var j := types.find(condition_type)
+		if j >= 0:
+			return [i, j]
+	return [-1, -1]
 
 const CONDITION_LOGIC_TYPES: Array[String] = ["AND", "OR"]
 
@@ -94,6 +115,32 @@ const RANDOM_MODES: Array[String] = [RANDOM_MODE_EVEN, RANDOM_MODE_MANUAL]
 
 ## 使用回数「制限なし」を表すセンチネル（旧仕様を維持）。
 const UNLIMITED_USES := -1
+
+## HARDCORE「通常行動」（2026-10-28 ユーザー確定仕様）: 戦闘のターン番号ごとの設定表
+## （RBMCreatorDraft.turn_actions）。N ターン目には必ず N 番目の設定を使い、最後の設定の
+## 次は1番目へ戻って繰り返す。各ターンの決め方は次の3つのどれか1つ（条件と使用率は
+## 同じターンで組み合わせない）:
+##   fixed       … 行動を1つ確定で使う
+##   random      … 2つ以上の候補から使用率で抽選する
+##   conditional … 上から順に条件を見て、最初に満たした行動を使う。どれも満たさなければ「それ以外」
+## 使用回数の制限は無い。旧方式（action_sequence）は読み込み・戦闘の互換のためだけに残す。
+const TURN_MODE_FIXED := "fixed"
+const TURN_MODE_RANDOM := "random"
+const TURN_MODE_CONDITIONAL := "conditional"
+const TURN_MODES: Array[String] = [TURN_MODE_FIXED, TURN_MODE_RANDOM, TURN_MODE_CONDITIONAL]
+const TURN_MODE_LABELS := {TURN_MODE_FIXED: "確定", TURN_MODE_RANDOM: "使用率で抽選", TURN_MODE_CONDITIONAL: "条件で分岐"}
+## HARDCORE 限定の勝利条件（2026-10-29 ユーザー確定）。行動の発動条件とは別のもの（挑戦者がどうすれば勝つか）。
+##   defeat_boss   … ボスを撃破する（通常、HP0 で勝利。保存データに勝利条件が無い時もこれ）
+##   survive_turns … 指定ターンを生き残る（turns ターン目の終わりに味方が1人でも生きていれば勝利。ボスは HP0 でも行動する）
+const VICTORY_DEFEAT_BOSS := "defeat_boss"
+const VICTORY_SURVIVE_TURNS := "survive_turns"
+const SURVIVE_TURNS_MIN := 1
+const SURVIVE_TURNS_MAX := 99
+const SURVIVE_TURNS_DEFAULT := 10
+
+## 設定できるターンの数と、1ターンの候補・条件の数の安全上の上限（ゲームバランスの制約ではない）。
+const MAX_TURN_ACTIONS := 20
+const MAX_TURN_ENTRIES := 10
 
 ## Creator UI表示専用ラベル。RBMDefinitionLoader.ATTRIBUTE_LABELSと同じ
 ## 位置づけ——内部の条件タイプ文字列（保存JSON/Definition/RBMBattleの

@@ -71,6 +71,30 @@ static func when_line(conditions: Array, condition_logic: String, draft: RBMCrea
 	var joiner: String = TranslationServer.translate(" または ") if condition_logic == "OR" else TranslationServer.translate(" かつ ")
 	return TranslationServer.translate("条件：%s") % joiner.join(parts)
 
+## 条件だけの短い文（「条件：」を付けない）。HARDCORE のターンごとの行動の「HP50%以下 → 回復」の左側。
+static func conditions_text(conditions: Array, condition_logic: String, draft: RBMCreatorDraft) -> String:
+	var parts: Array = []
+	for condition in conditions:
+		parts.append(condition_line(condition, draft))
+	var joiner: String = TranslationServer.translate(" または ") if condition_logic == "OR" else TranslationServer.translate(" かつ ")
+	return joiner.join(parts)
+
+## HARDCORE のターンごとの行動を1行にまとめる（ボスのプロフィール欄の行動の要約に使う）。
+## 確定・条件の行動には％を付けない。使用率で抽選する候補だけに％を付ける（2026-10-28 ユーザー確定）。
+static func turn_line(turn: Dictionary, draft: RBMCreatorDraft) -> String:
+	var parts: Array = []
+	var mode := str(turn.get("mode", ""))
+	for entry_variant in turn.get("entries", []):
+		var entry: Dictionary = entry_variant
+		var skill_name := str(draft.find_skill(str(entry.get("skill_id", ""))).get("name", "?"))
+		if mode == RBMActionPatternRules.TURN_MODE_RANDOM:
+			parts.append("%s %s" % [skill_name, TranslationServer.translate("%.1f%%") % float(entry.get("weight", 0.0))])
+		else:
+			parts.append(skill_name)
+	if mode == RBMActionPatternRules.TURN_MODE_CONDITIONAL:
+		parts.append(str(draft.find_skill(str(turn.get("else_skill_id", ""))).get("name", "?")))
+	return " / ".join(parts) if not parts.is_empty() else TranslationServer.translate("（未設定）")
+
 ## 使用回数の1行（§3/§27モックアップの「使用回数：〜」表示）。
 static func uses_line(max_uses: int) -> String:
 	if max_uses == RBMActionPatternRules.UNLIMITED_USES:

@@ -18,6 +18,9 @@ extends RefCounted
 ## 書き出した版の横に steam_appid.txt は要らない。配布物には入れない）。480（ValveのSpacewar開発確認用ID）は
 ## この定数へ絶対に書かない——試す時は steam_dev_appid.local.txt（コミット対象外）に置く。
 const OFFICIAL_APP_ID := 5482410
+## 体験版の AppID（RBMEdition.is_demo() の時に使う。2026-10-28 Steamworks で取得）。製品版の OFFICIAL_APP_ID は変えない。
+## 仮の値（480 など）は書かない。
+const DEMO_APP_ID := 5521380
 
 const ENV_APP_ID_KEY := "STEAM_APP_ID"
 const DEFAULT_LOCAL_DEV_APP_ID_PATH := "res://steam_dev_appid.local.txt"
@@ -34,6 +37,9 @@ static func set_local_dev_app_id_path_for_testing(path: String) -> void:
 ## 実際にsteamInitEx()等へ渡すAppID。0は「未設定」を意味し、呼び出し側
 ## （RBMSteamAuth）はこれをnot_configuredとして扱う。
 static func app_id() -> int:
+	# 書き出した体験版は、環境変数・手元のファイルで AppID を差し替えない（製品版の AppID で起動して制限を外すことを防ぐ）。
+	if RBMEdition.is_demo() and OS.has_feature("template"):
+		return DEMO_APP_ID
 	var from_env := OS.get_environment(ENV_APP_ID_KEY)
 	if not from_env.is_empty() and from_env.is_valid_int():
 		var env_value := int(from_env)
@@ -49,7 +55,7 @@ static func app_id() -> int:
 	# （保存先・言語設定と同じ RBMLocalStageRepository.running_under_gut() の安全網。2026-10-21）。
 	if RBMLocalStageRepository.running_under_gut():
 		return 0
-	return OFFICIAL_APP_ID
+	return DEMO_APP_ID if RBMEdition.is_demo() else OFFICIAL_APP_ID
 
 static func is_configured() -> bool:
 	return app_id() > 0
@@ -58,7 +64,7 @@ static func is_configured() -> bool:
 ## 一時値（環境変数またはローカルファイル）から来ているかどうか——ログ・UI表示で
 ## 「これは開発用AppIDです」と明示するために使う。
 static func is_using_development_override() -> bool:
-	return is_configured() and app_id() != OFFICIAL_APP_ID
+	return is_configured() and app_id() != (DEMO_APP_ID if RBMEdition.is_demo() else OFFICIAL_APP_ID)
 
 static func _read_local_dev_app_id() -> int:
 	var path := local_dev_app_id_path()

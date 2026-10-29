@@ -642,7 +642,7 @@ func test_confirm_screen_reflects_a_real_step7_hide_all_then_show_all_button_pre
 	creator.draft.toggle_resist_attribute("ICE")
 	creator.draft.add_skill({"name": "極秘炎撃", "type": "attack", "target": "all", "attribute": "FIRE", "atk_multiplier": 7.25})
 	creator.draft.add_party_character("hero")
-	creator.go_to_step(5)
+	creator.go_to_step(creator.summary_step())
 	var step7: RBMCreatorStep7Summary = creator._step_views[4]
 	var hide_all_button: Button = step7.find_child("HideAllVisibilityButton", true, false)
 	assert_not_null(hide_all_button, "sanity")

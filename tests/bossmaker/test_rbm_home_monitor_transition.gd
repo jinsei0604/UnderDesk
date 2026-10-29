@@ -16,8 +16,9 @@ extends GutTest
 ## 既存のdirtyな test_rbm_phase35_title_screen.gd には一切触れない
 ## （ユーザー指示どおり、新規ファイルとして追加）。
 
-const CHALLENGE_RECT := Rect2(52.0, 365.0, 568.0, 248.0)
-const CREATE_RECT := Rect2(660.0, 365.0, 568.0, 248.0)
+# 2026-10-28: 上の戦闘のループ動画をやめ、2枚のカードを画面の中央へ（ユーザー承認）。
+const CHALLENGE_RECT := Rect2(40.0, 226.0, 592.0, 268.0)
+const CREATE_RECT := Rect2(648.0, 226.0, 592.0, 268.0)
 
 func _make_root() -> RBMGameRoot:
 	get_tree().root.size = Vector2i(1280, 720)
@@ -181,3 +182,60 @@ func test_clicking_the_other_panel_while_one_is_booting_does_not_start_a_second_
 
 	assert_eq(challenge_activations[0], 1)
 	assert_eq(creator_activations[0], 0, "the other monitor must never activate while the first is still booting")
+
+# ---------------------------------------------------------------------------
+# 2026-10-28: 「挑戦」「ボス作成」のカードの絵（RBMHomeCardArt）。押す・起動演出・効果音はモニターのまま。
+
+func test_each_monitor_carries_its_card_art_and_the_top_battle_loop_is_gone() -> void:
+	var root := await _make_root()
+	assert_null(root.find_child("TopMonitorBattlePreview", true, false))
+	for pair in [[root._challenge_monitor, "challenge"], [root._creator_monitor, "create"]]:
+		var monitor: RBMHomeMonitorPanel = pair[0]
+		assert_not_null(monitor.card_art)
+		assert_eq(monitor.card_art.kind, pair[1])
+		assert_eq(monitor.card_art.size, monitor.home_rect.size)
+		assert_eq(monitor.card_art.mouse_filter, Control.MOUSE_FILTER_IGNORE, "clicks still reach the monitor")
+		for node in monitor.card_art.find_children("*", "Control", true, false):
+			assert_eq((node as Control).mouse_filter, Control.MOUSE_FILTER_IGNORE, "%s must not block the monitor's hover/click" % node.name)
+	assert_false(root._title_background.visible, "the 3-frame home image is not shown behind the centered cards")
+	assert_not_null(root.find_child("HomeBackdrop", true, false))
+	assert_not_null(root.find_child("HomeFloor", true, false))
+
+func test_hover_lifts_and_lights_one_card_and_dims_the_other() -> void:
+	var root := await _make_root()
+	root._challenge_monitor.mouse_entered.emit()
+	await _await_seconds(0.4)
+	var left: RBMHomeCardArt = root._challenge_monitor.card_art
+	var right: RBMHomeCardArt = root._creator_monitor.card_art
+	assert_gt(left.hover, 0.95)
+	assert_lt(right.hover, 0.05)
+	assert_gt(right.dim, 0.95)
+	root._challenge_monitor.mouse_exited.emit()
+	await _await_seconds(0.4)
+	assert_lt(left.hover, 0.05)
+	assert_lt(right.dim, 0.05)
+
+func test_the_card_fades_out_on_click_and_comes_back_on_return() -> void:
+	var root := await _make_root()
+	var art: RBMHomeCardArt = root._challenge_monitor.card_art
+	_click(root._challenge_monitor)
+	await _await_seconds(0.3)
+	assert_almost_eq(art.modulate.a, 0.0, 0.01, "the existing boot effect is shown instead of the card")
+	await _await_seconds(3.0)
+	assert_true(root.challenge_entry.visible)
+	root._on_challenge_exit_requested()
+	await get_tree().process_frame
+	assert_almost_eq(art.modulate.a, 1.0, 0.001)
+	assert_eq(art.hover, 0.0)
+
+func test_card_texts_follow_the_language() -> void:
+	var root := await _make_root()
+	var before := TranslationServer.get_locale()
+	TranslationServer.set_locale("en")
+	root._challenge_monitor.refresh_locale()
+	root._creator_monitor.refresh_locale()
+	assert_eq((root._creator_monitor.card_art.find_child("HomeCardSubtitle", true, false) as Label).text, "Make and share your own boss battle")
+	assert_eq((root._creator_monitor.card_art.find_child("CtaLabel", true, false) as Label).text, "Create")
+	TranslationServer.set_locale(before)
+	root._challenge_monitor.refresh_locale()
+	root._creator_monitor.refresh_locale()

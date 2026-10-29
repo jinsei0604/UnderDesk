@@ -38,6 +38,7 @@ import {
   requestedMode,
   toPublicRow,
 } from "../_shared/public_boss_query.ts";
+import { bodyRequestsDemo, demoCondition, isDemoPayload, requestedDemo } from "../_shared/edition.ts";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -136,6 +137,8 @@ export async function handleListBosses(req: Request, db: SupabaseRestClient): Pr
 
   const conditions: string[] = [];
   if (mode !== null) conditions.push(modeCondition(mode));
+  // 体験版(?edition=demo、2026-10-28): 体験版で挑戦できるボス(SIMPLE・体験版の4体)だけ。
+  if (requestedDemo(url)) conditions.push(demoCondition());
   if (after !== null) conditions.push(afterPositionCondition(after.publishedAt, after.id));
   // 続きがあるかを知るため、1件多く読む。
   const found = await db.select<BossSummaryDbRow>("bosses", publicBossQuery(conditions, `order=published_at.desc,id.asc&limit=${limit + 1}`));

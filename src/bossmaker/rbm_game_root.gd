@@ -27,7 +27,6 @@ var _challenge_monitor: RBMHomeMonitorPanel
 var _creator_monitor: RBMHomeMonitorPanel
 var _challenge_monitor_sfx: RBMHomeMonitorSfx
 var _creator_monitor_sfx: RBMHomeMonitorSfx
-var _top_monitor_battle: RBMHomeTopMonitorBattlePreview
 
 var creator_entry: RBMCreatorEntry
 var challenge_entry: RBMChallengeEntry
@@ -139,16 +138,13 @@ const TITLE_IMAGE_PATH := "res://assets_bossmaker/art/title_screen_home_monitors
 ## fraction_rect()を共有するため保持する(画像サイズ自体は旧背景と同一)。
 const TITLE_IMAGE_SIZE := Vector2(1672.0, 941.0)
 
-## 左下「挑戦」／右下「ボス作成」モニターの確定Rect(1280x720基準、ユーザー
-## 承認済みキャリブレーションの固定値)。位置/サイズの再調整はしない——
-## 通常表示/ホバー/クリック判定/BOOT演出/拡大遷移の開始位置は全てこの2つの
-## Rectだけを共通の基準にする(RBMHomeMonitorPanel参照)。
-const HOME_MONITOR_CHALLENGE_RECT := Rect2(52.0, 365.0, 568.0, 248.0)
-const HOME_MONITOR_CREATE_RECT := Rect2(660.0, 365.0, 568.0, 248.0)
-
-## 上中央モニターの確定Rect(1280x720基準、承認済み独立プレビューの実測値。
-## 位置/サイズの再調整はしない)。
-const HOME_TOP_MONITOR_RECT := Rect2(254.0, 37.0, 772.0, 291.0)
+## 「挑戦」「ボス作成」カードのRect(1280x720基準)。通常表示/ホバー/クリック判定/BOOT演出/拡大遷移の
+## 開始位置は全てこの2つのRectだけを共通の基準にする(RBMHomeMonitorPanel参照)。
+## 2026-10-28 ユーザー承認: 上の戦闘のループ動画をやめ、絵の入った2枚のカード(RBMHomeCardArt)を画面の中央に置く。
+const HOME_MONITOR_CHALLENGE_RECT := Rect2(40.0, 226.0, 592.0, 268.0)
+const HOME_MONITOR_CREATE_RECT := Rect2(648.0, 226.0, 592.0, 268.0)
+## 床の光の帯（完成画像の下端だけを使う。画像のピクセル座標）。
+const HOME_FLOOR_REGION := Rect2(0.0, 835.0, 1672.0, 106.0)
 
 ## pixel_rect（TITLE_IMAGE_SIZE基準のピクセル座標）をTITLE_IMAGE_SIZEに対する
 ## 比率へ変換し、controlのアンカーとして設定する（offsetは全て0——アンカー
@@ -200,6 +196,24 @@ func _build_ui() -> void:
 	_title_background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_title_background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_title_screen.add_child(_title_background)
+	# 2026-10-28: 3つのモニターの枠が描かれた完成画像は、カードを中央に置くと空の枠と重なるため表示しない
+	# （ノード・テクスチャは既存テスト互換のため残す）。代わりにメニュー画面と同じ地（RBMMenuUi）を敷き、
+	# 完成画像の床の光の帯だけを下端に残す（ユーザーの選択）。
+	_title_background.visible = false
+	var backdrop := RBMMenuUi.add_backdrop(_title_screen, "HomeBackdrop")
+	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var floor_texture := AtlasTexture.new()
+	floor_texture.atlas = _title_background.texture
+	floor_texture.region = HOME_FLOOR_REGION
+	var home_floor := TextureRect.new()
+	home_floor.name = "HomeFloor"
+	home_floor.texture = floor_texture
+	home_floor.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	home_floor.stretch_mode = TextureRect.STRETCH_SCALE
+	home_floor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_title_screen.add_child(home_floor)
+	home_floor.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	home_floor.offset_top = -HOME_FLOOR_REGION.size.y * 1280.0 / HOME_FLOOR_REGION.size.x
 
 	# タイトル画面 ループ演出追加 §9: 完成静止画(_title_background)と操作
 	# ボタン(ChallengeModeButton/CreateModeButton)の間に挟む、独立した演出
@@ -277,6 +291,13 @@ func _build_ui() -> void:
 
 	_challenge_monitor.other_panel = _creator_monitor
 	_creator_monitor.other_panel = _challenge_monitor
+	# 2026-10-28: 2つのモニターの上に、絵の入ったカード(RBMHomeCardArt)を重ねる。押す・起動演出・効果音はモニターのまま。
+	for pair in [[_challenge_monitor, "challenge"], [_creator_monitor, "create"]]:
+		var monitor: RBMHomeMonitorPanel = pair[0]
+		var art := RBMHomeCardArt.new()
+		monitor.add_child(art)
+		art.setup(str(pair[1]), monitor.home_rect.size)
+		monitor.attach_card_art(art)
 
 	# 承認済みSFX同期(right_creator_sfx_v2)の本実装: RBMHomeMonitorPanel自身
 	# には一切触れず、外部からその実際の視覚状態を監視して同期させる
@@ -303,15 +324,6 @@ func _build_ui() -> void:
 		_creator_monitor_sfx.stop_all()
 		_create_button.pressed.emit())
 
-	# 承認済み独立プレビューの本実装: 上中央モニターへ実際のM&C戦闘(無音・
-	# 自動ループ、固定シーケンス)を表示する(詳細はRBMHomeTopMonitorBattle
-	# Preview冒頭コメント参照)。開始/停止はホーム画面の表示/非表示に
-	# 合わせて_show_menu()/_show_only()から呼ぶ。
-	_top_monitor_battle = RBMHomeTopMonitorBattlePreview.new()
-	_top_monitor_battle.name = "TopMonitorBattlePreview"
-	_top_monitor_battle.position = HOME_TOP_MONITOR_RECT.position
-	_top_monitor_battle.size = HOME_TOP_MONITOR_RECT.size
-	_title_screen.add_child(_top_monitor_battle)
 
 	# 起動導線: 起動ごとに選ばれたボスの部屋のタイトル→START→短いフェード
 	# →既存の挑戦/作成選択、という流れを、画面全体を覆う独立レイヤーとして
@@ -346,10 +358,89 @@ func _build_ui() -> void:
 	RBMLocale.locale_changed.connect(_on_locale_changed)
 	_update_locale_button_text()
 
+	_build_edition_ui()
+
 	_build_creator_entry()
 	_build_challenge_entry()
 
 	_show_menu()
+
+## 製品版／体験版（RBMEdition、2026-10-28）。製品版の見た目・動きは変えない（体験版の時だけ置く・製品版は体験版のデータがある時だけ尋ねる）。
+## 体験版: 左上の「ガイド」と、初めて起動した時のガイド（RBMDemoGuide）。
+## 製品版: 同じ保存フォルダに体験版のデータ（RBMDemoCarryOver）があれば、ホームに来た時に引き継ぐか尋ねる。
+var _demo_guide: RBMDemoGuide
+var _carry_over_dialog: ConfirmationDialog
+var _carry_over_button: Button
+
+func _build_edition_ui() -> void:
+	var style = preload("res://src/bossmaker/rbm_battle_hud_style.gd")
+	if RBMEdition.is_demo():
+		_demo_guide = RBMDemoGuide.new()
+		var guide_button := Button.new()
+		guide_button.name = "DemoGuideButton"
+		guide_button.text = tr("ガイド")
+		style.button(guide_button, 16)
+		guide_button.position = Vector2(16, 16)
+		guide_button.size = Vector2(160, 44)
+		guide_button.pressed.connect(func(): _demo_guide.open_guide())
+		_title_screen.add_child(guide_button)
+		_title_screen.add_child(_demo_guide)
+	else:
+		# 製品版: 体験版のデータを引き継ぐ確認（最初の1回だけ自動で出す）と、ホーム左上の「体験版から引き継ぐ」（引き継げる物がある時だけ出す）。
+		_carry_over_dialog = ConfirmationDialog.new()
+		_carry_over_dialog.name = "DemoCarryOverConfirmation"
+		_carry_over_dialog.exclusive = true
+		_carry_over_dialog.dialog_autowrap = true
+		_carry_over_dialog.min_size = Vector2i(560, 220)
+		_carry_over_dialog.ok_button_text = tr("引き継ぐ")
+		_carry_over_dialog.cancel_button_text = tr("あとで")
+		_carry_over_dialog.add_theme_stylebox_override("panel", style._box(Color("091521"), style.CYAN_DIM, 1, -1, Vector4(24, 24, 24, 24)))
+		_title_screen.add_child(_carry_over_dialog)
+		style.label(_carry_over_dialog.get_label(), 18, style.TEXT)
+		style.button(_carry_over_dialog.get_ok_button(), 16)
+		style.button(_carry_over_dialog.get_cancel_button(), 16)
+		_carry_over_dialog.confirmed.connect(_on_carry_over_confirmed)
+		_carry_over_button = Button.new()
+		_carry_over_button.name = "DemoCarryOverButton"
+		_carry_over_button.text = tr("体験版から引き継ぐ")
+		style.button(_carry_over_button, 16)
+		_carry_over_button.position = Vector2(16, 16)
+		_carry_over_button.size = Vector2(240, 44)
+		_carry_over_button.pressed.connect(_open_carry_over_dialog)
+		_title_screen.add_child(_carry_over_button)
+		_refresh_carry_over_button()
+	if _title_boot_launcher.has_signal("boot_completed"):
+		_title_boot_launcher.connect("boot_completed", _on_boot_completed_for_edition)
+	# タイトル（ボスの部屋）が一番上のまま（ガイドのボタンもタイトルの下）。
+	_title_screen.move_child(_title_boot_launcher, _title_screen.get_child_count() - 1)
+
+func _on_boot_completed_for_edition() -> void:
+	if is_instance_valid(_demo_guide) and not RBMDemoGuide.was_seen():
+		_demo_guide.open_guide()
+	# 製品版: 体験版のデータが残っていて、まだ一度も自動で尋ねていない時だけ尋ねる（「あとで」の後はホームのボタンから）。
+	if is_instance_valid(_carry_over_dialog) and not RBMLocalStageRepository.running_under_gut() and not RBMDemoCarryOver.was_prompted() and RBMDemoCarryOver.has_pending():
+		RBMDemoCarryOver.mark_prompted()
+		_open_carry_over_dialog()
+
+func _open_carry_over_dialog() -> void:
+	var p := RBMDemoCarryOver.pending()
+	_carry_over_dialog.dialog_text = tr("体験版のデータが見つかりました。保存したボス戦%d体と討伐記録を製品版に引き継ぎますか？製品版のデータは上書き・削除しません。") % int(p["stages"])
+	_carry_over_dialog.popup_centered(Vector2i(560, 220))
+
+func _on_carry_over_confirmed() -> void:
+	var result := RBMDemoCarryOver.import_all()
+	var done := AcceptDialog.new()
+	done.name = "DemoCarryOverResult"
+	done.dialog_autowrap = true
+	done.dialog_text = tr("体験版から保存したボス戦%d体を引き継ぎました。") % int(result["stages"]) if bool(result["ok"]) else tr("引き継げなかったデータがあります。もう一度お試しください。")
+	_title_screen.add_child(done)
+	done.popup_centered(Vector2i(480, 180))
+	_refresh_carry_over_button()
+
+## 「体験版から引き継ぐ」は、引き継げる物（まだ引き継いでいない体験版のボス戦・討伐記録）がある時だけ出す。
+func _refresh_carry_over_button() -> void:
+	if is_instance_valid(_carry_over_button):
+		_carry_over_button.visible = RBMDemoCarryOver.has_pending()
 
 ## ローカライズ監査（2026-09-11）で発見: RBMCreatorEntry/RBMCreatorMainは
 ## ここで一度だけ生成され、以後はvisibleの切替だけで使い回される（§4/§5の
@@ -442,6 +533,7 @@ func _on_challenge_exit_requested() -> void:
 ## するため引き続き同期して更新する。
 func _show_menu() -> void:
 	_title_screen.visible = true
+	_refresh_carry_over_button()
 	_menu_panel.visible = true
 	creator_entry.visible = false
 	challenge_entry.visible = false
@@ -452,14 +544,12 @@ func _show_menu() -> void:
 	_creator_monitor.reset_to_idle()
 	_challenge_monitor_sfx.stop_all()
 	_creator_monitor_sfx.stop_all()
-	_top_monitor_battle.start_loop()
 
 func _show_only(node: Control) -> void:
 	_title_screen.visible = false
 	_menu_panel.visible = false
 	creator_entry.visible = (node == creator_entry)
 	challenge_entry.visible = (node == challenge_entry)
-	_top_monitor_battle.stop_loop()
 
 var _se_audio: Node
 func _se_node_added(node: Node) -> void:

@@ -32,7 +32,6 @@ func run_gpu_verification(tree: SceneTree, output_dir: String) -> int:
 	tree.root.add_child(_root)
 	for i in range(4):
 		await tree.process_frame
-	_root._top_monitor_battle.stop_loop()
 
 	for mode in ["advanced", "simple"]:
 		await _open_creator(mode)
