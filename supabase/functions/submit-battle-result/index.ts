@@ -14,7 +14,7 @@ import { SteamTicketVerifier } from "../steam-auth/steam_ticket_verifier.ts";
 import { RealSteamWebApiClient } from "../steam-auth/steam_web_api_client.ts";
 import { WEB_API_IDENTITY } from "../steam-auth/index.ts";
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
-import { demoBossRejection } from "../_shared/edition.ts";
+import { claimDemoChallengeSlot, DEMO_CHALLENGE_LIMIT_ERROR, demoBossRejection, DEMO_EDITION } from "../_shared/edition.ts";
 import { firstClearRate, isUuid, issueBattleTicket, submitBattleResult } from "../_shared/battle_tickets.ts";
 
 export const MAX_RESULTS_PER_REQUEST = 20;
@@ -130,8 +130,20 @@ export async function handleSubmitBattleResult(
   const response: SubmitBattleResultResponseBody = { ok: true, results };
   // 体験版のチケットで範囲外のボスの次の戦闘チケットは出さない(2026-10-28、_shared/edition.ts)。
   const nextDemoRejected = isUuid(nextBossId) ? await demoBossRejection(db, nextBossId, verification.edition) : null;
+  // 2026-10-30 体験版: 次の戦闘のチケットも挑戦の枠を使う（累計15体）。続けて挑戦（同じボス）なら "already" で何も増えない。
+  // 別の新しいボスを指定してチケットだけを受け取り、16体目の結果を記録することはできない。
+  const nextDemoSlot = nextDemoRejected === null && isUuid(nextBossId) && verification.edition === DEMO_EDITION
+    ? await claimDemoChallengeSlot(db, nextBossId, steamId)
+    : null;
   if (nextDemoRejected !== null) {
     response.next_ticket_status = nextDemoRejected;
+  } else if (nextDemoSlot !== null && !nextDemoSlot.ok) {
+    console.error("submit-battle-result: demo slot error", nextDemoSlot.errorMessage);
+    response.next_ticket_status = "error";
+  } else if (nextDemoSlot !== null && nextDemoSlot.ok && nextDemoSlot.status === "limit") {
+    response.next_ticket_status = DEMO_CHALLENGE_LIMIT_ERROR;
+  } else if (nextDemoSlot !== null && nextDemoSlot.ok && nextDemoSlot.status === "not_found") {
+    response.next_ticket_status = "not_found";
   } else if (isUuid(nextBossId)) {
     const issued = await issueBattleTicket(db, nextBossId, steamId);
     if (!issued.ok) {

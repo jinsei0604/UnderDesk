@@ -15,7 +15,7 @@ import { SteamTicketVerifier } from "../steam-auth/steam_ticket_verifier.ts";
 import { RealSteamWebApiClient } from "../steam-auth/steam_web_api_client.ts";
 import { WEB_API_IDENTITY } from "../steam-auth/index.ts";
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
-import { demoBossRejection } from "../_shared/edition.ts";
+import { claimDemoChallengeSlot, DEMO_CHALLENGE_LIMIT_ERROR, demoBossRejection, DEMO_EDITION } from "../_shared/edition.ts";
 
 export interface RecordChallengeClearRequestBody {
   ticket?: unknown;
@@ -27,6 +27,9 @@ export interface RecordChallengeClearResponseBody {
   clear_count?: number;
   // 2026-10-22: 記録した本人がこのボスの作者か（DB のトリガーが決めた by_owner）。ゲームが討伐記録に数えるかの判断に使う
   by_owner?: boolean;
+  // 2026-10-30 体験版: 15体に達していて断った時の累計と上限
+  demo_used?: number;
+  demo_limit?: number;
   error_kind?: string;
   message?: string;
 }
@@ -100,6 +103,27 @@ export async function handleRecordChallengeClear(
   }
   if (bossLookup.rows.length === 0) {
     return jsonResponse({ ok: false, error_kind: "not_found", message: "Boss not found or not published" }, 404);
+  }
+  // 2026-10-30 体験版: クリアの記録も挑戦の枠を使う（累計15体、_shared/edition.ts）。通常のゲームは挑戦の記録で枠を使った後なので
+  // "already" になり、何も増えない。挑戦の記録を飛ばしてクリアだけを送っても、16体目は記録しない。
+  if (verification.edition === DEMO_EDITION) {
+    const slot = await claimDemoChallengeSlot(db, bossId, challengerSteamId);
+    if (!slot.ok) {
+      console.error("record-challenge-clear: demo slot error", slot.errorMessage);
+      return jsonResponse({ ok: false, error_kind: "db_error", message: "The server could not check the trial challenge limit" }, 502);
+    }
+    if (slot.status === "limit") {
+      return jsonResponse({
+        ok: false,
+        error_kind: DEMO_CHALLENGE_LIMIT_ERROR,
+        message: "The trial version can challenge up to 15 different online bosses",
+        demo_used: slot.used,
+        demo_limit: slot.limit,
+      }, 403);
+    }
+    if (slot.status === "not_found") {
+      return jsonResponse({ ok: false, error_kind: "not_found", message: "Boss not found or not published" }, 404);
+    }
   }
 
   const recorded = await db.rpc<ChallengeRecordRow>("record_boss_challenge_clear", {

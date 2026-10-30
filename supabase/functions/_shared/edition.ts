@@ -60,3 +60,53 @@ export async function demoBossRejection(
   const row = found.rows[0];
   return isDemoBoss(row.creator_mode ?? undefined, row.appearance_id) ? null : "demo_unavailable";
 }
+
+// 2026-10-29 体験版のオンライン挑戦は、異なるボス累計15体まで（DB の claim_demo_challenge_slot()・
+// migration 20261029000000_demo_challenge_slots.sql）。製品版のチケットには何もしない。
+export const DEMO_MAX_CHALLENGED_BOSSES = 15;
+export const DEMO_CHALLENGE_LIMIT_ERROR = "demo_challenge_limit";
+
+export type DemoSlotStatus = "already" | "claimed" | "limit" | "not_found";
+
+export type DemoSlotResult =
+  | { ok: true; status: DemoSlotStatus; used: number; limit: number }
+  | { ok: false; errorMessage: string };
+
+interface DemoSlotRow {
+  status: string;
+  used: number;
+  slot_limit: number;
+}
+
+type RpcClient = {
+  rpc<T>(functionName: string, params: Record<string, unknown>): Promise<{ ok: boolean; rows: T[]; errorMessage?: string | null }>;
+};
+
+// 体験版の利用者が戦闘を始める時に、このボスの枠を確かめて（無ければ1つ使って）返す。体験版でなければ呼ばない。
+export async function claimDemoChallengeSlot(db: RpcClient, bossId: string, steamId: string): Promise<DemoSlotResult> {
+  const claimed = await db.rpc<DemoSlotRow>("claim_demo_challenge_slot", { p_boss_id: bossId, p_steam_id: steamId });
+  if (!claimed.ok || claimed.rows.length === 0) return { ok: false, errorMessage: claimed.errorMessage ?? "" };
+  const row = claimed.rows[0];
+  const status = String(row.status) as DemoSlotStatus;
+  if (!["already", "claimed", "limit", "not_found"].includes(status)) {
+    return { ok: false, errorMessage: `unexpected demo slot status '${row.status}'` };
+  }
+  return { ok: true, status, used: Number(row.used ?? 0), limit: Number(row.slot_limit ?? DEMO_MAX_CHALLENGED_BOSSES) };
+}
+
+export type DemoStatusResult =
+  | { ok: true; used: number; limit: number; bossIds: string[] }
+  | { ok: false; errorMessage: string };
+
+// 今の使用状況（読むだけ）。
+export async function demoChallengeStatus(db: RpcClient, steamId: string): Promise<DemoStatusResult> {
+  const read = await db.rpc<{ used: number; slot_limit: number; boss_ids: string[] | null }>("demo_challenge_status", { p_steam_id: steamId });
+  if (!read.ok || read.rows.length === 0) return { ok: false, errorMessage: read.errorMessage ?? "" };
+  const row = read.rows[0];
+  return {
+    ok: true,
+    used: Number(row.used ?? 0),
+    limit: Number(row.slot_limit ?? DEMO_MAX_CHALLENGED_BOSSES),
+    bossIds: Array.isArray(row.boss_ids) ? row.boss_ids.map(String) : [],
+  };
+}

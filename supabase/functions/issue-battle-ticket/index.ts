@@ -10,7 +10,7 @@ import { SteamTicketVerifier } from "../steam-auth/steam_ticket_verifier.ts";
 import { RealSteamWebApiClient } from "../steam-auth/steam_web_api_client.ts";
 import { WEB_API_IDENTITY } from "../steam-auth/index.ts";
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
-import { demoBossRejection } from "../_shared/edition.ts";
+import { claimDemoChallengeSlot, DEMO_CHALLENGE_LIMIT_ERROR, demoBossRejection, DEMO_EDITION } from "../_shared/edition.ts";
 import { isUuid, issueBattleTicket } from "../_shared/battle_tickets.ts";
 
 export interface IssueBattleTicketRequestBody {
@@ -75,6 +75,22 @@ export async function handleIssueBattleTicket(
   const demoRejected = await demoBossRejection(db, bossId, verification.edition);
   if (demoRejected !== null) {
     return jsonResponse({ ok: false, error_kind: demoRejected, message: "This boss is not available in the trial version" }, demoRejected === "db_error" ? 502 : 403);
+  }
+
+  // 2026-10-29 体験版: 異なるオンラインボスへの挑戦は累計15体まで。挑戦済みのボスはそのまま出す（枠を使わない）。
+  // 15体に達していて新しいボスなら断る（record-challenge-attempt を通さずにここを直接呼んでも16体目は通らない）。
+  if (verification.edition === DEMO_EDITION) {
+    const slot = await claimDemoChallengeSlot(db, bossId, steamId);
+    if (!slot.ok) {
+      console.error("issue-battle-ticket: demo slot error", slot.errorMessage);
+      return jsonResponse({ ok: false, error_kind: "db_error", message: "The server could not check the trial challenge limit" }, 502);
+    }
+    if (slot.status === "limit") {
+      return jsonResponse({ ok: false, error_kind: DEMO_CHALLENGE_LIMIT_ERROR, message: "The trial version can challenge up to 15 different online bosses" }, 403);
+    }
+    if (slot.status === "not_found") {
+      return jsonResponse({ ok: false, error_kind: "not_found", message: "Boss not found or not published" }, 404);
+    }
   }
 
   const issued = await issueBattleTicket(db, bossId, steamId);

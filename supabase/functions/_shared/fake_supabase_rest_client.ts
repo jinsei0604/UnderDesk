@@ -120,7 +120,20 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
     if (select) {
       rows = rows.map((row) => {
         const projected: Record<string, unknown> = {};
-        for (const col of select!) projected[col] = row[col];
+        for (const col of select!) {
+          // 2026-10-29: 「別名:payload->draft_fields->>キー」（JSON の値を別名で取り出す。_shared/edition.ts の
+          // demoBossRejection が使う）。無ければ null（PostgREST と同じ）。
+          const alias = col.match(/^([a-z_]+):([a-z_]+)((?:->>?[a-z_]+)+)$/);
+          if (alias) {
+            let value: unknown = row[alias[2]];
+            for (const key of alias[3].split(/->>?/).filter((k) => k.length > 0)) {
+              value = typeof value === "object" && value !== null ? (value as Record<string, unknown>)[key] : undefined;
+            }
+            projected[alias[1]] = value === undefined ? null : value;
+            continue;
+          }
+          projected[col] = row[col];
+        }
         return projected;
       });
     }
@@ -193,6 +206,14 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
     if (functionName === "record_boss_challenge_attempt") {
       return this.upsertChallengeRecord(params, "attempt") as Promise<RestResult<T>>;
     }
+    if (functionName === "claim_demo_challenge_slot") {
+      return Promise.resolve({ ok: true, rows: [this.claimDemoSlot(params) as T], status: 200 });
+    }
+    if (functionName === "demo_challenge_status") {
+      const steamId = String(params.p_steam_id ?? "");
+      const mine = this.rowsOf("demo_challenge_slots").filter((r) => r.steam_id === steamId);
+      return Promise.resolve({ ok: true, rows: [{ used: mine.length, slot_limit: 15, boss_ids: mine.map((r) => String(r.boss_id)) } as T], status: 200 });
+    }
     if (functionName === "record_boss_challenge_clear") {
       return this.upsertChallengeRecord(params, "clear") as Promise<RestResult<T>>;
     }
@@ -247,6 +268,21 @@ export class FakeSupabaseRestClient implements SupabaseRestClient {
     row.by_owner = this.rowsOf("bosses").some((b) => b.id === bossId && b.owner_steam_id === steamId);
     row.updated_at = now;
     return Promise.resolve({ ok: true, rows: [row], status: 200 });
+  }
+
+  // 本物の DB の claim_demo_challenge_slot() と同じ（2026-10-29）: 挑戦済みなら already、公開中でなければ not_found、
+  // 15体に達していれば limit、それ以外は1行足して claimed。ボスへの外部キーは無い（ボスが消えても行は残る）。
+  private claimDemoSlot(params: Record<string, unknown>): Record<string, unknown> {
+    const bossId = String(params.p_boss_id ?? "");
+    const steamId = String(params.p_steam_id ?? "");
+    const rows = this.rowsOf("demo_challenge_slots");
+    const mine = () => rows.filter((r) => r.steam_id === steamId).length;
+    if (rows.some((r) => r.steam_id === steamId && r.boss_id === bossId)) return { status: "already", used: mine(), slot_limit: 15 };
+    if (!this.rowsOf("bosses").some((b) => b.id === bossId && b.is_published === true)) return { status: "not_found", used: mine(), slot_limit: 15 };
+    if (mine() >= 15) return { status: "limit", used: mine(), slot_limit: 15 };
+    rows.push({ steam_id: steamId, boss_id: bossId, claimed_at: new Date(this.now()).toISOString() });
+    this.tables.set("demo_challenge_slots", rows);
+    return { status: "claimed", used: mine(), slot_limit: 15 };
   }
 
   // 本物の DB の issue_boss_battle_ticket() と同じ（2026-10-23）: 公開中のボスだけ。1人×1ボスで1時間に60枚・1人で24時間に600枚まで。

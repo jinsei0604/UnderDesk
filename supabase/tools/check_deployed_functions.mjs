@@ -58,6 +58,13 @@ out.push(await call("issue-battle-ticket fake ticket", fn("issue-battle-ticket")
 out.push(await call("submit-battle-result no ticket", fn("submit-battle-result"), { method: "POST", body: {} }));
 out.push(await call("submit-battle-result fake ticket", fn("submit-battle-result"), { method: "POST", body: { ticket: "aabbcc", results: [], next_ticket_boss_id: NO_ID } }));
 out.push(await call("list-my-hard-awards fake ticket", fn("list-my-hard-awards"), { method: "POST", body: { ticket: "aabbcc" } }));
+out.push(await call("record-challenge-clear fake ticket", fn("record-challenge-clear"), { method: "POST", body: { ticket: "aabbcc", boss_id: NO_ID } }));
+// 体験版（2026-10-28）と15体の制限（2026-10-29〜30）。デプロイの前は demo-challenge-status が 404、edition=demo は無視される
+out.push(await call("list-bosses edition=demo", fn("list-bosses?limit=5&edition=demo")));
+out.push(await call("search-bosses edition=demo", fn(`search-bosses?q=${encodeURIComponent("zz-check")}&edition=demo`)));
+out.push(await call("get-boss missing id edition=demo", fn("get-boss?id=00000000-0000-4000-8000-000000000000&edition=demo")));
+out.push(await call("demo-challenge-status no ticket", fn("demo-challenge-status"), { method: "POST", body: {} }));
+out.push(await call("demo-challenge-status fake ticket", fn("demo-challenge-status"), { method: "POST", body: { ticket: "aabbcc" } }));
 // 違う鍵（JWT の確認が効いているか）
 const BAD = "sb_publishable_this_key_does_not_exist_0000";
 out.push(await call("list-bosses bad key", fn("list-bosses?limit=5"), { key: BAD }));
@@ -66,4 +73,6 @@ out.push(await call("get-boss bad key", fn("get-boss?id=00000000-0000-4000-8000-
 out.push(await call("REST bosses (direct)", "/rest/v1/bosses?select=id,owner_steam_id&limit=1"));
 out.push(await call("REST boss_challenge_records (direct)", "/rest/v1/boss_challenge_records?select=boss_id,challenger_steam_id&limit=1"));
 out.push(await call("REST boss_battle_tickets (direct)", "/rest/v1/boss_battle_tickets?select=id&limit=1"));
+out.push(await call("REST demo_challenge_slots (direct)", "/rest/v1/demo_challenge_slots?select=steam_id&limit=1"));
+out.push(await call("RPC claim_demo_challenge_slot (direct)", "/rest/v1/rpc/claim_demo_challenge_slot", { method: "POST", body: { p_boss_id: NO_ID, p_steam_id: "1" } }));
 if (process.argv[2]) fs.writeFileSync(process.argv[2], JSON.stringify(out, null, 2));

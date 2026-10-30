@@ -24,7 +24,7 @@ import { SteamTicketVerifier } from "../steam-auth/steam_ticket_verifier.ts";
 import { RealSteamWebApiClient } from "../steam-auth/steam_web_api_client.ts";
 import { WEB_API_IDENTITY } from "../steam-auth/index.ts";
 import { RealSupabaseRestClient, SupabaseRestClient } from "../_shared/supabase_rest_client.ts";
-import { demoBossRejection } from "../_shared/edition.ts";
+import { claimDemoChallengeSlot, DEMO_CHALLENGE_LIMIT_ERROR, demoBossRejection, DEMO_EDITION } from "../_shared/edition.ts";
 import { issueBattleTicket } from "../_shared/battle_tickets.ts";
 
 export interface RecordChallengeAttemptRequestBody {
@@ -42,6 +42,10 @@ export interface RecordChallengeAttemptResponseBody {
   battle_ticket?: string;
   ticket_expires_at?: string;
   ticket_status?: string;
+  // 2026-10-29 体験版: 異なるオンラインボスへの挑戦の累計（この挑戦の後）と上限。体験版のチケットの時だけ入れる
+  // （15体に達して断った時も入れる）
+  demo_used?: number;
+  demo_limit?: number;
   error_kind?: string;
   message?: string;
 }
@@ -120,6 +124,31 @@ export async function handleRecordChallengeAttempt(
     return jsonResponse({ ok: false, error_kind: "not_found", message: "Boss not found or not published" }, 404);
   }
 
+  // 2026-10-29 体験版: 異なるオンラインボスへの挑戦は累計15体まで（_shared/edition.ts・DB の claim_demo_challenge_slot()）。
+  // 挑戦済みのボスは枠を使わない。15体に達していて新しいボスなら、記録もチケットも出さずに断る（ゲームは戦闘を始めない）。
+  // 製品版のチケットには何もしない。
+  let demoSlot: { used: number; limit: number } | null = null;
+  if (verification.edition === DEMO_EDITION) {
+    const slot = await claimDemoChallengeSlot(db, bossId, challengerSteamId);
+    if (!slot.ok) {
+      console.error("record-challenge-attempt: demo slot error", slot.errorMessage);
+      return jsonResponse({ ok: false, error_kind: "db_error", message: "The server could not check the trial challenge limit" }, 502);
+    }
+    if (slot.status === "limit") {
+      return jsonResponse({
+        ok: false,
+        error_kind: DEMO_CHALLENGE_LIMIT_ERROR,
+        message: "The trial version can challenge up to 15 different online bosses",
+        demo_used: slot.used,
+        demo_limit: slot.limit,
+      }, 403);
+    }
+    if (slot.status === "not_found") {
+      return jsonResponse({ ok: false, error_kind: "not_found", message: "Boss not found or not published" }, 404);
+    }
+    demoSlot = { used: slot.used, limit: slot.limit };
+  }
+
   const recorded = await db.rpc<ChallengeRecordRow>("record_boss_challenge_attempt", {
     p_boss_id: bossId,
     p_steam_id: challengerSteamId,
@@ -133,6 +162,10 @@ export async function handleRecordChallengeAttempt(
     challenge_count: recorded.rows[0].challenge_count,
     by_owner: recorded.rows[0].by_owner === true,
   };
+  if (demoSlot !== null) {
+    response.demo_used = demoSlot.used;
+    response.demo_limit = demoSlot.limit;
+  }
   if (body.want_battle_ticket === true) {
     const issued = await issueBattleTicket(db, bossId, challengerSteamId);
     if (!issued.ok) {
