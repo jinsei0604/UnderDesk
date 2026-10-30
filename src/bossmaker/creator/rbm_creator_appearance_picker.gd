@@ -4,12 +4,13 @@ extends Control
 const VisualAssets = preload("res://src/bossmaker/visuals/rbm_visual_assets.gd")
 const S := preload("res://src/bossmaker/challenge/rbm_challenge_list_style.gd")
 const Menu := preload("res://src/bossmaker/challenge/rbm_menu_ui.gd")
+const PreviewVideo := preload("res://src/bossmaker/creator/rbm_boss_preview_video.gd")
 
 ## ボス選択（ボスの外見を選ぶ画面）。2026-10-28 ユーザー承認の案（prototypes/menu_boss_select_designs_2026-10-28）で作り直した:
 ## 左にボスのカードの一覧（スクロール）、右に選んだボスのプロフィール（戦闘と同じ背景の上の立ち絵・名前・特徴・
 ## 覚醒できるボスだけ「覚醒後を見る」／「通常に戻す」・単体攻撃と全体攻撃のプレビュー枠・「このボスにする」）。
 ## カードを押すと選ぶだけで、決定は「このボスにする」（以前の「押した瞬間に決定」から変更）。
-## プレビュー枠の中身は仮表示（攻撃の動画はまだ入れない。ユーザーの指示）。一覧は RBMCreatorAppearanceCatalog.all() から作る。
+## 指定4体の攻撃は既存演出の録画を再生する。他のボスは準備中。一覧は RBMCreatorAppearanceCatalog.all() から作る。
 ## RBMCreatorMain の root_column の中に置かれ、見た目は紺＋水色（RBMMenuUi）を自分で持つ（共通の再配色を受けない）。
 
 signal confirmed(appearance_id: String)
@@ -53,6 +54,9 @@ var _toggle: Button
 var _preview_title: Label
 var _preview_captions: Array[Label] = []
 var _preview_frames: Array[Panel] = []
+var _preview_videos: Array[AspectRatioContainer] = []
+var _preview_pause: Button
+var _previews_paused := false
 var _selected_label: Label
 var _confirm_button: Button
 
@@ -260,19 +264,24 @@ func _build_profile() -> Panel:
 	info.add_child(_toggle)
 	stage.resized.connect(_place_boss)
 
-	# 攻撃のプレビュー（枠だけ・中身は仮表示）
+	# 攻撃のプレビュー（録画を無音ループ再生）
 	var head := Control.new()
 	head.custom_minimum_size = Vector2(0, 30)
 	column.add_child(head)
 	_preview_title = Menu.section(head, "", Vector2(16, 2), "PreviewTitle")
-	var note := S.label(head, tr("それぞれループ再生します（準備中）"), Rect2(0, 0, 10, 26), 12, S.MUTED, "PreviewNote")
-	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	note.anchor_left = 0.4
-	note.anchor_right = 1.0
-	note.offset_left = 0
-	note.offset_right = -16
-	note.offset_top = 2
-	note.offset_bottom = 28
+	_preview_pause = Button.new()
+	_preview_pause.name = "PreviewPauseButton"
+	_preview_pause.text = tr("プレビューを一時停止")
+	_preview_pause.add_theme_font_size_override("font_size", 12)
+	S.button_style(_preview_pause)
+	head.add_child(_preview_pause)
+	_preview_pause.anchor_left = 1.0
+	_preview_pause.anchor_right = 1.0
+	_preview_pause.offset_left = -210
+	_preview_pause.offset_right = -16
+	_preview_pause.offset_top = 0
+	_preview_pause.offset_bottom = 30
+	_preview_pause.pressed.connect(_toggle_preview_pause)
 	var frames := HBoxContainer.new()
 	frames.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	frames.add_theme_constant_override("separation", 8)
@@ -313,7 +322,7 @@ func _build_profile() -> Panel:
 	bottom.add_child(bottom_right)
 	return panel
 
-## 攻撃のプレビュー枠（仮表示: 格子・再生の三角・「プレビュー準備中」）。中身の動画はまだ入れない。
+## 既存の枠内に動画を収める。未収録のボスは準備中の表示を残す。
 func _preview_frame(node_name: String) -> Panel:
 	var box := Panel.new()
 	box.name = node_name
@@ -321,6 +330,7 @@ func _preview_frame(node_name: String) -> Panel:
 	box.clip_contents = true
 	box.add_theme_stylebox_override("panel", S.box(S.INSET, Color("1f3a44")))
 	var grid := Control.new()
+	grid.name = "PreviewPlaceholder"
 	grid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(grid)
@@ -333,6 +343,16 @@ func _preview_frame(node_name: String) -> Panel:
 		for row in range(-12, 13, 3):
 			grid.draw_rect(Rect2(c.x - 9, c.y + row, 24 - absi(row) * 2, 3), Color(S.SILVER, 0.55)))
 	grid.resized.connect(grid.queue_redraw)
+	var video := PreviewVideo.new()
+	video.start_delay = 1 + _preview_videos.size()
+	video.name = "PreviewVideo"
+	box.add_child(video)
+	video.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	video.offset_left = 2
+	video.offset_right = -2
+	video.offset_top = 38
+	video.offset_bottom = -2
+	_preview_videos.append(video)
 	var cap := Menu.shadow(S.label(box, "", Rect2(14, 10, 260, 24), 15, S.TEXT, "PreviewCaption"))
 	_preview_captions.append(cap)
 	var loop := Menu.tag(box, "LOOP", Vector2.ZERO, S.MUTED, Color("2a3a44"), Color(S.INSET, 0.9), true, "PreviewLoopTag")
@@ -457,6 +477,11 @@ func _refresh_profile() -> void:
 	for i in _preview_captions.size():
 		_preview_captions[i].text = captions[i]
 		_preview_frames[i].add_theme_stylebox_override("panel", S.box(S.INSET, Color(S.HARD_EDGE, 0.8) if awakened else Color("1f3a44")))
+		var available: bool = _preview_videos[i].configure(_selected_id, awakened, "single" if i == 0 else "all")
+		_preview_frames[i].get_node("PreviewPlaceholder").visible = not available
+		_preview_frames[i].get_node("PreviewPending").visible = not available
+		_preview_frames[i].get_node("PreviewLoopTag").visible = available
+	_preview_pause.visible = _preview_videos.any(func(video): return video.visible)
 	# 決めるのはボスそのもの（覚醒後の姿を見ていても同じボス）。
 	_selected_label.text = tr("選択中：%s") % name
 
@@ -464,3 +489,8 @@ func _refresh_profile() -> void:
 func _on_back_pressed() -> void:
 	select(_opened_with_id)
 	cancelled.emit()
+
+func _toggle_preview_pause() -> void:
+	_previews_paused = not _previews_paused
+	for video in _preview_videos: video.set_paused(_previews_paused)
+	_preview_pause.text = tr("プレビューを再生") if _previews_paused else tr("プレビューを一時停止")

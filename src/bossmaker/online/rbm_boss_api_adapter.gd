@@ -172,6 +172,11 @@ func submit_battle_results(ticket_hex: String, results: Array, next_ticket_boss_
 	return await _request(_function_url("submit-battle-result"), HTTPClient.METHOD_POST, JSON.stringify(body))
 
 ## 2026-10-23: 自分が難関ボス討伐に認定されたボスの id（{"ok": true, "boss_ids": [...]}）。認定はサーバー（DB）が決める。
+## 2026-10-29 体験版: 異なるオンラインボスへの挑戦の使用状況（{"ok": true, "limited": true, "used", "limit",
+## "challenged_boss_ids"}。製品版のチケットなら limited: false）。本人はサーバーが Steam の ticket で確かめる。
+func demo_challenge_status(ticket_hex: String) -> Dictionary:
+	return await _request(_function_url("demo-challenge-status"), HTTPClient.METHOD_POST, JSON.stringify({"ticket": ticket_hex}))
+
 func list_my_hard_awards(ticket_hex: String) -> Dictionary:
 	return await _request(_function_url("list-my-hard-awards"), HTTPClient.METHOD_POST, JSON.stringify({"ticket": ticket_hex}))
 

@@ -102,12 +102,13 @@ func _advance_to_final_step(main: RBMCreatorMain) -> void:
 # item1: 公開設定へ「勝利条件」「特殊条件」を追加
 # =============================================================================
 
-func test_challenge_info_visibility_keys_include_win_condition_and_special_condition() -> void:
+## 2026-10-29 ユーザー確定: 「特殊条件」は常に「なし」を出すだけで勝利条件と紛らわしいため、公開項目から外した。
+func test_challenge_info_visibility_keys_include_win_condition_but_not_special_condition() -> void:
 	assert_true(RBMCreatorDraft.CHALLENGE_INFO_VISIBILITY_KEYS.has("win_condition"))
-	assert_true(RBMCreatorDraft.CHALLENGE_INFO_VISIBILITY_KEYS.has("special_condition"))
+	assert_false(RBMCreatorDraft.CHALLENGE_INFO_VISIBILITY_KEYS.has("special_condition"))
 	var draft := RBMCreatorDraft.new()
 	assert_true(draft.is_challenge_info_visible("win_condition"), "sanity: defaults to public")
-	assert_true(draft.is_challenge_info_visible("special_condition"), "sanity: defaults to public")
+	assert_false(draft.challenge_info_visibility.has("special_condition"), "新しく作るボスは特殊条件の公開設定を持たない")
 
 ## 実UI経由: STEP7で勝利条件を個別に非公開にし、CHALLENGE確認画面で実内容が
 ## 漏れないことを確認する（作者メッセージ側でヒントを与える遊び方の土台）。
@@ -172,57 +173,53 @@ func test_win_condition_visible_by_default_shows_real_content_on_confirm_screen(
 	assert_false(confirm_view._win_condition_label.text.contains("非公開"))
 	assert_true(confirm_view._win_condition_label.text.contains("勝利条件"))
 
-## 特殊条件も同一パターンで非公開にできる。実機プレイ改善③の要求どおり
-## _special_condition_text()は今も固定文字列"なし"を返す——特殊条件
-## システム自体は追加していない（これは既存設計のまま、report参照）。
-func test_special_condition_off_hides_content_and_on_shows_it_on_confirm_screen() -> void:
+## 2026-10-29: 「特殊条件」を非公開にしていた保存済みのボスも読み込める（その値は静かに無視され、確認画面に
+## 「特殊条件」の行は出ない）。
+func test_old_save_with_hidden_special_condition_still_loads_and_shows_no_special_condition_row() -> void:
 	var draft := RBMCreatorDraft.new()
-	draft.boss_name = "特殊条件テストボス"
+	draft.boss_name = "旧保存の公開設定テストボス"
 	draft.hp = 1
 	draft.atk = 1
 	draft.spd = 1
 	draft.add_party_character("hero")
-	draft.set_challenge_info_visible("special_condition", false)
+	draft.challenge_info_visibility["special_condition"] = false  # 以前の保存の形をそのまま作る
 	var result := RBMLocalStageRepository.save_new(draft)
+	assert_true(bool(result.get("ok", false)))
 
 	var loaded := RBMLocalStageRepository.load_stage(str(result.get("stage_id", "")))
+	assert_true(bool(loaded.get("ok", false)), "特殊条件を持つ以前の保存も読み込める")
 	var restored := RBMCreatorDraft.new()
 	restored.restore_from_saved_dict(loaded.get("draft_data", {}))
-	assert_false(restored.is_challenge_info_visible("special_condition"), "sanity: hidden setting must survive save/load")
+	assert_false(restored.challenge_info_visibility.has("special_condition"), "読み込むと特殊条件の値は無視される")
 
 	var confirm_view := RBMChallengeConfirmView.new()
 	add_child_autofree(confirm_view)
 	confirm_view.open(str(result.get("stage_id", "")), restored)
-	assert_true(confirm_view._special_condition_label.text.contains("非公開"), "hidden special condition must not leak its content")
-	assert_false(confirm_view._special_condition_label.text.contains("なし"), "the underlying fixed placeholder text must not leak while hidden")
+	for node in confirm_view.find_children("*", "Label", true, false):
+		assert_false((node as Label).text.contains("特殊条件"), "確認画面に特殊条件の行は出ない: %s" % (node as Label).text)
 
 ## item2「既存6分類＋今回の2分類が同じ一括操作で同期する」の実UI直接確認
 ## ——「すべて非公開」「すべて公開」ボタンが実際にwin_condition/special_
 ## conditionのCheckBoxも一緒に動かすことを確認する。
-func test_hide_all_and_show_all_buttons_also_toggle_win_and_special_condition_checkboxes() -> void:
+func test_hide_all_and_show_all_buttons_also_toggle_the_win_condition_checkbox() -> void:
 	var main := await _new_creator_main()
 	_fill_minimum_valid_draft(main, "一括操作テストボス")
 	await _advance_to_final_step(main)
 	var step7: RBMCreatorStep7Summary = main._step_views[RBMCreatorMain.STEP_COUNT - 1]
 
 	var win_checkbox: CheckBox = step7._visibility_checkboxes["win_condition"]
-	var special_checkbox: CheckBox = step7._visibility_checkboxes["special_condition"]
+	assert_false(step7._visibility_checkboxes.has("special_condition"), "最終確認に「特殊条件」の公開項目は無い（2026-10-29）")
 	assert_true(win_checkbox.button_pressed)
-	assert_true(special_checkbox.button_pressed)
 
 	_btn(step7, "HideAllVisibilityButton").pressed.emit()
 	await get_tree().process_frame
 	assert_false(win_checkbox.button_pressed, "すべて非公開 must also uncheck the new win_condition checkbox")
-	assert_false(special_checkbox.button_pressed, "すべて非公開 must also uncheck the new special_condition checkbox")
 	assert_false(main.draft.is_challenge_info_visible("win_condition"))
-	assert_false(main.draft.is_challenge_info_visible("special_condition"))
 
 	_btn(step7, "ShowAllVisibilityButton").pressed.emit()
 	await get_tree().process_frame
 	assert_true(win_checkbox.button_pressed, "すべて公開 must also recheck the new win_condition checkbox")
-	assert_true(special_checkbox.button_pressed, "すべて公開 must also recheck the new special_condition checkbox")
 	assert_true(main.draft.is_challenge_info_visible("win_condition"))
-	assert_true(main.draft.is_challenge_info_visible("special_condition"))
 
 # =============================================================================
 # item4: 保存成功後は「クリエイター一覧に戻る」で一覧へ直帰

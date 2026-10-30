@@ -453,7 +453,8 @@ func test_step4_opens_on_the_first_party_member_with_the_status_edit_closed() ->
 ## カード自体をクリックして選択→下部「選択キャラクター設定」の[性能調整]
 ## タブへ切り替える方式になった（PerformanceTabButton、常時表示の
 ## SelectedCharacterTabContent）。
-func test_step4_selected_card_opens_read_only_performance_from_real_master_data() -> void:
+## 2026-10-29 ユーザー確定: SIMPLE でも味方の能力は表示だけでなく編集できる（HARDCORE と同じ編集欄）。
+func test_step4_selected_card_opens_editable_performance_from_real_master_data() -> void:
 	var main := await _new_creator_main()
 	var step4: RBMCreatorStep5Party = main._step_views[3]
 	step4.toggle_character("hero")
@@ -468,7 +469,11 @@ func test_step4_selected_card_opens_read_only_performance_from_real_master_data(
 	var master := main.draft.master_character_def("hero")
 	assert_true(step4.is_status_sheet_open(), "「ステータス編集」で開くこと（2026-10-17 案C）")
 	assert_eq(step4._selected_header_label.text, "ステータス編集　勇者")
-	assert_eq(_label(step4._tab_content, "CharacterInfoStatsLabel").text, "HP：%d\nATK：%d\nSPD：%d" % [int(master.get("hp", 0)), int(master.get("atk", 0)), int(master.get("spd", 0))])
+	assert_null(step4._tab_content.find_child("CharacterInfoStatsLabel", true, false), "表示だけのラベルではなく編集欄で値を出す")
+	for field in ["hp", "atk", "spd", "max_sp"]:
+		var spin := step4._tab_content.find_child("AllyStatOverrideSpin_hero_%s" % field, true, false) as SpinBox
+		assert_not_null(spin, "SIMPLE でも %s を編集できる" % field)
+		assert_eq(int(spin.value), int(master.get(field, 0)), "初期値は標準の値")
 	assert_false(_all_label_texts(step4._tab_content).any(func(text: String): return text.contains("DEF")), "存在しないDEFを表示しないこと")
 	assert_eq(step4._tab_content.find_children("CharacterSkillCard_*", "", true, false).size(), (master.get("skills", []) as Array).size(), "マスターが持つ全スキルだけを表示すること")
 
@@ -489,9 +494,10 @@ func test_step4_selected_card_opens_read_only_performance_from_real_master_data(
 		else:
 			assert_null(target_label, "マスターにtargetがないスキルへ対象を発明しないこと")
 
-	assert_true(step4._tab_content.find_children("*", "LineEdit", true, false).is_empty())
-	assert_true(step4._tab_content.find_children("*", "SpinBox", true, false).is_empty())
-	assert_true(step4._tab_content.find_children("*", "CheckBox", true, false).is_empty(), "性能詳細は完全な読み取り専用であること")
+	# 文字の入力欄は無い（数値の欄 SpinBox が中に持つ LineEdit だけ）。
+	assert_true(step4._tab_content.find_children("*", "LineEdit", true, false).all(func(edit: Node) -> bool: return edit.get_parent() is SpinBox))
+	assert_false(step4._tab_content.find_children("*", "SpinBox", true, false).is_empty(), "SIMPLE でも能力・技の値を編集できる（2026-10-29）")
+	assert_true(step4._tab_content.find_children("*", "CheckBox", true, false).is_empty(), "性能のタブに使用可能スキルのチェックは混ざらない")
 
 func test_step4_attack_base_damage_display_matches_real_neutral_unbuffed_battle_log() -> void:
 	var main := await _new_creator_main()

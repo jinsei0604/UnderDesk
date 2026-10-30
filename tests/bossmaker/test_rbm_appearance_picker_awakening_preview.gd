@@ -152,15 +152,25 @@ func test_the_toggle_switches_the_profile_and_previews_to_awakened_and_back() ->
 	assert_false(picker.is_showing_awakened("appearance_dragon"))
 	assert_eq(sprite.texture, normal_texture)
 
-func test_the_attack_previews_are_placeholders_only() -> void:
+## 2026-10-29: 竜の通常の単体攻撃・全体攻撃の動画を足した（覚醒後の竜はまだ録っていないので準備中のまま）。
+func test_dragon_plays_its_normal_previews_and_keeps_the_awakened_placeholder() -> void:
 	var picker := _new_picker()
 	picker.open("appearance_dragon")
-	for frame_name in ["SingleAttackPreview", "AllAttackPreview"]:
-		var frame := _find(picker, frame_name)
+	var expected := ["dragon_single.ogv", "dragon_all.ogv"]
+	var frame_names := ["SingleAttackPreview", "AllAttackPreview"]
+	for i in range(2):
+		var frame := _find(picker, frame_names[i])
 		assert_not_null(frame)
-		assert_not_null(_find(frame, "PreviewPending"), "the attack videos are not added yet (user instruction)")
-		assert_eq(frame.find_children("*", "VideoStreamPlayer", true, false).size(), 0)
+		assert_false((_find(frame, "PreviewPending") as Label).visible, "dragon now has its normal recordings")
+		var players := frame.find_children("*", "VideoStreamPlayer", true, false)
+		assert_eq(players.size(), 1)
+		assert_true(str(picker._preview_videos[i].current_path).ends_with(expected[i]), str(picker._preview_videos[i].current_path))
 		assert_eq(frame.find_children("*", "SubViewport", true, false).size(), 0)
+	picker._on_preview_toggle_pressed("appearance_dragon")
+	for i in range(2):
+		var frame := _find(picker, frame_names[i])
+		assert_true((_find(frame, "PreviewPending") as Label).visible, "the awakened dragon is not recorded yet")
+		assert_null((frame.find_children("*", "VideoStreamPlayer", true, false)[0] as VideoStreamPlayer).stream)
 
 func test_toggle_never_confirms_and_never_changes_the_selection() -> void:
 	var picker := _new_picker()

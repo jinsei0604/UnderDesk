@@ -22,12 +22,36 @@ KIND=${2:-release}
 GODOT=${GODOT:-/c/src/tools/godot/Godot_v4.7.2-stable_win64_console.exe}
 EXPECTED_VERSION="4.7.2.stable"
 
+# Repair an already distributed build without incorporating unfinished worktree assets.
+# bash tools/build_release_windows.sh <new-output> repair <existing-build> <new-work-dir>
+# This prepares files/VDFs only; it never runs SteamCMD.
+if [ "$KIND" = repair ]; then
+  BASE=${3:?"修復元の配布済みフォルダを指定してください"}
+  WORK=${4:?"新しい作業用フォルダを指定してください"}
+  CONFIG_ARGS=()
+  [ ! -f "$REPO/supabase_poc.local.env" ] || CONFIG_ARGS=(-ConfigFile "$(cygpath -am "$REPO/supabase_poc.local.env")")
+  exec pwsh.exe -NoProfile -File "$(cygpath -am "$REPO/tools/prepare_steam_release.ps1")" \
+    -SourceDirectory "$(cygpath -am "$BASE")" -OutputDirectory "$(cygpath -am "$OUT")" \
+    -WorkDirectory "$(cygpath -am "$WORK")" -Godot "$(cygpath -am "$GODOT")" \
+    -RepairMissingPublicConfig "${CONFIG_ARGS[@]}"
+fi
+
 case "$KIND" in
   release) PRESET="Windows Desktop"; MODE="--export-release" ;;
   verify)  PRESET="Windows Desktop Verify"; MODE="--export-debug" ;;
   demo)    PRESET="Windows Desktop Demo"; MODE="--export-release" ;;  # 体験版（AppID 5521380。docs/DEMO_EDITION.md）
-  *) echo "種類は release / verify / demo"; exit 2 ;;
+  *) echo "種類は release / verify / demo / repair"; exit 2 ;;
 esac
+
+# A dirty source tree must be an explicit build choice, never an accidental release.
+if [ -e "$REPO/.git" ]; then
+  STATUS=$(git -C "$REPO" status --porcelain) || { echo "Git 状態を確認できません。書き出しを停止します。"; exit 1; }
+  if [ -n "$STATUS" ] && [ "${MC_ALLOW_WORKTREE_BUILD:-0}" != 1 ]; then
+    echo "未コミット変更があります。配布済み版の repair、または確認済みのクリーンなコピーを使ってください。"
+    echo "制作中の変更を意図して含める場合だけ MC_ALLOW_WORKTREE_BUILD=1 を指定してください。"
+    exit 1
+  fi
+fi
 
 # 1. 版をそろえる（本体とテンプレート）
 VERSION=$("$GODOT" --version | tr -d '\r')
@@ -62,10 +86,13 @@ OUT=$(cd "$OUT" && pwd)
 STAGE="$OUT/_stage"
 rm -rf "$STAGE"
 mkdir -p "$STAGE/tools"
-for d in src addons assets_bossmaker data_bossmaker localization; do
+# ally_awakening（味方の覚醒の素材・処理、2026-10-24〜）も src から読むので写す（2026-10-30 まで漏れていて、書き出した版で覚醒の演出が読めなかった）
+for d in src addons assets_bossmaker data_bossmaker localization ally_awakening; do
   cp -r "$REPO/$d" "$STAGE/$d"
 done
 rm -rf "$STAGE/addons/gut"
+# 配布物に入れない試作（どこからも使われていない画面の試作。元のファイルは作業ツリーに残す。2026-10-30）
+rm -rf "$STAGE/src/bossmaker/creator_preview"
 cp "$REPO/project.godot" "$REPO/default_bus_layout.tres" "$REPO/export_presets.cfg" "$STAGE/"
 cp "$REPO/tools/make_supabase_public_config.gd" "$REPO/tools/verify_export_online.gd" "$REPO/tools/verify_export_online.tscn" "$STAGE/tools/"
 # GUT はエディターのプラグインとして登録されているだけ（ゲームでは使わない）。写しでは登録を外す
@@ -79,15 +106,20 @@ fi
 [ -d "$REPO/.godot/imported" ] && { mkdir -p "$STAGE/.godot"; cp -r "$REPO/.godot/imported" "$STAGE/.godot/imported"; }
 
 # 4. 取り込み・配布用の公開設定を作る（検査して書く。秘密の鍵なら止まる）・確かめる・書き出し
-"$GODOT" --headless --path "$STAGE" --import > "$OUT/import.log" 2>&1 || true
-SUPABASE_URL="$PUB_URL" SUPABASE_PUBLISHABLE_KEY="$PUB_KEY" "$GODOT" --headless --path "$STAGE" -s res://tools/make_supabase_public_config.gd 2>&1 | grep -E "PUBLIC_CONFIG" || true
+"$GODOT" --headless --path "$STAGE" --import > "$OUT/import.log" 2>&1
+SUPABASE_URL="$PUB_URL" SUPABASE_PUBLISHABLE_KEY="$PUB_KEY" "$GODOT" --headless --path "$STAGE" -s res://tools/make_supabase_public_config.gd 2>&1 | grep -E "PUBLIC_CONFIG"
 unset PUB_URL PUB_KEY
 "$GODOT" --headless --path "$STAGE" -s res://tools/make_supabase_public_config.gd -- --check
 "$GODOT" --headless --path "$STAGE" "$MODE" "$PRESET" "$OUT/MakersAndChallengers.exe" > "$OUT/export.log" 2>&1
 grep -q "savepack" "$OUT/export.log" || { echo "書き出しに失敗（$OUT/export.log）"; exit 1; }
+# スクリプトの読み込みに失敗した物があれば止める（2026-10-30、写していないフォルダを参照して覚醒の演出が読めなかった件）
+if grep -E "SCRIPT ERROR|Parse Error|Failed to load script" "$OUT/export.log" | head -5; then
+  echo "書き出しの時にスクリプトのエラー（$OUT/export.log）"; exit 1
+fi
 
 # 5. pck の中身の確認（同じ版のエディターで pck を読む）
-"$GODOT" --headless --main-pack "$OUT/MakersAndChallengers.pck" -s "$REPO/tools/check_release_pack.gd" -- --report="$(cygpath -m "$OUT/pack_check.json")" 2>&1 | grep -E "PACK_CHECK|PACK_PROBLEM" || true
+rm -f "$OUT/pack_check.json"
+"$GODOT" --headless --main-pack "$OUT/MakersAndChallengers.pck" -s "$REPO/tools/check_release_pack.gd" -- --report="$(cygpath -m "$OUT/pack_check.json")" 2>&1 | grep -E "PACK_CHECK|PACK_PROBLEM"
 grep -q '"problems": \[\]' "$OUT/pack_check.json" || { echo "pck の中身に問題（$OUT/pack_check.json）"; exit 1; }
 
 rm -rf "$STAGE"

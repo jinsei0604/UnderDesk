@@ -1262,7 +1262,7 @@ func test_the_detail_page_shows_every_public_item_and_comes_back() -> void:
 	assert_eq(_detail_text(view, "DetailPage2Weak"), TranslationServer.translate("氷"))
 	assert_eq(_detail_text(view, "DetailPage2Resist"), TranslationServer.translate("なし"))
 	assert_eq(_detail_text(view, "DetailPage2WinCondition"), TranslationServer.translate("ボスのHPを0にする"))
-	assert_eq(_detail_text(view, "DetailPage2SpecialCondition"), TranslationServer.translate("なし"))
+	assert_null(_detail_node(view, "DetailPage2SpecialCondition"), "「特殊条件」の行は無い（2026-10-29 ユーザー確定）")
 	assert_string_contains(_skills_text(view), "斬撃")
 	assert_not_null(_detail_node(view, "DetailChallengeButton"), "challenge stays reachable")
 	var back := _detail_node(view, "DetailPrevPageButton") as Button
@@ -1287,7 +1287,7 @@ func test_hidden_items_never_appear_on_the_detail_page() -> void:
 	assert_eq(_detail_text(view, "DetailPage2Weak"), TranslationServer.translate("？？？"))
 	assert_eq(_detail_text(view, "DetailPage2Resist"), TranslationServer.translate("？？？"))
 	assert_eq(_detail_text(view, "DetailPage2WinCondition"), TranslationServer.translate("非公開"))
-	assert_eq(_detail_text(view, "DetailPage2SpecialCondition"), TranslationServer.translate("非公開"))
+	assert_null(_detail_node(view, "DetailPage2SpecialCondition"))
 	assert_eq(_skills_text(view), TranslationServer.translate("非公開"))
 	# 値そのものがどの文字にも出ていない。
 	var all_text := ""

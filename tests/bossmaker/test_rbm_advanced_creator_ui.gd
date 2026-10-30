@@ -173,7 +173,9 @@ func test_list_view_shows_only_attacks_heading_and_add_button_when_empty() -> vo
 	assert_eq(advanced._turn_list.get_child_count(), 0)
 	assert_true(_btn(advanced, "AddTurnButton").visible)
 	assert_true(_btn(advanced, "AddExtraActionButton").visible)
-	assert_false(advanced._turn_loop_note.visible, "no loop note without turns")
+	# 2026-10-29: 行動が0件でも完成できる。何も無い時は、ループの説明の代わりにボスが行動しないことを知らせる。
+	assert_true(advanced._turn_loop_note.visible)
+	assert_eq(advanced._turn_loop_note.text, tr("このボスは行動しません"), "no loop note without turns")
 
 func test_slot_list_card_shows_ordinal_name_performance_condition_and_uses() -> void:
 	var creator := _new_creator()
@@ -653,8 +655,8 @@ func test_step3_is_step_valid_delegates_to_the_currently_visible_mode() -> void:
 
 	creator.draft.set_creator_mode(RBMCreatorDraft.CREATOR_MODE_ADVANCED)
 	step3.refresh()
-	assert_false(step3.is_step_valid(), "HARDCORE needs at least one turn (案A)")
-	assert_eq(step3.validation_message(), tr("通常行動を1ターン以上追加してください"))
+	assert_true(step3.is_step_valid(), "HARDCORE can be completed with no turns (2026-10-29)")
+	assert_eq(step3.validation_message(), "")
 
 	creator.draft.add_turn_action({"mode": "random", "entries": [{"skill_id": _sid(creator, 0), "weight": 100.0}]})
 	assert_false(step3.is_step_valid(), "a random turn needs two or more candidates")

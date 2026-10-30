@@ -138,9 +138,10 @@ func _example_turns(d: RBMCreatorDraft) -> Array:
 		{"mode": "conditional", "entries": [{"skill_id": _sid(d, 2), "conditions": [{"type": "hp_at_most", "percent": 50.0}], "condition_logic": "AND"}], "else_skill_id": _sid(d, 0)},
 	]
 
-func test_hardcore_needs_at_least_one_valid_turn() -> void:
+## 2026-10-29 ユーザー確定: 行動が0件でも完成できる（ターンが無いボスは行動しない）。ターンがあれば、その中身は今までどおり検証する。
+func test_hardcore_allows_no_turns_but_still_checks_each_turn() -> void:
 	var d := _draft()
-	assert_false(d.step4_advanced_is_valid(), "ターンが1つも無いと次へ進めない（案A）")
+	assert_true(d.step4_advanced_is_valid(), "ターンが1つも無くても次へ進める（2026-10-29）")
 	d.add_turn_action({"mode": "fixed", "entries": [{"skill_id": _sid(d, 0)}]})
 	assert_true(d.step4_advanced_is_valid())
 	d.add_turn_action({"mode": "random", "entries": [{"skill_id": _sid(d, 0), "weight": 100.0}]})
@@ -247,7 +248,8 @@ func test_list_has_three_headed_sections_with_separators_and_no_random_attack_ch
 	assert_null(view.find_child("AddChoiceCreateRandomButton", true, false), "「ランダム攻撃を作る」は無い")
 	for b in view.find_children("*", "Button", true, false):
 		assert_false((b as Button).text.contains(tr("ランダム攻撃")), (b as Button).text)
-	assert_false(view.is_step_valid(), "ターンが無いと次へ進めない")
+	assert_true(view.is_step_valid(), "ターンが無くても次へ進める（2026-10-29）")
+	assert_eq((view.find_child("TurnLoopNote", true, false) as Label).text, tr("このボスは行動しません"), "何も無い時は、ボスが行動しないことを知らせる")
 
 ## ％は抽選の候補だけ（50%・50%）。確定・条件で決まる行動には出さない（100% も出さない）。
 func test_usage_rate_is_shown_only_for_random_turns() -> void:

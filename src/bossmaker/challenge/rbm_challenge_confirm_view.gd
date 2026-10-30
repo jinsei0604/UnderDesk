@@ -52,7 +52,6 @@ var _appearance_label: Label
 var _stage_id_label: Label
 var _clear_check_label: Label
 var _win_condition_label: Label
-var _special_condition_label: Label
 var _author_notes_label: Label
 var _random_notice_label: Label
 var _stats_label: Label
@@ -147,7 +146,6 @@ func _build_ui() -> void:
 	_stage_id_label = _add_label("")
 	_clear_check_label = _add_label("")
 	_win_condition_label = _add_label("")
-	_special_condition_label = _add_label("")
 	_author_notes_label = _add_label("")
 	## §25: Clear Check側(RBMCreatorClearCheckView)と同じ表示条件
 	## （RBMCreatorDraft.has_random_action_variance()）で、CHALLENGE挑戦確認
@@ -188,7 +186,7 @@ func _add_label_to(parent: Control, text: String) -> Label:
 	return label
 
 ## §26実機確認で発見: _refresh_boss_skills_section()/_refresh_party_section()
-## /_add_hardcore_party_performance()は毎回子を全破棄して作り直す動的な
+## /_add_party_performance()は毎回子を全破棄して作り直す動的な
 ## セクションのため、_add_label()系ヘルパーを経由せずLabel.new()を直接
 ## 生成していた——結果、これらのLabelだけautowrap_modeが設定されず、
 ## 長いスキル一覧行（複数キャラ分のスキル名をカンマ区切りで連結）が
@@ -262,16 +260,10 @@ func _refresh() -> void:
 	# §8: 未クリアであることを危険・非推奨のニュアンスなしにそのまま伝える。
 	_clear_check_label.text = tr(STATUS_LABELS["clear_checked"]) if _draft.is_clear_check_currently_valid() else tr("このボス戦はクリアチェックされていません")
 
-	# 実機プレイ改善③ item1/3: 勝利条件・特殊条件も他の6項目と同じ公開設定
-	# パターンで作者が非公開にできる——あえて情報を隠し、作者メッセージ側で
-	# ヒントを与える遊び方を可能にするため。旧§9/§10の「現在のDefinition/
-	# RBMBattleには特殊勝利条件の概念自体がまだ存在しないため、通常勝利条件
-	# のみを表示する」という前提自体は無改修——_win_condition_text()/
-	# _special_condition_text()（下記）はどちらも今も固定文字列を返すだけ
-	# （将来特殊条件システムが追加された際にこの関数の中身だけ差し替えれば
-	# 反映できる構造も無改修のまま維持）。
+	# 実機プレイ改善③ item1/3: 勝利条件も他の項目と同じ公開設定パターンで作者が非公開にできる——あえて
+	# 情報を隠し、作者メッセージ側でヒントを与える遊び方を可能にするため。
+	# 2026-10-29 ユーザー確定: 常に「なし」を出すだけだった「特殊条件」の行は、勝利条件と紛らわしいため外した。
 	_win_condition_label.text = tr("勝利条件: %s") % (_win_condition_text() if _draft.is_challenge_info_visible("win_condition") else tr("非公開"))
-	_special_condition_label.text = tr("特殊条件: %s") % (_special_condition_text() if _draft.is_challenge_info_visible("special_condition") else tr("非公開"))
 
 	# §16: 作者メッセージは常に表示（空なら「なし」）。
 	# 実機プレイ改善② item1: 表示名を「作者備考」→「作者メッセージ」へ変更
@@ -288,12 +280,6 @@ func _refresh() -> void:
 func _win_condition_text() -> String:
 	# HARDCORE の勝利条件「指定ターンを生き残る」（2026-10-29）の時は、その文に差し替わる。
 	return _draft.win_condition_text()
-
-## §10: 現在のDefinition/RBMBattleに特殊条件の概念が無いため常に「なし」。
-## 将来特殊条件システムが追加された際、この関数の中身だけを差し替えれば
-## 確認画面へ反映できる構造にしてある（CHALLENGE側の他のコードは変更不要）。
-func _special_condition_text() -> String:
-	return tr("なし")
 
 ## §14/§18: HP/ATK/SPD/弱点/耐性を、公開設定に応じて実値か「？？？」で表示。
 func _refresh_stat_lines() -> void:
@@ -388,10 +374,10 @@ func _refresh_party_section() -> void:
 		var row := _wrapped_label(tr("・%s: %s") % [tr(str(master.get("display_name", character_id))), (", ".join(names) if not names.is_empty() else tr("（なし）"))])
 		row.name = "PartyMemberRow_%s" % character_id
 		_party_section.add_child(row)
-		if _draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED:
-			_add_hardcore_party_performance(character_id, master, allowed)
+		# 味方の調整は SIMPLE でも戦闘に使う（2026-10-29 ユーザー確定）ので、両方のモードで実戦の値を出す。
+		_add_party_performance(character_id, master, allowed)
 
-func _add_hardcore_party_performance(character_id: String, master: Dictionary, allowed: Array) -> void:
+func _add_party_performance(character_id: String, master: Dictionary, allowed: Array) -> void:
 	var effective := _draft.effective_character_def(character_id)
 	# 挑戦者が必要なのは実戦で使われる値。標準値との重複比較は表示しない。
 	var stats := _wrapped_label("  HP %d / ATK %d / SPD %d / Max SP %d" % [

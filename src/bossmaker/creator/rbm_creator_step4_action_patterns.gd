@@ -20,6 +20,10 @@ extends Control
 var draft: RBMCreatorDraft
 var main: Node
 
+## SIMPLE の行動画面から覚醒だけを開いた時（2026-10-29 ユーザー確定: ボスの覚醒は SIMPLE でも HARDCORE と同じ設定）、
+## 覚醒の画面を閉じたら一覧へは戻らずにこれを出す（RBMCreatorStep4 が SIMPLE の画面へ戻す）。
+signal awakening_only_closed
+
 const WARNING_COLOR := Color(1.0, 0.45, 0.4)
 ## 使用率のスライダーの最小の大きさ。この画面は左右に80pxずつ余白があり SIMPLE より中央の欄が狭いので、
 ## 1280×720 でも数値の入力欄と並んで欄に収まる幅にする（幅いっぱいには広がる）。
@@ -60,6 +64,7 @@ var _extra_list: VBoxContainer
 var _add_extra_button: Button
 var _awakening_container: VBoxContainer
 var _add_awakening_button: Button
+var _awakening_unsupported_note: Label
 
 # --- ② ターンの設定 ---
 var _turn_title: Label
@@ -141,6 +146,8 @@ var _entry_skill_id: String = ""
 var _entry_is_new_creation := false
 ## ③ を「追加」で開いた時、どの追加の方法から来たか（キャンセルで戻る先）。
 var _add_target_context: String = ""
+## SIMPLE から覚醒だけを開いているか（open_awakening_only()）。
+var _awakening_only := false
 ## ターンの並べ替えで動かしているカードと、動かし始めた位置。
 var _drag_card: PanelContainer = null
 var _drag_from := -1
@@ -363,6 +370,7 @@ func _build_list_view() -> VBoxContainer:
 	_awakening_container.name = "AwakeningCard"
 	view.add_child(_awakening_container)
 	_add_awakening_button = _button(view, tr("＋ 覚醒を追加する"), "AddAwakeningButton", _on_add_awakening_pressed)
+	_awakening_unsupported_note = _hint_label(view, tr("このボスの外見は覚醒に対応していません"), "AwakeningUnsupportedNote")
 	return view
 
 func refresh() -> void:
@@ -405,7 +413,10 @@ func _rebuild_turn_list() -> void:
 		handle.drag_ended.connect(_on_turn_drag_ended.bind(card))
 	var count := draft.turn_actions.size()
 	_turn_loop_note.text = tr("%dターン目の次は1ターン目に戻ります") % count
-	_turn_loop_note.visible = count > 0
+	## 行動が0件でも完成できる（2026-10-29）。何も無い時だけ、ボスが行動しないことを知らせる（SIMPLE と同じ）。
+	if count == 0:
+		_turn_loop_note.text = tr("このボスは行動しません") if draft.scripted_actions.is_empty() else ""
+	_turn_loop_note.visible = not _turn_loop_note.text.is_empty()
 	_add_turn_button.disabled = not draft.can_add_turn_action()
 
 # --- ターンの並べ替え（2026-10-29 ユーザー指示: 挿入型ドラッグ＆ドロップ） ---
@@ -502,28 +513,15 @@ func _rebuild_awakening_card() -> void:
 	_add_awakening_button.visible = not has_awakening
 	## 覚醒は「この外見が覚醒に対応している」時だけ追加できる（選んでからエラーにしない）。
 	_add_awakening_button.disabled = not draft.supports_awakening()
+	_awakening_unsupported_note.visible = not has_awakening and not draft.supports_awakening()
 	if not has_awakening:
 		return
 	var awakening := draft.awakening
 	var body := _make_card(_awakening_container, "AwakeningCardButton", _open_awakening)
 	_wrap_label(body, RBMActionPatternSummary.when_line(awakening.get("conditions", []), str(awakening.get("condition_logic", RBMActionPatternRules.DEFAULT_CONDITION_LOGIC)), draft), "AwakeningWhen")
-	_hint_label(body, _awakening_buff_line(awakening), "AwakeningBuff")
-	_hint_label(body, _awakening_heal_line(awakening), "AwakeningHeal")
+	_hint_label(body, RBMActionPatternSummary.awakening_buff_line(awakening), "AwakeningBuff")
+	_hint_label(body, RBMActionPatternSummary.awakening_heal_line(awakening), "AwakeningHeal")
 	_finish_card(body)
-
-func _awakening_buff_line(awakening: Dictionary) -> String:
-	var buff: Dictionary = awakening.get("buff", {})
-	if buff.is_empty():
-		return tr("自己強化：なし")
-	return tr("自己強化：ATK×%.2f / %dターン") % [float(buff.get("buff_multiplier", 1.0)), int(buff.get("duration_turns", 1))]
-
-func _awakening_heal_line(awakening: Dictionary) -> String:
-	var heal: Dictionary = awakening.get("heal", {})
-	if heal.is_empty():
-		return tr("HP回復：なし")
-	if str(heal.get("heal_mode", "fixed")) == "percent":
-		return tr("HP回復：最大HPの%.1f%%") % float(heal.get("heal_percent", 0.0))
-	return tr("HP回復：HP%d") % int(heal.get("heal_fixed_amount", 0))
 
 # ---------------------------------------------------------------------------
 # ② ターンの設定
@@ -867,16 +865,16 @@ func _build_entry_view() -> VBoxContainer:
 	_extra_block = VBoxContainer.new()
 	_extra_block.name = "EntryExtraBlock"
 	view.add_child(_extra_block)
-	_extra_block.add_child(_new_label(tr("■ いつ使う？")))
+	# 2026-10-29 ユーザー指示: SIMPLE の指定行動と同じ「発動ターン」「発動タイミング」（「■ いつ使う？」は無くした）。
 	var turn_row := HBoxContainer.new()
 	_extra_block.add_child(turn_row)
-	turn_row.add_child(_new_label(tr("ターン")))
+	turn_row.add_child(_new_label(tr("発動ターン")))
 	_extra_turn_spin = _new_spin(1, 999999, 1)
 	_extra_turn_spin.name = "ExtraTurnSpin"
 	turn_row.add_child(_extra_turn_spin)
 	var timing_row := HBoxContainer.new()
 	_extra_block.add_child(timing_row)
-	timing_row.add_child(_new_label(tr("タイミング")))
+	timing_row.add_child(_new_label(tr("発動タイミング")))
 	_extra_timing_option = OptionButton.new()
 	_extra_timing_option.name = "ExtraTimingOption"
 	for timing in EXTRA_TIMINGS:
@@ -940,6 +938,17 @@ func _on_add_awakening_pressed() -> void:
 	if not draft.supports_awakening() or draft.has_awakening():
 		return
 	_open_awakening()
+
+## SIMPLE の行動画面から覚醒の設定だけを開く（条件の2段階の選択・覚醒の入力欄は HARDCORE と同じもの）。
+## 保存・キャンセル・削除で閉じると awakening_only_closed を出す（この画面の一覧へは戻らない）。
+func open_awakening_only() -> void:
+	if not draft.supports_awakening() and not draft.has_awakening():
+		return
+	_awakening_only = true
+	_open_awakening()
+
+func is_awakening_only_open() -> bool:
+	return _awakening_only
 
 func _open_awakening() -> void:
 	_take_skills_snapshot()
@@ -1198,6 +1207,10 @@ func _close_entry_to_list() -> void:
 	_entry_context = ""
 	_add_target_context = ""
 	_show_only(_list_view)
+	if _awakening_only:
+		_awakening_only = false
+		awakening_only_closed.emit()
+		return
 	refresh()
 
 # ---------------------------------------------------------------------------
@@ -1436,8 +1449,6 @@ func validation_message() -> String:
 	var heal_problems := draft.heal_limit_problems()
 	if not heal_problems.is_empty():
 		return heal_problems[0]
-	if draft.turn_actions.is_empty():
-		return tr("通常行動を1ターン以上追加してください")
 	for i in range(draft.turn_actions.size()):
 		var problem := draft.turn_action_problem(draft.turn_actions[i])
 		if not problem.is_empty():

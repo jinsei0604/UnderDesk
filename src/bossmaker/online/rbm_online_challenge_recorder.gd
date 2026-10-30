@@ -112,6 +112,15 @@ func list_my_hard_awards() -> Dictionary:
 	_end()
 	return response
 
+## 2026-10-29 体験版: 異なるオンラインボスへの挑戦の使用状況（○ / 15体）。Steam の ticket で本人を確かめる。
+func demo_challenge_status() -> Dictionary:
+	var ticket_result := await _begin()
+	if not bool(ticket_result.get("ok", false)):
+		return ticket_result
+	var response: Dictionary = await _api_adapter.demo_challenge_status(str(ticket_result.get("hex", "")))
+	_end()
+	return response
+
 ## 「未挑戦」一覧取得もSteam ticketが必要(サーバー側で本人確認するため、
 ## list_bosses()と違い匿名では呼べない)。戻り値の形はlist_bosses()と同じ
 ## ({"ok":true,"bosses":[...]}または{"ok":false,"error_kind":...})——

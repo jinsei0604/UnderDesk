@@ -21,6 +21,15 @@ var list_my_hard_awards_calls := 0
 ## 今のサーバーを試すテストは true にする。数えた結果の応答の by_owner・hard_awarded・first_clear_rate は、
 ## configure_record_clear_response() の値を使う（勝ちの時。負けは by_owner だけ）。
 var tickets_enabled := false
+## 2026-10-29 体験版の「異なるオンラインボス累計15体まで」の偽のサーバー（本物の claim_demo_challenge_slot() と同じ決まり:
+## 挑戦済みは数えない・15体に達したら新しいボスは demo_challenge_limit で断る・記録もチケットも出さない）。
+## demo_limit_enabled = false（既定）は製品版のチケット（制限なし・demo_used を返さない）。
+var demo_limit_enabled := false
+var demo_challenged_ids: Array[String] = []
+const DEMO_LIMIT := 15
+## true の間、使用状況の読み取りは届かない（network_error）。挑戦の記録の network_down とは別。
+var demo_status_down := false
+var demo_status_calls := 0
 ## チケットを出さない理由（"" なら出す。rate_limited・daily_limit・not_found）。
 var ticket_refusal := ""
 ## true の間、チケット・結果の通信は届かない（network_error。通信断）。
@@ -123,7 +132,16 @@ func get_boss(id: String) -> Dictionary:
 
 func record_challenge_attempt(ticket_hex: String, boss_id: String) -> Dictionary:
 	record_attempt_calls.append({"ticket": ticket_hex, "boss_id": boss_id})
+	if demo_limit_enabled and network_down:
+		return {"ok": false, "error_kind": "network_error", "message": "fake network down"}
+	if demo_limit_enabled and not demo_challenged_ids.has(boss_id):
+		if demo_challenged_ids.size() >= DEMO_LIMIT:
+			return {"ok": false, "error_kind": "demo_challenge_limit", "demo_used": demo_challenged_ids.size(), "demo_limit": DEMO_LIMIT}
+		demo_challenged_ids.append(boss_id)
 	var response := _record_attempt_response.duplicate(true)
+	if demo_limit_enabled and bool(response.get("ok", false)):
+		response["demo_used"] = demo_challenged_ids.size()
+		response["demo_limit"] = DEMO_LIMIT
 	if tickets_enabled and bool(response.get("ok", false)):
 		var issued := _new_ticket(boss_id)
 		if bool(issued.ok):
@@ -132,6 +150,14 @@ func record_challenge_attempt(ticket_hex: String, boss_id: String) -> Dictionary
 		else:
 			response["ticket_status"] = issued.error_kind
 	return response
+
+func demo_challenge_status(_ticket_hex: String) -> Dictionary:
+	demo_status_calls += 1
+	if demo_status_down:
+		return {"ok": false, "error_kind": "network_error", "message": "fake network down"}
+	if not demo_limit_enabled:
+		return {"ok": true, "limited": false}
+	return {"ok": true, "limited": true, "used": demo_challenged_ids.size(), "limit": DEMO_LIMIT, "challenged_boss_ids": demo_challenged_ids.duplicate()}
 
 func record_challenge_clear(ticket_hex: String, boss_id: String) -> Dictionary:
 	record_clear_calls.append({"ticket": ticket_hex, "boss_id": boss_id})

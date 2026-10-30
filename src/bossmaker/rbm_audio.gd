@@ -140,7 +140,7 @@ func _hover(button: BaseButton) -> void:
 ## SEを出し分ける（純粋に演出用の推定であり、ゲームロジックには一切
 ## 関与しない）。言語切替でtext自体が英語表記("Back"/"Cancel"/"Exit"等)
 ## になっても同じ判定になるよう、日本語・英語どちらのキーワードも見る。
-const _CANCEL_KEYWORDS_JA := ["戻", "キャンセル", "終了"]
+const _CANCEL_KEYWORDS_JA := ["戻", "キャンセル", "終了", "やめる"]
 const _CANCEL_KEYWORDS_EN := ["back", "cancel", "exit", "quit"]
 
 func _button(button: BaseButton) -> void:

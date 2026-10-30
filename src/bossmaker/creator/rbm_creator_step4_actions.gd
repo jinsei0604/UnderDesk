@@ -4,14 +4,19 @@ extends Control
 ## SIMPLE「行動」画面（2026-10-17 作り直し: HARDCORE の「攻撃」画面
 ## （RBMCreatorStep4ActionPatterns）と同じ操作の流れにそろえた）。
 ##
-## 流れ: 一覧（番号付きのカード）→「＋ 通常行動を追加する」「＋ 指定行動を追加する」
+## 流れ: 一覧（カード）→「＋ 通常行動を追加する」「＋ 指定行動を追加する」
 ## →（既存の行動から選ぶ／新しく行動を作る）→ 1つの設定画面（性能＋SIMPLE の設定）
-## → 確定ボタンは1つ（「行動を追加」／「保存」）。編集は一覧のカードの「編集」から同じ設定画面を開く。
+## → 確定ボタンは1つ（「行動を追加」／「保存」）。編集・削除は一覧のカード全体を押して開く設定画面で行う。
 ## - 性能の入力は共通の RBMActionEditorForm（HARDCORE と同じ部品・同じ使い方: 新しく作る時は
 ##   フォーム自身の保存/キャンセルを隠して外側の確定ボタン1つ、既存の行動は「性能を編集」）。
 ## - 性能の1行の要約は RBMActionPatternSummary.skill_performance_line()（HARDCORE と共通）。
-## - SIMPLE の設定: 通常行動は「使用率」、指定行動は「いつ使う？」（ターン・タイミング）。
-##   SIMPLE の制限（発動条件・使用回数・ランダム攻撃・覚醒が無い）はそのまま。
+## - SIMPLE の設定: 通常行動は「使用率」、指定行動は「発動ターン」「発動タイミング」。
+##   行動の発動条件・ターンごとの行動表・使用回数は HARDCORE だけ。
+## - 指定行動のカード（2026-10-29 ユーザー確定）: 左に発動ターン、中央に行動名と性能、下に発動タイミング、右に矢印。
+##   番号と↑↓の並べ替えは無い。一覧は発動の順（ターン → 開始時・代わり・終了時）に並べて見せるだけで、
+##   draft.scripted_actions の並び（同じターン・タイミングの中の実行の順）は変えない。
+## - ボスの覚醒（2026-10-29 ユーザー確定）: 一覧の「覚醒」から、HARDCORE と同じ覚醒の設定を開く
+##   （awakening_requested → RBMCreatorStep4 が HARDCORE の画面の覚醒の設定だけを開く）。
 ## - データの形（draft.skills・normal_action_percentages・scripted_actions）・保存の形は変えない。
 ##   通常行動の一覧は normal_action_percentages のキー（＝通常行動として登録した行動）だけを表示する。
 ##   同じ行動を通常行動と指定行動の両方で使うこともできる（HARDCORE の「既存の攻撃から選ぶ」と同じ。
@@ -28,6 +33,12 @@ const TIMING_LABELS := {
 	"turn_end_interrupt": "ターン終了時に追加で使う",
 }
 const TIMING_ORDER := ["replace", "turn_start_interrupt", "turn_end_interrupt"]
+## 一覧に並べる時の、同じターンの中の順（戦闘で起きる順: 開始時 → 通常行動の代わり → 終了時）。
+const DISPLAY_TIMING_ORDER := ["turn_start_interrupt", "replace", "turn_end_interrupt"]
+## 指定行動のカードの左の「Nターン目」の欄の幅（3桁のターンまで同じ位置に揃う）。
+const SCRIPTED_TURN_LABEL_WIDTH := 96.0
+## カードの右の矢印（押すと設定画面へ進む）の色。
+const CARD_ARROW_COLOR := Color("93a7ac")
 
 const PERCENT_SLIDER_MIN_SIZE := Vector2(320.0, 28.0)
 const CONTENT_SIDE_MARGIN_PX := 80.0
@@ -46,6 +57,9 @@ const KIND_SCRIPTED := "scripted"
 var draft: RBMCreatorDraft
 var main: Node
 
+## 一覧の「覚醒」のカード・「＋ 覚醒を追加する」が押された（覚醒の設定は HARDCORE と同じ画面で開く）。
+signal awakening_requested
+
 var _scroll_container: ScrollContainer
 var _scroll_content: VBoxContainer
 var _all_views: Array[Control] = []
@@ -60,6 +74,9 @@ var _percentage_total_label: Label
 var _scripted_list: VBoxContainer
 var _scripted_capacity_notice: Label
 var _add_scripted_button: Button
+var _awakening_container: VBoxContainer
+var _add_awakening_button: Button
+var _awakening_unsupported_note: Label
 
 # --- add_choice_view / pick_existing_view ---
 var _add_choice_view: VBoxContainer
@@ -224,6 +241,20 @@ func _build_list_view() -> VBoxContainer:
 	view.add_child(_add_scripted_button)
 	_scripted_capacity_notice = _wrap_label(view, tr("これ以上ボスの行動を追加できません"), "ScriptedActionCapacityNotice")
 	_scripted_capacity_notice.visible = false
+
+	var awakening_separator := HSeparator.new()
+	awakening_separator.name = "AwakeningSeparator"
+	view.add_child(awakening_separator)
+	_section_header(view, tr("覚醒"), "AwakeningHeader")
+	_awakening_container = VBoxContainer.new()
+	_awakening_container.name = "AwakeningCard"
+	view.add_child(_awakening_container)
+	_add_awakening_button = Button.new()
+	_add_awakening_button.name = "AddAwakeningButton"
+	_add_awakening_button.text = tr("＋ 覚醒を追加する")
+	_add_awakening_button.pressed.connect(_on_awakening_pressed)
+	view.add_child(_add_awakening_button)
+	_awakening_unsupported_note = _hint_label(view, tr("このボスの外見は覚醒に対応していません"), "AwakeningUnsupportedNote")
 	return view
 
 func _normal_skill_ids() -> Array[String]:
@@ -250,18 +281,7 @@ func _rebuild_normal_list() -> void:
 	for i in range(ids.size()):
 		var skill_id := ids[i]
 		var skill := draft.find_skill(skill_id)
-		var card := PanelContainer.new()
-		card.name = "NormalActionCard_%s" % skill_id
-		card.focus_mode = Control.FOCUS_ALL
-		card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		card.mouse_filter = Control.MOUSE_FILTER_STOP
-		_normal_list.add_child(card)
-		_style_normal_card(card, "normal")
-		card.mouse_entered.connect(func(): _style_normal_card(card, "hover"))
-		card.mouse_exited.connect(func(): _style_normal_card(card, "focus" if card.has_focus() else "normal"))
-		card.focus_entered.connect(func(): _style_normal_card(card, "focus"))
-		card.focus_exited.connect(func(): _style_normal_card(card, "normal"))
-		card.gui_input.connect(_on_normal_card_gui_input.bind(skill_id))
+		var card := _make_card(_normal_list, "NormalActionCard_%s" % skill_id, _on_edit_normal_pressed.bind(skill_id))
 		var row := HBoxContainer.new()
 		row.name = "NormalActionCardRow_%s" % skill_id
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -281,59 +301,96 @@ func _rebuild_normal_list() -> void:
 		percent.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		percent.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		row.add_child(percent)
-		for child in card.find_children("*", "Control", true, false):
-			(child as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_finish_card(card)
+
+## カード（通常行動・指定行動・覚醒で共通）: 全体を押すと on_pressed を呼ぶ。見た目は作成画面のボタンと同じ
+## （テーマの Button の枠。マウスを重ねた時・キーボードで選んだ時も同じ）。中身を入れ終わったら _finish_card()。
+func _make_card(parent: Control, node_name: String, on_pressed: Callable) -> PanelContainer:
+	var card := PanelContainer.new()
+	card.name = node_name
+	card.focus_mode = Control.FOCUS_ALL
+	card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	parent.add_child(card)
+	_style_card(card, "normal")
+	card.mouse_entered.connect(func(): _style_card(card, "hover"))
+	card.mouse_exited.connect(func(): _style_card(card, "focus" if card.has_focus() else "normal"))
+	card.focus_entered.connect(func(): _style_card(card, "focus"))
+	card.focus_exited.connect(func(): _style_card(card, "normal"))
+	card.gui_input.connect(_on_card_gui_input.bind(on_pressed))
+	return card
+
+## 子の入力を止め、押した操作をカードが受ける。
+func _finish_card(card: Control) -> void:
+	for child in card.find_children("*", "Control", true, false):
+		(child as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 ## カードの枠: テーマの Button の枠をそのまま使う（state: normal / hover / focus）。
-func _style_normal_card(card: PanelContainer, state: String) -> void:
+func _style_card(card: PanelContainer, state: String) -> void:
 	if not is_instance_valid(card):
 		return
 	var box := card.get_theme_stylebox(state if state != "focus" else "hover", "Button")
 	card.add_theme_stylebox_override("panel", box)
 
-## カードを押した（離した）・キーボードで決定した時に「通常行動の設定」を開く。
-func _on_normal_card_gui_input(event: InputEvent, skill_id: String) -> void:
+## カードを押した（離した）・キーボードで決定した時に設定画面を開く。
+func _on_card_gui_input(event: InputEvent, on_pressed: Callable) -> void:
 	var mouse := event as InputEventMouseButton
 	var released := mouse != null and mouse.button_index == MOUSE_BUTTON_LEFT and not mouse.pressed
 	if released or event.is_action_pressed("ui_accept"):
 		get_viewport().set_input_as_handled()
-		_on_edit_normal_pressed(skill_id)
+		on_pressed.call()
 
+## 右の矢印（設定画面へ進むことを示す）。
+func _card_arrow(row: Control, node_name: String) -> void:
+	var arrow := TextureRect.new()
+	arrow.name = node_name
+	arrow.texture = RBMMenuUi.icon("right", CARD_ARROW_COLOR)
+	arrow.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	arrow.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(arrow)
+
+## 指定行動のカード（2026-10-29 ユーザー確定）: 左に発動ターン、中央に行動名と性能、その下に発動タイミング、右に矢印。
+## カード全体を押すと「指定行動の設定」を開く（変更・削除はそこで行う）。ノード名の番号は draft.scripted_actions の位置。
 func _rebuild_scripted_list() -> void:
 	_clear(_scripted_list)
-	for i in range(draft.scripted_actions.size()):
+	for i in _scripted_display_order():
 		var entry: Dictionary = draft.scripted_actions[i]
 		var skill := draft.find_skill(str(entry.get("skill_id", "")))
-		var card := VBoxContainer.new()
-		card.name = "ScriptedActionCard_%d" % i
-		_scripted_list.add_child(card)
-		_card_title(card, i + 1, str(skill.get("name", "?")), "ScriptedActionName_%d" % i)
-		_wrap_label(card, RBMActionPatternSummary.skill_performance_line(skill), "ScriptedActionDetail_%d" % i)
-		_wrap_label(card, _when_line(int(entry.get("turn", 0)), str(entry.get("timing", ""))), "ScriptedActionWhen_%d" % i)
+		var card := _make_card(_scripted_list, "ScriptedActionCard_%d" % i, _on_edit_scripted_pressed.bind(i))
 		var row := HBoxContainer.new()
-		row.name = "ScriptedActionButtons_%d" % i
+		row.name = "ScriptedActionCardRow_%d" % i
+		row.add_theme_constant_override("separation", 12)
 		card.add_child(row)
-		var edit_button := Button.new()
-		edit_button.name = "EditScriptedActionButton_%d" % i
-		edit_button.text = tr("編集")
-		edit_button.pressed.connect(_on_edit_scripted_pressed.bind(i))
-		row.add_child(edit_button)
-		var up_button := Button.new()
-		up_button.name = "MoveScriptedUpButton_%d" % i
-		up_button.text = "↑"
-		up_button.pressed.connect(move_scripted_action.bind(i, -1))
-		row.add_child(up_button)
-		var down_button := Button.new()
-		down_button.name = "MoveScriptedDownButton_%d" % i
-		down_button.text = "↓"
-		down_button.pressed.connect(move_scripted_action.bind(i, 1))
-		row.add_child(down_button)
-		var delete_button := Button.new()
-		delete_button.name = "DeleteScriptedActionButton_%d" % i
-		delete_button.text = tr("削除")
-		delete_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
-		delete_button.pressed.connect(remove_scripted_action.bind(i))
-		row.add_child(delete_button)
+		var turn_label := _new_label(tr("%dターン目") % int(entry.get("turn", 1)))
+		turn_label.name = "ScriptedActionTurn_%d" % i
+		turn_label.custom_minimum_size = Vector2(SCRIPTED_TURN_LABEL_WIDTH, 0.0)
+		turn_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(turn_label)
+		var info := VBoxContainer.new()
+		info.name = "ScriptedActionInfo_%d" % i
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(info)
+		_wrap_label(info, str(skill.get("name", "?")), "ScriptedActionName_%d" % i)
+		_hint_label(info, RBMActionPatternSummary.skill_performance_line(skill), "ScriptedActionDetail_%d" % i)
+		_hint_label(info, tr(str(TIMING_LABELS.get(str(entry.get("timing", "")), "?"))), "ScriptedActionTiming_%d" % i)
+		_card_arrow(row, "ScriptedActionArrow_%d" % i)
+		_finish_card(card)
+
+## 一覧に見せる順（draft.scripted_actions の位置の並び）: 発動ターン → 同じターンの中は開始時・代わり・終了時（戦闘で
+## 起きる順）。同じターン・タイミングの中は保存の並び（＝戦闘で実行する順）のまま。draft の並びは変えない。
+func _scripted_display_order() -> Array[int]:
+	var order: Array[int] = []
+	for i in range(draft.scripted_actions.size()):
+		order.append(i)
+	order.sort_custom(func(a: int, b: int) -> bool:
+		var ka := _scripted_display_key(a)
+		var kb := _scripted_display_key(b)
+		return ka < kb if ka != kb else a < b)
+	return order
+
+func _scripted_display_key(index: int) -> int:
+	var entry: Dictionary = draft.scripted_actions[index]
+	return int(entry.get("turn", 1)) * 10 + DISPLAY_TIMING_ORDER.find(str(entry.get("timing", "")))
 
 ## カードの1行目: 番号（HARDCORE の一覧と同じ「01」）＋行動名（名前だけのラベル）。
 func _card_title(card: Control, ordinal: int, skill_name: String, node_name: String) -> void:
@@ -349,9 +406,6 @@ func _card_title(card: Control, ordinal: int, skill_name: String, node_name: Str
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	row.add_child(name_label)
-
-func _when_line(turn: int, timing: String) -> String:
-	return tr("いつ：ターン%d・%s") % [turn, tr(str(TIMING_LABELS.get(timing, "?")))]
 
 # ---------------------------------------------------------------------------
 # 使用率
@@ -550,14 +604,13 @@ func _build_editor_view() -> VBoxContainer:
 	_editor_percent_spin.value_changed.connect(_on_editor_percent_changed.bind(_editor_percent_slider))
 	_editor_percent_hint = _hint_label(_normal_settings, "", "EditorPercentHint")
 
-	# --- 指定行動: いつ使う？ ---
+	# --- 指定行動: 発動ターン・発動タイミング ---
 	_scripted_settings = VBoxContainer.new()
 	_scripted_settings.name = "ScriptedWhenPanel"
 	view.add_child(_scripted_settings)
-	_scripted_settings.add_child(_new_label(tr("■ いつ使う？")))
 	var turn_row := HBoxContainer.new()
 	_scripted_settings.add_child(turn_row)
-	turn_row.add_child(_new_label(tr("ターン")))
+	turn_row.add_child(_new_label(tr("発動ターン")))
 	_scripted_turn_spin = SpinBox.new()
 	_scripted_turn_spin.name = "ScriptedTurnSpin"
 	_scripted_turn_spin.min_value = 1
@@ -566,7 +619,7 @@ func _build_editor_view() -> VBoxContainer:
 	turn_row.add_child(_scripted_turn_spin)
 	var timing_row := HBoxContainer.new()
 	_scripted_settings.add_child(timing_row)
-	timing_row.add_child(_new_label(tr("タイミング")))
+	timing_row.add_child(_new_label(tr("発動タイミング")))
 	_scripted_timing_option = OptionButton.new()
 	_scripted_timing_option.name = "ScriptedTimingOption"
 	for timing in TIMING_ORDER:
@@ -661,7 +714,7 @@ func _open_editor_for_new() -> void:
 	_editor_is_new_creation = true
 	_form_active = true
 	_form.open_for_new(tr("通常行動を作る") if _kind == KIND_NORMAL else tr("指定行動を作る"))
-	_form.set_awakening_type_available(false)  # SIMPLE に覚醒は無い
+	_form.set_awakening_type_available(false)  # 行動の種類に覚醒は無い（ボスの覚醒は一覧の「覚醒」で設定する）
 	_form.set_save_cancel_buttons_visible(false)
 	_default_percent = default_percent_for_new_normal()
 	_set_editor_percent(_default_percent)
@@ -779,12 +832,19 @@ func _commit_normal(skill_id: String) -> void:
 	if not ids.is_empty() and was_even and absf(value - _default_percent) < 0.05:
 		draft.equalize_normal_action_percentages_among_normal_actions()
 
-## 編集の時は、元の指定行動をいったん外して入れ直す（add_scripted_action() の
-## 「同じ(ターン,タイミング)を連続して並べる」既存の約束をそのまま使うため）。
+## 編集で発動ターン・タイミングを変えた時は、元の指定行動をいったん外して入れ直す（add_scripted_action() の
+## 「同じ(ターン,タイミング)を連続して並べる」既存の約束をそのまま使うため）。変えていなければ、その位置のまま
+## 行動だけを入れ替える（↑↓の並べ替えが無いので、同じターン・タイミングの中の実行の順を編集で変えない）。
 func _commit_scripted(skill_id: String) -> void:
+	var turn := int(_scripted_turn_spin.value)
+	var timing: String = TIMING_ORDER[_scripted_timing_option.selected]
 	if _editor_scripted_index >= 0:
+		var entry: Dictionary = draft.scripted_actions[_editor_scripted_index]
+		if int(entry.get("turn", 1)) == turn and str(entry.get("timing", "")) == timing:
+			entry["skill_id"] = skill_id
+			return
 		draft.remove_scripted_action(_editor_scripted_index)
-	draft.add_scripted_action(int(_scripted_turn_spin.value), skill_id, TIMING_ORDER[_scripted_timing_option.selected])
+	draft.add_scripted_action(turn, skill_id, timing)
 
 ## キャンセル: 「性能を編集」で変えた中身は、開いた時の内容へ戻す（HARDCORE と同じ）。
 func _on_editor_cancel_pressed() -> void:
@@ -812,7 +872,7 @@ func _close_editor() -> void:
 	_show_only(_list_view)
 
 # ---------------------------------------------------------------------------
-# 削除・並び替え
+# 削除
 # ---------------------------------------------------------------------------
 
 ## 削除は「どこからも使われなくなった時だけ行動そのものを消す」（draft.remove_skill_if_unreferenced()）。
@@ -825,10 +885,6 @@ func _on_delete_normal_pressed(skill_id: String) -> void:
 		draft.equalize_normal_action_percentages_among_normal_actions()
 	_sync_normal_actions_enabled_flag()
 	main.on_skills_changed()
-	refresh()
-
-func move_scripted_action(index: int, direction: int) -> void:
-	draft.move_scripted_action(index, direction)
 	refresh()
 
 func remove_scripted_action(index: int) -> void:
@@ -847,6 +903,7 @@ func refresh() -> void:
 	_sync_normal_actions_enabled_flag()
 	_rebuild_normal_list()
 	_rebuild_scripted_list()
+	_rebuild_awakening_card()
 	var can_create := draft.can_add_skill()
 	_add_normal_button.disabled = not can_create and _pickable_skill_ids(KIND_NORMAL).is_empty()
 	_add_scripted_button.disabled = not can_create and _pickable_skill_ids(KIND_SCRIPTED).is_empty()
@@ -870,6 +927,34 @@ func refresh() -> void:
 			_percentage_total_label.text = tr("発動確率の合計を100%%にしてください（現在%.1f%%）") % total
 	if _editor_view.visible:
 		_refresh_editor_view()
+
+## 覚醒のカード（HARDCORE と同じ内容）。覚醒に対応しない外見では追加できず、その理由を出す。
+func _rebuild_awakening_card() -> void:
+	_clear(_awakening_container)
+	var has_awakening := draft.has_awakening()
+	_add_awakening_button.visible = not has_awakening
+	_add_awakening_button.disabled = not draft.supports_awakening()
+	_awakening_unsupported_note.visible = not has_awakening and not draft.supports_awakening()
+	if not has_awakening:
+		return
+	var awakening := draft.awakening
+	var card := _make_card(_awakening_container, "AwakeningCardButton", _on_awakening_pressed)
+	var row := HBoxContainer.new()
+	row.name = "AwakeningCardRow"
+	card.add_child(row)
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(info)
+	_wrap_label(info, RBMActionPatternSummary.when_line(awakening.get("conditions", []), str(awakening.get("condition_logic", RBMActionPatternRules.DEFAULT_CONDITION_LOGIC)), draft), "AwakeningWhen")
+	_hint_label(info, RBMActionPatternSummary.awakening_buff_line(awakening), "AwakeningBuff")
+	_hint_label(info, RBMActionPatternSummary.awakening_heal_line(awakening), "AwakeningHeal")
+	_card_arrow(row, "AwakeningCardArrow")
+	_finish_card(card)
+
+func _on_awakening_pressed() -> void:
+	if not draft.has_awakening() and not draft.supports_awakening():
+		return
+	awakening_requested.emit()
 
 ## Esc（PX-13、2026-10-18）を、この STEP の中の画面が受け取ったら true（RBMCreatorMain が STEP を戻らない）。
 ## 一覧から開いた画面なら1つ前へ戻る（追加の方法 → 一覧、既存から選ぶ → 追加の方法、設定 → キャンセル）。

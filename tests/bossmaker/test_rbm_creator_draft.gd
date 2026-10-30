@@ -970,13 +970,16 @@ func test_battle_content_snapshot_is_unaffected_by_author_notes_or_visibility() 
 # 6→8へ更新した（検証ロジック自体——「配列サイズとDictionaryサイズが一致
 # すること」「hide/show allが全項目に効くこと」「保存/読込を往復しても
 # 項目数が保たれること」「未知キーは無視されること」——は無改修のまま）。
+# 2026-10-29 ユーザー確定: 「特殊条件」(special_condition) を外して 8→7項目。以前の保存にある
+# special_condition は、party_details と同じく読み込みで静かに無視される。
 # ---------------------------------------------------------------------------
 
-## §8-1/実機プレイ改善③item1: 新規Draftの公開設定キーが8項目のみ。
-func test_challenge_info_visibility_keys_has_exactly_eight_entries() -> void:
-	assert_eq(RBMCreatorDraft.CHALLENGE_INFO_VISIBILITY_KEYS.size(), 8)
+## §8-1/実機プレイ改善③item1: 新規Draftの公開設定キーが7項目のみ（2026-10-29 特殊条件を外した）。
+func test_challenge_info_visibility_keys_has_exactly_seven_entries() -> void:
+	assert_eq(RBMCreatorDraft.CHALLENGE_INFO_VISIBILITY_KEYS.size(), 7)
+	assert_false(RBMCreatorDraft.CHALLENGE_INFO_VISIBILITY_KEYS.has("special_condition"))
 	var draft := RBMCreatorDraft.new()
-	assert_eq(draft.challenge_info_visibility.size(), 8, "a fresh Draft's visibility Dictionary itself must also have exactly 8 entries")
+	assert_eq(draft.challenge_info_visibility.size(), 7, "a fresh Draft's visibility Dictionary itself must also have exactly 7 entries")
 
 ## §8-2: 「攻略側パーティ詳細」キーが存在しない。
 func test_challenge_info_visibility_keys_does_not_include_party_details() -> void:
@@ -988,45 +991,45 @@ func test_challenge_info_visibility_keys_does_not_include_party_details() -> voi
 	draft.set_challenge_info_visible("party_details", false)
 	assert_false(draft.challenge_info_visibility.has("party_details"), "an unknown/removed key must never be written back in, even via an explicit call")
 
-## §8-3/実機プレイ改善③item1・2: すべて公開で8項目true
-## （win_condition/special_conditionもこの一括操作に含まれることを確認）。
-func test_show_all_sets_all_eight_keys_true() -> void:
+## §8-3/実機プレイ改善③item1・2: すべて公開で7項目true
+## （win_conditionもこの一括操作に含まれることを確認）。
+func test_show_all_sets_all_seven_keys_true() -> void:
 	var draft := RBMCreatorDraft.new()
 	draft.set_all_challenge_info_visible(false)
 	draft.set_all_challenge_info_visible(true)
-	assert_eq(draft.challenge_info_visibility.size(), 8)
+	assert_eq(draft.challenge_info_visibility.size(), 7)
 	for key in RBMCreatorDraft.CHALLENGE_INFO_VISIBILITY_KEYS:
 		assert_true(draft.is_challenge_info_visible(key), "key %s must be true after すべて公開" % key)
 
-## §8-4/実機プレイ改善③item1・2: すべて非公開で8項目false。
-func test_hide_all_sets_all_eight_keys_false() -> void:
+## §8-4/実機プレイ改善③item1・2: すべて非公開で7項目false。
+func test_hide_all_sets_all_seven_keys_false() -> void:
 	var draft := RBMCreatorDraft.new()
 	draft.set_all_challenge_info_visible(false)
-	assert_eq(draft.challenge_info_visibility.size(), 8)
+	assert_eq(draft.challenge_info_visibility.size(), 7)
 	for key in RBMCreatorDraft.CHALLENGE_INFO_VISIBILITY_KEYS:
 		assert_false(draft.is_challenge_info_visible(key), "key %s must be false after すべて非公開" % key)
 
-## §8-6: 保存→ロード後も8項目を維持。
-func test_visibility_keeps_exactly_eight_entries_after_save_and_load_round_trip() -> void:
+## §8-6: 保存→ロード後も7項目を維持。
+func test_visibility_keeps_exactly_seven_entries_after_save_and_load_round_trip() -> void:
 	var draft := _basic_draft()
 	draft.set_challenge_info_visible("hp", false)
 	var saved := draft.to_saved_dict()
 
 	var restored := RBMCreatorDraft.new()
 	restored.restore_from_saved_dict(saved)
-	assert_eq(restored.challenge_info_visibility.size(), 8)
+	assert_eq(restored.challenge_info_visibility.size(), 7)
 	assert_false(restored.challenge_info_visibility.has("party_details"))
 	assert_false(restored.is_challenge_info_visible("hp"))
 	assert_true(restored.is_challenge_info_visible("atk"))
 
 ## §8-7: 旧stage（公開設定フィールド自体が存在しない、または最終修正前の
 ## 「攻略側パーティ詳細」を含む旧7項目形式、または実機プレイ改善③以前の
-## 6項目形式）は現行の8項目すべて公開へフォールバック——
+## 6項目形式）は現行の7項目すべて公開へフォールバック——
 ## _restore_challenge_info_visibility()が既知キーだけを走査しCHALLENGE_INFO_
 ## VISIBILITY_KEYS.get(key, true)でデフォルト補完する既存の設計（新キー追加
 ## 時にも安全に効くとコメントされていた設計）が、今回のキー追加でも変更
 ## なしにそのまま機能することを確認する。
-func test_pre_final_fix_seven_key_save_falls_back_to_eight_keys_all_visible() -> void:
+func test_pre_final_fix_party_details_save_falls_back_to_seven_keys_all_visible() -> void:
 	var draft := _basic_draft()
 	var saved := draft.to_saved_dict()
 	# 最終修正前（Step 7開発中）に生成されたデータを模す——手作業で
@@ -1038,16 +1041,15 @@ func test_pre_final_fix_seven_key_save_falls_back_to_eight_keys_all_visible() ->
 
 	var restored := RBMCreatorDraft.new()
 	restored.restore_from_saved_dict(parsed)
-	assert_eq(restored.challenge_info_visibility.size(), 8, "the legacy party_details entry must be silently dropped, never counted")
+	assert_eq(restored.challenge_info_visibility.size(), 7, "the legacy party_details entry must be silently dropped, never counted")
 	assert_false(restored.challenge_info_visibility.has("party_details"))
 	for key in RBMCreatorDraft.CHALLENGE_INFO_VISIBILITY_KEYS:
 		assert_true(restored.is_challenge_info_visible(key), "key %s must default to public when restoring a legacy save" % key)
 
 ## 実機プレイ改善③ item1: 実機プレイ改善③より前（win_condition/special_
-## conditionキー自体が存在しない）6項目形式の旧セーブも、新2項目が
-## デフォルト公開へ正しく補完されることを確認する——これが今回の変更が
-## 実際に後方互換であることの直接証拠。
-func test_pre_item1_six_key_save_gets_new_two_keys_defaulted_to_visible() -> void:
+## conditionキー自体が存在しない）6項目形式の旧セーブも、勝利条件が
+## デフォルト公開へ正しく補完されることを確認する（特殊条件は 2026-10-29 に外したので補わない）。
+func test_pre_item1_six_key_save_gets_the_win_condition_defaulted_to_visible() -> void:
 	var draft := _basic_draft()
 	var saved := draft.to_saved_dict()
 	var legacy_visibility: Dictionary = (saved["challenge_info_visibility"] as Dictionary).duplicate()
@@ -1059,9 +1061,26 @@ func test_pre_item1_six_key_save_gets_new_two_keys_defaulted_to_visible() -> voi
 
 	var restored := RBMCreatorDraft.new()
 	restored.restore_from_saved_dict(parsed)
-	assert_eq(restored.challenge_info_visibility.size(), 8, "the 2 new keys must be added, defaulted to visible")
+	assert_eq(restored.challenge_info_visibility.size(), 7, "the win_condition key must be added, defaulted to visible")
 	assert_true(restored.is_challenge_info_visible("win_condition"))
-	assert_true(restored.is_challenge_info_visible("special_condition"))
+	assert_false(restored.challenge_info_visibility.has("special_condition"))
+
+## 2026-10-29: 特殊条件まであった8項目の保存（このあいだまでの形）も読み込め、特殊条件だけが静かに外れる。
+func test_eight_key_save_with_special_condition_drops_it_and_keeps_the_rest() -> void:
+	var draft := _basic_draft()
+	draft.set_challenge_info_visible("hp", false)
+	var saved := draft.to_saved_dict()
+	var legacy_visibility: Dictionary = (saved["challenge_info_visibility"] as Dictionary).duplicate()
+	legacy_visibility["special_condition"] = false
+	assert_eq(legacy_visibility.size(), 8, "sanity: the save shape used until 2026-10-29")
+	saved["challenge_info_visibility"] = legacy_visibility
+	var parsed: Dictionary = JSON.parse_string(JSON.stringify(saved))
+	var restored := RBMCreatorDraft.new()
+	restored.restore_from_saved_dict(parsed)
+	assert_eq(restored.challenge_info_visibility.size(), 7)
+	assert_false(restored.challenge_info_visibility.has("special_condition"))
+	assert_false(restored.is_challenge_info_visible("hp"), "ほかの公開設定はそのまま")
+	assert_true(restored.is_challenge_info_visible("win_condition"))
 
 ## §8-8/§8-9: 公開設定変更で未保存変更あり、元に戻す(A→B→A)と未保存変更なし
 ## ——full_authoring_snapshot()同士の比較でこの往復を直接確認する
@@ -1158,13 +1177,14 @@ func test_author_notes_real_typing_value_reaches_the_saved_json_and_survives_rel
 	var step7_reloaded := _step7_view(creator2)
 	assert_eq(step7_reloaded._author_notes_edit.text.length(), 200, "reloading must restore the 200-char notes into the STEP7 TextEdit display too")
 
-## §4/実機プレイ改善③item1: 実際の8つのCheckBox（win_condition/
-## special_condition追加後）を、Godotのtoggle_mode Buttonが実際に発火する
+## §4/実機プレイ改善③item1: 実際の7つのCheckBox（win_condition追加後、2026-10-29 に
+## special_conditionを外した後）を、Godotのtoggle_mode Buttonが実際に発火する
 ## button_pressedプロパティ経由の実signalで操作する。
-func test_all_eight_visibility_checkboxes_are_wired_to_the_draft_via_real_toggled_signal() -> void:
+func test_all_seven_visibility_checkboxes_are_wired_to_the_draft_via_real_toggled_signal() -> void:
 	var creator := _new_creator_for_ui_test()
 	var step7 := _step7_view(creator)
-	assert_eq(step7._visibility_checkboxes.size(), 8, "sanity: exactly 8 checkboxes must be constructed")
+	assert_eq(step7._visibility_checkboxes.size(), 7, "sanity: exactly 7 checkboxes must be constructed")
+	assert_false(step7._visibility_checkboxes.has("special_condition"), "「特殊条件」の公開項目は無い（2026-10-29）")
 	for key in RBMCreatorDraft.CHALLENGE_INFO_VISIBILITY_KEYS:
 		assert_true(step7._visibility_checkboxes.has(key), "a checkbox for key %s must exist" % key)
 		var checkbox: CheckBox = step7._visibility_checkboxes[key]

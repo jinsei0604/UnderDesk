@@ -1,4 +1,4 @@
-keys,en
+keys,en,?context
  かつ , and 
  または , or 
 %d / %d 文字,%d / %d chars
@@ -742,6 +742,9 @@ HP回復：HP%d,HP Heal: %d HP
 ゴーレム,Golem
 保存したボス,Saved Boss
 ぬいぐるみ,Patchwork Teddy
+ゲーム終了,Quit Game
+ゲームを終了しますか？,Are you sure you want to quit?
+終了する,Quit,quit_game
 作成する,Create
 ランキング,Rankings
 公開されたボス戦に挑む,Play published boss battles
@@ -889,6 +892,51 @@ HARDCORE でのボス作成は製品版で遊べます。,Building bosses in HAR
 挑戦する人に勝利条件を見せるかどうかは、最終確認の公開設定「勝利条件」で決められます。,"Whether challengers can see this is set by the Win Condition visibility option in the Final Review."
 生き残るターン数,Turns to Survive
 生き残るターン数を%d〜%dで設定してください,Set the turns to survive between %d and %d.
+プレビューを一時停止,Pause previews
+プレビューを再生,Play previews
 耐久成功！,SURVIVED!
 %s の猛攻を耐え抜いた！,You withstood %s's onslaught!
 クリアターン %d　｜　クリアタイム %s,Turns %d　|　Clear Time %s
+このボスの外見は覚醒に対応していません,This boss's appearance can't awaken.
+発動ターン,Trigger Turn
+発動タイミング,Trigger Timing
+ステータス設定,Stat Settings
+使用率や指定ターンを設定して手軽にボスを作成,Quickly build a boss by setting usage rates and scripted turns
+ターンごとの行動や複雑な発動条件を組み合わせボスの戦術を自由に設計,Freely design a boss's tactics by combining per-turn actions and complex triggers
+特殊な勝利条件も設定できる上級者向けモード,An advanced mode that also lets you set special victory conditions
+「行動」では技を作り、使う割合（使用率）や使うターン（指定行動）を決めます。,"In Actions, create skills and set how often they're used (usage rate) or which turn they're used on (scripted actions)."
+竜と朽ちた機械武者は、「行動」でボスの覚醒も設定できます。,"For the Dragon and the Decayed Machine Warrior, you can also set up the boss's awakening in Actions."
+「攻略パーティ」では、味方の能力・技・覚醒の性能も調整できます。,"In Party, you can also adjust your allies' stats, skills, and awakening."
+オンライン挑戦　%d / %d体,Online challenges  %d / %d
+挑戦済みのボスには引き続き挑戦できます,Bosses you've fought stay open
+新しいボスにあと%d体挑戦できます,You can challenge %d more new bosses
+オンライン挑戦　? / %d体,Online challenges  ? / %d
+通信できないため、残りの数を確認できません,Can't check how many are left (no connection)
+オンライン挑戦　… / %d体,Online challenges  … / %d
+確認中…,Checking…
+挑戦を始められませんでした,Couldn't Start the Challenge
+このボスは公開が終わっているため、挑戦できません。,"This boss is no longer published, so it can't be challenged."
+通信できなかったため、新しいボスへの挑戦を確認できませんでした。,"Couldn't reach the server, so the challenge against a new boss couldn't be confirmed."
+時間をおいて、もう一度お試しください。,Please wait a moment and try again.
+体験版のオンライン挑戦,Trial Online Challenges
+体験版で新しく挑戦できるボスは15体までです,"In the trial, you can challenge up to 15 different bosses"
+挑戦済みのボスには何度でも再挑戦できます,You can re-challenge bosses you've already fought as many times as you like
+製品版では、さらに多くのボスに挑戦できます,"In the full version, you can challenge many more bosses"
+ようこそ！,Welcome!
+体験版をプレイしていただきありがとうございます！,Thank you for playing the trial!
+自分だけのボスを作り、ほかのプレイヤーが作ったボスに挑戦しよう！,"Create your own boss, and challenge bosses made by other players!"
+はじめる,Start
+戦闘の遊び方,How to Battle
+自分だけのボスを作ろう,Make Your Own Boss
+味方の番になったら、通常攻撃・スキル・防御から行動を選ぼう,"On an ally's turn, choose Attack, Skill, or Defend"
+スキルにはSPを使うよ,Skills use SP
+ボスのHPを0にすれば勝利！ 味方が全滅すると敗北だよ,"Bring the boss's HP to 0 to win! If your whole party falls, you lose"
+弱点の属性で攻撃すると、ダメージが増えるよ,Attacking the boss's weakness deals more damage
+技を作って、ボスの行動に加えよう,Create skills and add them to the boss's actions
+使用率で、ボスが技を使う割合を決められるよ,Usage Rate sets how often the boss uses each skill
+指定行動では、決めたターンに技を使わせられるよ,Scripted Actions make the boss use a skill on a set turn
+ボスや味方の能力・覚醒も自由に調整できるよ。完成したボスは保存でき、クリアチェックを突破するとオンラインに公開できるよ,"You can also tune the boss's and allies' stats and awakening. Save your boss, and publish it online after passing the Clear Check"
+一覧から挑戦するボスを選ぼう,Pick a boss to challenge from the list
+オンラインでは異なるボス15体に挑戦可能！ 同じボスには何度でも挑戦できるよ,Online you can challenge up to 15 different bosses! You can retry the same boss as often as you like
+体験版では4種類の外見からボスを作れるよ。ボスの保存は5体、オンライン公開は2体まで,"In the trial, you can build bosses from 4 looks. Save up to 5 bosses and publish up to 2 online"
+製品版ではHARDCOREが開放！ 体験版のデータも同じPCの製品版に引き継げるよ,HARDCORE unlocks in the full version! Your trial data carries over to the full version on the same PC

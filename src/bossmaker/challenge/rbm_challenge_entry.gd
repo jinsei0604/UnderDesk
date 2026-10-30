@@ -76,6 +76,13 @@ var _defeat_record_for_testing: RBMDefeatRecord
 ## 「挑戦する」の時に控える、勝った時に記録する内容 {boss_id, mode, rate}（オンラインのボスだけ）。
 ## 2026-10-22: 挑戦の記録の応答の by_owner（attempt_by_owner）と、勝った時の判定（ownership）もここに入る。
 var _defeat_context: Dictionary = {}
+## 2026-10-29 体験版: 異なるオンラインボスへの挑戦は累計15体まで（数えて断るのはサーバー）。
+## _demo_status: 最後に分かった使用状況 {"used", "limit", "ids"}（空 = まだ分からない・通信できなかった。0体とは扱わない）。
+## _demo_prefetched: 戦闘を始める前の確認で送った挑戦の記録の応答 {"boss_id", "response"}（RBMBattleResultReporter が使う）。
+var _demo_status: Dictionary = {}
+var _demo_prefetched: Dictionary = {}
+var _demo_gate_busy := false
+var _demo_dialog: AcceptDialog
 ## オンラインのボスとの戦闘の結果を戦闘チケットで送る係と、今のアカウントの送信待ち（2026-10-23）。
 var _result_reporter: RBMBattleResultReporter
 var _result_outbox_instance: RBMBattleResultOutbox
@@ -393,6 +400,7 @@ func _open_online_category(mode: String, online_category: String, _hub_category:
 	_show_online_browse()
 	_online_list_view.refresh_with(mode, online_category, RBMOnlineBossListView.category_title(online_category))
 	_warm_online_recorder_soon()
+	_refresh_demo_challenge_status()
 
 ## 挑戦の記録係（Steam）の準備を、オンライン一覧を開いて読み込み中の間に済ませる（最初の1回だけ）。
 ## Steam の初期化は本体の処理で約0.12秒止まる。以前は最初の「挑戦する」で戦闘が始まる瞬間（挑戦の記録の
@@ -578,6 +586,15 @@ func _on_challenge_requested(definition: Dictionary) -> void:
 	var resolved := RBMDefinitionLoader.resolve(definition)
 	if not bool(resolved.get("ok", false)):
 		return
+	# 2026-10-29 体験版: 新しいオンラインのボスは、サーバーが挑戦を受け付けてから戦闘を始める（累計15体まで）。
+	if RBMEdition.is_demo() and _last_browse_was_online and not _confirm_view.stage_id.is_empty():
+		if _demo_gate_busy:
+			return
+		_demo_gate_busy = true
+		var allowed: bool = await _demo_challenge_gate(_confirm_view.stage_id)
+		_demo_gate_busy = false
+		if not allowed:
+			return
 	# 戦闘開始前の登場演出（2026-10-16）: 実際の画面（演出を見せる窓）では、前の画面（ボスの確認）が古いモニターの電源を
 	# 切るように閉じてから、今までと同じ手順で戦闘を始め、登場演出を頼む（rbm_screen_close.gd → RBMEncounterDirector）。
 	if _battle_view.presentation_enabled and is_visible_in_tree():
@@ -621,7 +638,12 @@ func _start_challenge(definition: Dictionary, encounter: Dictionary) -> void:
 	# 前に届かなかった結果があれば、続けて送り直す（間隔を空ける）。
 	if not _confirm_view.stage_id.is_empty():
 		if _last_browse_was_online:
-			_result_reporter.begin_challenge(_confirm_view.stage_id, _defeat_context)
+			# 体験版の確認で送った挑戦の記録があれば、それを使う（同じ挑戦を二重に送らない）。
+			var prefetched: Dictionary = {}
+			if str(_demo_prefetched.get("boss_id", "")) == _confirm_view.stage_id:
+				prefetched = _demo_prefetched.get("response", {})
+			_demo_prefetched = {}
+			_result_reporter.begin_challenge(_confirm_view.stage_id, _defeat_context, prefetched)
 			_result_reporter.flush_if_due()
 		else:
 			_result_reporter.end_challenge()
@@ -634,6 +656,103 @@ func _start_challenge(definition: Dictionary, encounter: Dictionary) -> void:
 		_battle_view.request_encounter(encounter)
 	_battle_view.start_battle(definition, visibility, appearance_id)
 	_show_battle()
+
+# ---------------------------------------------------------------------------
+# 2026-10-29 体験版: 異なるオンラインボスへの挑戦は、Steam アカウントごとに累計15体まで
+# ---------------------------------------------------------------------------
+# 数えて断るのはサーバー（record-challenge-attempt・issue-battle-ticket。DB の claim_demo_challenge_slot()）。
+# ゲームは表示と、戦闘を始めてよいかの確認だけをする（ローカルのボス・テストバトル・クリアチェックは通らない）。
+
+## オンライン一覧を開いた時に、今の使用状況を読んで一覧の上の札に出す（通信できなければ「分からない」と出す）。
+func _refresh_demo_challenge_status() -> void:
+	if not RBMEdition.is_demo():
+		return
+	if _demo_status.is_empty():
+		_online_list_view.set_demo_challenge_status({"state": "loading"})
+	var response: Dictionary = await _online_recorder().demo_challenge_status()
+	if not is_instance_valid(_online_list_view):
+		return
+	if bool(response.get("ok", false)) and bool(response.get("limited", false)):
+		var ids: Array = []
+		for id in response.get("challenged_boss_ids", []):
+			ids.append(str(id))
+		_set_demo_status(int(response.get("used", ids.size())), int(response.get("limit", RBMEdition.DEMO_MAX_ONLINE_CHALLENGED_BOSSES)), ids)
+	elif bool(response.get("ok", false)):
+		# サーバーが製品版のチケットと判断した（開発中に --mc-demo で試す時など）: 制限は無いので札を出さない。
+		_demo_status = {}
+		_online_list_view.set_demo_challenge_status({"state": "unlimited"})
+	elif _demo_status.is_empty():
+		_online_list_view.set_demo_challenge_status({"state": "unknown"})
+
+func _set_demo_status(used: int, limit: int, ids: Array) -> void:
+	_demo_status = {"used": used, "limit": limit, "ids": ids}
+	_online_list_view.set_demo_challenge_status({"state": "ok", "used": used, "limit": limit})
+
+## 体験版のオンラインのボスとの戦闘を始めてよいか。挑戦済みのボスは確かめずに始める（何度でも挑戦できる）。
+## 新しいボス（または使用状況が分からない時）は、先に挑戦の記録を送り、サーバーが受け付けた時だけ始める
+## （その応答は RBMBattleResultReporter へ渡すので、挑戦は二重に送らない）。断られた・通信できなかった時は始めない
+## （枠を使ったかどうか分からないまま戦闘だけ始めることはしない。同じボスで送り直しても、サーバーは二重に数えない）。
+func _demo_challenge_gate(boss_id: String) -> bool:
+	_demo_prefetched = {}
+	var known_ids: Array = _demo_status.get("ids", [])
+	if known_ids.has(boss_id):
+		return true
+	var limit := int(_demo_status.get("limit", RBMEdition.DEMO_MAX_ONLINE_CHALLENGED_BOSSES))
+	# 15体に達していて、挑戦済みのボスを全部知っている（一覧の時に読んだ）時だけ、サーバーへ送らずに案内を出す。
+	# 知らない挑戦済みのボスがある時は、サーバーに確かめる（挑戦済みのボスを手元で止めない）。
+	var used := int(_demo_status.get("used", 0))
+	if not _demo_status.is_empty() and used >= limit and known_ids.size() >= used:
+		_show_demo_limit_notice()
+		return false
+	var response: Dictionary = await _online_recorder().record_challenge_attempt(boss_id)
+	if bool(response.get("ok", false)):
+		_demo_prefetched = {"boss_id": boss_id, "response": response}
+		if response.has("demo_used"):
+			var ids := known_ids.duplicate()
+			if not ids.has(boss_id):
+				ids.append(boss_id)
+			_set_demo_status(int(response.get("demo_used", ids.size())), int(response.get("demo_limit", limit)), ids)
+		return true
+	match str(response.get("error_kind", "")):
+		"demo_challenge_limit":
+			_set_demo_status(int(response.get("demo_used", limit)), int(response.get("demo_limit", limit)), known_ids)
+			_show_demo_limit_notice()
+		"not_found":
+			_show_demo_notice(tr("挑戦を始められませんでした"), [tr("このボスは公開が終わっているため、挑戦できません。")])
+		_:
+			_show_demo_notice(tr("挑戦を始められませんでした"), [
+				tr("通信できなかったため、新しいボスへの挑戦を確認できませんでした。"),
+				tr("時間をおいて、もう一度お試しください。"),
+			])
+	return false
+
+func _show_demo_limit_notice() -> void:
+	_show_demo_notice(tr("体験版のオンライン挑戦"), [
+		tr("体験版で新しく挑戦できるボスは15体までです"),
+		tr("挑戦済みのボスには何度でも再挑戦できます"),
+		tr("製品版では、さらに多くのボスに挑戦できます"),
+	])
+
+## 体験版の案内（閉じるだけ）。見た目はホームの確認と同じ紺＋水色。
+func _show_demo_notice(title_text: String, lines: Array) -> void:
+	var style = preload("res://src/bossmaker/rbm_battle_hud_style.gd")
+	if _demo_dialog == null:
+		_demo_dialog = AcceptDialog.new()
+		_demo_dialog.name = "DemoChallengeNotice"
+		_demo_dialog.exclusive = true
+		_demo_dialog.transient = true
+		_demo_dialog.borderless = true  # 標準の灰色のタイトルの帯を出さない（見出しは本文の先頭に入れる）
+		_demo_dialog.dialog_autowrap = true
+		_demo_dialog.min_size = Vector2i(600, 240)
+		_demo_dialog.add_theme_stylebox_override("panel", style._box(Color("091521"), style.CYAN_DIM, 1, -1, Vector4(24, 24, 24, 24)))
+		add_child(_demo_dialog)
+		style.label(_demo_dialog.get_label(), 17, style.TEXT)
+		style.button(_demo_dialog.get_ok_button(), 16)
+		_demo_dialog.get_ok_button().custom_minimum_size = Vector2(144, 44)
+	_demo_dialog.title = title_text
+	_demo_dialog.ok_button_text = tr("閉じる")
+	_demo_dialog.dialog_text = "%s\n\n%s" % [title_text, "\n".join(lines)]
+	_demo_dialog.popup_centered(Vector2i(600, 240))
 
 ## CHALLENGE UI再設計 §4-F/§10: 「クリア者数」記録——RBMChallengeBattleView
 ## 自身の勝敗判定ロジックには一切触れず、その一回性シグナルを観測するだけ。

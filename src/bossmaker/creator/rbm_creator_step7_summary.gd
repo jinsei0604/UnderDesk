@@ -37,7 +37,7 @@ const TIMING_LABELS := RBMCreatorStep4Actions.TIMING_LABELS
 const TYPE_LABELS := RBMActionEditorForm.TYPE_LABELS
 
 ## Phase 1 Step 7 §14（公開設定の最終修正で7→6項目へ確定）、実機プレイ改善③
-## item1（6→8項目）: CHALLENGE確認画面での表示/非表示設定ラベル。
+## item1（6→8項目、2026-10-29 に「特殊条件」を外して7項目）: CHALLENGE確認画面での表示/非表示設定ラベル。
 ## 値は表示用文字列——キー(hp/atk/...)は公開設定の内部フィールド名の
 ## ため翻訳対象ではない。呼び出し側で.get()の結果へtr()を適用する。
 const VISIBILITY_LABELS := {
@@ -48,7 +48,6 @@ const VISIBILITY_LABELS := {
 	"resist_attributes": "耐性",
 	"boss_skills": "ボススキル詳細",
 	"win_condition": "勝利条件",
-	"special_condition": "特殊条件",
 }
 
 ## レイアウト監査（2026-09-11）: この左右マージンはscroll（確認内容）と

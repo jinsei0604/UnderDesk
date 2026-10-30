@@ -39,10 +39,13 @@ const GUIDE_CHARACTER_POSITION := Vector2(76.0, 19.0)
 
 ## 入口の2枚のカードの左上（全体 1152×480、RBMCreatorTopChoice）。
 const TOP_CHOICE_POSITION := Vector2(64, 150)
-## 作成方法の選択のカード。
-const MODE_CARD_SIZE := Vector2(600, 470)
-const MODE_CARD_TOP := 156.0
+## 作成方法の選択のカード。2026-10-29: 「設定できること」の一覧を外したので、高さを中身（区分・名前・説明・始めるボタン）に
+## 合わせて 470→340 に詰め、以前のカードと同じ縦の中心（156＋470÷2）に置く。
+const MODE_CARD_SIZE := Vector2(600, 340)
+const MODE_CARD_TOP := 221.0
 const MODE_CARD_STEP := 632.0
+## 説明の欄の高さ（英語の HARDCORE の説明が3行になっても、下の「この方法で作成を始める」と重ならない）。
+const DESCRIPTION_HEIGHT := 100.0
 ## 保存したボス戦の一覧の左右の欄・検索欄（挑戦側のオンライン一覧と同じ位置・大きさ）。
 const LIST_RECT := Rect2(24, 92, 444, 612)
 const DETAIL_RECT := Rect2(484, 92, 772, 612)
@@ -222,15 +225,16 @@ func _ensure_mode_choice_content_built() -> void:
 	var advice := S.label(notice, tr("迷ったら SIMPLE から始めるのがおすすめです"), Rect2(620, 7, 592, 30), 13, S.MUTED, "ModeChoiceAdviceLabel")
 	advice.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
-	_mode_card(0, "SIMPLE", tr("シンプルで作る"), tr("基本的な設定だけで、すぐにボス戦を作成できます。"), S.SILVER, "ChooseSimpleModeButton",
-		[tr("ボス名・外見・能力（HP・ATK・SPD）・弱点・耐性"), tr("技を作り、使う割合を決める"), tr("攻略パーティを選ぶ")],
+	# 2026-10-29 ユーザー確定の説明文（日本語はこの文のまま。句読点を足さない。HARDCORE は2文を改行して出す）。
+	# 以前の「設定できること」の一覧（「SIMPLE で設定できることすべて」など）は、誤解を招くため外した。
+	_mode_card(0, "SIMPLE", tr("シンプルで作る"), tr("使用率や指定ターンを設定して手軽にボスを作成"), S.SILVER, "ChooseSimpleModeButton",
 		_on_choose_simple_mode_pressed)
-	_mode_card(1, "HARDCORE", tr("ハードコアで作る"), tr("行動条件などを細かく設定して、ボス戦を作り込めます。"), S.HARD, "ChooseAdvancedModeButton",
-		[tr("SIMPLE で設定できることすべて"), tr("行動の順番と条件（ボスHP・ターン・味方の状態など）"), tr("覚醒（対応する外見のボスのみ）"), tr("味方の能力・技の調整")],
-		_on_choose_advanced_mode_pressed)
+	_mode_card(1, "HARDCORE", tr("ハードコアで作る"),
+		"%s\n%s" % [tr("ターンごとの行動や複雑な発動条件を組み合わせボスの戦術を自由に設計"), tr("特殊な勝利条件も設定できる上級者向けモード")],
+		S.HARD, "ChooseAdvancedModeButton", _on_choose_advanced_mode_pressed)
 
 ## SIMPLE／HARDCORE のカード。文字はすべて子の Label（Button.text は空）。カード全体が押せる。
-func _mode_card(index: int, category: String, title: String, description: String, color: Color, node_name: String, features: Array, callback: Callable) -> void:
+func _mode_card(index: int, category: String, title: String, description: String, color: Color, node_name: String, callback: Callable) -> void:
 	var card := Button.new()
 	card.name = node_name
 	card.position = Vector2(24 + index * MODE_CARD_STEP, MODE_CARD_TOP)
@@ -240,16 +244,14 @@ func _mode_card(index: int, category: String, title: String, description: String
 	card.pressed.connect(callback)
 	_mode_choice_panel.add_child(card)
 	M.accent_bar(card, color, MODE_CARD_SIZE.y)
-	M.number_font(S.label(card, category, Rect2(32, 22, 400, 56), 40, color, "CategoryLabel"))
-	S.label(card, title, Rect2(32, 82, 520, 32), 21, S.TEXT, "TitleLabel")
-	S.label(card, description, Rect2(32, 118, 540, 28), 15, S.MUTED, "DescriptionLabel")
-	S.rect(card, Rect2(24, 166, 552, 1), Color(S.PANEL_EDGE, 0.9), "Rule")
-	S.label(card, tr("設定できること"), Rect2(32, 178, 300, 24), 12, S.MUTED, "FeaturesCaption")
-	var y := 210.0
-	for i in range(features.size()):
-		S.rect(card, Rect2(34, y + 11, 6, 6), Color(color, 0.85), "FeatureMark%d" % i)
-		S.label(card, features[i], Rect2(52, y, 530, 28), 15, S.SILVER, "Feature%d" % i)
-		y += 36
+	M.number_font(S.label(card, category, Rect2(32, 26, 400, 56), 40, color, "CategoryLabel"))
+	S.label(card, title, Rect2(32, 86, 520, 32), 21, S.TEXT, "TitleLabel")
+	S.rect(card, Rect2(24, 134, 552, 1), Color(S.PANEL_EDGE, 0.9), "Rule")
+	var desc := S.label(card, description, Rect2(32, 154, 544, DESCRIPTION_HEIGHT), 15, S.SILVER, "DescriptionLabel")
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	desc.add_theme_constant_override("line_spacing", 8)
+	desc.size = Vector2(544, DESCRIPTION_HEIGHT)  # 折り返しを入れる前に文の長さへ広がった幅を、カードの中の幅へ戻す（英語の長い文）
 	var cta := M.cta_strip(card, Rect2(20, MODE_CARD_SIZE.y - 76, 560, 56), tr("この方法で作成を始める"), 17)
 	M.on_highlight(card, func(on: bool) -> void: cta.set_lit(1.0 if on else 0.0, 1.0 if on else 0.0))
 	# 体験版: HARDCORE は製品版限定（押せない。札と帯の文で知らせる）。製品版は今までどおり。
@@ -485,7 +487,8 @@ func _saved_entries() -> Array:
 			if bool(loaded.get("ok", false)):
 				var draft := RBMCreatorDraft.new()
 				draft.restore_from_saved_dict(loaded.get("draft_data", {}))
-				awakening = draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED and draft.has_awakening() and draft.supports_awakening()
+				# ボスの覚醒は SIMPLE でも設定できる（2026-10-29 ユーザー確定）ので、モードでは分けない。
+				awakening = draft.has_awakening() and draft.supports_awakening()
 			_awakening_by_version[version] = awakening
 		entry["awakening"] = _awakening_by_version[version]
 		entries.append(entry)

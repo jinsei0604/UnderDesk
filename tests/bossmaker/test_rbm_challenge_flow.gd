@@ -247,8 +247,9 @@ func test_confirm_screen_shows_clear_checked_mark_for_cleared_stage() -> void:
 	_open_confirm(entry, str(result.get("stage_id", "")))
 	assert_true(entry._confirm_view._clear_check_label.text.contains("クリアチェック済み"))
 
-## §9/§10: 勝利条件・特殊条件は常に表示され、公開設定を非公開にしても隠れない。
-func test_confirm_screen_always_shows_win_condition_and_special_condition_even_when_all_hidden() -> void:
+## §9: 勝利条件の行は常に表示され、公開設定を非公開にしても行そのものは隠れない（中身は「非公開」）。
+## 2026-10-29: 「特殊条件」の行は外した（勝利条件と紛らわしい、ユーザー確定）。
+func test_confirm_screen_always_shows_the_win_condition_row_even_when_all_hidden() -> void:
 	var draft := _basic_playable_draft("非公開ボス")
 	draft.set_all_challenge_info_visible(false)
 	var result := RBMLocalStageRepository.save_new(draft)
@@ -256,7 +257,8 @@ func test_confirm_screen_always_shows_win_condition_and_special_condition_even_w
 	_open_confirm(entry, str(result.get("stage_id", "")))
 	assert_false(entry._confirm_view._win_condition_label.text.is_empty())
 	assert_true(entry._confirm_view._win_condition_label.text.contains("勝利条件"))
-	assert_true(entry._confirm_view._special_condition_label.text.contains("特殊条件"))
+	for node in entry._confirm_view.find_children("*", "Label", true, false):
+		assert_false((node as Label).text.contains("特殊条件"), (node as Label).text)
 
 ## §16: 作者備考は常に表示。
 func test_confirm_screen_shows_author_notes() -> void:

@@ -389,19 +389,53 @@ func test_step4_scripted_actions_three_timings_via_ui() -> void:
 		timings.append(str(entry["timing"]))
 	assert_eq(timings, ["replace", "turn_start_interrupt", "turn_end_interrupt"])
 
-func test_step4_reorder_via_ui_buttons_generates_order() -> void:
+## 2026-10-29 ユーザー確定: 指定行動の↑↓（並べ替え）は無くした（何ターン目に使うかで決まるため）。同じターン・タイミングに
+## 複数ある時の実行の順は、今までどおり保存の並び（作った順）のまま。一覧は発動の順（ターン → 開始時・代わり・終了時）に
+## 並べて見せるだけで、保存の並びは変えない。発動ターン・タイミングを変えずに編集しても、実行の順は変わらない。
+func test_step4_scripted_order_follows_the_saved_order_without_reorder_buttons() -> void:
 	var creator := _new_creator()
 	var step4_wrapper: RBMCreatorStep4 = creator._step_views[2]
 	var step4: RBMCreatorStep4Actions = step4_wrapper._simple_view
 	var a := creator.draft.add_skill({"name": "A", "type": "self_heal", "heal_mode": "fixed", "heal_fixed_amount": 10, "heal_percent": 0.0})
 	var b := creator.draft.add_skill({"name": "B", "type": "atk_self_buff", "buff_multiplier": 1.5, "duration_turns": 1})
+	var c := creator.draft.add_skill({"name": "C", "type": "attack", "target": "all", "attribute": "NEUTRAL", "atk_multiplier": 1.0})
+	creator.draft.add_scripted_action(5, c, "turn_end_interrupt")
 	creator.draft.add_scripted_action(2, a, "replace")
 	creator.draft.add_scripted_action(2, b, "replace")
-	step4.move_scripted_action(1, -1)
+	step4.refresh()
+	assert_null(step4.find_child("MoveScriptedUpButton_0", true, false), "↑ は無い")
+	assert_null(step4.find_child("MoveScriptedDownButton_0", true, false), "↓ は無い")
+	assert_false(step4.has_method("move_scripted_action"), "画面の並べ替えの入口も無い")
+	# 一覧: 2ターン目の2つ（保存の順のまま）→ 5ターン目。番号「01」などは無く、左に発動ターン。
+	var shown: Array[String] = []
+	for card in step4._scripted_list.get_children():
+		shown.append(str(card.name))
+	var a_index := -1
+	var b_index := -1
+	var c_index := -1
+	for i in range(creator.draft.scripted_actions.size()):
+		match str(creator.draft.scripted_actions[i]["skill_id"]):
+			a: a_index = i
+			b: b_index = i
+			c: c_index = i
+	assert_eq(shown, ["ScriptedActionCard_%d" % a_index, "ScriptedActionCard_%d" % b_index, "ScriptedActionCard_%d" % c_index])
+	assert_eq((step4.find_child("ScriptedActionTurn_%d" % a_index, true, false) as Label).text, tr("%dターン目") % 2)
+	assert_eq((step4.find_child("ScriptedActionTurn_%d" % c_index, true, false) as Label).text, tr("%dターン目") % 5)
+	assert_eq((step4.find_child("ScriptedActionTiming_%d" % c_index, true, false) as Label).text, tr("ターン終了時に追加で使う"))
+	assert_null(step4.find_child("ScriptedActionNumber_%d" % a_index, true, false), "番号は無い")
 	creator.draft.party_character_ids = ["hero"]
 	var scripted: Array = creator.draft.to_definition()["boss"]["scripted_actions"]
-	assert_eq(str(scripted[0]["skill_id"]), b)
-	assert_eq(int(scripted[0]["order"]), 1)
+	var replace_ids: Array[String] = []
+	for entry in scripted:
+		if str(entry["timing"]) == "replace":
+			replace_ids.append(str(entry["skill_id"]))
+	assert_eq(replace_ids, [a, b], "同じターンの実行の順は保存の並び（作った順）のまま")
+
+	# A の行動を C に入れ替えて保存（発動ターン・タイミングは変えない）→ 同じ位置のまま入れ替わる。
+	step4._on_edit_scripted_pressed(a_index)
+	step4._commit_scripted(c)
+	assert_eq(str(creator.draft.scripted_actions[a_index]["skill_id"]), c, "編集しても位置は変わらない")
+	assert_eq(str(creator.draft.scripted_actions[b_index]["skill_id"]), b)
 
 func test_step4_normal_off_and_zero_scripted_is_valid() -> void:
 	var creator := _new_creator()

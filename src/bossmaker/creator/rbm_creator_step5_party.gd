@@ -9,14 +9,15 @@ extends Control
 ##   下   = 人物の札（名前・属性・役割・説明・能力のバー・得意技・ほかの技）と「編成に入れる／編成から外す」
 ##          「ステータス編集」。
 ##   「ステータス編集」で、選んだキャラクターの[使用可能スキル]／[性能調整]を重ねて開く（中身・操作は以前と同じ:
-##   使用可能スキルは「編集→決定／キャンセル」、性能調整は SIMPLE は表示だけ・HARDCORE は値の編集）。
-##   「全員を標準に戻す」（HARDCORE）は舞台の見出しの右。
+##   使用可能スキルは「編集→決定／キャンセル」、性能調整は値の編集）。
+##   「全員を標準に戻す」は舞台の見出しの右。
+## 2026-10-29 ユーザー確定: 味方の能力・技・覚醒の調整は SIMPLE でも HARDCORE と同じに使える（モードで分けない）。
 ## 編成の仕様（候補5人から1〜4人、重複なし）・保存の形・draft の API は変えていない。
 ## 役割・説明・技の短い説明は RBMPartyRosterKit（マスターデータと戦闘の処理から決めた）。
 ##
 ## 以前の作り（2026-09-05、カード列＋「＋キャラクターを追加」の候補一覧＋選択キャラクター設定）から引き継いだもの:
 ##   §13/§17 使用可能スキル（旧 RBMCreatorStep6PartySkills から移設したロジック）、§15 CUSTOM の印
-##   （draft.is_ally_customized()）、§16 全員を標準に戻す（draft.reset_all_ally_overrides()、ADVANCED 専用）。
+##   （draft.is_ally_customized()）、§16 全員を標準に戻す（draft.reset_all_ally_overrides()）。
 
 const CONTENT_SIDE_MARGIN_PX := 40.0
 const CONTENT_TOP_MARGIN_PX := 24.0
@@ -400,10 +401,9 @@ func _build_stage(rect: Rect2) -> void:
 	_count_label = K.label(stage, tr("%d / %d人") % [draft.party_character_ids.size(), RBMDefinitionLoader.MAX_PARTY_SIZE], Rect2(rect.size.x - 120, 3, 106, 28), 18, S.TEXT, "PartyCountLabel")
 	_count_label.add_theme_font_override("font", S.number_font())
 	_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	# §16 全員を標準に戻す（HARDCORE のみ）
+	# §16 全員を標準に戻す
 	_reset_all_button = K.button(stage, tr("全員を標準に戻す"), Rect2(0, 3, 0, 28), false, "ResetAllAllyOverridesButton", _on_reset_all_overrides_pressed, 13)
 	_reset_all_button.position.x = rect.size.x - 128 - _reset_all_button.size.x
-	_reset_all_button.visible = draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED
 	S.rect(stage, Rect2(0, 34, rect.size.x, 1), S.PANEL_EDGE)
 	var slot_w := rect.size.x / float(RBMDefinitionLoader.MAX_PARTY_SIZE)
 	var floor_y := rect.size.y - 42
@@ -680,15 +680,7 @@ func _build_performance_tab(character_id: String) -> void:
 	if master.is_empty():
 		return
 	var effective := draft.effective_character_def(character_id)
-	if draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED:
-		_build_stat_override_editor(character_id, effective)
-	else:
-		var stats_label := Label.new()
-		stats_label.name = "CharacterInfoStatsLabel"
-		stats_label.text = tr("HP：%d\nATK：%d\nSPD：%d") % [
-			int(master.get("hp", 0)), int(master.get("atk", 0)), int(master.get("spd", 0)),
-		]
-		_tab_content.add_child(stats_label)
+	_build_stat_override_editor(character_id, effective)
 	var effective_by_id := {}
 	for skill_variant in effective.get("skills", []):
 		if skill_variant is Dictionary:
@@ -714,13 +706,39 @@ func _add_skill_performance_card(character_id: String, skill: Dictionary, effect
 	if skill.has("target"):
 		var target_id := str(skill.get("target", ""))
 		_add_info_label(column, "SkillTargetLabel_%s" % skill_id, tr("対象：%s") % tr(str(SKILL_TARGET_LABELS.get(target_id, target_id))))
-	_add_skill_effect_lines(column, draft.effective_character_def(character_id), effective_skill, effect, skill_id)
-	if draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED:
-		_add_skill_override_editor(column, character_id, skill, effective_skill)
+	# 説明の行（倍率・効果時間・SP 消費など）は入れ物にまとめ、値を変えた時にここだけ作り直す（_refresh_skill_effect_lines）。
+	var effect_lines := VBoxContainer.new()
+	effect_lines.name = "SkillEffectLines_%s" % skill_id
+	column.add_child(effect_lines)
+	_add_skill_effect_lines(effect_lines, draft.effective_character_def(character_id), effective_skill, effect, skill_id)
+	_add_skill_override_editor(column, character_id, skill, effective_skill)
+
+## 2026-10-29 ユーザー指示: 能力・技・覚醒の値を変えた瞬間に、説明の行（「全能力：2.0倍」「効果時間」「消費SP」
+## 「基礎ダメージ」など）も今の値（draft に入った値＝保存される値）へ合わせる。入力欄は作り直さない（入力中の
+## フォーカスを外さない）。戦闘の計算は変えない（表示に使う計算は今までと同じ _add_skill_effect_lines）。
+func _refresh_skill_effect_lines(character_id: String) -> void:
+	if not is_instance_valid(_tab_content):
+		return
+	var effective := draft.effective_character_def(character_id)
+	var master := draft.master_character_def(character_id)
+	var effective_by_id := {}
+	for skill_variant in effective.get("skills", []):
+		if skill_variant is Dictionary:
+			effective_by_id[str((skill_variant as Dictionary).get("id", ""))] = skill_variant
+	for skill_variant in master.get("skills", []):
+		var master_skill: Dictionary = skill_variant
+		var skill_id := str(master_skill.get("id", ""))
+		var holder := _tab_content.find_child("SkillEffectLines_%s" % skill_id, true, false)
+		if holder == null:
+			continue
+		for child in holder.get_children():
+			holder.remove_child(child)
+			child.queue_free()
+		_add_skill_effect_lines(holder, effective, effective_by_id.get(skill_id, master_skill), str(master_skill.get("effect", "")), skill_id)
 
 func _build_stat_override_editor(character_id: String, effective: Dictionary) -> void:
 	var caption := Label.new()
-	caption.text = tr("ハードコア ステータス設定")
+	caption.text = tr("ステータス設定")
 	_tab_content.add_child(caption)
 	var labels := {"hp": "HP", "atk": "ATK", "spd": "SPD", "max_sp": "Max SP"}
 	for field in RBMDefinitionLoader.ALLY_STAT_OVERRIDE_FIELDS:
@@ -802,9 +820,11 @@ func _add_skill_override_editor(parent: Control, character_id: String, master_sk
 
 func _on_stat_override_changed(value: float, character_id: String, field: String) -> void:
 	draft.set_ally_stat_override(character_id, field, value)
+	_refresh_skill_effect_lines(character_id)  # ATK・最大SP で変わる「基礎ダメージ」「消費SP」も合わせる
 
 func _on_skill_override_changed(value: float, character_id: String, skill_id: String, field: String) -> void:
 	draft.set_ally_skill_override(character_id, skill_id, field, value)
+	_refresh_skill_effect_lines(character_id)
 
 func _on_reset_character_stats_pressed(character_id: String) -> void:
 	draft.reset_ally_character_stats(character_id)

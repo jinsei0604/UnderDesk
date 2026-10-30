@@ -96,8 +96,13 @@ func test_method_ui_layout_and_text_fit_at_1280_by_720() -> void:
 	# 戻るは左上（挑戦側のオンライン一覧と同じ位置・高さ）。
 	assert_eq(simple.size,RBMCreatorEntry.MODE_CARD_SIZE)
 	assert_eq(hardcore.size,simple.size)
-	assert_eq(simple.position,Vector2(24,156))
-	assert_eq(hardcore.position,Vector2(656,156))
+	# 2026-10-29: 「設定できること」の一覧を外したので、カードの高さを詰めて以前と同じ縦の中心に置く。
+	assert_eq(simple.position,Vector2(24,RBMCreatorEntry.MODE_CARD_TOP))
+	assert_eq(hardcore.position,Vector2(656,RBMCreatorEntry.MODE_CARD_TOP))
+	assert_eq(simple.position.y + simple.size.y * 0.5, 156.0 + 470.0 * 0.5, "以前のカードと同じ縦の中心")
+	var desc_rect: Rect2 = (simple.find_child("DescriptionLabel",true,false) as Control).get_rect()
+	var cta_top: float = simple.size.y - 76.0
+	assert_true(desc_rect.end.y <= cta_top, "説明の欄と始めるボタンが重ならない")
 	assert_eq(back.position,Vector2(24,20))
 	assert_eq(back.size.y,42.0)
 	assert_gte(back.size.x,150.0)

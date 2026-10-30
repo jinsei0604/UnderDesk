@@ -43,6 +43,8 @@ const VALID_ATTRIBUTES: Array[String] = ["FIRE", "ICE", "LIGHTNING", "WIND", "NE
 ## 選択・STEP7/CHALLENGE確認画面のスキル詳細・弱点/耐性表示）は全てこの
 ## 1つの辞書を参照する——同じ属性が画面ごとに異なる表記にならないよう
 ## （§11「表記の一貫性」）、ここ1箇所だけを直せば全画面へ反映される設計。
+## 値は表示用文字列——キー(FIRE/ICE/...)は内部の属性IDのため翻訳対象
+## ではない。呼び出し側で.get()の結果へtr()を適用する。
 const ATTRIBUTE_LABELS := {
 	"FIRE": "炎",
 	"ICE": "氷",

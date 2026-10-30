@@ -68,8 +68,12 @@ func _build_ui() -> void:
 	M.header(self, back_button, tr("戻る"), tr("挑戦"), tr("遊びたいボスを選んでください"), "HubTitleLabel", "HubSubtitleLabel")
 
 	M.section(self, tr("モードから探す"), Vector2(LEFT, 100))
-	_mode_card(0, "SIMPLE", tr("シンプルなボス戦"), tr("基本の設定で作られたボス戦から探します"), S.SILVER, "SimpleCategoryButton", [tr("技を割合で使い分ける")], CATEGORY_SIMPLE)
-	_mode_card(1, "HARDCORE", tr("作り込まれたボス戦"), tr("行動の順番や条件まで作り込まれたボス戦から探します"), S.HARD, "HardcoreCategoryButton", [tr("行動の順番と条件"), tr("覚醒することも")], CATEGORY_HARDCORE)
+	# 体験版は HARDCORE のボスに挑戦できない（一覧は SIMPLE だけ）ので、HARDCORE の区分は出さず、SIMPLE を横いっぱいにする（2026-10-30）。
+	var demo := RBMEdition.is_demo()
+	var simple_width := MODE_CARD_STEP + MODE_CARD_SIZE.x if demo else MODE_CARD_SIZE.x
+	_mode_card(0, "SIMPLE", tr("シンプルなボス戦"), tr("基本の設定で作られたボス戦から探します"), S.SILVER, "SimpleCategoryButton", [tr("技を割合で使い分ける")], CATEGORY_SIMPLE, simple_width)
+	if not demo:
+		_mode_card(1, "HARDCORE", tr("作り込まれたボス戦"), tr("行動の順番や条件まで作り込まれたボス戦から探します"), S.HARD, "HardcoreCategoryButton", [tr("行動の順番と条件"), tr("覚醒することも")], CATEGORY_HARDCORE)
 
 	M.section(self, tr("ボスを見つける"), Vector2(LEFT, 336))
 	var tiles := [
@@ -88,17 +92,19 @@ func _build_ui() -> void:
 
 	M.section(self, tr("あなたの討伐記録"), Vector2(RECORD_LEFT, 522), "DefeatRecordTitle")
 	var half := (RECORD_WIDTH - RECORD_GAP) * 0.5
-	_record_card("simple", "SIMPLE", true, S.SILVER, S.CARD_EDGE, Rect2(RECORD_LEFT, RECORD_TOP, half, RECORD_CARD_HEIGHT), "DefeatRecordSimple")
-	_record_card("hardcore", "HARDCORE", true, S.HARD, S.HARD_EDGE, Rect2(RECORD_LEFT + half + RECORD_GAP, RECORD_TOP, half, RECORD_CARD_HEIGHT), "DefeatRecordHardcore")
+	# 体験版は HARDCORE の討伐が起きないので、HARDCORE の数は出さず SIMPLE を横いっぱいにする（数え方・保存は変えない）。
+	_record_card("simple", "SIMPLE", true, S.SILVER, S.CARD_EDGE, Rect2(RECORD_LEFT, RECORD_TOP, RECORD_WIDTH if demo else half, RECORD_CARD_HEIGHT), "DefeatRecordSimple")
+	if not demo:
+		_record_card("hardcore", "HARDCORE", true, S.HARD, S.HARD_EDGE, Rect2(RECORD_LEFT + half + RECORD_GAP, RECORD_TOP, half, RECORD_CARD_HEIGHT), "DefeatRecordHardcore")
 	_record_card("hard", tr("難関ボス討伐"), false, S.GOLD, S.GOLD_EDGE, Rect2(RECORD_LEFT, RECORD_TOP + RECORD_CARD_HEIGHT + RECORD_GAP, RECORD_WIDTH, RECORD_HARD_HEIGHT), "DefeatRecordHard")
 	set_defeat_counts({})
 
 ## SIMPLE／HARDCORE の大きなカード。名前（Button.text、英字）・副題・説明・特徴の札・「一覧を見る」。
-func _mode_card(index: int, mode_name: String, subtitle: String, description: String, color: Color, node_name: String, tags: Array, category: String) -> void:
+func _mode_card(index: int, mode_name: String, subtitle: String, description: String, color: Color, node_name: String, tags: Array, category: String, width: float = MODE_CARD_SIZE.x) -> void:
 	var card := Button.new()
 	card.name = node_name
 	card.position = Vector2(LEFT + index * MODE_CARD_STEP, MODE_CARD_TOP)
-	card.size = MODE_CARD_SIZE
+	card.size = Vector2(width, MODE_CARD_SIZE.y)
 	M.card_styles(card, false, Vector4(30, 18, 160, MODE_CARD_SIZE.y - 68))
 	M.card_title(card, mode_name, 36, color, true)
 	card.pressed.connect(func(): category_selected.emit(category))
@@ -110,9 +116,9 @@ func _mode_card(index: int, mode_name: String, subtitle: String, description: St
 	for text in tags:
 		var t := M.tag(card, text, Vector2(x, 138), S.SILVER, Color("3a4a53"), Color(S.INSET, 0.9))
 		x += t.get_combined_minimum_size().x + 8
-	var open := S.label(card, tr("一覧を見る"), Rect2(MODE_CARD_SIZE.x - 210, 72, 160, 30), 14, S.SILVER, "OpenListLabel")
+	var open := S.label(card, tr("一覧を見る"), Rect2(width - 210, 72, 160, 30), 14, S.SILVER, "OpenListLabel")
 	open.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	var arrow := M.arrow(card, Vector2(MODE_CARD_SIZE.x - 38, 80), S.SILVER)
+	var arrow := M.arrow(card, Vector2(width - 38, 80), S.SILVER)
 	M.on_highlight(card, func(on: bool) -> void:
 		open.add_theme_color_override("font_color", S.TEXT if on else S.SILVER)
 		arrow.set_color(S.ACCENT if on else S.SILVER))

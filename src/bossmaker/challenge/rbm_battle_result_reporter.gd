@@ -67,7 +67,9 @@ func has_battle_ticket() -> bool:
 
 ## オンラインのボスの挑戦を始めた時: 挑戦の記録を送り、最初の戦闘のチケットを受け取る。context は討伐記録の控え
 ## （attempt_by_owner をここで入れる）。
-func begin_challenge(boss_id: String, context: Dictionary) -> void:
+## prefetched: 体験版で新しいボスに挑む時、戦闘を始める前にもう送った挑戦の記録の応答（RBMChallengeEntry の
+## 15体の確認、2026-10-29）。あればそれを使い、同じ挑戦をもう一度送らない（挑戦回数を二重に数えない）。
+func begin_challenge(boss_id: String, context: Dictionary, prefetched: Dictionary = {}) -> void:
 	_session += 1
 	_boss_id = boss_id
 	_context = context
@@ -76,7 +78,7 @@ func begin_challenge(boss_id: String, context: Dictionary) -> void:
 	_ticket_wanted = false
 	_tickets_supported = null
 	var session := _session
-	var response: Dictionary = await _recorder().record_challenge_attempt(boss_id)
+	var response: Dictionary = prefetched if not prefetched.is_empty() else await _recorder().record_challenge_attempt(boss_id)
 	if not context.is_empty():
 		context["attempt_by_owner"] = RBMChallengeEntry.server_by_owner(response)
 	if session != _session:

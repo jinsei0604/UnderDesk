@@ -59,13 +59,31 @@ func _build_ui() -> void:
 	views_root.add_child(_advanced_view)
 	_advanced_view.setup(draft, main)
 
+	## ボスの覚醒は SIMPLE でも HARDCORE と同じ設定（2026-10-29 ユーザー確定）。SIMPLE の一覧の「覚醒」から、
+	## HARDCORE の画面の覚醒の設定（条件の2段階の選択・覚醒の入力欄）だけを開き、閉じたら SIMPLE の一覧へ戻す。
+	_simple_view.awakening_requested.connect(_on_simple_awakening_requested)
+	_advanced_view.awakening_only_closed.connect(_on_awakening_only_closed)
+
+func _on_simple_awakening_requested() -> void:
+	_advanced_view.open_awakening_only()
+	if _advanced_view.is_awakening_only_open():
+		_simple_view.visible = false
+		_advanced_view.visible = true
+
+func _on_awakening_only_closed() -> void:
+	refresh()
+
+## SIMPLE で覚醒の設定を開いている間だけ、HARDCORE の画面を出す（操作・Esc はその画面が受ける）。
 func _current_view() -> Node:
-	return _advanced_view if draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED else _simple_view
+	if draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED or _advanced_view.is_awakening_only_open():
+		return _advanced_view
+	return _simple_view
 
 func refresh() -> void:
-	_simple_view.visible = draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_SIMPLE
-	_advanced_view.visible = draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED
-	_current_view().refresh()
+	var shown := _current_view()
+	_simple_view.visible = shown == _simple_view
+	_advanced_view.visible = shown == _advanced_view
+	shown.refresh()
 
 ## Esc（PX-13、2026-10-18）を、この STEP の中の画面が受け取ったら true（RBMCreatorMain が STEP を戻らない）。
 func escape() -> bool:
@@ -73,7 +91,10 @@ func escape() -> bool:
 	return bool(view.call("escape")) if view.has_method("escape") else false
 
 func is_step_valid() -> bool:
-	return _current_view().is_step_valid()
+	return _mode_view().is_step_valid()
 
 func validation_message() -> String:
-	return _current_view().validation_message()
+	return _mode_view().validation_message()
+
+func _mode_view() -> Node:
+	return _advanced_view if draft.creator_mode == RBMCreatorDraft.CREATOR_MODE_ADVANCED else _simple_view

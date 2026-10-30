@@ -22,6 +22,8 @@ var _menu_panel: Control
 var _create_button: Button
 var _challenge_button: Button
 var _locale_button: Button
+var _quit_button: Button
+var _quit_dialog: ConfirmationDialog
 var _title_boot_launcher: RBMTitleBootLauncher
 var _challenge_monitor: RBMHomeMonitorPanel
 var _creator_monitor: RBMHomeMonitorPanel
@@ -324,6 +326,7 @@ func _build_ui() -> void:
 		_creator_monitor_sfx.stop_all()
 		_create_button.pressed.emit())
 
+	_build_quit_ui()
 
 	# 起動導線: 起動ごとに選ばれたボスの部屋のタイトル→START→短いフェード
 	# →既存の挑戦/作成選択、という流れを、画面全体を覆う独立レイヤーとして
@@ -369,6 +372,8 @@ func _build_ui() -> void:
 ## 体験版: 左上の「ガイド」と、初めて起動した時のガイド（RBMDemoGuide）。
 ## 製品版: 同じ保存フォルダに体験版のデータ（RBMDemoCarryOver）があれば、ホームに来た時に引き継ぐか尋ねる。
 var _demo_guide: RBMDemoGuide
+## 体験版の初めての起動だけの歓迎画面（2026-10-29）。「はじめる」で閉じると、続けてガイドを開く（同時には出さない）。
+var _demo_welcome: RBMDemoWelcome
 var _carry_over_dialog: ConfirmationDialog
 var _carry_over_button: Button
 
@@ -385,6 +390,9 @@ func _build_edition_ui() -> void:
 		guide_button.pressed.connect(func(): _demo_guide.open_guide())
 		_title_screen.add_child(guide_button)
 		_title_screen.add_child(_demo_guide)
+		_demo_welcome = RBMDemoWelcome.new()
+		_demo_welcome.started.connect(_on_demo_welcome_started)
+		_title_screen.add_child(_demo_welcome)
 	else:
 		# 製品版: 体験版のデータを引き継ぐ確認（最初の1回だけ自動で出す）と、ホーム左上の「体験版から引き継ぐ」（引き継げる物がある時だけ出す）。
 		_carry_over_dialog = ConfirmationDialog.new()
@@ -415,12 +423,24 @@ func _build_edition_ui() -> void:
 	_title_screen.move_child(_title_boot_launcher, _title_screen.get_child_count() - 1)
 
 func _on_boot_completed_for_edition() -> void:
-	if is_instance_valid(_demo_guide) and not RBMDemoGuide.was_seen():
+	# 体験版の初めての起動: 先に歓迎画面だけを出す（ガイドは「はじめる」の後。_on_demo_welcome_started）。
+	if is_instance_valid(_demo_welcome) and not RBMDemoWelcome.was_seen():
+		_demo_welcome.open_welcome()
+	elif is_instance_valid(_demo_guide) and not RBMDemoGuide.was_seen():
+		RBMDemoGuide.mark_seen()  # 自動で出すのは1回だけ（途中でゲームを終えても、次の起動でまた出し続けない）
 		_demo_guide.open_guide()
 	# 製品版: 体験版のデータが残っていて、まだ一度も自動で尋ねていない時だけ尋ねる（「あとで」の後はホームのボタンから）。
 	if is_instance_valid(_carry_over_dialog) and not RBMLocalStageRepository.running_under_gut() and not RBMDemoCarryOver.was_prompted() and RBMDemoCarryOver.has_pending():
 		RBMDemoCarryOver.mark_prompted()
 		_open_carry_over_dialog()
+
+## 歓迎画面の「はじめる」: 閉じた直後にガイドを開く（タイトルの「ガイド」と同じガイド）。ガイドの自動表示は
+## これで済んだことにする（途中でゲームを終えても、次の起動では歓迎画面もガイドも自動では出さない）。
+func _on_demo_welcome_started() -> void:
+	if not is_instance_valid(_demo_guide):
+		return
+	RBMDemoGuide.mark_seen()
+	_demo_guide.open_guide()
 
 func _open_carry_over_dialog() -> void:
 	var p := RBMDemoCarryOver.pending()
@@ -441,6 +461,50 @@ func _on_carry_over_confirmed() -> void:
 func _refresh_carry_over_button() -> void:
 	if is_instance_valid(_carry_over_button):
 		_carry_over_button.visible = RBMDemoCarryOver.has_pending()
+
+## ホーム専用。既存カードの配置や保存・ウィンドウ終了の処理は変更しない。
+func _build_quit_ui() -> void:
+	var style = preload("res://src/bossmaker/rbm_battle_hud_style.gd")
+	_quit_button = Button.new()
+	_quit_button.name = "QuitGameButton"
+	style.button(_quit_button, 16)
+	_title_screen.add_child(_quit_button)
+	_quit_button.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_quit_button.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_quit_button.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_quit_button.offset_left = -176.0
+	_quit_button.offset_right = -16.0
+	_quit_button.offset_top = -60.0
+	_quit_button.offset_bottom = -16.0
+	_quit_button.pressed.connect(func():
+		_quit_dialog.popup_centered(Vector2i(480, 180))
+		_quit_dialog.get_cancel_button().grab_focus())
+
+	_quit_dialog = ConfirmationDialog.new()
+	_quit_dialog.name = "QuitGameConfirmation"
+	_quit_dialog.exclusive = true
+	_quit_dialog.transient = true
+	_quit_dialog.borderless = true
+	_quit_dialog.dialog_autowrap = true
+	_quit_dialog.min_size = Vector2i(480, 180)
+	_quit_dialog.add_theme_stylebox_override("panel", style._box(Color("091521"), style.CYAN_DIM, 1, -1, Vector4(24, 24, 24, 24)))
+	_title_screen.add_child(_quit_dialog)
+	style.label(_quit_dialog.get_label(), 20, style.TEXT)
+	style.button(_quit_dialog.get_ok_button(), 16)
+	style.button(_quit_dialog.get_cancel_button(), 16)
+	_quit_dialog.get_ok_button().custom_minimum_size = Vector2(144, 44)
+	_quit_dialog.get_cancel_button().custom_minimum_size = Vector2(144, 44)
+	_quit_dialog.confirmed.connect(request_quit)
+	_quit_dialog.canceled.connect(func(): _quit_button.grab_focus())
+	_update_quit_text()
+
+func _update_quit_text() -> void:
+	_quit_button.text = tr("ゲーム終了")
+	_quit_dialog.title = tr("ゲーム終了")
+	_quit_dialog.dialog_text = tr("ゲームを終了しますか？")
+	# 戦闘から戻る既存の「Exit」と、アプリを終了する「Quit」を区別する。
+	_quit_dialog.ok_button_text = tr("終了する", "quit_game")
+	_quit_dialog.cancel_button_text = tr("キャンセル")
 
 ## ローカライズ監査（2026-09-11）で発見: RBMCreatorEntry/RBMCreatorMainは
 ## ここで一度だけ生成され、以後はvisibleの切替だけで使い回される（§4/§5の
@@ -467,6 +531,7 @@ func _refresh_carry_over_button() -> void:
 ## 新しいロケールで再実行させる）。Creator/Challenge自身の仕様・ロジックは
 ## 無改修——生成コードそのものを1回多く実行させるだけ。
 func _on_locale_changed(_locale: String) -> void:
+	_update_quit_text()
 	_update_locale_button_text()
 	_challenge_monitor.refresh_locale()
 	_creator_monitor.refresh_locale()

@@ -386,7 +386,7 @@ func _page_arrow(direction: String, node_name: String, tooltip: String, x: float
 	_content.add_child(button)
 	return button
 
-## 2ページ目: 能力（HP・ATK・SPD）・弱点・耐性・勝利条件・特殊条件・ボススキル詳細。
+## 2ページ目: 能力（HP・ATK・SPD）・弱点・耐性・勝利条件・ボススキル詳細。
 ## 非公開の項目は値を作らない（文字列にする前に is_challenge_info_visible で分ける）。
 func _show_detail_page(summary: Dictionary, draft: RBMCreatorDraft) -> void:
 	_clear()
@@ -420,12 +420,11 @@ func _show_detail_page(summary: Dictionary, draft: RBMCreatorDraft) -> void:
 		if shown:
 			value.add_theme_font_override("font", S.number_font())
 
-	# 弱点・耐性・勝利条件・特殊条件（見出しと値の2列）。
+	# 弱点・耐性・勝利条件（見出しと値の2列）。「特殊条件」は 2026-10-29 に外した（勝利条件と紛らわしい）。
 	var rows := [
 		[tr("弱点"), _attribute_text(draft, "weak_attributes", draft.weak_attributes), "DetailPage2Weak", draft.is_challenge_info_visible("weak_attributes")],
 		[tr("耐性"), _attribute_text(draft, "resist_attributes", draft.resist_attributes), "DetailPage2Resist", draft.is_challenge_info_visible("resist_attributes")],
 		[tr("勝利条件"), draft.win_condition_text() if draft.is_challenge_info_visible("win_condition") else tr("非公開"), "DetailPage2WinCondition", draft.is_challenge_info_visible("win_condition")],
-		[tr("特殊条件"), tr("なし") if draft.is_challenge_info_visible("special_condition") else tr("非公開"), "DetailPage2SpecialCondition", draft.is_challenge_info_visible("special_condition")],
 	]
 	var y := 214.0
 	var caption_w := _caption_width()

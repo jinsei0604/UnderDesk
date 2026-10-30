@@ -35,7 +35,8 @@ func test_editing_a_scripted_action_shows_a_translated_title_in_english() -> voi
 	var step: RBMCreatorStep4Actions = wrapper.get("_simple_view")
 	step.refresh()
 
-	(step.find_child("EditScriptedActionButton_0", true, false) as Button).pressed.emit()
+	# 2026-10-29: 指定行動はカード全体を押して設定画面を開く（一覧の「編集」ボタンは無い）。
+	_open_scripted_card(step, 0)
 	assert_eq((step.get("_editor_title") as Label).text, "Scripted Action Settings")
 	(step.find_child("EditPerformanceButton", true, false) as Button).pressed.emit()
 	var form: RBMActionEditorForm = step.get("_form")
@@ -53,7 +54,8 @@ func test_editing_a_scripted_action_shows_the_japanese_title_in_japanese() -> vo
 	var step: RBMCreatorStep4Actions = wrapper.get("_simple_view")
 	step.refresh()
 
-	(step.find_child("EditScriptedActionButton_0", true, false) as Button).pressed.emit()
+	# 2026-10-29: 指定行動はカード全体を押して設定画面を開く（一覧の「編集」ボタンは無い）。
+	_open_scripted_card(step, 0)
 	assert_eq((step.get("_editor_title") as Label).text, "指定行動の設定")
 	(step.find_child("EditPerformanceButton", true, false) as Button).pressed.emit()
 	var form: RBMActionEditorForm = step.get("_form")
@@ -98,3 +100,11 @@ func test_skill_override_field_labels_stay_japanese_in_japanese() -> void:
 	var label := step.find_child("AllySkillOverrideLabel_hero_hero_slash_atk_multiplier", true, false) as Label
 	assert_not_null(label)
 	assert_eq(label.text, "倍率")
+
+func _open_scripted_card(simple: RBMCreatorStep4Actions, index: int) -> void:
+	var card := simple._scripted_list.find_child("ScriptedActionCard_%d" % index, true, false) as Control
+	assert_not_null(card, "the scripted action card exists")
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	card.gui_input.emit(release)

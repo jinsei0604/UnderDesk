@@ -428,7 +428,7 @@ func test_simple_scripted_action_delete_removes_unreferenced_skill() -> void:
 	var creator := _new_creator()
 	var step3 := _step3(creator)
 	var simple: RBMCreatorStep4Actions = step3._simple_view
-	# 2026-10-17: SIMPLE も HARDCORE と同じ流れ（性能と「いつ使う？」を1つの設定画面で、確定ボタン1つ）
+	# 2026-10-17: SIMPLE も HARDCORE と同じ流れ（性能と発動ターン・タイミングを1つの設定画面で、確定ボタン1つ）
 	_btn(simple, "AddScriptedActionButton").pressed.emit()
 	simple._form._name_edit.text = "指定行動"
 	_btn(simple, "ActionConfirmButton").pressed.emit()
@@ -481,8 +481,11 @@ func test_simple_shared_reference_between_normal_and_scripted_action_is_preserve
 
 	# 最後の参照（指定行動）もSIMPLE UI経由で削除すると、今度こそ回収される。
 	simple.refresh()
-	var delete_scripted_button: Button = simple._scripted_list.find_child("DeleteScriptedActionButton_0", true, false)
-	assert_not_null(delete_scripted_button)
+	# 2026-10-29: 指定行動もカード全体を押して設定画面を開き、そこで削除する（一覧の削除ボタンは無い）。
+	assert_null(simple._scripted_list.find_child("DeleteScriptedActionButton_0", true, false), "一覧に削除ボタンは無い")
+	_open_scripted_card(simple, 0)
+	var delete_scripted_button: Button = simple.find_child("ActionDeleteButton", true, false)
+	assert_true(delete_scripted_button.visible)
 	delete_scripted_button.pressed.emit()
 
 	assert_true(creator.draft.find_skill(shared_id).is_empty(), "最後の参照が消えれば削除されること")
@@ -879,6 +882,14 @@ func test_summary_generation_does_not_mutate_draft_battle_content_snapshot_stays
 	assert_eq(snapshot_after, snapshot_before, "Summary生成前後でbattle_content_snapshot()が完全一致すること（action_sequence/skillsを一切書き換えていないことの証明）")
 
 ## 2026-10-28: 通常行動はカードを押して「通常行動の設定」を開く（一覧の編集・削除のボタンは無くなった）。
+func _open_scripted_card(simple: RBMCreatorStep4Actions, index: int) -> void:
+	var card := simple._scripted_list.find_child("ScriptedActionCard_%d" % index, true, false) as Control
+	assert_not_null(card, "the scripted action card exists")
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	card.gui_input.emit(release)
+
 func _open_normal_card(simple: RBMCreatorStep4Actions, skill_id: String) -> void:
 	var card := simple._normal_list.find_child("NormalActionCard_%s" % skill_id, true, false) as Control
 	assert_not_null(card, "the normal action card exists")

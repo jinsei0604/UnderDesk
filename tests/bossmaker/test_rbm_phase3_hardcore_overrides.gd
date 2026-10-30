@@ -266,7 +266,9 @@ func test_definition_loader_rejects_malformed_or_unknown_override_content() -> v
 	var errors: Array[String] = []
 	assert_false(RBMDefinitionLoader.validate_ally_overrides({"unknown_character": {"stats": {"hp": 10}}}, errors))
 
-func test_simple_ignores_retained_overrides_and_hardcore_reapplies_them() -> void:
+## 2026-10-29 ユーザー確定: 味方の能力・技・覚醒の調整は SIMPLE でも HARDCORE と同じに戦闘へ渡す（以前は SIMPLE では
+## 戦闘に渡さなかった）。調整していない味方は、どちらのモードでもキーを書かない（標準のまま）。
+func test_simple_and_hardcore_both_apply_ally_overrides_to_battle() -> void:
 	var draft := _draft()
 	draft.set_ally_stat_override("hero", "atk", 100)
 	draft.set_ally_skill_override("hero", "hero_slash", "atk_multiplier", 5.0)
@@ -276,11 +278,17 @@ func test_simple_ignores_retained_overrides_and_hardcore_reapplies_them() -> voi
 
 	draft.set_creator_mode(RBMCreatorDraft.CREATOR_MODE_SIMPLE)
 	var simple_entry := _party_entry(draft.to_definition(), "hero")
-	assert_false(simple_entry.has("stat_overrides"))
-	assert_false(simple_entry.has("skill_overrides"))
-	assert_true(draft.ally_overrides.has("hero"), "SIMPLE retains authoring data")
+	assert_eq(simple_entry["stat_overrides"], {"atk": 100}, "SIMPLE も調整した能力を戦闘へ渡す")
+	assert_eq(simple_entry["skill_overrides"]["hero_slash"], {"atk_multiplier": 5.0}, "SIMPLE も調整した技を戦闘へ渡す")
 	var simple_resolved := RBMDefinitionLoader.resolve(draft.to_definition())
-	assert_eq(int((simple_resolved["ally_defs"][0] as Dictionary)["atk"]), 240, "retained values must not leak into SIMPLE battle")
+	assert_eq(int((simple_resolved["ally_defs"][0] as Dictionary)["atk"]), 100)
+	assert_eq(float(_skill(simple_resolved["ally_defs"][0], "hero_slash")["atk_multiplier"]), 5.0)
+	draft.reset_all_ally_overrides()
+	var untouched := _party_entry(draft.to_definition(), "hero")
+	assert_false(untouched.has("stat_overrides"), "調整していなければキーを書かない（今までの SIMPLE の定義のまま）")
+	assert_false(untouched.has("skill_overrides"))
+	draft.set_ally_stat_override("hero", "atk", 100)
+	draft.set_ally_skill_override("hero", "hero_slash", "atk_multiplier", 5.0)
 
 	draft.set_creator_mode(RBMCreatorDraft.CREATOR_MODE_ADVANCED)
 	var hardcore_resolved := RBMDefinitionLoader.resolve(draft.to_definition())
@@ -666,7 +674,7 @@ func test_every_hardcore_override_row_shows_only_its_caption_and_editable_curren
 				assert_eq(skill_label.text, str(skill_labels[field]), "%s.%s.%sは項目名だけを表示" % [character_id, skill_id, field])
 				assert_eq(float(skill_spin.value), float(skill[field]), "%s.%s.%sの現在値は編集欄に表示" % [character_id, skill_id, field])
 
-func test_challenge_confirm_shows_effective_values_only_for_hardcore_and_does_not_mutate_draft() -> void:
+func test_challenge_confirm_shows_effective_values_in_both_modes_and_does_not_mutate_draft() -> void:
 	var draft := _draft()
 	draft.set_ally_stat_override("hero", "atk", 999)
 	draft.set_ally_skill_override("hero", "hero_slash", "atk_multiplier", 5.0)
@@ -686,14 +694,16 @@ func test_challenge_confirm_shows_effective_values_only_for_hardcore_and_does_no
 	assert_false(skill_line.text.contains("→"))
 	assert_eq(draft.full_authoring_snapshot(), before, "challenge display must not modify the saved Draft")
 
+	# 2026-10-29: SIMPLE も調整した値で戦うので、挑戦の確認画面にも実戦の値を出す。
+	# （同じ画面を同じフレームで開き直すと、消す途中の古いラベルと名前がぶつかるので、新しい画面で確かめる）
 	draft.set_creator_mode(RBMCreatorDraft.CREATOR_MODE_SIMPLE)
-	view.open("3333333333", draft)
+	var simple_view := RBMChallengeConfirmView.new()
+	add_child_autofree(simple_view)
 	await get_tree().process_frame
-	var simple_has_performance := false
-	for node in view.find_children("*", "Label", true, false):
-		if (node as Label).name.begins_with("PartyPerformance"):
-			simple_has_performance = true
-	assert_false(simple_has_performance, "SIMPLE keeps its established master-only presentation")
+	simple_view.open("3333333333", draft)
+	var simple_stats := simple_view.find_child("PartyPerformanceStats_hero", true, false) as Label
+	assert_not_null(simple_stats, "SIMPLE でも味方の実戦の値を出す")
+	assert_true(simple_stats.text.contains("ATK 999"))
 
 ## 2026-10-28 ユーザー指示: 味方の能力の上限はボスに合わせる（HP 99,999・ATK 9,999・SPD 500、最大SP は 99,999）。
 func test_ally_stat_limits_match_the_boss_limits() -> void:

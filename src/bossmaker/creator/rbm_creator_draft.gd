@@ -61,9 +61,12 @@ const MAX_AUTHOR_NAME_LENGTH := 20
 ## 操作・保存/読込（旧セーブは既存の「未知キーはtrueへデフォルト」仕組みで
 ## 安全に補完される）に自動的に組み込まれる——コード変更は配列へ2件足す
 ## ことだけで済んだ。
+## 2026-10-29 ユーザー確定: 「特殊条件」は常に「なし」を出すだけで勝利条件と紛らわしいため、公開項目から外した
+## （7項目）。保存済みデータの "special_condition" は _restore_challenge_info_visibility() が既知キー
+## だけを読むため、旧 "party_details" と同じく静かに無視される（読み込みは壊れない）。
 const CHALLENGE_INFO_VISIBILITY_KEYS: Array[String] = [
 	"hp", "atk", "spd", "weak_attributes", "resist_attributes", "boss_skills",
-	"win_condition", "special_condition",
+	"win_condition",
 ]
 
 # STEP 1
@@ -460,7 +463,7 @@ func action_step_manual_percentage_total(slot: Dictionary) -> float:
 
 ## STEP 3 (HARDCORE)の入力検証。SIMPLE側のstep4_is_valid()とは独立
 ## （creator_modeがADVANCEDの時のみCreator UIが参照する）。
-## - 通常行動（turn_actions）が1ターン以上あり、どのターンにも問題が無いこと
+## - 通常行動（turn_actions）のどのターンにも問題が無いこと（0ターンでもよい、2026-10-29）
 ##   （turn_action_problem()。2026-10-28 から旧 action_sequence は判定に使わない）
 ## - ターン開始・終了時に追加する行動・覚醒の条件・回復の上限に問題が無いこと
 func step4_advanced_is_valid() -> bool:
@@ -470,9 +473,7 @@ func step4_advanced_is_valid() -> bool:
 		return false
 	if has_awakening() and not conditions_problem(awakening.get("conditions", [])).is_empty():
 		return false
-	# 2026-10-28: HARDCORE の通常行動はターンごとの設定。1ターン以上が必要（ユーザー確定、案A）。
-	if turn_actions.is_empty():
-		return false
+	# 2026-10-29 ユーザー確定: 行動が0件でも完成できる（ターン表が空なら、ボスは行動しない。勝手に補わない）。
 	for turn in turn_actions:
 		if not turn_action_problem(turn).is_empty():
 			return false
@@ -791,7 +792,7 @@ var author_name: String = ""
 var challenge_info_visibility: Dictionary = {
 	"hp": true, "atk": true, "spd": true,
 	"weak_attributes": true, "resist_attributes": true,
-	"boss_skills": true, "win_condition": true, "special_condition": true,
+	"boss_skills": true, "win_condition": true,
 }
 
 ## Phase 1 Step 5 §18/§20 — Clear Check's success record, held directly on
@@ -1174,6 +1175,9 @@ func normal_action_percentage_total() -> float:
 func step4_is_valid() -> bool:
 	if not heal_limit_problems().is_empty():
 		return false
+	# ボスの覚醒は SIMPLE でも使える（2026-10-29 ユーザー確定）。条件の不備は HARDCORE と同じに止める。
+	if has_awakening() and not conditions_problem(awakening.get("conditions", [])).is_empty():
+		return false
 	# 通常行動があるのに使用率がすべて0%（ボスが通常行動を一度も使わない）状態は通さない
 	# （作った直後の0%のまま先へ進めて、ボスが「行動しなかった」になっていた。プレイ体験監査 PX-02）。
 	if has_zero_percent_normal_actions_only():
@@ -1438,8 +1442,7 @@ func _is_ally_awakening_skill(character_id: String, skill_id: String) -> bool:
 	return str(_master_ally_skill(character_id, skill_id).get("effect", "")) == RBMDataLoader.AWAKENING_EFFECT
 
 ## Returns the full master shape with sparse differences applied to a deep
-## duplicate.  This accessor intentionally ignores creator_mode so HARDCORE UI
-## can retain/show values while SIMPLE is active without leaking them to battle.
+## duplicate.
 func hardcore_character_def(character_id: String) -> Dictionary:
 	var resolved := master_character_def(character_id).duplicate(true)
 	if resolved.is_empty() or not ally_overrides.has(character_id):
@@ -1461,10 +1464,9 @@ func hardcore_character_def(character_id: String) -> Dictionary:
 			skill[str(field)] = values[field]
 	return resolved
 
+## 2026-10-29 ユーザー確定: 味方の能力・技・覚醒の調整は SIMPLE でも HARDCORE と同じに使える（モードで分けない）。
 func effective_character_def(character_id: String) -> Dictionary:
-	if creator_mode == CREATOR_MODE_ADVANCED:
-		return hardcore_character_def(character_id)
-	return master_character_def(character_id)
+	return hardcore_character_def(character_id)
 
 # ---------------------------------------------------------------------------
 # STEP 6
@@ -1612,9 +1614,9 @@ func to_definition() -> Dictionary:
 			"character_id": character_id,
 			"allowed_skill_ids": (ally_allowed_skill_ids.get(character_id, []) as Array).duplicate(),
 		}
-		# SIMPLE must remain byte-for-byte master-driven even though retained
-		# HARDCORE values stay on the Draft for a later mode switch back.
-		if creator_mode == CREATOR_MODE_ADVANCED and ally_overrides.has(character_id):
+		# 味方の調整は SIMPLE・HARDCORE の両方で戦闘に渡す（2026-10-29 ユーザー確定）。調整の無い味方は
+		# 今までどおりキーを書かない（調整していないボスの定義・クリアチェックの照合値は変わらない）。
+		if ally_overrides.has(character_id):
 			var character_override: Dictionary = ally_overrides[character_id]
 			if character_override.has("stats") and not (character_override["stats"] as Dictionary).is_empty():
 				party_entry["stat_overrides"] = (character_override["stats"] as Dictionary).duplicate(true)

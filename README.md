@@ -27,6 +27,27 @@ bash tools/build_release_windows.sh <出力フォルダ> verify    # 検証版�
 ```
 
 - オンラインの接続先（Project URL と公開用の鍵）は、書き出しのたびに写しの中で `supabase_public.env` に書く（`tools/make_supabase_public_config.gd`）。値は環境変数 `SUPABASE_URL`・`SUPABASE_PUBLISHABLE_KEY`、無ければ開発用の `supabase_poc.local.env` から。どちらのファイルも Git では管理しない。秘密の鍵（Secret key・service_role）は道具が拒否する。
+
+#### Steam アップロード準備（必須）
+
+手動エクスポートの出力を SteamPipe の content に直接コピーしない。`include_filter` は存在しない公開設定ファイルを生成しないため、手動エクスポートが成功してもオンライン接続できない場合がある。
+
+通常は上の `build_release_windows.sh` で書き出す。未コミット変更がある時は既定で停止する（制作中の変更を意図して含める場合だけ `MC_ALLOW_WORKTREE_BUILD=1`）。続いて、検証済みの専用フォルダとファイル指定の VDF を作る:
+
+```powershell
+pwsh -File tools/prepare_steam_release.ps1 -SourceDirectory <書き出し済みフォルダ> -OutputDirectory <新しい配布準備フォルダ> -WorkDirectory <新しい作業用フォルダ>
+pwsh -File tools/verify_steam_upload.ps1 -PreparedDirectory <配布準備フォルダ>
+```
+
+設定が欠落・不正、開発用設定が混入、PCK 検査が不合格の場合は準備を失敗扱いにする。検査後に PCK・DLL・実行ファイル・VDF が変わった場合も直前の確認が失敗する。SteamCMD にはこの準備フォルダの `app_5482410.vdf` を指定する（以前の SDK の content 全体を送る VDF は使わない）。これらのスクリプトはアップロードしない。
+
+配布済み版の公開設定だけを補う場合は、制作中のソースを再エクスポートせず、既存スクリプトの修復用経路を使える（Godot 4.7.2 / PCK v4 / Windows x64 専用）:
+
+```bash
+bash tools/build_release_windows.sh <新しい配布準備フォルダ> repair <配布済みフォルダ> <新しい作業用フォルダ>
+```
+
+元の全リソースの内容と実行ファイル・Steam DLL を照合し、`supabase_public.env` だけを追加する。既存の配布物・作業ツリーは変更しない。公開設定は従来の生成ツールで検査して作る。作業用フォルダにはローカル設定のコピーが残るため、配布・共有・コミットしない。アップロード対象は生成した `content/` 内の4ファイルだけ。
 - 配布版の保存先は `%APPDATA%\MakersAndChallengers`（`project.godot` の `config/custom_user_dir_name.template`）。エディター・テストは今までどおり `%APPDATA%\Godot\app_userdata\Makers & Challengers`。
 - 書き出した版はコマンドラインで場面を差し替えられない。検証版は `MakersAndChallengers.console.exe -- --report=<出力> [--ui=1] [--steam=1]` で `tools/verify_export_online.gd` が動く。開発機で動かす時は `APPDATA` を別のフォルダに向けると、保存・ログが分かれる。
 

@@ -123,6 +123,21 @@ static func skill_performance_line(skill: Dictionary) -> String:
 		_:
 			return type
 
+## ボスの覚醒のカードの2行（自己強化・HP回復）。SIMPLE と HARDCORE の行動画面で共有する（2026-10-29）。
+static func awakening_buff_line(awakening: Dictionary) -> String:
+	var buff: Dictionary = awakening.get("buff", {})
+	if buff.is_empty():
+		return TranslationServer.translate("自己強化：なし")
+	return TranslationServer.translate("自己強化：ATK×%.2f / %dターン") % [float(buff.get("buff_multiplier", 1.0)), int(buff.get("duration_turns", 1))]
+
+static func awakening_heal_line(awakening: Dictionary) -> String:
+	var heal: Dictionary = awakening.get("heal", {})
+	if heal.is_empty():
+		return TranslationServer.translate("HP回復：なし")
+	if str(heal.get("heal_mode", "fixed")) == "percent":
+		return TranslationServer.translate("HP回復：最大HPの%.1f%%") % float(heal.get("heal_percent", 0.0))
+	return TranslationServer.translate("HP回復：HP%d") % int(heal.get("heal_fixed_amount", 0))
+
 ## kind=="skill"ならそのスキル名、kind=="random"なら候補名一覧をまとめた
 ## 1行。§12確定: ランダム候補は「参照している作成済み攻撃の性能」だけを
 ## 名前として表示する——候補側の条件・使用回数という概念は存在しない。

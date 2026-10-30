@@ -6,7 +6,8 @@ extends RefCounted
 ## 開発中に体験版を試す時は起動の引数に `--mc-demo`（`-- --mc-demo`）を付ける。
 ##
 ## 体験版の制限（ユーザーの指示）: ボスは竜・スライム・幽霊・機械武者の4体、作成は SIMPLE だけ（HARDCORE は製品版限定）、
-## 手元の保存は5体まで、オンライン公開は1人2体まで（公開中を非公開・削除すれば入れ替えられる）。オンラインで挑戦できるのは
+## 手元の保存は5体まで、オンライン公開は1人2体まで（公開中を非公開・削除すれば入れ替えられる）。オンラインで挑戦できる
+## 異なるボスは累計15体まで（2026-10-29、挑戦済みのボスには何度でも挑戦できる）。オンラインで挑戦できるのは
 ## 体験版の4体の SIMPLE ボスだけ（一覧・ランキングも同じ範囲）。プレイ時間の制限は無い。
 ## 保存先は製品版と別（data_root()）。製品版は体験版の保存を引き継げる（RBMDemoCarryOver）。
 ## サーバーも体験版のチケットを見分けて同じ制限をかける（supabase/functions/_shared/edition.ts）。
@@ -16,6 +17,9 @@ const DEV_ARGUMENT := "--mc-demo"
 const DEMO_APPEARANCES: Array[String] = ["appearance_dragon", "appearance_slime", "appearance_ghost", "appearance_musha"]
 const DEMO_MAX_LOCAL_SAVES := 5
 const DEMO_MAX_ONLINE_PUBLISHED := 2
+## 2026-10-29: オンラインで挑戦できる異なるボスは、Steam アカウントごとに累計15体まで（挑戦済みのボスには何度でも挑戦できる）。
+## 数えて断るのはサーバー（supabase/functions/_shared/edition.ts・DB の claim_demo_challenge_slot()）。ゲームのこの値は表示用。
+const DEMO_MAX_ONLINE_CHALLENGED_BOSSES := 15
 ## サーバーへ体験版であることを伝える値（一覧の ?edition= と、本文の "edition"）。本人確認ではない
 ## （サーバーは Steam のチケットがどちらのアプリのものかで判断する）。
 const DEMO_EDITION := "demo"

@@ -81,6 +81,12 @@ var _recorder: RBMOnlineChallengeRecorder
 var _title_label: Label
 var _mode_buttons: Dictionary = {}
 var _count_label: Label
+## 2026-10-29 体験版: 異なるオンラインボスへの挑戦の累計（「オンライン挑戦 ○ / 15体」）。製品版では作らない（null）。
+var _demo_meter: Panel
+var _demo_meter_count: Label
+var _demo_meter_note: Label
+var _demo_meter_fill: ColorRect
+const DEMO_METER_WIDTH := 300.0
 var _status_title_label: Label
 var _status_label: Label
 var _retry_button: Button
@@ -227,6 +233,9 @@ func _build_header() -> void:
 	_title_label = S.label(self, category_title(_current_category), Rect2(title_x + 16, 18, 400, 46), 27, S.TEXT, "OnlineListTitleLabel")
 
 	var modes := [["", tr("すべて"), "OnlineListModeAll"], [RBMCreatorDraft.CREATOR_MODE_SIMPLE, "SIMPLE", "OnlineListModeSimple"], [RBMCreatorDraft.CREATOR_MODE_ADVANCED, "HARDCORE", "OnlineListModeHardcore"]]
+	# 体験版は HARDCORE のボスが一覧に出ない（サーバーが体験版の範囲だけを返す）ので、空になる HARDCORE の切り替えは出さない（2026-10-30）。
+	if RBMEdition.is_demo():
+		modes.pop_back()
 	var x := 1256.0
 	for i in range(modes.size() - 1, -1, -1):
 		var mode: String = modes[i][0]
@@ -244,9 +253,54 @@ func _build_header() -> void:
 		x -= 4
 		_mode_buttons[mode] = segment
 	_update_mode_buttons()
+	_build_demo_challenge_meter(x - 8)
 
 	S.rect(self, Rect2(24, 76, 1232, 1), Color(S.PANEL_EDGE, 0.9))
 	S.rect(self, Rect2(24, 76, 64, 1), S.ACCENT_SOFT)
+
+## 体験版だけ: 見出しの右・モードの切り替えの左に、小さな札（数・残り・細いバー）を置く。中身は挑戦画面
+## （RBMChallengeEntry）がサーバーの使用状況を読んで set_demo_challenge_status() で入れる。
+func _build_demo_challenge_meter(right: float) -> void:
+	if not RBMEdition.is_demo():
+		return
+	_demo_meter = Panel.new()
+	_demo_meter.name = "DemoChallengeMeter"
+	_demo_meter.position = Vector2(right - DEMO_METER_WIDTH, 18)
+	_demo_meter.size = Vector2(DEMO_METER_WIDTH, 46)
+	_demo_meter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_demo_meter.add_theme_stylebox_override("panel", S.box(Color(S.INSET, 0.9), S.PANEL_EDGE))
+	add_child(_demo_meter)
+	S.rect(_demo_meter, Rect2(0, 0, 3, 46), S.ACCENT_SOFT)
+	_demo_meter_count = S.label(_demo_meter, "", Rect2(14, 3, DEMO_METER_WIDTH - 24, 22), 14, S.TEXT, "DemoChallengeCountLabel")
+	_demo_meter_note = S.label(_demo_meter, "", Rect2(14, 23, DEMO_METER_WIDTH - 24, 18), 11, S.MUTED, "DemoChallengeNoteLabel")
+	_demo_meter_note.clip_text = true
+	S.rect(_demo_meter, Rect2(14, 41, DEMO_METER_WIDTH - 28, 2), Color(S.PANEL_EDGE, 0.9), "DemoChallengeBarBack")
+	_demo_meter_fill = S.rect(_demo_meter, Rect2(14, 41, 0, 2), S.ACCENT_SOFT, "DemoChallengeBarFill")
+	set_demo_challenge_status({"state": "loading"})
+
+## 体験版のオンライン挑戦の使用状況を表示する。state: "loading"（確認中）・"ok"（used / limit が分かった）・
+## "unknown"（通信できず分からない。0体とは出さない）。製品版では何もしない。
+func set_demo_challenge_status(status: Dictionary) -> void:
+	if _demo_meter == null:
+		return
+	# "unlimited": サーバーが製品版のチケットと判断した（制限が無い）時は札を出さない。
+	_demo_meter.visible = str(status.get("state", "")) != "unlimited"
+	var limit := int(status.get("limit", RBMEdition.DEMO_MAX_ONLINE_CHALLENGED_BOSSES))
+	match str(status.get("state", "")):
+		"ok":
+			var used := int(status.get("used", 0))
+			_demo_meter_count.text = tr("オンライン挑戦　%d / %d体") % [used, limit]
+			_demo_meter_note.text = tr("挑戦済みのボスには引き続き挑戦できます") if used >= limit else tr("新しいボスにあと%d体挑戦できます") % (limit - used)
+			_demo_meter_fill.size.x = roundf((DEMO_METER_WIDTH - 28) * clampf(float(used) / float(maxi(limit, 1)), 0.0, 1.0))
+			_demo_meter_fill.color = S.HARD if used >= limit else S.ACCENT_SOFT
+		"unknown":
+			_demo_meter_count.text = tr("オンライン挑戦　? / %d体") % limit
+			_demo_meter_note.text = tr("通信できないため、残りの数を確認できません")
+			_demo_meter_fill.size.x = 0
+		_:
+			_demo_meter_count.text = tr("オンライン挑戦　… / %d体") % limit
+			_demo_meter_note.text = tr("確認中…")
+			_demo_meter_fill.size.x = 0
 
 func _build_list_panel() -> void:
 	var panel := Panel.new()
