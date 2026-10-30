@@ -30,3 +30,9 @@ tools/_ui_pass_shots/backup_before_frame_density_rework/
 tools/_ui_pass_shots/originals/
 tools/phase35_title_ui_screenshots/
 tools/phase35_ui_unification_screenshots/
+
+# 2026-10-30: 検証資料・試作・CLI の一時ファイル・直下に写した Steam の DLL（addons にある物と同じ）はコミットしない
+prototypes/
+tools/vfx_prototype/
+supabase/.temp/
+/steam_api64.dll

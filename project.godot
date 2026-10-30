@@ -10,6 +10,8 @@ config_version=5
 
 [application]
 
+boot_splash/bg_color=Color(0, 0, 0, 1)
+boot_splash/show_image=false
 config/name="Makers & Challengers"
 run/main_scene="res://src/bossmaker/rbm_game_root.tscn"
 config/features=PackedStringArray("4.7")
