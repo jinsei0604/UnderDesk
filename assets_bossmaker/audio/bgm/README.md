@@ -6,8 +6,12 @@
 |---|---|---|---|---|
 | `musha/` | 朽ちた機械武者 | `musha_normal.ogg`（覚醒前） | -34.3 LUFS → +10.3dB（実際は +7.3dB） | 12.4688 秒（9小節目の頭） |
 | | | `musha_awakened.ogg`（覚醒後） | -37.9 LUFS → +13.9dB（実際は +10.9dB） | 12.46965 秒（9小節目の頭） |
+| `dragon/` | 竜 | `dragon_normal.ogg`（覚醒前） | -38.8 LUFS → +14.8dB（実際は +11.8dB） | 0（曲の頭） |
+| | | `dragon_awakened.ogg`（覚醒後・黒龍） | -37.3 LUFS → +13.3dB（実際は +10.3dB） | 0（曲の頭） |
+| `slime/` | スライム | `slime_normal.ogg`（覚醒なし） | -35.9 LUFS → +11.9dB（実際は +8.9dB） | 0（曲の頭） |
+| `ghost/` | 幽霊 | `ghost_normal.ogg`（覚醒なし） | -40.3 LUFS → +16.3dB（実際は +13.3dB） | 0（曲の頭） |
 
-ほかのボスの boss_id: `slime`（スライム）・`wolf`（狼）・`knight`（騎士）・`dragon`（竜）・`ghost`（幽霊）・`golem`（ゴーレム）・`astronaut`（宇宙飛行士）・`gentleman`（異形紳士）。
+ほかのボスの boss_id: `wolf`（狼）・`knight`（騎士）・`golem`（ゴーレム）・`astronaut`（宇宙飛行士）・`gentleman`（異形紳士）。
 
 ## ファイルの決まり
 

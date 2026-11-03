@@ -89,7 +89,7 @@ func test_the_musha_files_in_the_boss_folder_are_used_automatically() -> void:
 	assert_eq(RBMBossBgm.convention_path("dragon", true), BGM_ROOT + "dragon/dragon_awakened.ogg", "命名規則: <boss_id>/<boss_id>_awakened.ogg")
 
 func test_a_boss_without_its_own_bgm_keeps_playing_without_music() -> void:
-	for id in ["golem", "slime", ""]:
+	for id in ["golem", "wolf", ""]:
 		assert_eq(RBMBossBgm.path_for(id, false), "", "%s: 専用の曲が無いボスは今までどおり BGM なし" % id)
 		assert_eq(RBMBossBgm.path_for(id, true), "")
 
@@ -391,5 +391,59 @@ func test_a_real_awakening_switches_to_the_awakened_track_in_every_battle_screen
 		await get_tree().process_frame
 		assert_true(view.session.battle.is_awakened, "%s: 覚醒が成立した(HP 99.9%%以下)" % mode)
 		assert_eq(_bgm(view).current_track(), MUSHA_AWAKENED, "%s: 覚醒後の曲に切り替わる" % mode)
+		view.queue_free()
+		await get_tree().process_frame
+
+# ---------------------------------------------------------------------------
+# 2026-11-02 体験版のボス3体の曲（竜は覚醒前・覚醒後、スライム・幽霊は1曲）。曲のファイルは渡されたまま。
+# 2026-11-03 ユーザーがループ修正版（曲の末尾の余韻を次の周の頭に重ね、終わりの無音を無くした版）に差し替え。
+# ---------------------------------------------------------------------------
+const DRAGON_NORMAL := "res://assets_bossmaker/audio/bgm/dragon/dragon_normal.ogg"
+const DRAGON_AWAKENED := "res://assets_bossmaker/audio/bgm/dragon/dragon_awakened.ogg"
+const SLIME_NORMAL := "res://assets_bossmaker/audio/bgm/slime/slime_normal.ogg"
+const GHOST_NORMAL := "res://assets_bossmaker/audio/bgm/ghost/ghost_normal.ogg"
+
+func test_the_dragon_slime_and_ghost_tracks_are_used_by_their_bosses() -> void:
+	assert_eq(RBMBossBgm.path_for("dragon", false), DRAGON_NORMAL, "竜: 戦闘の始まりは覚醒前の曲")
+	assert_eq(RBMBossBgm.path_for("dragon", true), DRAGON_AWAKENED, "竜: 黒龍に覚醒したら覚醒後の曲")
+	assert_eq(RBMBossBgm.path_for("dragon_awakened", true), DRAGON_AWAKENED, "覚醒後の外見のIDでも同じフォルダ")
+	for pair in [["slime", SLIME_NORMAL], ["ghost", GHOST_NORMAL]]:
+		assert_eq(RBMBossBgm.path_for(pair[0], false), pair[1], "%s: 専用の曲" % pair[0])
+		assert_eq(RBMBossBgm.path_for(pair[0], true), pair[1], "%s: 覚醒後の曲は無いので同じ曲を続ける" % pair[0])
+		assert_false(ResourceLoader.exists(RBMBossBgm.convention_path(pair[0], true)), "%s には覚醒後の曲を置かない" % pair[0])
+
+## 曲ごとの大きさ（2026-11-03 ループ修正版で測定）を REFERENCE_LUFS にそろえて鳴らす。最大の値（ピーク）に足しても音割れしない。
+func test_the_new_tracks_are_played_at_the_reference_loudness() -> void:
+	for row in [["dragon", false, -38.8, -25.4], ["dragon", true, -37.3, -21.3], ["slime", false, -35.9, -25.6], ["ghost", false, -40.3, -28.6]]:
+		var db := RBMBossBgm.volume_db(row[0], row[1])
+		assert_almost_eq(db - RBMBossBgm.ALL_DB, RBMBossBgm.REFERENCE_LUFS - float(row[2]), 0.05, "%s %s" % [row[0], "覚醒後" if row[1] else "覚醒前"])
+		assert_lt(float(row[3]) + db, -3.0, "%s のピークに足しても余裕がある" % row[0])
+
+func test_the_new_tracks_loop_from_the_top_and_keep_their_length() -> void:
+	for row in [[DRAGON_NORMAL, 103.790], [DRAGON_AWAKENED, 90.370], [SLIME_NORMAL, 97.215], [GHOST_NORMAL, 93.442]]:
+		var stream := RBMBossBgm.load_stream(row[0]) as AudioStreamOggVorbis
+		assert_not_null(stream)
+		assert_true(stream.loop, "%s はループする" % String(row[0]).get_file())
+		assert_eq(stream.loop_offset, 0.0, "%s は曲の頭へ戻る（前奏が無く、頭から本編）" % String(row[0]).get_file())
+		assert_almost_eq(stream.get_length(), float(row[1]), 0.01, "曲の長さは渡された曲のまま")
+
+func test_every_battle_screen_plays_the_trial_bosses_tracks() -> void:
+	for mode in ["test", "clear_check", "challenge"]:
+		for pair in [["appearance_dragon", DRAGON_NORMAL], ["appearance_slime", SLIME_NORMAL], ["appearance_ghost", GHOST_NORMAL]]:
+			var view := await _open(mode, pair[0])
+			assert_eq(_bgm(view).current_track(), pair[1], "%s: %s" % [mode, pair[0]])
+			view.queue_free()
+			await get_tree().process_frame
+
+func test_a_real_dragon_awakening_switches_to_the_black_dragon_track() -> void:
+	for mode in ["test", "clear_check", "challenge"]:
+		var view := await _open(mode, "appearance_dragon", true)
+		assert_eq(_bgm(view).current_track(), DRAGON_NORMAL, "%s: 覚醒前" % mode)
+		var unit_id := int(view.session.battle.party[0].id)
+		view.act_attack(unit_id)
+		await get_tree().create_timer(RBMBattleBgm.FADE_SWITCH + 0.35).timeout
+		await get_tree().process_frame
+		assert_true(view.session.battle.is_awakened, "%s: 覚醒が成立した" % mode)
+		assert_eq(_bgm(view).current_track(), DRAGON_AWAKENED, "%s: 黒龍の曲に切り替わる" % mode)
 		view.queue_free()
 		await get_tree().process_frame

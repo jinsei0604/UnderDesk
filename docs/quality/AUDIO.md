@@ -7,7 +7,7 @@
 
 ## 1. 現状（2026-10時点）
 
-- **BGMはボス専用の戦闘BGMだけ（2026-10-17〜）。** 曲は `assets_bossmaker/audio/bgm/<boss_id>/<boss_id>_normal.ogg`（覚醒前・覚醒の無いボスの1曲）・`_awakened.ogg`（覚醒後）に置くだけで使われる（選曲 `RBMBossBgm`、再生 `RBMBattleBgm`。追加の手順はそのフォルダの README.md）。今ある曲は朽ちた機械武者だけで、ほかのボスとタイトル・ホーム・ボス作成・結果はSEだけ。
+- **BGMはボス専用の戦闘BGMだけ（2026-10-17〜）。** 曲は `assets_bossmaker/audio/bgm/<boss_id>/<boss_id>_normal.ogg`（覚醒前・覚醒の無いボスの1曲）・`_awakened.ogg`（覚醒後）に置くだけで使われる（選曲 `RBMBossBgm`、再生 `RBMBattleBgm`。追加の手順はそのフォルダの README.md）。今ある曲は朽ちた機械武者（覚醒前・覚醒後）・竜（覚醒前・覚醒後の黒龍）・スライム・幽霊（2026-11-02〜）で、ほかのボスとタイトル・ホーム・ボス作成・結果はSEだけ。
 - オーディオバスは `default_bus_layout.tres`（Godot が起動時に読む）で決める: Master と、BGM 用の Music（Master へ送る）。SFX バスは無く、SEは Master へ直接。音量の設定画面はまだない。
 - **ゲーム全体の音量（2026-10-17、ユーザーが B 案に決定）:** Master の最後のリミッター（`AudioEffectHardLimiter`）の入口で +3dB、出口の上限 -1dB。Godot ではバスの音量はエフェクトの後にかかるので、+3dB はリミッターの入口でかける（Master の音量は 0dB のまま。今後の音量の設定はここを 0dB 以下で動かす）。BGM と SE のつり合いは変えていない。測り方と結果は `prototypes/volume_balance_2026-10-17/`。
 - SEは `RBMAudio`（`rbm_audio.gd`）が鳴らす。同時8音、基準の音量 −9dB（`play_sound(key, gain_db)` は −9 + gain）。読み込んだ音は保持して使い回す。

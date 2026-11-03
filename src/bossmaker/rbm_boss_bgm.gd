@@ -33,6 +33,11 @@ const ALL_DB := -3.0
 const BOSS_BGM := {
 	# 朽ちた機械武者(2026-10-17 測定: 覚醒前 -34.3 LUFS・覚醒後 -37.9 LUFS → -24 LUFS にそろえる)
 	"musha": {"normal_db": 10.3, "awakened_db": 13.9},
+	# 竜(2026-11-03 ループ修正版で測定: 覚醒前 -38.8 LUFS・覚醒後 -37.3 LUFS)
+	"dragon": {"normal_db": 14.8, "awakened_db": 13.3},
+	# スライム・幽霊(2026-11-03 ループ修正版で測定: -35.9 LUFS・-40.3 LUFS。覚醒は無いので1曲だけ)
+	"slime": {"normal_db": 11.9},
+	"ghost": {"normal_db": 16.3},
 }
 
 ## 上書きに書いたのに使えなかったパス(警告は1パスにつき1回だけ)。
