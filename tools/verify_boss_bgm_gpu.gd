@@ -1,7 +1,7 @@
 extends "res://tools/verify_encounter_gpu.gd"
 ## ボス専用BGM（rbm_boss_bgm.gd・rbm_battle_bgm.gd）の実GPU検証（2026-10-17、最初は朽ちた機械武者）。本物のゲームの本物の操作で確かめる。
 ## 通信はしない（オンライン一覧は RBMFakeBossApiAdapter、記録は受け取るだけ。保存は出力フォルダの中の一時フォルダだけ）。
-## ホーム画面（モニターのプレビュー）→ 挑戦の一覧 → 「挑戦する」→ 登場 → 攻撃を続ける → 覚醒 → とどめ → 勝利 → 結果。
+## ホーム画面（BGM が鳴らないこと）→ 挑戦の一覧 → 「挑戦する」→ 登場 → 攻撃を続ける → 覚醒 → とどめ → 勝利 → 結果。
 ## 1コマごとに、鳴っている曲・音量・再生位置を記録し、切り替わりの時刻を確かめる。--write-movie と一緒に使うと音入りの動画になる。
 ## 新しいボスの曲を足した時は --boss=<boss_id> で同じ確認をする（覚醒の無いボスは --awaken=0）。
 ## 起動: Godot --path . [--write-movie <dir>/movie.avi --fixed-fps 30] res://tools/gpu_runner.tscn --
@@ -89,7 +89,7 @@ func _tick() -> void:
 		track = bgm.current_track().get_file()
 		db = bgm.player.volume_db
 		pos = bgm.player.get_playback_position()
-	timeline.append([snappedf(clock, 0.001), track, snappedf(db, 0.1), snappedf(pos, 0.01), _playing_players()])
+	timeline.append([snappedf(clock, 0.001), track, snappedf(db, 0.1), snappedf(pos, 0.01), _playing_players(), Engine.get_process_frames()])
 	if awakening_started >= 0.0 and not awakening_se_heard and is_instance_valid(stage_audio):
 		for key in (stage_audio.get("history") as Array):
 			if str(key).ends_with("_awakening"):
@@ -130,6 +130,26 @@ func _position_at(t: float) -> float:
 		best = float(row[3])
 	return best
 
+## その時刻の記録のコマの番号（無ければ -1）。
+func _frame_at(t: float) -> int:
+	for row in timeline:
+		if float(row[0]) >= t - 0.0005 and (row as Array).size() > 5:
+			return int(row[5])
+	return -1
+
+## from〜to の間で一番長かったコマ（ms）。
+func _longest_frame_ms(from: float, to: float) -> int:
+	var longest := 0.0
+	var prev := -1.0
+	for row in timeline:
+		var t := float(row[0])
+		if t > to + 0.0005:
+			break
+		if prev >= 0.0 and t >= from:
+			longest = maxf(longest, t - prev)
+		prev = t
+	return int(round(longest * 1000.0))
+
 func _track_at(t: float) -> String:
 	var best := ""
 	for row in timeline:
@@ -138,36 +158,52 @@ func _track_at(t: float) -> String:
 		best = str(row[1])
 	return best
 
-## ホーム画面のモニター（戦闘の音を消したプレビュー。ゴーレムの戦闘）では BGM を鳴らさない。
-## ゴーレムには曲が無いので、このモニターの BGM の部品にだけ「ゴーレムの曲 = 武者の曲」を指定して確かめる（本番の表は変えない）。
+## ホーム画面では BGM を鳴らさない（2026-11-04 に今のホーム画面に合わせて書き直し）。
+## 2026-10-28 からのホーム画面は「挑戦」「ボス作成」の2つのモニターに絵のカード（RBMHomeCardArt）を重ねたもので、
+## 前のホーム画面のモニターにあった戦闘のプレビューは無い。そのため次の3つを確かめる:
+##   1. 今のホーム画面（2つのモニターと2枚のカードの絵）が出ている
+##   2. モニター・カードの中に戦闘の部品（BGM の部品）が無い（ホーム画面の絵が BGM を鳴らす経路が無い）
+##   3. 裏で待っている戦闘の画面（挑戦・TEST BATTLE・クリアチェック）の BGM は、戦闘を始めるまで鳴らない。
+##      どのボスにも曲がある状態にして確かめる（その戦闘の画面の BGM の部品の表だけを差し替える。本番の表は変えない）。
 func _check_home_monitor() -> void:
 	var home := RBMGameRoot.new()
 	tree.root.add_child(home)
-	var found: Array = []
+	var monitors: Array = []
+	var arts: Array = []
 	for i in range(240):
 		await _tick()
-		found = home.find_children("*", "RBMBattleBgm", true, false)
-		if not found.is_empty():
+		monitors = home.find_children("*", "RBMHomeMonitorPanel", true, false)
+		arts = home.find_children("*", "RBMHomeCardArt", true, false)
+		if monitors.size() >= 2 and arts.size() >= 2:
 			break
-	for b in found:
-		(b as RBMBattleBgm).table = {"golem": {"normal": "musha/musha_normal.ogg"}}
+	var names := []
+	for m in monitors:
+		names.append(str((m as Node).name))
+	_check("ホーム画面: 今のホーム画面（「挑戦」「ボス作成」のモニターと絵のカード）が出ている",
+		names.has("ChallengeHomeMonitor") and names.has("CreatorHomeMonitor") and arts.size() == 2, "モニター %s・カード %d 枚" % [names, arts.size()])
+	var inside := 0
+	for m in monitors:
+		inside += (m as Node).find_children("*", "RBMBattleBgm", true, false).size()
+	_check("ホーム画面: モニター・カードの中に戦闘の BGM の部品が無い", inside == 0, "%d 個" % inside)
+	var waiting := home.find_children("*", "RBMBattleBgm", true, false)
+	var every_boss := {}
+	for id in RBMVisualAssets.APPEARANCES.values():
+		every_boss[str(id)] = {"normal": "musha/musha_normal.ogg"}
+	for b in waiting:
+		(b as RBMBattleBgm).table = every_boss
 		(b as RBMBattleBgm).set("_paths_boss", "-")
 	var heard := 0
+	var tracks := 0
 	var t := 0.0
 	while t < 6.0:
 		await _tick()
 		t += tree.root.get_process_delta_time()
 		heard = maxi(heard, _playing_players())
-	var preview_battle := false
-	for b in found:
-		var v: Node = (b as RBMBattleBgm).view
-		preview_battle = preview_battle or (v != null and v.get("session") != null)
-	var disabled := false
-	for b in found:
-		disabled = disabled or not (b as RBMBattleBgm).enabled
-	_check("ホーム画面のモニター: 戦闘のプレビューに BGM の部品がある", not found.is_empty() and preview_battle, "%d 個" % found.size())
-	_check("ホーム画面のモニター: プレビューの BGM は使わない設定", disabled)
-	_check("ホーム画面のモニター: 曲があっても鳴らさない（戦闘の音を消したプレビュー）", heard == 0, "鳴った再生器 %d" % heard)
+		for b in waiting:
+			if not (b as RBMBattleBgm).current_track().is_empty():
+				tracks += 1
+	_check("ホーム画面: 裏の戦闘の画面の BGM は、戦闘を始めるまで鳴らない（どのボスにも曲がある状態で6秒）",
+		not waiting.is_empty() and heard == 0 and tracks == 0, "戦闘の画面の BGM %d 個・鳴った再生器 %d" % [waiting.size(), heard])
 	home.queue_free()
 	await _frames(6)
 
@@ -184,7 +220,7 @@ func _run_bgm(route: String, boss: String) -> void:
 		return
 	_check(tag + " 戦闘の画面に BGM が付いている", _bgm() != null)
 	await _wait(1.0)
-	_check(tag + " 戦闘の前（一覧・ホーム画面のモニター）では BGM は鳴らない", _playing_players() == 0, "%d 個" % _playing_players())
+	_check(tag + " 戦闘の前（一覧・ホーム画面）では BGM は鳴らない", _playing_players() == 0, "%d 個" % _playing_players())
 	var presenter_ready := false
 	stage_audio = _stage().get_node_or_null("RBMAudio")
 	# ---- 登場 ----
@@ -216,7 +252,7 @@ func _run_bgm(route: String, boss: String) -> void:
 		"登場の終わりから %.2f 秒" % (normal_at - intro.end))
 	# ---- 攻撃を続ける ----
 	var presenter: Node = view.get("_presenter")
-	var marks := {"awaken_start": -1.0, "awaken_impact": -1.0, "final_impact": -1.0, "result": -1.0}
+	var marks := {"awaken_start": -1.0, "awaken_impact": -1.0, "awaken_impact_frame": -1, "final_impact": -1.0, "result": -1.0}
 	presenter.connect("entry_started", func(e: Dictionary):
 		if str(e.get("action", "")) == "awakening" and marks.awaken_start < 0.0:
 			marks.awaken_start = clock
@@ -226,6 +262,7 @@ func _run_bgm(route: String, boss: String) -> void:
 		var vs: Dictionary = e.get("visual_state", {})
 		if str(e.get("action", "")) == "awakening" and marks.awaken_impact < 0.0:
 			marks.awaken_impact = clock
+			marks.awaken_impact_frame = Engine.get_process_frames()
 			_event("awakening_presentation_end")
 		if bool(vs.get("battle_over", false)) and marks.final_impact < 0.0:
 			marks.final_impact = clock
@@ -275,8 +312,13 @@ func _check_awakening(tag: String, marks: Dictionary) -> void:
 	_check(tag + " 覚醒の演出の間は曲が鳴らない", _track_at(marks.awaken_impact - 0.05) == "")
 	var awakened_at := _first("track", marks.awaken_impact - 0.01)
 	var head := _position_at(awakened_at)
-	_check(tag + " 覚醒が表示されたら覚醒後の曲が頭から鳴る", _track_at(awakened_at) == awakened_path.get_file() and awakened_at - marks.awaken_impact < 0.1 and head < 0.2,
-		"演出の終わりから %.2f 秒・曲の %.2f 秒目から" % [awakened_at - marks.awaken_impact, head])
+	# 2026-11-04: 秒ではなくコマで判定する。覚醒の表示（presenter の entry_impact）はコマ N の途中で届き、BGM はそれを
+	# 受けて同じか次のコマ（N+1）で覚醒後の曲を鳴らし始める。この道具はコマの初めに鳴っているかを見るので、見えるのは
+	# 遅くとも N+2 のコマ。覚醒の表示を作るコマは重く（武者で 77〜84ms）、秒で測ると、同じ「次のコマで鳴った」が
+	# 0.10〜0.12 秒と揺れていた（2026-11-04 調査）。秒と、その間で一番長かったコマも記録に出す。
+	var frames_after := _frame_at(awakened_at) - int(marks.awaken_impact_frame)
+	_check(tag + " 覚醒が表示されたら、次のコマで覚醒後の曲が頭から鳴る", _track_at(awakened_at) == awakened_path.get_file() and marks.awaken_impact_frame >= 0 and frames_after <= 2 and head < 0.2,
+		"演出の終わりから %d コマ（%.2f 秒・一番長いコマ %d ms）・曲の %.2f 秒目から" % [frames_after, awakened_at - marks.awaken_impact, _longest_frame_ms(marks.awaken_impact, awakened_at), head])
 	_check(tag + " 覚醒後はとどめまで覚醒後の曲", _track_at(marks.final_impact - 0.05) == awakened_path.get_file())
 	_check(tag + " 覚醒の効果音（%s_awakening）は今までどおり鳴る" % tag.get_slice("_", 0), awakening_se_heard)
 
