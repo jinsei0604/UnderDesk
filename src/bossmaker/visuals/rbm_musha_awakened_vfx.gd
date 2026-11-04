@@ -201,7 +201,9 @@ func _draw_awakening(t: float) -> void:
 	if t > 3.3 and t < 4.8:
 		var a := smoothstep(3.3, 4.6, t) * .78
 		draw_rect(_cover(), Color(.025, .045, .058, a))
-		draw_line(c + Vector2(-23, -61), c + Vector2(-13, -61), Color(1, .03, .04), 3.0, false)
+		# 暗がりに灯る赤い眼: 本体のその時のコマの眼の位置に、登場演出(rbm_intro_musha.gd)と同じ光で描く
+		# (2026-11-04 ユーザー指示。前は足元から決まった位置の赤い線で、眼より約6px上=笠のふちに出ていた)。
+		_eye_glow(_eye_point(t), 1.0)
 	if t >= Motion.AWAKENING_RELEASE and t < Motion.AWAKENING_RELEASE + .24:
 		for i in range(14):
 			var p := screen.position + Vector2(50.0 + fposmod(i * 197.0, 1180.0), 100.0 + fposmod(i * 119.0, 510.0))
@@ -216,6 +218,22 @@ func _draw_awakening(t: float) -> void:
 		var at: Vector2 = home + Motion.LOCK_OFFSETS[i]
 		var side := -1 if i % 2 == 0 else 1
 		draw_rect(Rect2(at + Vector2(side * minf(u * 18.0, 7.0), 0), Vector2(7, 3)), Color(.62, .59, .51, 1.0 - u / .6))
+
+## 覚醒演出の時刻 t に本体(rbm_musha_awakened_body.gd)が描いているコマの、眼の位置(ステージ座標)。
+func _eye_point(t: float) -> Vector2:
+	var index := int(Motion.body_state("awakening", t).get("index", 0))
+	return (home + (Vector2(Motion.ATLAS_EYES[index]) - Vector2(Motion.ATLAS_FEET[index])) * Motion.ATLAS_SCALE).round()
+
+## 赤い眼の光(登場演出の眼と同じ形: 淡い光の輪・外側の淡い四角・十字のにじみ・明るい芯)。k は強さ(0〜1)。
+func _eye_glow(at: Vector2, k: float) -> void:
+	var col := Color(1.0, 0.16, 0.12)
+	draw_circle(at, 16.0, Color(col, 0.05 * k), true, -1.0, false)
+	draw_circle(at, 7.0, Color(col, 0.10 * k), true, -1.0, false)
+	draw_rect(Rect2(at - Vector2(6, 6), Vector2(12, 12)), Color(col, 0.08 * k))
+	draw_rect(Rect2(at - Vector2(3, 3), Vector2(6, 6)), Color(col, 0.22 * k))
+	for d in [Vector2(-5, -1), Vector2(3, -1), Vector2(-1, -4), Vector2(-1, 2)]:
+		draw_rect(Rect2(at + d, Vector2(2, 2)), Color(col, 0.45 * k))
+	draw_rect(Rect2(at - Vector2(1, 1), Vector2(2, 2)), Color(col.lightened(0.6), minf(1.0, 1.2 * k)))
 
 func _draw_attack(t: float) -> void:
 	# 100msの空切り(薄い空気の筋を.24秒だけ)。白い棒状/発光する刀軌跡は描かない。
