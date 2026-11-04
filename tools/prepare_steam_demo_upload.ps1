@@ -46,7 +46,8 @@ function Test-DemoFeature([string]$PackPath) {
 
 function Get-Vdfs([string]$Root) {
     $content = (Join-Path $Root 'content').Replace('\', '/')
-    $mapping = ($Required | ForEach-Object { "    `"FileMapping`" { `"LocalPath`" `"$_`" `"DepotPath`" `"$_`" `"recursive`" `"0`" }" }) -join "`n"
+    # DepotPath はインストール先の中の「置くフォルダ」。"." = 直下（ファイル名を書くと、同じ名前のフォルダの中に入り起動できない。2026-11-04）
+    $mapping = ($Required | ForEach-Object { "    `"FileMapping`" { `"LocalPath`" `"$_`" `"DepotPath`" `".`" `"recursive`" `"0`" }" }) -join "`n"
     $depot = "`"DepotBuildConfig`"`n{`n    `"DepotID`" `"$DepotId`"`n    `"contentroot`" `"$content`"`n$mapping`n}`n"
     $app = "`"appbuild`"`n{`n    `"appid`" `"$AppId`"`n    `"desc`" `"Makers & Challengers Demo (Windows x64)`"`n    `"buildoutput`" `"$($Root.Replace('\', '/'))/steam_build_logs`"`n    `"setlive`" `"`"`n    `"preview`" `"0`"`n    `"depots`" { `"$DepotId`" `"$($Root.Replace('\', '/'))/depot_build_$DepotId.vdf`" }`n}`n"
     return @{ depot = $depot; app = $app }
