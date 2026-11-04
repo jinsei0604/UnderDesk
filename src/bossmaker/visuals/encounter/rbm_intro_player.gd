@@ -66,7 +66,8 @@ var _ally_saved := {}   # key -> {pose, position, modulate}
 static func has_intro(boss_id: String) -> bool:
 	return CHOREO.has(boss_id)
 
-## このボスの登場で読む素材（事前読み込みの warm_paths() 用）: ボスの12ポーズ・ボス専用のコマ絵・味方の身構えのポーズ・音。
+## このボスの登場で読む素材（事前読み込みの warm_paths() 用）: ボスの12ポーズ・ボス専用のコマ絵・振付のそのほかの素材・
+## 味方の身構えのポーズ・音。
 static func warm_paths(boss_id: String, party: Array) -> Array[String]:
 	var out: Array[String] = []
 	if not CHOREO.has(boss_id):
@@ -74,6 +75,9 @@ static func warm_paths(boss_id: String, party: Array) -> Array[String]:
 	var consts: Dictionary = (CHOREO[boss_id] as Script).get_script_constant_map()
 	out.append_array(Sprites.pose_paths(boss_id))
 	out.append_array(frame_paths_of(boss_id, consts.get("FRAMES", [])))
+	# 振付ごとのそのほかの素材（武者の墨のシェーダーなど。振付の const EXTRA_PATHS）
+	for extra in consts.get("EXTRA_PATHS", []):
+		out.append(str(extra))
 	for a in party:
 		if Choreo.READY_POSE.has(str(a)):
 			out.append(Assets.frame_path(str(a), int(Choreo.READY_POSE[str(a)])))

@@ -301,7 +301,9 @@ func _run(boss: String, route: String, with_retry: bool, with_cancel: bool) -> v
 	_check(tag + " 登場の間は HUD が隠れる", intro.hud_hidden)
 	_check(tag + " 登場の前後で戦闘の状態が変わらない", intro.state_start != "" and intro.state_start == intro.state_end)
 	var length: float = intro.ended - intro.started
-	_check(tag + " 登場の長さ", length > 4.0 and length < 5.2, "%.2f 秒" % length)
+	# 機械武者だけ特別に長い登場（墨を三連斬で切り裂く、約6.5秒。2026-11-04 ユーザー採用）。ほかのボスは今までどおり。
+	var range_s: Vector2 = Vector2(6.0, 7.0) if boss == "musha" else Vector2(4.0, 5.2)
+	_check(tag + " 登場の長さ", length > range_s.x and length < range_s.y, "%.2f 秒" % length)
 	_check(tag + " 前の画面が閉じる層は外れる", ScreenClose.active_count(tree) == 0)
 	# 開幕（ボスが先に動く時）の演出が終わり、コマンドを押せるまで待つ
 	var waited := 0.0
