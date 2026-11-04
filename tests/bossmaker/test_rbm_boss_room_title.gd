@@ -171,6 +171,22 @@ func test_catalog_selects_all_rooms_and_caches_each_launch() -> void:
 		seen[chosen] = true
 	assert_eq(seen.size(),3)
 
+func test_demo_always_opens_in_the_astronaut_room() -> void:
+	RBMEdition.set_demo_for_testing(true)
+	for launch in range(32):
+		Catalog._session_room_id = ""
+		assert_eq(Catalog.session_room_id(), "astronaut")
+	# 製品版でまだ選んでいない時も、体験版では宇宙飛行士の部屋（選んだ部屋の記録に関係しない）
+	Catalog._session_room_id = "musha"
+	assert_eq(Catalog.session_room_id(), "astronaut")
+	RBMEdition.set_demo_for_testing(false)
+	Catalog._session_room_id = ""
+	var seen: Dictionary = {}
+	for launch in range(64):
+		Catalog._session_room_id = ""
+		seen[Catalog.session_room_id()] = true
+	assert_eq(seen.size(), 3, "the full edition still picks from every room")
+
 
 func test_musha_keeps_complete_approved_cels_and_resumes_without_a_redraw() -> void:
 	var title := await _make_title("musha")
