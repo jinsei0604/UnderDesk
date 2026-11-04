@@ -95,12 +95,14 @@ static func label(l: Label, font_size: int, color: Color, font: Font = null) -> 
 	if l.get_meta("hud_style", "") == style_key:
 		return
 	l.set_meta("hud_style", style_key)
+	l.begin_bulk_theme_override()  # 上書きを1回の知らせにまとめる（button() と同じ理由。2026-11-04）
 	l.add_theme_font_size_override("font_size", font_size)
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 	l.add_theme_constant_override("outline_size", 0)
 	if font != null:
 		l.add_theme_font_override("font", font)
+	l.end_bulk_theme_override()
 
 static func _box(bg: Color, border: Color, width := 1, left := -1, margin := Vector4(12, 6, 12, 6), radius := 4) -> StyleBoxFlat:
 	var key := str([bg, border, width, left, margin, radius])
@@ -146,6 +148,9 @@ static func button(b: Button, font_size := 15, margin := Vector4(12, 4, 12, 4)) 
 	if b.get_meta("hud_style", "") == style_key:
 		return
 	b.set_meta("hud_style", style_key)
+	# 20個ほどの上書きを1回の「見た目が変わった」の知らせにまとめる（1つずつだと、そのたびに文字の組み直しと大きさの計算が走る。
+	# 行動の演出の後に作り直すコマンド・技のボタンで、操作が戻るコマが約20ms重かった。2026-11-04）。付く値は同じ。
+	b.begin_bulk_theme_override()
 	b.add_theme_stylebox_override("normal", _box(Color(0.04, 0.08, 0.13, 0.88), Color(CYAN, 0.22), 1, -1, margin))
 	b.add_theme_stylebox_override("hover", _box(Color(CYAN, 0.14), Color(CYAN, 0.85), 1, 4, margin))
 	b.add_theme_stylebox_override("pressed", _box(Color(CYAN, 0.22), CYAN, 1, 4, margin))
@@ -163,6 +168,7 @@ static func button(b: Button, font_size := 15, margin := Vector4(12, 4, 12, 4)) 
 	for key in ["icon_hover_color", "icon_pressed_color", "icon_hover_pressed_color"]:
 		b.add_theme_color_override(key, CYAN)
 	b.add_theme_font_size_override("font_size", font_size)
+	b.end_bulk_theme_override()
 
 ## 味方のカードの枠（行動中は水色で光る。光の輪はカードの draw で足す）。
 static func card(active: bool) -> StyleBoxFlat:
