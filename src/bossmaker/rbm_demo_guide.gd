@@ -54,6 +54,8 @@ var _body: VBoxContainer
 var _page_label: Label
 var _prev: Button
 var _next: Button
+var _caption: Label
+var _close: Button
 
 static func seen_path() -> String:
 	return RBMEdition.data_root() + "/" + SEEN_FILE
@@ -89,8 +91,8 @@ func _ready() -> void:
 	_panel.position = -PANEL_SIZE / 2.0
 	_panel.add_theme_stylebox_override("panel", S.box(Color(S.PANEL, 0.98), S.ACCENT_SOFT))
 	add_child(_panel)
-	var caption := S.label(_panel, tr("体験版ガイド"), Rect2(24, 12, 300, 20), 13, S.MUTED, "DemoGuideCaption")
-	caption.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_caption = S.label(_panel, tr("体験版ガイド"), Rect2(24, 12, 300, 20), 13, S.MUTED, "DemoGuideCaption")
+	_caption.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	_title = Menu.shadow(S.label(_panel, "", Rect2(24, 26, PANEL_SIZE.x - 200, 30), 24, S.TEXT, "DemoGuideTitle"))
 	_page_label = S.label(_panel, "", Rect2(PANEL_SIZE.x - 140, 18, 116, 30), 16, S.MUTED, "DemoGuidePage")
 	_page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -110,9 +112,20 @@ func _ready() -> void:
 	_panel.add_child(_body)
 	_prev = _button(_panel, tr("前へ"), Rect2(PANEL_SIZE.x - 420, BUTTON_ROW_Y, 120, 44), "DemoGuidePrevButton", func(): _show_page(_page - 1))
 	_next = _button(_panel, tr("次へ"), Rect2(PANEL_SIZE.x - 290, BUTTON_ROW_Y, 120, 44), "DemoGuideNextButton", func(): _show_page(_page + 1))
-	var close := _button(_panel, tr("閉じる"), Rect2(PANEL_SIZE.x - 160, BUTTON_ROW_Y, 136, 44), "DemoGuideCloseButton", close_guide, true)
-	close.focus_mode = Control.FOCUS_ALL
+	_close = _button(_panel, tr("閉じる"), Rect2(PANEL_SIZE.x - 160, BUTTON_ROW_Y, 136, 44), "DemoGuideCloseButton", close_guide, true)
+	_close.focus_mode = Control.FOCUS_ALL
 	_show_page(0)
+
+## ホームの言語の切り替えの後に RBMGameRoot が呼ぶ。作った時の言語のまま残る固定の文字（見出し・前へ・次へ・閉じる）を
+## 今の言語で付け直し、開いているページ（画像・番号の枠・説明）も今の言語で出し直す（2026-11-05）。
+func refresh_locale() -> void:
+	if not is_instance_valid(_panel):
+		return
+	_caption.text = tr("体験版ガイド")
+	_prev.text = tr("前へ")
+	_next.text = tr("次へ")
+	_close.text = tr("閉じる")
+	_show_page(_page)
 
 func _button(parent: Control, text: String, rect: Rect2, node_name: String, on_pressed: Callable, primary: bool = false) -> Button:
 	var b := Button.new()

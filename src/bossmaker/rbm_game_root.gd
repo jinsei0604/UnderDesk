@@ -372,6 +372,7 @@ func _build_ui() -> void:
 ## 体験版: 左上の「ガイド」と、初めて起動した時のガイド（RBMDemoGuide）。
 ## 製品版: 同じ保存フォルダに体験版のデータ（RBMDemoCarryOver）があれば、ホームに来た時に引き継ぐか尋ねる。
 var _demo_guide: RBMDemoGuide
+var _demo_guide_button: Button
 ## 体験版の初めての起動だけの歓迎画面（2026-10-29）。「はじめる」で閉じると、続けてガイドを開く（同時には出さない）。
 var _demo_welcome: RBMDemoWelcome
 var _carry_over_dialog: ConfirmationDialog
@@ -384,6 +385,7 @@ func _build_edition_ui() -> void:
 		var guide_button := Button.new()
 		guide_button.name = "DemoGuideButton"
 		guide_button.text = tr("ガイド")
+		_demo_guide_button = guide_button
 		style.button(guide_button, 16)
 		guide_button.position = Vector2(16, 16)
 		guide_button.size = Vector2(160, 44)
@@ -444,8 +446,13 @@ func _on_demo_welcome_started() -> void:
 
 func _open_carry_over_dialog() -> void:
 	var p := RBMDemoCarryOver.pending()
-	_carry_over_dialog.dialog_text = tr("体験版のデータが見つかりました。保存したボス戦%d体と討伐記録を製品版に引き継ぎますか？製品版のデータは上書き・削除しません。") % int(p["stages"])
+	_carry_over_dialog.dialog_text = _carry_over_text(p)
 	_carry_over_dialog.popup_centered(Vector2i(560, 220))
+
+func _carry_over_text(p: Dictionary = {}) -> String:
+	if p.is_empty():
+		p = RBMDemoCarryOver.pending()
+	return tr("体験版のデータが見つかりました。保存したボス戦%d体と討伐記録を製品版に引き継ぎますか？製品版のデータは上書き・削除しません。") % int(p["stages"])
 
 func _on_carry_over_confirmed() -> void:
 	var result := RBMDemoCarryOver.import_all()
@@ -536,6 +543,24 @@ func _on_locale_changed(_locale: String) -> void:
 	_challenge_monitor.refresh_locale()
 	_creator_monitor.refresh_locale()
 	_rebuild_creator_and_challenge_entries_for_current_locale()
+	_refresh_demo_ui_locale()
+
+## 体験版のホームの「ガイド」・ガイド・歓迎画面と、製品版の「体験版から引き継ぐ」・その確認は、作り直さずに文字だけを
+## 今の言語で付け直す（2026-11-05。作った時の言語のまま残り、日本語⇔英語を切り替えても変わらなかった）。
+func _refresh_demo_ui_locale() -> void:
+	if is_instance_valid(_demo_guide_button):
+		_demo_guide_button.text = tr("ガイド")
+	if is_instance_valid(_demo_guide):
+		_demo_guide.refresh_locale()
+	if is_instance_valid(_demo_welcome):
+		_demo_welcome.refresh_locale()
+	if is_instance_valid(_carry_over_button):
+		_carry_over_button.text = tr("体験版から引き継ぐ")
+	if is_instance_valid(_carry_over_dialog):
+		_carry_over_dialog.ok_button_text = tr("引き継ぐ")
+		_carry_over_dialog.cancel_button_text = tr("あとで")
+		if _carry_over_dialog.visible:
+			_carry_over_dialog.dialog_text = _carry_over_text()
 
 func _rebuild_creator_and_challenge_entries_for_current_locale() -> void:
 	if is_instance_valid(creator_entry):

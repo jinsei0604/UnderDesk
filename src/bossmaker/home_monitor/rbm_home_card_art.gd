@@ -40,6 +40,10 @@ var _sub: Label
 var _cta
 var _bar: ColorRect
 var _tags: Array = []  # [Label, 文言の鍵]（言語の切り替えで書き直す）
+## 体験版だけ: HARDCORE の札の横の「製品版で解放」（2026-11-05 ユーザー指示。HARDCORE は製品版で遊べることを知らせるため
+## 札は消さず、体験版では使えないことが分かるように添える。体験版で作れるのは SIMPLE だけ）。
+var _hardcore_tag: Label
+var _full_version_note: Label
 
 func setup(p_kind: String, card_size: Vector2) -> void:
 	kind = p_kind
@@ -86,7 +90,10 @@ func setup(p_kind: String, card_size: Vector2) -> void:
 		_tags = [[first, "オンライン"], [second, "ランキング"]]
 	else:
 		Menu.tag(_body, "SIMPLE", Vector2(24, 238), S.SILVER, Color("3a4a53"), Color(S.INSET, 0.9), true)
-		Menu.tag(_body, "HARDCORE", Vector2(100, 238), S.HARD, S.HARD_EDGE, Color(S.INSET, 0.9), true)
+		_hardcore_tag = Menu.tag(_body, "HARDCORE", Vector2(100, 238), S.HARD, S.HARD_EDGE, Color(S.INSET, 0.9), true, "HardcoreTag")
+		if RBMEdition.is_demo():
+			_hardcore_tag.modulate.a = 0.55
+			_full_version_note = S.label(_body, "", Rect2(0, 238, 220, 20), 12, S.MUTED, "HardcoreFullVersionNote")
 	_cta = Menu.cta_strip(_body, Rect2(card_size.x - 232, 184, 208, 50), "", 18, "HomeCardCta")
 	_bar = ColorRect.new()
 	_bar.color = Color(S.ACCENT, 0.0)
@@ -106,6 +113,9 @@ func refresh_locale() -> void:
 		(entry[0] as Label).text = tr(str(entry[1]))
 	if _tags.size() == 2:
 		(_tags[1][0] as Label).position.x = 32 + (_tags[0][0] as Label).get_combined_minimum_size().x
+	if _full_version_note != null:
+		_full_version_note.text = tr("製品版で解放")
+		_full_version_note.position.x = _hardcore_tag.position.x + _hardcore_tag.get_combined_minimum_size().x + 8
 
 func set_hover(on: bool) -> void:
 	_hover_target = 1.0 if on else 0.0

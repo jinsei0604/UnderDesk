@@ -240,6 +240,71 @@ func test_first_run_shows_welcome_then_the_guide_and_never_again() -> void:
 	assert_false((root2.find_child("DemoGuide", true, false) as Control).visible)
 	assert_not_null(root2.find_child("DemoGuideButton", true, false), "the guide button stays")
 
+## 2026-11-05: ホームで言語を切り替えると、ホームの「ガイド」・ガイドの固定の文字（見出し・前へ・次へ・閉じる）・
+## 歓迎画面も今の言語になる（以前は作った時の言語のまま残った。英語で起動→日本語でも、日本語で起動→英語でも）。
+func test_switching_the_language_relabels_the_guide_button_guide_and_welcome_both_ways() -> void:
+	RBMEdition.set_demo_for_testing(true)
+	for boot in ["ja", "en"]:
+		RBMLocale.set_locale(boot)
+		var root := RBMGameRoot.new()
+		add_child_autofree(root)
+		await get_tree().process_frame
+		var other := "en" if boot == "ja" else "ja"
+		RBMLocale.set_locale(other)
+		await get_tree().process_frame
+		var english := other == "en"
+		assert_eq((root.find_child("DemoGuideButton", true, false) as Button).text, "Guide" if english else "ガイド", boot + "→" + other)
+		var guide := root.find_child("DemoGuide", true, false) as RBMDemoGuide
+		assert_eq((guide.find_child("DemoGuideCaption", true, false) as Label).text, "Trial Guide" if english else "体験版ガイド")
+		assert_eq((guide.find_child("DemoGuidePrevButton", true, false) as Button).text, "Previous" if english else "前へ")
+		assert_eq((guide.find_child("DemoGuideNextButton", true, false) as Button).text, "Next" if english else "次へ")
+		assert_eq((guide.find_child("DemoGuideCloseButton", true, false) as Button).text, "Close" if english else "閉じる")
+		assert_eq((guide.find_child("DemoGuideTitle", true, false) as Label).text, "How to Battle" if english else "戦闘の遊び方")
+		var welcome := root.find_child("DemoWelcome", true, false) as RBMDemoWelcome
+		assert_eq((welcome.find_child("DemoWelcomeTitle", true, false) as Label).text, "Welcome!" if english else "ようこそ！")
+		assert_eq((welcome.find_child("DemoWelcomeStartButton", true, false) as Button).text, "Start" if english else "はじめる")
+
+## 2026-11-05: 製品版の「体験版から引き継ぐ」と確認の「引き継ぐ／あとで」も、言語を切り替えると今の言語になる。
+func test_switching_the_language_relabels_the_carry_over_button_and_confirmation() -> void:
+	for boot in ["ja", "en"]:
+		RBMLocale.set_locale(boot)
+		var root := RBMGameRoot.new()
+		add_child_autofree(root)
+		await get_tree().process_frame
+		var other := "en" if boot == "ja" else "ja"
+		RBMLocale.set_locale(other)
+		await get_tree().process_frame
+		var english := other == "en"
+		assert_eq((root.find_child("DemoCarryOverButton", true, false) as Button).text, "Carry Over from Trial" if english else "体験版から引き継ぐ", boot + "→" + other)
+		var dialog := root.find_child("DemoCarryOverConfirmation", true, false) as ConfirmationDialog
+		assert_eq(dialog.ok_button_text, "Carry Over" if english else "引き継ぐ")
+		assert_eq(dialog.cancel_button_text, "Later" if english else "あとで")
+
+## 2026-11-05: 体験版のホームのボス作成のカードは HARDCORE の札を残し（製品版で遊べると知らせる）、横に「製品版で解放」を添える。
+## 製品版のカードは今までどおり（添え書きなし・札は普通の濃さ）。
+func test_the_demo_home_card_keeps_hardcore_with_a_full_version_note_and_the_full_version_is_unchanged() -> void:
+	for demo in [true, false]:
+		RBMEdition.set_demo_for_testing(demo)
+		RBMLocale.set_locale("ja")
+		var root := RBMGameRoot.new()
+		add_child_autofree(root)
+		await get_tree().process_frame
+		var tag := root.find_child("HardcoreTag", true, false) as Label
+		assert_not_null(tag, "HARDCORE stays on the card")
+		assert_eq(tag.text, "HARDCORE")
+		var note := root.find_child("HardcoreFullVersionNote", true, false) as Label
+		if demo:
+			assert_not_null(note)
+			assert_eq(note.text, "製品版で解放")
+			assert_lt(tag.modulate.a, 1.0, "the tag is shown quieter in the trial")
+			assert_gt(note.position.x, tag.position.x + tag.get_combined_minimum_size().x, "the note sits right of the tag")
+			RBMLocale.set_locale("en")
+			await get_tree().process_frame
+			assert_eq(note.text, "Available in Full Version")
+		else:
+			assert_null(note)
+			assert_eq(tag.modulate.a, 1.0)
+
 func test_the_full_version_has_no_welcome_screen() -> void:
 	var root := RBMGameRoot.new()
 	add_child_autofree(root)

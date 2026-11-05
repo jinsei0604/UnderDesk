@@ -14,6 +14,9 @@ const SEEN_FILE := "demo_welcome_seen.json"
 const PANEL_SIZE := Vector2(760, 440)
 
 var _start_button: Button
+var _title_label: Label
+var _thanks_label: Label
+var _intro_label: Label
 
 static func seen_path() -> String:
 	return RBMEdition.data_root() + "/" + SEEN_FILE
@@ -42,15 +45,15 @@ func _ready() -> void:
 	panel.add_theme_stylebox_override("panel", S.box(Color(S.PANEL, 0.98), S.ACCENT_SOFT))
 	add_child(panel)
 	S.rect(panel, Rect2(0, 0, PANEL_SIZE.x, 3), S.ACCENT_SOFT)
-	var title := Menu.shadow(_centered(panel, tr("ようこそ！"), 56, 40, S.TEXT, "DemoWelcomeTitle"))
-	title.size.y = 56
+	_title_label = Menu.shadow(_centered(panel, tr("ようこそ！"), 56, 40, S.TEXT, "DemoWelcomeTitle"))
+	_title_label.size.y = 56
 	var game_name := _centered(panel, "Makers & Challengers", 130, 30, S.ACCENT, "DemoWelcomeGameName")
 	game_name.add_theme_font_override("font", S.number_font())
 	S.rect(panel, Rect2(PANEL_SIZE.x / 2.0 - 160, 186, 320, 1), S.PANEL_EDGE)
-	_centered(panel, tr("体験版をプレイしていただきありがとうございます！"), 210, 19, S.TEXT, "DemoWelcomeThanks")
-	var intro := _centered(panel, tr("自分だけのボスを作り、ほかのプレイヤーが作ったボスに挑戦しよう！"), 252, 16, S.SILVER, "DemoWelcomeIntro")
-	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	intro.size = Vector2(PANEL_SIZE.x - 96, 56)
+	_thanks_label = _centered(panel, tr("体験版をプレイしていただきありがとうございます！"), 210, 19, S.TEXT, "DemoWelcomeThanks")
+	_intro_label = _centered(panel, tr("自分だけのボスを作り、ほかのプレイヤーが作ったボスに挑戦しよう！"), 252, 16, S.SILVER, "DemoWelcomeIntro")
+	_intro_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_intro_label.size = Vector2(PANEL_SIZE.x - 96, 56)
 	_start_button = Button.new()
 	_start_button.name = "DemoWelcomeStartButton"
 	_start_button.text = tr("はじめる")
@@ -66,6 +69,15 @@ func _centered(parent: Control, text: String, y: float, font_size: int, color: C
 	var label := S.label(parent, text, Rect2(48, y, PANEL_SIZE.x - 96, font_size + 18), font_size, color, node_name)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return label
+
+## ホームの言語の切り替えの後に RBMGameRoot が呼ぶ。作った時の言語のまま残る文字を今の言語で付け直す（2026-11-05）。
+func refresh_locale() -> void:
+	if not is_instance_valid(_start_button):
+		return
+	_title_label.text = tr("ようこそ！")
+	_thanks_label.text = tr("体験版をプレイしていただきありがとうございます！")
+	_intro_label.text = tr("自分だけのボスを作り、ほかのプレイヤーが作ったボスに挑戦しよう！")
+	_start_button.text = tr("はじめる")
 
 func open_welcome() -> void:
 	visible = true
