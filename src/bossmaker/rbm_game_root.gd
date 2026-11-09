@@ -72,6 +72,9 @@ func _ready() -> void:
 	## 防止のため_ready()内の一度きりの接続のみ、毎フレーム同期はしない）。
 	_sync_size_to_viewport()
 	get_tree().root.size_changed.connect(_on_root_window_size_changed)
+	# 音量・全画面の設定を先に読む（このあと作る音の部品が設定の SE バスへ向かうように）
+	_game_settings = RBMGameSettings.new()
+	add_child(_game_settings)
 	_build_ui()
 	_se_audio = preload("res://src/bossmaker/rbm_audio.gd").for_owner(self)
 	_se_audio.bind_ui(self)
@@ -360,6 +363,7 @@ func _build_ui() -> void:
 	_title_screen.add_child(_locale_button)
 	RBMLocale.locale_changed.connect(_on_locale_changed)
 	_update_locale_button_text()
+	_build_settings_ui()
 
 	_build_edition_ui()
 
@@ -368,9 +372,33 @@ func _build_ui() -> void:
 
 	_show_menu()
 
+## ホーム右上の言語ボタンの左の「設定」と、音量・全画面の設定の画面（2026-11-08。RBMSettingsPanel）。
+func _build_settings_ui() -> void:
+	_settings_button = Button.new()
+	_settings_button.name = "SettingsButton"
+	_settings_button.text = tr("設定")
+	_settings_button.theme_type_variation = RBMUiTheme.VARIATION_SECONDARY_BUTTON
+	_settings_button.focus_mode = Control.FOCUS_ALL
+	_settings_button.custom_minimum_size = Vector2(112.0, 40.0)
+	_settings_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_settings_button.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_settings_button.offset_left = -112.0 - 16.0 - 8.0 - 112.0
+	_settings_button.offset_right = -112.0 - 16.0 - 8.0
+	_settings_button.offset_top = 16.0
+	_settings_button.offset_bottom = 16.0 + 40.0
+	_title_screen.add_child(_settings_button)
+	_settings_panel = RBMSettingsPanel.new()
+	_settings_panel.setup(_game_settings)
+	_title_screen.add_child(_settings_panel)
+	_settings_button.pressed.connect(_settings_panel.open_settings)
+	_settings_panel.closed.connect(_settings_button.grab_focus)
+
 ## 製品版／体験版（RBMEdition、2026-10-28）。製品版の見た目・動きは変えない（体験版の時だけ置く・製品版は体験版のデータがある時だけ尋ねる）。
 ## 体験版: 左上の「ガイド」と、初めて起動した時のガイド（RBMDemoGuide）。
 ## 製品版: 同じ保存フォルダに体験版のデータ（RBMDemoCarryOver）があれば、ホームに来た時に引き継ぐか尋ねる。
+var _game_settings: RBMGameSettings
+var _settings_button: Button
+var _settings_panel: RBMSettingsPanel
 var _demo_guide: RBMDemoGuide
 var _demo_guide_button: Button
 ## 体験版の初めての起動だけの歓迎画面（2026-10-29）。「はじめる」で閉じると、続けてガイドを開く（同時には出さない）。
@@ -548,6 +576,8 @@ func _on_locale_changed(_locale: String) -> void:
 ## 体験版のホームの「ガイド」・ガイド・歓迎画面と、製品版の「体験版から引き継ぐ」・その確認は、作り直さずに文字だけを
 ## 今の言語で付け直す（2026-11-05。作った時の言語のまま残り、日本語⇔英語を切り替えても変わらなかった）。
 func _refresh_demo_ui_locale() -> void:
+	_settings_button.text = tr("設定")
+	_settings_panel.refresh_locale()
 	if is_instance_valid(_demo_guide_button):
 		_demo_guide_button.text = tr("ガイド")
 	if is_instance_valid(_demo_guide):

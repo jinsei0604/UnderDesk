@@ -39,7 +39,7 @@ func test_selection_is_retained_when_launcher_is_recreated() -> void:
 	var second := await _make_title()
 	assert_eq(first.selected_room_id, second.selected_room_id)
 	assert_eq(first.selected_room_id, Catalog.session_room_id())
-	assert_eq(Catalog.ROOMS.size(), 3, "all approved rooms participate in launch selection")
+	assert_eq(Catalog.ROOMS.size(), 3, "the other approved rooms stay registered")
 
 func test_start_during_typing_and_aura_finishes_once_without_long_movie() -> void:
 	for time in [0.0, 21.8]:
@@ -161,32 +161,14 @@ func test_gentleman_preserves_approved_rig_fire_and_shadow() -> void:
 	assert_eq(title._room.visitor.opacity,0.0)
 	assert_eq(title._room.look,0.0)
 
-func test_catalog_selects_all_rooms_and_caches_each_launch() -> void:
-	var seen: Dictionary = {}
-	for launch in range(64):
-		Catalog._session_room_id = ""
-		var chosen: String = Catalog.session_room_id()
-		assert_true(Catalog.ROOMS.has(chosen))
-		assert_eq(Catalog.session_room_id(),chosen)
-		seen[chosen] = true
-	assert_eq(seen.size(),3)
-
-func test_demo_always_opens_in_the_astronaut_room() -> void:
-	RBMEdition.set_demo_for_testing(true)
-	for launch in range(32):
-		Catalog._session_room_id = ""
-		assert_eq(Catalog.session_room_id(), "astronaut")
-	# 製品版でまだ選んでいない時も、体験版では宇宙飛行士の部屋（選んだ部屋の記録に関係しない）
-	Catalog._session_room_id = "musha"
-	assert_eq(Catalog.session_room_id(), "astronaut")
-	RBMEdition.set_demo_for_testing(false)
-	Catalog._session_room_id = ""
-	var seen: Dictionary = {}
-	for launch in range(64):
-		Catalog._session_room_id = ""
-		seen[Catalog.session_room_id()] = true
-	assert_eq(seen.size(), 3, "the full edition still picks from every room")
-
+## 2026-11-08 ユーザー判断: 起動で使う部屋は体験版・製品版とも宇宙飛行士だけ（前は製品版は3部屋からランダム）。
+func test_both_editions_always_open_in_the_astronaut_room_and_cache_it() -> void:
+	for demo in [true, false]:
+		RBMEdition.set_demo_for_testing(demo)
+		for launch in range(32):
+			Catalog._session_room_id = ""
+			assert_eq(Catalog.session_room_id(), "astronaut")
+			assert_eq(Catalog.session_room_id(), "astronaut", "cached for the process")
 
 func test_musha_keeps_complete_approved_cels_and_resumes_without_a_redraw() -> void:
 	var title := await _make_title("musha")

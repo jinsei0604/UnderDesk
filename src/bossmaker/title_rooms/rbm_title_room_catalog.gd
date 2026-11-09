@@ -1,23 +1,19 @@
 extends RefCounted
-## Register only approved, implemented rooms. Selection is cached for this process;
-## returning home or recreating the launcher must not draw another boss.
+## Register only approved, implemented rooms. The launch room is cached for this process;
+## returning home or recreating the launcher must not change it.
 const ROOMS := {
 	"musha": preload("res://src/bossmaker/title_rooms/musha_room.tscn"),
 	"gentleman": preload("res://src/bossmaker/title_rooms/gentleman_room.tscn"),
 	"astronaut": preload("res://src/bossmaker/title_rooms/astronaut_room.tscn"),
 }
-## 体験版は宇宙飛行士の部屋だけ（2026-11-04 ユーザー判断: ほかの部屋は体験版に出すには品質が足りない）。製品版は今までどおり全部屋から選ぶ。
-const DEMO_ROOM := "astronaut"
+## 起動で使う部屋は、体験版・製品版とも宇宙飛行士だけ（2026-11-04 体験版、2026-11-08 製品版もユーザー判断: ほかの部屋は品質が足りない）。
+## ほかの部屋は登録と素材を残す（直した時に LAUNCH_ROOM を戻せるように）。
+const LAUNCH_ROOM := "astronaut"
 static var _session_room_id: String = ""
 
 static func session_room_id() -> String:
-	if RBMEdition.is_demo():
-		return DEMO_ROOM
 	if _session_room_id.is_empty():
-		var ids: Array = ROOMS.keys()
-		var random := RandomNumberGenerator.new()
-		random.randomize() # Independent of battle RNG and saved gameplay state.
-		_session_room_id = str(ids[random.randi_range(0, ids.size() - 1)])
+		_session_room_id = LAUNCH_ROOM
 	return _session_room_id
 
 static func create_session_room() -> Node2D:
