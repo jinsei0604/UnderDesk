@@ -1,5 +1,6 @@
 extends "res://src/bossmaker/visuals/encounter/rbm_defeat_base.gd"
 ## 共通の倒れ方（表示専用）: 専用の倒れ方が覚醒前のコマ絵に依存しているボス（武者・紳士）を、覚醒した後に倒した時に使う。
+## 専用の倒れ方がまだ無いボス（ヒーロー）は、覚醒前・覚醒後とも使う。
 ## 覚醒後の12ポーズの絵をそのまま使い（伸縮・回転しない）、のけぞる → 崩れて伏せる（地響き）→ ボスの色の粒になってほどける。
 
 ## この演出で鳴らす音（事前読み込みの宣言）。
@@ -15,6 +16,10 @@ func setup() -> void:
 		tint = Color(0.35, 0.32, 0.4)
 	elif asset.begins_with("gentleman"):
 		tint = Color(1.0, 0.3, 0.3)
+	elif asset == "hero_boss_awakened":
+		tint = Color("#ed274c")
+	elif asset == "hero_boss":
+		tint = Color("#5cc6fa")
 
 func duration() -> float:
 	return 1.5

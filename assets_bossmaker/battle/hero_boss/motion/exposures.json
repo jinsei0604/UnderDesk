@@ -1,0 +1,1111 @@
+{
+  "fps": 30,
+  "canvas": [
+    640,
+    360
+  ],
+  "sheet": "cels.png",
+  "rects": {
+    "array1": [
+      1,
+      1,
+      53,
+      90
+    ],
+    "array2": [
+      135,
+      1,
+      69,
+      87
+    ],
+    "array3": [
+      269,
+      1,
+      84,
+      82
+    ],
+    "array4": [
+      403,
+      1,
+      82,
+      78
+    ],
+    "array5": [
+      537,
+      1,
+      61,
+      88
+    ],
+    "blade0": [
+      671,
+      1,
+      54,
+      88
+    ],
+    "blade1": [
+      805,
+      1,
+      54,
+      88
+    ],
+    "blade2": [
+      1,
+      131,
+      57,
+      84
+    ],
+    "blade3": [
+      135,
+      131,
+      85,
+      79
+    ],
+    "blade4": [
+      269,
+      131,
+      97,
+      92
+    ],
+    "blade5": [
+      403,
+      131,
+      82,
+      91
+    ],
+    "bridge0": [
+      537,
+      131,
+      60,
+      76
+    ],
+    "bridge2": [
+      671,
+      131,
+      56,
+      67
+    ],
+    "normal": [
+      805,
+      131,
+      48,
+      90
+    ],
+    "omega": [
+      1,
+      261,
+      49,
+      90
+    ],
+    "overhead": [
+      135,
+      261,
+      63,
+      128
+    ],
+    "release0": [
+      269,
+      261,
+      62,
+      87
+    ],
+    "release1": [
+      403,
+      261,
+      66,
+      63
+    ],
+    "release2": [
+      537,
+      261,
+      74,
+      66
+    ],
+    "release3": [
+      671,
+      261,
+      78,
+      92
+    ],
+    "release4": [
+      805,
+      261,
+      61,
+      94
+    ],
+    "shear0": [
+      1,
+      391,
+      51,
+      90
+    ],
+    "shear1": [
+      135,
+      391,
+      83,
+      76
+    ],
+    "shear2": [
+      269,
+      391,
+      80,
+      80
+    ],
+    "shear3": [
+      403,
+      391,
+      85,
+      73
+    ],
+    "shear4": [
+      537,
+      391,
+      102,
+      92
+    ],
+    "shear5": [
+      671,
+      391,
+      46,
+      89
+    ],
+    "spring": [
+      805,
+      391,
+      104,
+      106
+    ],
+    "step0": [
+      1,
+      521,
+      70,
+      73
+    ],
+    "step1": [
+      135,
+      521,
+      63,
+      75
+    ],
+    "step2": [
+      269,
+      521,
+      59,
+      79
+    ],
+    "step3": [
+      403,
+      521,
+      70,
+      73
+    ],
+    "step4": [
+      537,
+      521,
+      62,
+      75
+    ],
+    "step5": [
+      671,
+      521,
+      59,
+      79
+    ],
+    "sweep": [
+      805,
+      521,
+      81,
+      84
+    ],
+    "verdict1": [
+      1,
+      651,
+      104,
+      116
+    ],
+    "verdict2": [
+      135,
+      651,
+      109,
+      93
+    ],
+    "verdict3": [
+      269,
+      651,
+      130,
+      98
+    ],
+    "verdict4": [
+      403,
+      651,
+      108,
+      90
+    ],
+    "verdict5": [
+      537,
+      651,
+      56,
+      92
+    ],
+    "array_standing_palms": [
+      671,
+      651,
+      84,
+      86
+    ]
+  },
+  "sequences": [
+    {
+      "id": "01",
+      "title": "導光抜刃",
+      "frames": 102,
+      "contacts": [
+        [
+          1.4,
+          3
+        ]
+      ],
+      "exposures": [
+        {
+          "start_frame": 0,
+          "hold_frames": 12,
+          "cel": "normal",
+          "world_top_left": [
+            366,
+            148
+          ]
+        },
+        {
+          "start_frame": 12,
+          "hold_frames": 10,
+          "cel": "blade0",
+          "world_top_left": [
+            366,
+            150
+          ]
+        },
+        {
+          "start_frame": 22,
+          "hold_frames": 10,
+          "cel": "blade1",
+          "world_top_left": [
+            366,
+            150
+          ]
+        },
+        {
+          "start_frame": 32,
+          "hold_frames": 3,
+          "cel": "blade2",
+          "world_top_left": [
+            355,
+            154
+          ]
+        },
+        {
+          "start_frame": 35,
+          "hold_frames": 2,
+          "cel": "blade2",
+          "world_top_left": [
+            346,
+            151
+          ]
+        },
+        {
+          "start_frame": 37,
+          "hold_frames": 2,
+          "cel": "blade3",
+          "world_top_left": [
+            314,
+            157
+          ]
+        },
+        {
+          "start_frame": 39,
+          "hold_frames": 1,
+          "cel": "blade3",
+          "world_top_left": [
+            280,
+            162
+          ]
+        },
+        {
+          "start_frame": 40,
+          "hold_frames": 1,
+          "cel": "blade3",
+          "world_top_left": [
+            249,
+            169
+          ]
+        },
+        {
+          "start_frame": 41,
+          "hold_frames": 1,
+          "cel": "blade3",
+          "world_top_left": [
+            222,
+            181
+          ]
+        },
+        {
+          "start_frame": 42,
+          "hold_frames": 10,
+          "cel": "blade4",
+          "world_top_left": [
+            194,
+            178
+          ]
+        },
+        {
+          "start_frame": 52,
+          "hold_frames": 14,
+          "cel": "blade5",
+          "world_top_left": [
+            188,
+            179
+          ]
+        },
+        {
+          "start_frame": 66,
+          "hold_frames": 4,
+          "cel": "step0",
+          "world_top_left": [
+            205,
+            197
+          ]
+        },
+        {
+          "start_frame": 70,
+          "hold_frames": 3,
+          "cel": "step1",
+          "world_top_left": [
+            225,
+            183
+          ]
+        },
+        {
+          "start_frame": 73,
+          "hold_frames": 3,
+          "cel": "step1",
+          "world_top_left": [
+            264,
+            173
+          ]
+        },
+        {
+          "start_frame": 76,
+          "hold_frames": 3,
+          "cel": "step2",
+          "world_top_left": [
+            312,
+            166
+          ]
+        },
+        {
+          "start_frame": 79,
+          "hold_frames": 3,
+          "cel": "step2",
+          "world_top_left": [
+            342,
+            164
+          ]
+        },
+        {
+          "start_frame": 82,
+          "hold_frames": 6,
+          "cel": "step0",
+          "world_top_left": [
+            347,
+            165
+          ]
+        },
+        {
+          "start_frame": 88,
+          "hold_frames": 7,
+          "cel": "blade0",
+          "world_top_left": [
+            366,
+            150
+          ]
+        },
+        {
+          "start_frame": 95,
+          "hold_frames": 7,
+          "cel": "normal",
+          "world_top_left": [
+            366,
+            148
+          ]
+        }
+      ]
+    },
+    {
+      "id": "02",
+      "title": "双鏡・救難照射",
+      "frames": 163,
+      "contacts": [
+        [
+          2.13,
+          0
+        ],
+        [
+          2.39,
+          1
+        ],
+        [
+          2.65,
+          2
+        ],
+        [
+          2.91,
+          3
+        ],
+        [
+          3.53,
+          0
+        ],
+        [
+          3.53,
+          1
+        ],
+        [
+          3.53,
+          2
+        ],
+        [
+          3.53,
+          3
+        ]
+      ],
+      "exposures": [
+        {
+          "start_frame": 0,
+          "hold_frames": 14,
+          "cel": "normal",
+          "world_top_left": [
+            366,
+            148
+          ]
+        },
+        {
+          "start_frame": 14,
+          "hold_frames": 12,
+          "cel": "array1",
+          "world_top_left": [
+            365,
+            148
+          ]
+        },
+        {
+          "start_frame": 26,
+          "hold_frames": 19,
+          "cel": "array2",
+          "world_top_left": [
+            348,
+            151
+          ]
+        },
+        {
+          "start_frame": 45,
+          "hold_frames": 91,
+          "cel": "array_standing_palms",
+          "world_top_left": [
+            344,
+            151
+          ]
+        },
+        {
+          "start_frame": 136,
+          "hold_frames": 12,
+          "cel": "array5",
+          "world_top_left": [
+            350,
+            150
+          ]
+        },
+        {
+          "start_frame": 148,
+          "hold_frames": 9,
+          "cel": "array1",
+          "world_top_left": [
+            365,
+            148
+          ]
+        },
+        {
+          "start_frame": 157,
+          "hold_frames": 6,
+          "cel": "normal",
+          "world_top_left": [
+            366,
+            148
+          ]
+        }
+      ]
+    },
+    {
+      "id": "03",
+      "title": "安全限界解除",
+      "frames": 170,
+      "contacts": [],
+      "exposures": [
+        {
+          "start_frame": 0,
+          "hold_frames": 9,
+          "cel": "normal",
+          "world_top_left": [
+            366,
+            148
+          ]
+        },
+        {
+          "start_frame": 9,
+          "hold_frames": 6,
+          "cel": "release0",
+          "world_top_left": [
+            363,
+            151
+          ]
+        },
+        {
+          "start_frame": 15,
+          "hold_frames": 3,
+          "cel": "bridge0",
+          "world_top_left": [
+            360,
+            162
+          ]
+        },
+        {
+          "start_frame": 18,
+          "hold_frames": 31,
+          "cel": "release1",
+          "world_top_left": [
+            344,
+            175
+          ]
+        },
+        {
+          "start_frame": 49,
+          "hold_frames": 39,
+          "cel": "release2",
+          "world_top_left": [
+            363,
+            172
+          ]
+        },
+        {
+          "start_frame": 88,
+          "hold_frames": 9,
+          "cel": "bridge2",
+          "world_top_left": [
+            363,
+            171
+          ]
+        },
+        {
+          "start_frame": 97,
+          "hold_frames": 25,
+          "cel": "release3",
+          "world_top_left": [
+            357,
+            146
+          ]
+        },
+        {
+          "start_frame": 122,
+          "hold_frames": 23,
+          "cel": "release4",
+          "world_top_left": [
+            363,
+            144
+          ]
+        },
+        {
+          "start_frame": 145,
+          "hold_frames": 25,
+          "cel": "omega",
+          "world_top_left": [
+            366,
+            148
+          ]
+        }
+      ]
+    },
+    {
+      "id": "05",
+      "title": "逆刃・交差断裁",
+      "frames": 121,
+      "contacts": [
+        [
+          1.45,
+          3
+        ],
+        [
+          1.92,
+          3
+        ],
+        [
+          2.24,
+          3
+        ]
+      ],
+      "exposures": [
+        {
+          "start_frame": 0,
+          "hold_frames": 12,
+          "cel": "omega",
+          "world_top_left": [
+            366,
+            148
+          ]
+        },
+        {
+          "start_frame": 12,
+          "hold_frames": 12,
+          "cel": "shear0",
+          "world_top_left": [
+            365,
+            148
+          ]
+        },
+        {
+          "start_frame": 24,
+          "hold_frames": 10,
+          "cel": "shear2",
+          "world_top_left": [
+            341,
+            158
+          ]
+        },
+        {
+          "start_frame": 34,
+          "hold_frames": 3,
+          "cel": "shear1",
+          "world_top_left": [
+            330,
+            162
+          ]
+        },
+        {
+          "start_frame": 37,
+          "hold_frames": 3,
+          "cel": "shear1",
+          "world_top_left": [
+            315,
+            162
+          ]
+        },
+        {
+          "start_frame": 40,
+          "hold_frames": 2,
+          "cel": "shear3",
+          "world_top_left": [
+            286,
+            169
+          ]
+        },
+        {
+          "start_frame": 42,
+          "hold_frames": 1,
+          "cel": "shear3",
+          "world_top_left": [
+            245,
+            177
+          ]
+        },
+        {
+          "start_frame": 43,
+          "hold_frames": 1,
+          "cel": "shear3",
+          "world_top_left": [
+            216,
+            186
+          ]
+        },
+        {
+          "start_frame": 44,
+          "hold_frames": 10,
+          "cel": "shear3",
+          "world_top_left": [
+            199,
+            193
+          ]
+        },
+        {
+          "start_frame": 54,
+          "hold_frames": 4,
+          "cel": "shear2",
+          "world_top_left": [
+            196,
+            186
+          ]
+        },
+        {
+          "start_frame": 58,
+          "hold_frames": 18,
+          "cel": "shear4",
+          "world_top_left": [
+            189,
+            174
+          ]
+        },
+        {
+          "start_frame": 76,
+          "hold_frames": 11,
+          "cel": "shear5",
+          "world_top_left": [
+            202,
+            177
+          ]
+        },
+        {
+          "start_frame": 87,
+          "hold_frames": 4,
+          "cel": "step3",
+          "world_top_left": [
+            202,
+            193
+          ]
+        },
+        {
+          "start_frame": 91,
+          "hold_frames": 3,
+          "cel": "step4",
+          "world_top_left": [
+            226,
+            178
+          ]
+        },
+        {
+          "start_frame": 94,
+          "hold_frames": 3,
+          "cel": "step4",
+          "world_top_left": [
+            269,
+            168
+          ]
+        },
+        {
+          "start_frame": 97,
+          "hold_frames": 3,
+          "cel": "step5",
+          "world_top_left": [
+            319,
+            161
+          ]
+        },
+        {
+          "start_frame": 100,
+          "hold_frames": 3,
+          "cel": "step5",
+          "world_top_left": [
+            349,
+            161
+          ]
+        },
+        {
+          "start_frame": 103,
+          "hold_frames": 6,
+          "cel": "step3",
+          "world_top_left": [
+            345,
+            165
+          ]
+        },
+        {
+          "start_frame": 109,
+          "hold_frames": 7,
+          "cel": "shear0",
+          "world_top_left": [
+            365,
+            148
+          ]
+        },
+        {
+          "start_frame": 116,
+          "hold_frames": 5,
+          "cel": "omega",
+          "world_top_left": [
+            366,
+            148
+          ]
+        }
+      ]
+    },
+    {
+      "id": "06",
+      "title": "双鏡執行・落陽断",
+      "frames": 194,
+      "contacts": [
+        [
+          3.28,
+          1
+        ],
+        [
+          3.34,
+          0
+        ],
+        [
+          3.41,
+          3
+        ],
+        [
+          3.48,
+          2
+        ],
+        [
+          3.85,
+          0
+        ],
+        [
+          3.85,
+          1
+        ],
+        [
+          3.85,
+          2
+        ],
+        [
+          3.85,
+          3
+        ]
+      ],
+      "exposures": [
+        {
+          "start_frame": 0,
+          "hold_frames": 13,
+          "cel": "omega",
+          "world_top_left": [
+            366,
+            148
+          ]
+        },
+        {
+          "start_frame": 13,
+          "hold_frames": 20,
+          "cel": "shear0",
+          "world_top_left": [
+            365,
+            148
+          ]
+        },
+        {
+          "start_frame": 33,
+          "hold_frames": 21,
+          "cel": "verdict1",
+          "world_top_left": [
+            336,
+            122
+          ]
+        },
+        {
+          "start_frame": 54,
+          "hold_frames": 5,
+          "cel": "spring",
+          "world_top_left": [
+            335,
+            132
+          ]
+        },
+        {
+          "start_frame": 59,
+          "hold_frames": 2,
+          "cel": "verdict2",
+          "world_top_left": [
+            351,
+            133
+          ]
+        },
+        {
+          "start_frame": 61,
+          "hold_frames": 3,
+          "cel": "verdict2",
+          "world_top_left": [
+            347,
+            115
+          ]
+        },
+        {
+          "start_frame": 64,
+          "hold_frames": 3,
+          "cel": "verdict2",
+          "world_top_left": [
+            342,
+            94
+          ]
+        },
+        {
+          "start_frame": 67,
+          "hold_frames": 3,
+          "cel": "verdict2",
+          "world_top_left": [
+            337,
+            79
+          ]
+        },
+        {
+          "start_frame": 70,
+          "hold_frames": 4,
+          "cel": "verdict2",
+          "world_top_left": [
+            334,
+            68
+          ]
+        },
+        {
+          "start_frame": 74,
+          "hold_frames": 5,
+          "cel": "verdict2",
+          "world_top_left": [
+            331,
+            62
+          ]
+        },
+        {
+          "start_frame": 79,
+          "hold_frames": 8,
+          "cel": "verdict2",
+          "world_top_left": [
+            329,
+            60
+          ]
+        },
+        {
+          "start_frame": 87,
+          "hold_frames": 4,
+          "cel": "verdict2",
+          "world_top_left": [
+            327,
+            62
+          ]
+        },
+        {
+          "start_frame": 91,
+          "hold_frames": 3,
+          "cel": "verdict2",
+          "world_top_left": [
+            324,
+            70
+          ]
+        },
+        {
+          "start_frame": 94,
+          "hold_frames": 2,
+          "cel": "overhead",
+          "world_top_left": [
+            315,
+            52
+          ]
+        },
+        {
+          "start_frame": 96,
+          "hold_frames": 1,
+          "cel": "overhead",
+          "world_top_left": [
+            304,
+            74
+          ]
+        },
+        {
+          "start_frame": 97,
+          "hold_frames": 1,
+          "cel": "sweep",
+          "world_top_left": [
+            278,
+            137
+          ]
+        },
+        {
+          "start_frame": 98,
+          "hold_frames": 1,
+          "cel": "verdict3",
+          "world_top_left": [
+            226,
+            163
+          ]
+        },
+        {
+          "start_frame": 99,
+          "hold_frames": 17,
+          "cel": "verdict3",
+          "world_top_left": [
+            219,
+            178
+          ]
+        },
+        {
+          "start_frame": 116,
+          "hold_frames": 29,
+          "cel": "verdict4",
+          "world_top_left": [
+            219,
+            186
+          ]
+        },
+        {
+          "start_frame": 145,
+          "hold_frames": 14,
+          "cel": "verdict5",
+          "world_top_left": [
+            272,
+            163
+          ]
+        },
+        {
+          "start_frame": 159,
+          "hold_frames": 5,
+          "cel": "step3",
+          "world_top_left": [
+            271,
+            182
+          ]
+        },
+        {
+          "start_frame": 164,
+          "hold_frames": 4,
+          "cel": "step4",
+          "world_top_left": [
+            291,
+            168
+          ]
+        },
+        {
+          "start_frame": 168,
+          "hold_frames": 4,
+          "cel": "step4",
+          "world_top_left": [
+            317,
+            159
+          ]
+        },
+        {
+          "start_frame": 172,
+          "hold_frames": 4,
+          "cel": "step5",
+          "world_top_left": [
+            348,
+            159
+          ]
+        },
+        {
+          "start_frame": 176,
+          "hold_frames": 8,
+          "cel": "step3",
+          "world_top_left": [
+            345,
+            165
+          ]
+        },
+        {
+          "start_frame": 184,
+          "hold_frames": 10,
+          "cel": "omega",
+          "world_top_left": [
+            366,
+            148
+          ]
+        }
+      ]
+    }
+  ]
+}

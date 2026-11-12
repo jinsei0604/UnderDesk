@@ -30,6 +30,9 @@ extends Node
 ## 味方の専用の技では SKILL_PRESENTATIONS の kind。共通の決まりとして、味方の被弾・防御の姿勢
 ## (REACTION_POSES)も読む(どのボスの攻撃でも使う)。
 ## 読み込みは1件ずつ頼む(読み終えた画像をGPUへ送る処理が1フレームに重ならないように)。
+## シェーダーは、持った後に中身の準備(get_rid())も済ませる(1フレームに1本まで)。Godot は読み込んだだけの
+## シェーダーの準備を最初に使う瞬間まで遅らせ、演出の開始のフレームに1本 1.6〜4.4ms ずつ重なっていた
+## (2026-11-10 実測、ヒーローの最初の技の開始 22.9ms)。準備が済むまでは、その演出の素材が揃っていない扱い。
 ## 戦闘の状態・乱数・行動順・保存データは読むだけで変えない。
 const Assets = preload("res://src/bossmaker/visuals/rbm_visual_assets.gd")
 ## 戦闘開始前の登場演出・勝利演出の素材の宣言（挑戦・クリアチェックの画面のステージにだけ "encounter_presentations" の印がある）。
@@ -56,6 +59,10 @@ var _hold_frames := 0
 var _prepared: Dictionary = {}
 ## prepare()・release() の時点でステージが持っていた(前の)戦闘。これは計画の材料にしない。
 var _ignored_battle := 0
+## このフレームで、シェーダーの準備を1本済ませた(2本目は次のフレームへ回す)。
+var _gpu_step_used := false
+## 準備を済ませたシェーダー(リソースの instance id。同じシェーダーを何度も準備しない。手放されて読み直した物は別の id)。
+static var _gpu_ready: Dictionary = {}
 ## prepare() で頼まれた準備(使い捨ての戦闘を作る → 計画を作る、を別々のフレームで行う)。
 var _prepare_request: Dictionary = {}
 ## 読めなかった素材(演出の開始をこれのために待たない)。
@@ -69,6 +76,7 @@ func configure(stage: Control) -> void:
 	_stage = stage
 
 func _process(_delta: float) -> void:
+	_gpu_step_used = false
 	_collect()
 	if _step_prepare():
 		return
@@ -219,13 +227,20 @@ func ensure(script: Variant, asset_id: String, kind: String) -> Array[String]:
 	_ask(paths, script, asset_id, kind)
 	var missing: Array[String] = []
 	for path in paths:
-		if _held.has(path) or _failed.has(path):
+		if _failed.has(path):
+			continue
+		if _held.has(path):
+			if _needs_gpu_step(path, _held[path]):
+				missing.append(path)
 			continue
 		if not _planned.has(path):
 			_planned.append(path)
 		if ResourceLoader.has_cached(path):
 			# 既に読み込まれている(参照を持つだけ。読み込みは起きない)。
-			_held[path] = load(path)
+			var cached := load(path)
+			_held[path] = cached
+			if _needs_gpu_step(path, cached):
+				missing.append(path)
 			continue
 		missing.append(path)
 	for i in range(missing.size() - 1, -1, -1):
@@ -343,10 +358,21 @@ func _request() -> void:
 	while _loading.is_empty() and not _queue.is_empty():
 		var path: String = _queue.pop_front()
 		if _held.has(path):
+			if _needs_gpu_step(path, _held[path]):
+				if _gpu_step_used:
+					_queue.push_front(path)
+					return
+				_gpu_step(path, _held[path])
 			continue
 		if ResourceLoader.has_cached(path):
 			# 既に読み込まれている(参照を持つだけ。読み込みは起きない)。
-			_held[path] = load(path)
+			var cached := load(path)
+			_held[path] = cached
+			if _needs_gpu_step(path, cached):
+				if _gpu_step_used:
+					_queue.push_front(path)
+					return
+				_gpu_step(path, cached)
 			continue
 		if ResourceLoader.load_threaded_request(path) == OK:
 			_loading = path
@@ -361,7 +387,29 @@ func _collect() -> void:
 		_failed[_loading] = true
 	elif _planned.has(_loading):
 		_held[_loading] = resource
+		if _needs_gpu_step(_loading, resource):
+			if _gpu_step_used:
+				_queue.push_front(_loading)
+			else:
+				_gpu_step(_loading, resource)
 	_loading = ""
+
+func _needs_gpu_step(_path: String, resource: Variant) -> bool:
+	return resource is Shader and not _gpu_ready.has((resource as Shader).get_instance_id())
+
+## シェーダーの中身の準備(GLSL への変換)を今済ませる。演出の見た目・時刻は変えない。
+func _gpu_step(_path: String, resource: Variant) -> void:
+	prepare_shader(resource)
+	_gpu_step_used = true
+
+## シェーダーなら中身の準備を今済ませ、準備済みとして覚える(準備した時は true)。
+## 演出の契約テストの補助(tests/bossmaker/presentation_assets_ready.gd)も、読み終えた状態を作るために使う。
+static func prepare_shader(resource: Variant) -> bool:
+	if not resource is Shader or _gpu_ready.has((resource as Shader).get_instance_id()):
+		return false
+	(resource as Shader).get_rid()
+	_gpu_ready[(resource as Shader).get_instance_id()] = true
+	return true
 
 ## 頼んだ読み込みは必ず1回受け取る(受け取らないと、読み込み側が素材を持ち続ける)。ステージが別の親へ
 ## 付け替えられる時(戦闘画面が全画面の配置へ移す時。_exit_tree)は、準備も読み込みもそのまま続ける。

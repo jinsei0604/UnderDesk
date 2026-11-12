@@ -34,6 +34,7 @@ const FEATURES := {
 	"appearance_astronaut": {"normal": ["宇宙から来た謎の飛行士", "重力をあやつって戦う"], "awakened": ["宇宙の力を解き放った姿", "惑星やブラックホールを呼び出す"]},
 	"appearance_gentleman": {"normal": ["礼儀正しい異形の紳士", "優雅な身のこなしから攻撃を仕掛ける"], "awakened": ["本性を現した異形の姿", "紳士の面影はもうない"]},
 	"appearance_plush": {"normal": ["つぎはぎだらけのぬいぐるみ", "かわいい見た目で油断を誘う"], "awakened": ["覚醒して恐ろしい姿に変わったぬいぐるみ", "かわいさの奥に恐ろしさがひそむ"]},
+	"appearance_hero_boss": {"normal": ["青い光をまとう正義のヒーロー", "光の刃とビームで敵を討つ"], "awakened": ["闇に呑まれた三つ目のヒーロー", "黒い炎の刃で世界ごと断ち切る"]},
 }
 
 var _selected_id: String = ""

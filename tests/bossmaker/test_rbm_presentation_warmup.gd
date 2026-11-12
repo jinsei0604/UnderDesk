@@ -431,9 +431,14 @@ func test_first_plays_read_nothing_that_was_not_read_ahead() -> void:
 	await _assert_first_play_reads_nothing_new(_battle("appearance_ghost", [_attack("all")]), "")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_gentleman", [_attack("single")]), "gentleman_single")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_gentleman", [_attack("all")]), "gentleman_all")
+	# ヒーロー（2026-11-10）
+	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_attack("single")]), "hero_boss_single")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_attack("all")]), "hero_boss_all")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_attack("single")], false, true), "hero_boss_awakened_single")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_attack("all")], false, true), "hero_boss_awakened_all")
 
 func test_first_awakenings_read_nothing_that_was_not_read_ahead() -> void:
-	for appearance in ["appearance_musha", "appearance_gentleman", "appearance_plush"]:
+	for appearance in ["appearance_musha", "appearance_gentleman", "appearance_plush", "appearance_hero_boss"]:
 		var f := _battle(appearance, [_attack("single")], true)
 		var held := await _settle(f.stage)
 		var entry: Dictionary = {}
@@ -445,6 +450,36 @@ func test_first_awakenings_read_nothing_that_was_not_read_ahead() -> void:
 		f.stage.set_state(before)
 		var read := await _play_and_collect_reads(f.stage, entry)
 		assert_eq(_unwarmed(read, held), [], "%s: the awakening reads nothing that was not read ahead" % appearance)
+
+## シェーダーは読み込んだだけでは中身の準備が最初に使う瞬間まで遅れる（2026-11-10 実測、1本 1.6〜4.4ms）。
+## 事前読み込みが準備まで済ませ、済んでいないシェーダーは演出の開始で「揃っていない」扱いになる。
+func test_declared_shaders_are_prepared_before_the_first_play() -> void:
+	var f := _battle("appearance_hero_boss", [_attack("single")])
+	var held := await _settle(f.stage)
+	var shaders: Array = []
+	for path in held:
+		if str(path).get_extension() == "gdshader":
+			shaders.append(path)
+			assert_true(Warmup._gpu_ready.has(load(path).get_instance_id()), "%s is prepared before the first play" % path)
+	assert_gt(shaders.size(), 5, "the hero declares its shaders")
+	var script: Script = f.stage.BOSS_SINGLE_PRESENTATIONS["hero_boss"]
+	var warm = f.stage._presentation_warmup
+	assert_eq(warm.ensure(script, "hero_boss", "single"), [], "prepared shaders do not hold the start")
+	# 準備が済んでいない物があれば、その演出は始まらずに待ち、1フレームに1本ずつ準備して揃う。
+	var probe: String = shaders[0]
+	var second: String = shaders[1]
+	Warmup._gpu_ready.erase(load(probe).get_instance_id())
+	Warmup._gpu_ready.erase(load(second).get_instance_id())
+	warm._gpu_step_used = true
+	var missing: Array = warm.ensure(script, "hero_boss", "single")
+	assert_has(missing, probe, "an unprepared shader holds the start")
+	assert_has(missing, second, "an unprepared shader holds the start")
+	var frames := 0
+	while not warm.ensure(script, "hero_boss", "single").is_empty() and frames < 30:
+		await get_tree().process_frame
+		frames += 1
+	assert_true(Warmup._gpu_ready.has(load(probe).get_instance_id()) and Warmup._gpu_ready.has(load(second).get_instance_id()), "both are prepared")
+	assert_between(frames, 1, 4, "one shader per frame, not a fixed wait")
 
 func test_healer_finisher_reads_nothing_that_was_not_read_ahead() -> void:
 	var f := _battle("appearance_slime", [_attack("single")])

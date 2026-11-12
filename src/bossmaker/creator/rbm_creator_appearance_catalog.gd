@@ -23,7 +23,7 @@ extends RefCounted
 ## ことで、参照元すべてに一括で反映される。
 ##
 ## Awakening support is a game-design choice independent from asset availability.
-## Dragon, mechanical samurai, astronaut and faceless gentleman support awakening.
+## Dragon, mechanical samurai, astronaut, faceless gentleman, plush and hero support awakening.
 const ENTRIES: Array[Dictionary] = [
 	{"id": "appearance_slime", "name": "スライム", "supports_awakening": false},
 	{"id": "appearance_wolf", "name": "狼", "supports_awakening": false},
@@ -35,6 +35,7 @@ const ENTRIES: Array[Dictionary] = [
 	{"id": "appearance_astronaut", "name": "宇宙飛行士", "supports_awakening": true},
 	{"id": "appearance_gentleman", "name": "異形紳士", "supports_awakening": true},
 	{"id": "appearance_plush", "name": "ぬいぐるみ", "supports_awakening": true},
+	{"id": "appearance_hero_boss", "name": "ヒーロー", "supports_awakening": true},
 ]
 
 static func all() -> Array[Dictionary]:

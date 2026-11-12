@@ -294,7 +294,7 @@ func test_a_survival_win_ends_with_a_survived_entry_and_a_normal_win_does_not() 
 
 func test_survival_presentations_can_be_swapped_per_boss_and_fall_back_to_the_common_one() -> void:
 	assert_true(VictoryPlayer.SURVIVAL is Dictionary, "per-boss survival motions are registered here")
-	for boss in ["slime", "dragon", "dragon_awakened", "musha", "gentleman_awakened", "plush", ""]:
+	for boss in ["slime", "dragon", "dragon_awakened", "musha", "gentleman_awakened", "plush", "hero_boss", "hero_boss_awakened", ""]:
 		assert_eq(VictoryPlayer.survival_script(boss), VictoryPlayer.SURVIVAL_GENERIC, "%s uses the common survival presentation for now" % boss)
 		assert_ne(VictoryPlayer.survival_script(boss), VictoryPlayer.defeat_script(boss), "%s never uses its defeat presentation for a survival win" % boss)
 	assert_eq(VictoryPlayer.victory_keys("dragon_awakened", true), VictoryPlayer.COMMON_SOUNDS, "no defeat-only sound (e.g. the detonation) is played")

@@ -1,6 +1,11 @@
 extends RefCounted
 const FILES := {
   "gentleman_single": "res://assets_bossmaker/audio/gentleman/single.wav",
+  "hero_boss_single": "res://assets_bossmaker/audio/hero_boss/single.wav",
+  "hero_boss_all": "res://assets_bossmaker/audio/hero_boss/all.wav",
+  "hero_boss_awakening": "res://assets_bossmaker/audio/hero_boss/awakening.wav",
+  "hero_boss_awakened_single": "res://assets_bossmaker/audio/hero_boss/awakened_single.wav",
+  "hero_boss_awakened_all": "res://assets_bossmaker/audio/hero_boss/awakened_all.wav",
   "gentleman_all": "res://assets_bossmaker/audio/gentleman/all.wav",
   "gentleman_buff": "res://assets_bossmaker/audio/gentleman/buff.wav",
   "gentleman_heal": "res://assets_bossmaker/audio/gentleman/heal.wav",

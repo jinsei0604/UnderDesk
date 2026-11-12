@@ -4,6 +4,8 @@ extends RefCounted
 ## (rbm_battle_stage.gd の _start_dedicated()。その動きは test_rbm_presentation_warmup.gd が検証する)。
 ## ここでは、指定したボス(覚醒の前後)の演出と味方の専用の技が宣言する素材(warm_paths())をすべて読み、
 ## 参照を返す。テストはその参照を持っている間だけ、素材が読み終えた状態になる。
+## シェーダーは、事前読み込みと同じく中身の準備まで済ませる(2026-11-10。済むまで演出の開始は待つ)。
+const Warmup = preload("res://src/bossmaker/visuals/rbm_presentation_warmup.gd")
 
 static func hold(boss_ids: Array) -> Array:
 	var held: Array = []
@@ -29,4 +31,6 @@ static func _hold(held: Array, script: Variant, asset_id: String, kind: String) 
 		return
 	for path in (script as Script).call("warm_paths", asset_id, kind):
 		if ResourceLoader.exists(str(path)):
-			held.append(load(str(path)))
+			var resource := load(str(path))
+			Warmup.prepare_shader(resource)
+			held.append(resource)

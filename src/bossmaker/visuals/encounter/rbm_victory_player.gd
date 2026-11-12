@@ -37,8 +37,11 @@ const DEFEAT := {
 	"musha": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_musha.gd"),
 	"astronaut": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_astronaut.gd"),
 	"gentleman": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_gentleman.gd"),
+	# ヒーロー: 覚醒前は専用の倒れ方がまだ無いので共通の倒れ方（2026-11-10）。覚醒後は専用（2026-11-11）。
+	"hero_boss": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_generic.gd"),
+	"hero_boss_awakened": preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_boss_defeat_awakened.gd"),
 }
-## 共通の倒れ方（専用の倒れ方が覚醒前のコマ絵に依存するボスを、覚醒した後に倒した時）。
+## 共通の倒れ方（専用の倒れ方が覚醒前のコマ絵に依存するボスを、覚醒した後に倒した時。専用の倒れ方が無いボス＝ヒーローにも使う）。
 const GENERIC := preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_generic.gd")
 const BEFORE_AWAKENING_ONLY := ["musha", "gentleman"]
 ## 耐久勝利（HARDCORE の勝利条件「指定ターンを生き残る」で勝った時、2026-10-29）の演出。撃破の演出（DEFEAT）は使わない。

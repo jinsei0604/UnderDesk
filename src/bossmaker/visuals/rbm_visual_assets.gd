@@ -7,13 +7,15 @@ const POSE_COUNT := 12
 const POSE_CANVAS := Vector2(512, 512)
 const POSE_FOOT := Vector2(256, 460)
 const ALLY_IDS := ["hero", "butler", "healer", "samurai", "tank"]
-const BOSS_IDS := ["slime", "wolf", "knight", "dragon", "ghost", "golem", "musha", "astronaut", "gentleman", "plush"]
-const HEIGHTS := {"plush": 170.0, "plush_awakened": 200.0, "hero": 100.222222, "butler": 104.777778, "healer": 82.0, "samurai": 104.777778, "tank": 111.611111,
+const BOSS_IDS := ["slime", "wolf", "knight", "dragon", "ghost", "golem", "musha", "astronaut", "gentleman", "plush", "hero_boss"]
+## ヒーロー（hero_boss）: 正式モーションの立ち姿90ドットを2倍で表示する（Codex の制作メモ「90ドットから180px」）。
+const HEIGHTS := {"hero_boss": 180.0, "hero_boss_awakened": 180.0, "plush": 170.0, "plush_awakened": 200.0, "hero": 100.222222, "butler": 104.777778, "healer": 82.0, "samurai": 104.777778, "tank": 111.611111,
 	"slime": 150.0, "wolf": 155.0, "knight": 170.0, "dragon": 180.0, "ghost": 160.0, "golem": 180.0, "musha": 180.0,
 	# 覚醒後の朽ちた機械武者: 抜刀待機(高さ579px)を試作の確定倍率0.335で表示する。
 	"musha_awakened": 193.965, "astronaut": 116.0, "astronaut_awakened": 116.0, "gentleman": 160.0, "gentleman_awakened": 160.0}
 const APPEARANCES := {
 	"appearance_plush": "plush",
+	"appearance_hero_boss": "hero_boss",
 	"appearance_slime": "slime", "appearance_wolf": "wolf", "appearance_knight": "knight",
 	"appearance_dragon": "dragon", "appearance_ghost": "ghost", "appearance_golem": "golem",
 	"appearance_musha": "musha", "appearance_astronaut": "astronaut", "appearance_gentleman": "gentleman",
@@ -28,6 +30,7 @@ const AWAKENED_SUFFIX := "_awakened"
 ## ここに無いもの（味方など）は空を返し、RBMBattleUiKit.build_portrait() の切り出し（絵の上の真ん中）を使う。
 const FACE_REGIONS := {
 	"plush": [0.49, 0.36, 0.34], "plush_awakened": [0.48, 0.245, 0.35],
+	"hero_boss": [0.48, 0.19, 0.22], "hero_boss_awakened": [0.47, 0.2, 0.22],
 	"slime": [0.47, 0.72, 0.32], "wolf": [0.31, 0.4, 0.22], "knight": [0.56, 0.32, 0.2], "dragon": [0.29, 0.585, 0.19],
 	"ghost": [0.4, 0.23, 0.24], "golem": [0.47, 0.38, 0.22], "musha": [0.41, 0.28, 0.42], "astronaut": [0.47, 0.3, 0.24],
 	"gentleman": [0.475, 0.225, 0.16], "dragon_awakened": [0.315, 0.6, 0.17], "musha_awakened": [0.52, 0.31, 0.42],

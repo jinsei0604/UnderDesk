@@ -8,7 +8,7 @@ extends GutTest
 ## 構造テストは picker._build_card() へその場限りの fixture Dictionary を直接渡して確かめる（実在の id と衝突しない
 ## "appearance_test_fixture*" だけを使う）。
 
-const AWAKENING_IDS := ["appearance_dragon", "appearance_musha", "appearance_astronaut", "appearance_gentleman", "appearance_plush"]
+const AWAKENING_IDS := ["appearance_dragon", "appearance_musha", "appearance_astronaut", "appearance_gentleman", "appearance_plush", "appearance_hero_boss"]
 
 func after_each() -> void:
 	await get_tree().process_frame
