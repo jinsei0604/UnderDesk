@@ -1,0 +1,1199 @@
+{
+  "canvas_px": [
+    320,
+    180
+  ],
+  "origin_from_top_left_px": [
+    176,
+    155
+  ],
+  "battle_display_scale": 2,
+  "bosses": {
+    "lion": [
+      {
+        "file": "sprites/lion/pre_single/lion_pre_single_01_stance.png",
+        "sequence": "pre_single",
+        "pose": "stance",
+        "bbox": [
+          126,
+          60,
+          225,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/pre_single/lion_pre_single_02_windup.png",
+        "sequence": "pre_single",
+        "pose": "windup",
+        "bbox": [
+          108,
+          55,
+          223,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/pre_single/lion_pre_single_03_attack.png",
+        "sequence": "pre_single",
+        "pose": "attack",
+        "bbox": [
+          73,
+          71,
+          224,
+          145
+        ],
+        "lift_px": 10,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/pre_single/lion_pre_single_04_follow.png",
+        "sequence": "pre_single",
+        "pose": "follow",
+        "bbox": [
+          101,
+          67,
+          207,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/pre_all/lion_pre_all_01_stance.png",
+        "sequence": "pre_all",
+        "pose": "stance",
+        "bbox": [
+          117,
+          71,
+          224,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/pre_all/lion_pre_all_02_charge.png",
+        "sequence": "pre_all",
+        "pose": "charge",
+        "bbox": [
+          126,
+          72,
+          231,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/pre_all/lion_pre_all_03_release.png",
+        "sequence": "pre_all",
+        "pose": "release",
+        "bbox": [
+          118,
+          65,
+          222,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/pre_all/lion_pre_all_04_settle.png",
+        "sequence": "pre_all",
+        "pose": "settle",
+        "bbox": [
+          121,
+          69,
+          224,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/awaken/lion_awaken_01_normal.png",
+        "sequence": "awaken",
+        "pose": "normal",
+        "bbox": [
+          127,
+          65,
+          226,
+          155
+        ],
+        "lift_px": 0,
+        "source": "approved_stance"
+      },
+      {
+        "file": "sprites/lion/awaken/lion_awaken_02_distress.png",
+        "sequence": "awaken",
+        "pose": "distress",
+        "bbox": [
+          127,
+          72,
+          229,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/awaken/lion_awaken_03_change_early.png",
+        "sequence": "awaken",
+        "pose": "change_early",
+        "bbox": [
+          115,
+          74,
+          227,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/awaken/lion_awaken_04_change_late.png",
+        "sequence": "awaken",
+        "pose": "change_late",
+        "bbox": [
+          111,
+          44,
+          241,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/awaken/lion_awaken_05_awakened.png",
+        "sequence": "awaken",
+        "pose": "awakened",
+        "bbox": [
+          102,
+          55,
+          250,
+          155
+        ],
+        "lift_px": 0,
+        "source": "approved_stance"
+      },
+      {
+        "file": "sprites/lion/post_single/lion_post_single_01_stance.png",
+        "sequence": "post_single",
+        "pose": "stance",
+        "bbox": [
+          97,
+          65,
+          257,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/post_single/lion_post_single_02_windup.png",
+        "sequence": "post_single",
+        "pose": "windup",
+        "bbox": [
+          114,
+          38,
+          261,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/post_single/lion_post_single_03_attack.png",
+        "sequence": "post_single",
+        "pose": "attack",
+        "bbox": [
+          70,
+          34,
+          233,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/post_single/lion_post_single_04_follow.png",
+        "sequence": "post_single",
+        "pose": "follow",
+        "bbox": [
+          86,
+          45,
+          252,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/post_all/lion_post_all_01_stance.png",
+        "sequence": "post_all",
+        "pose": "stance",
+        "bbox": [
+          114,
+          39,
+          245,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/post_all/lion_post_all_02_charge.png",
+        "sequence": "post_all",
+        "pose": "charge",
+        "bbox": [
+          115,
+          17,
+          242,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/post_all/lion_post_all_03_release.png",
+        "sequence": "post_all",
+        "pose": "release",
+        "bbox": [
+          86,
+          46,
+          230,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lion/post_all/lion_post_all_04_settle.png",
+        "sequence": "post_all",
+        "pose": "settle",
+        "bbox": [
+          113,
+          35,
+          250,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      }
+    ],
+    "flower": [
+      {
+        "file": "sprites/flower/pre_single/flower_pre_single_01_stance.png",
+        "sequence": "pre_single",
+        "pose": "stance",
+        "bbox": [
+          144,
+          74,
+          203,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/pre_single/flower_pre_single_02_windup.png",
+        "sequence": "pre_single",
+        "pose": "windup",
+        "bbox": [
+          148,
+          76,
+          206,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/pre_single/flower_pre_single_03_attack.png",
+        "sequence": "pre_single",
+        "pose": "attack",
+        "bbox": [
+          115,
+          91,
+          198,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/pre_single/flower_pre_single_04_follow.png",
+        "sequence": "pre_single",
+        "pose": "follow",
+        "bbox": [
+          146,
+          75,
+          198,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/pre_all/flower_pre_all_01_stance.png",
+        "sequence": "pre_all",
+        "pose": "stance",
+        "bbox": [
+          148,
+          70,
+          205,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/pre_all/flower_pre_all_02_charge.png",
+        "sequence": "pre_all",
+        "pose": "charge",
+        "bbox": [
+          162,
+          72,
+          197,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/pre_all/flower_pre_all_03_release.png",
+        "sequence": "pre_all",
+        "pose": "release",
+        "bbox": [
+          140,
+          63,
+          207,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/pre_all/flower_pre_all_04_settle.png",
+        "sequence": "pre_all",
+        "pose": "settle",
+        "bbox": [
+          139,
+          70,
+          204,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/awaken/flower_awaken_01_normal.png",
+        "sequence": "awaken",
+        "pose": "normal",
+        "bbox": [
+          148,
+          70,
+          204,
+          155
+        ],
+        "lift_px": 0,
+        "source": "approved_stance"
+      },
+      {
+        "file": "sprites/flower/awaken/flower_awaken_02_distress.png",
+        "sequence": "awaken",
+        "pose": "distress",
+        "bbox": [
+          152,
+          82,
+          206,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/awaken/flower_awaken_03_change_early.png",
+        "sequence": "awaken",
+        "pose": "change_early",
+        "bbox": [
+          149,
+          73,
+          203,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/awaken/flower_awaken_04_change_late.png",
+        "sequence": "awaken",
+        "pose": "change_late",
+        "bbox": [
+          139,
+          57,
+          216,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/awaken/flower_awaken_05_awakened.png",
+        "sequence": "awaken",
+        "pose": "awakened",
+        "bbox": [
+          142,
+          59,
+          210,
+          155
+        ],
+        "lift_px": 0,
+        "source": "approved_stance"
+      },
+      {
+        "file": "sprites/flower/post_single/flower_post_single_01_stance.png",
+        "sequence": "post_single",
+        "pose": "stance",
+        "bbox": [
+          134,
+          55,
+          210,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/post_single/flower_post_single_02_windup.png",
+        "sequence": "post_single",
+        "pose": "windup",
+        "bbox": [
+          149,
+          65,
+          217,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/post_single/flower_post_single_03_attack.png",
+        "sequence": "post_single",
+        "pose": "attack",
+        "bbox": [
+          109,
+          76,
+          198,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/post_single/flower_post_single_04_follow.png",
+        "sequence": "post_single",
+        "pose": "follow",
+        "bbox": [
+          131,
+          56,
+          211,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/post_all/flower_post_all_01_stance.png",
+        "sequence": "post_all",
+        "pose": "stance",
+        "bbox": [
+          142,
+          59,
+          207,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/post_all/flower_post_all_02_charge.png",
+        "sequence": "post_all",
+        "pose": "charge",
+        "bbox": [
+          158,
+          56,
+          206,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/post_all/flower_post_all_03_release.png",
+        "sequence": "post_all",
+        "pose": "release",
+        "bbox": [
+          118,
+          49,
+          223,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/flower/post_all/flower_post_all_04_settle.png",
+        "sequence": "post_all",
+        "pose": "settle",
+        "bbox": [
+          142,
+          56,
+          217,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      }
+    ],
+    "lava": [
+      {
+        "file": "sprites/lava/pre_single/lava_pre_single_01_stance.png",
+        "sequence": "pre_single",
+        "pose": "stance",
+        "bbox": [
+          116,
+          56,
+          227,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/pre_single/lava_pre_single_02_windup.png",
+        "sequence": "pre_single",
+        "pose": "windup",
+        "bbox": [
+          119,
+          49,
+          234,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/pre_single/lava_pre_single_03_attack.png",
+        "sequence": "pre_single",
+        "pose": "attack",
+        "bbox": [
+          95,
+          57,
+          217,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/pre_single/lava_pre_single_04_follow.png",
+        "sequence": "pre_single",
+        "pose": "follow",
+        "bbox": [
+          100,
+          69,
+          225,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/pre_all/lava_pre_all_01_stance.png",
+        "sequence": "pre_all",
+        "pose": "stance",
+        "bbox": [
+          127,
+          49,
+          223,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/pre_all/lava_pre_all_02_charge.png",
+        "sequence": "pre_all",
+        "pose": "charge",
+        "bbox": [
+          130,
+          60,
+          225,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/pre_all/lava_pre_all_03_release.png",
+        "sequence": "pre_all",
+        "pose": "release",
+        "bbox": [
+          112,
+          58,
+          229,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/pre_all/lava_pre_all_04_settle.png",
+        "sequence": "pre_all",
+        "pose": "settle",
+        "bbox": [
+          118,
+          55,
+          225,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/awaken/lava_awaken_01_normal.png",
+        "sequence": "awaken",
+        "pose": "normal",
+        "bbox": [
+          124,
+          60,
+          228,
+          155
+        ],
+        "lift_px": 0,
+        "source": "approved_stance"
+      },
+      {
+        "file": "sprites/lava/awaken/lava_awaken_02_distress.png",
+        "sequence": "awaken",
+        "pose": "distress",
+        "bbox": [
+          133,
+          51,
+          221,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/awaken/lava_awaken_03_change_early.png",
+        "sequence": "awaken",
+        "pose": "change_early",
+        "bbox": [
+          123,
+          57,
+          230,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/awaken/lava_awaken_04_change_late.png",
+        "sequence": "awaken",
+        "pose": "change_late",
+        "bbox": [
+          109,
+          36,
+          241,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/awaken/lava_awaken_05_awakened.png",
+        "sequence": "awaken",
+        "pose": "awakened",
+        "bbox": [
+          115,
+          45,
+          237,
+          155
+        ],
+        "lift_px": 0,
+        "source": "approved_stance"
+      },
+      {
+        "file": "sprites/lava/post_single/lava_post_single_01_stance.png",
+        "sequence": "post_single",
+        "pose": "stance",
+        "bbox": [
+          120,
+          32,
+          231,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/post_single/lava_post_single_02_windup.png",
+        "sequence": "post_single",
+        "pose": "windup",
+        "bbox": [
+          116,
+          37,
+          251,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/post_single/lava_post_single_03_attack.png",
+        "sequence": "post_single",
+        "pose": "attack",
+        "bbox": [
+          85,
+          42,
+          223,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/post_single/lava_post_single_04_follow.png",
+        "sequence": "post_single",
+        "pose": "follow",
+        "bbox": [
+          103,
+          34,
+          221,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/post_all/lava_post_all_01_stance.png",
+        "sequence": "post_all",
+        "pose": "stance",
+        "bbox": [
+          98,
+          43,
+          249,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/post_all/lava_post_all_02_charge.png",
+        "sequence": "post_all",
+        "pose": "charge",
+        "bbox": [
+          123,
+          44,
+          236,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/post_all/lava_post_all_03_release.png",
+        "sequence": "post_all",
+        "pose": "release",
+        "bbox": [
+          97,
+          45,
+          248,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/lava/post_all/lava_post_all_04_settle.png",
+        "sequence": "post_all",
+        "pose": "settle",
+        "bbox": [
+          103,
+          49,
+          235,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      }
+    ],
+    "clock": [
+      {
+        "file": "sprites/clock/pre_single/clock_pre_single_01_stance.png",
+        "sequence": "pre_single",
+        "pose": "stance",
+        "bbox": [
+          162,
+          70,
+          191,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/pre_single/clock_pre_single_02_windup.png",
+        "sequence": "pre_single",
+        "pose": "windup",
+        "bbox": [
+          162,
+          79,
+          199,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/pre_single/clock_pre_single_03_attack.png",
+        "sequence": "pre_single",
+        "pose": "attack",
+        "bbox": [
+          125,
+          88,
+          199,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/pre_single/clock_pre_single_04_follow.png",
+        "sequence": "pre_single",
+        "pose": "follow",
+        "bbox": [
+          156,
+          76,
+          190,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/pre_all/clock_pre_all_01_stance.png",
+        "sequence": "pre_all",
+        "pose": "stance",
+        "bbox": [
+          147,
+          75,
+          193,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/pre_all/clock_pre_all_02_charge.png",
+        "sequence": "pre_all",
+        "pose": "charge",
+        "bbox": [
+          162,
+          75,
+          192,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/pre_all/clock_pre_all_03_release.png",
+        "sequence": "pre_all",
+        "pose": "release",
+        "bbox": [
+          147,
+          75,
+          203,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/pre_all/clock_pre_all_04_settle.png",
+        "sequence": "pre_all",
+        "pose": "settle",
+        "bbox": [
+          145,
+          72,
+          190,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/awaken/clock_awaken_01_normal.png",
+        "sequence": "awaken",
+        "pose": "normal",
+        "bbox": [
+          161,
+          67,
+          192,
+          155
+        ],
+        "lift_px": 0,
+        "source": "approved_stance"
+      },
+      {
+        "file": "sprites/clock/awaken/clock_awaken_02_distress.png",
+        "sequence": "awaken",
+        "pose": "distress",
+        "bbox": [
+          164,
+          81,
+          194,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/awaken/clock_awaken_03_change_early.png",
+        "sequence": "awaken",
+        "pose": "change_early",
+        "bbox": [
+          159,
+          85,
+          197,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/awaken/clock_awaken_04_change_late.png",
+        "sequence": "awaken",
+        "pose": "change_late",
+        "bbox": [
+          161,
+          70,
+          192,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/awaken/clock_awaken_05_awakened.png",
+        "sequence": "awaken",
+        "pose": "awakened",
+        "bbox": [
+          160,
+          61,
+          193,
+          155
+        ],
+        "lift_px": 0,
+        "source": "approved_stance"
+      },
+      {
+        "file": "sprites/clock/post_single/clock_post_single_01_stance.png",
+        "sequence": "post_single",
+        "pose": "stance",
+        "bbox": [
+          160,
+          63,
+          190,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/post_single/clock_post_single_02_windup.png",
+        "sequence": "post_single",
+        "pose": "windup",
+        "bbox": [
+          157,
+          73,
+          204,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/post_single/clock_post_single_03_attack.png",
+        "sequence": "post_single",
+        "pose": "attack",
+        "bbox": [
+          121,
+          92,
+          190,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/post_single/clock_post_single_04_follow.png",
+        "sequence": "post_single",
+        "pose": "follow",
+        "bbox": [
+          158,
+          62,
+          186,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/post_all/clock_post_all_01_stance.png",
+        "sequence": "post_all",
+        "pose": "stance",
+        "bbox": [
+          154,
+          72,
+          194,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/post_all/clock_post_all_02_charge.png",
+        "sequence": "post_all",
+        "pose": "charge",
+        "bbox": [
+          157,
+          68,
+          195,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/post_all/clock_post_all_03_release.png",
+        "sequence": "post_all",
+        "pose": "release",
+        "bbox": [
+          141,
+          63,
+          188,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      },
+      {
+        "file": "sprites/clock/post_all/clock_post_all_04_settle.png",
+        "sequence": "post_all",
+        "pose": "settle",
+        "bbox": [
+          140,
+          76,
+          193,
+          155
+        ],
+        "lift_px": 0,
+        "source": "drawn_pose"
+      }
+    ]
+  },
+  "density_samples": {
+    "lion_0": {
+      "size": [
+        267,
+        180
+      ],
+      "edge_pct": 7.01
+    },
+    "lion_1": {
+      "size": [
+        296,
+        200
+      ],
+      "edge_pct": 25.37
+    },
+    "lion_2": {
+      "size": [
+        326,
+        242
+      ],
+      "edge_pct": 22.33
+    },
+    "flower_0": {
+      "size": [
+        132,
+        182
+      ],
+      "edge_pct": 20.26
+    },
+    "flower_1": {
+      "size": [
+        136,
+        192
+      ],
+      "edge_pct": 22.72
+    },
+    "flower_2": {
+      "size": [
+        210,
+        212
+      ],
+      "edge_pct": 18.74
+    },
+    "lava_0": {
+      "size": [
+        179,
+        200
+      ],
+      "edge_pct": 22.06
+    },
+    "lava_1": {
+      "size": [
+        244,
+        220
+      ],
+      "edge_pct": 19.34
+    },
+    "lava_2": {
+      "size": [
+        302,
+        220
+      ],
+      "edge_pct": 16.41
+    },
+    "clock_0": {
+      "size": [
+        69,
+        116
+      ],
+      "edge_pct": 31.52
+    },
+    "clock_1": {
+      "size": [
+        66,
+        188
+      ],
+      "edge_pct": 22.04
+    },
+    "clock_2": {
+      "size": [
+        138,
+        126
+      ],
+      "edge_pct": 16.51
+    }
+  }
+}
