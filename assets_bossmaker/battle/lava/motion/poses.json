@@ -1,0 +1,276 @@
+{
+	"canvas_px": [
+		320,
+		180
+	],
+	"origin_from_top_left_px": [
+		176,
+		155
+	],
+	"battle_display_scale": 2,
+	"source": "Codex four_boss_keyposes (2026-11-11)",
+	"poses": {
+		"pre_single": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					116,
+					56,
+					227,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/pre_single/lava_pre_single_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "windup",
+				"bbox": [
+					119,
+					49,
+					234,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/pre_single/lava_pre_single_02_windup.png"
+			},
+			{
+				"index": 3,
+				"pose": "attack",
+				"bbox": [
+					95,
+					57,
+					217,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/pre_single/lava_pre_single_03_attack.png"
+			},
+			{
+				"index": 4,
+				"pose": "follow",
+				"bbox": [
+					100,
+					69,
+					225,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/pre_single/lava_pre_single_04_follow.png"
+			}
+		],
+		"pre_all": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					127,
+					49,
+					223,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/pre_all/lava_pre_all_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "charge",
+				"bbox": [
+					130,
+					60,
+					225,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/pre_all/lava_pre_all_02_charge.png"
+			},
+			{
+				"index": 3,
+				"pose": "release",
+				"bbox": [
+					112,
+					58,
+					229,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/pre_all/lava_pre_all_03_release.png"
+			},
+			{
+				"index": 4,
+				"pose": "settle",
+				"bbox": [
+					118,
+					55,
+					225,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/pre_all/lava_pre_all_04_settle.png"
+			}
+		],
+		"awaken": [
+			{
+				"index": 1,
+				"pose": "normal",
+				"bbox": [
+					124,
+					60,
+					228,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/awaken/lava_awaken_01_normal.png"
+			},
+			{
+				"index": 2,
+				"pose": "distress",
+				"bbox": [
+					133,
+					51,
+					221,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/awaken/lava_awaken_02_distress.png"
+			},
+			{
+				"index": 3,
+				"pose": "change_early",
+				"bbox": [
+					123,
+					57,
+					230,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/awaken/lava_awaken_03_change_early.png"
+			},
+			{
+				"index": 4,
+				"pose": "change_late",
+				"bbox": [
+					109,
+					36,
+					241,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/awaken/lava_awaken_04_change_late.png"
+			},
+			{
+				"index": 5,
+				"pose": "awakened",
+				"bbox": [
+					115,
+					45,
+					237,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/awaken/lava_awaken_05_awakened.png"
+			}
+		],
+		"post_single": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					120,
+					32,
+					231,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/post_single/lava_post_single_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "windup",
+				"bbox": [
+					116,
+					37,
+					251,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/post_single/lava_post_single_02_windup.png"
+			},
+			{
+				"index": 3,
+				"pose": "attack",
+				"bbox": [
+					85,
+					42,
+					223,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/post_single/lava_post_single_03_attack.png"
+			},
+			{
+				"index": 4,
+				"pose": "follow",
+				"bbox": [
+					103,
+					34,
+					221,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/post_single/lava_post_single_04_follow.png"
+			}
+		],
+		"post_all": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					98,
+					43,
+					249,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/post_all/lava_post_all_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "charge",
+				"bbox": [
+					123,
+					44,
+					236,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/post_all/lava_post_all_02_charge.png"
+			},
+			{
+				"index": 3,
+				"pose": "release",
+				"bbox": [
+					97,
+					45,
+					248,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/post_all/lava_post_all_03_release.png"
+			},
+			{
+				"index": 4,
+				"pose": "settle",
+				"bbox": [
+					103,
+					49,
+					235,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lava/post_all/lava_post_all_04_settle.png"
+			}
+		]
+	}
+}

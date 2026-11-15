@@ -40,8 +40,17 @@ const DEFEAT := {
 	# ヒーロー: 覚醒前は専用の倒れ方がまだ無いので共通の倒れ方（2026-11-10）。覚醒後は専用（2026-11-11）。
 	"hero_boss": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_generic.gd"),
 	"hero_boss_awakened": preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_boss_defeat_awakened.gd"),
+	# 金環の聖獣（2026-11-13）: 覚醒前・覚醒後とも専用（金環日食が欠けて消えていく。覚醒後は深紅の輪）。
+	"lion": preload("res://src/bossmaker/visuals/lion/rbm_lion_defeat.gd"),
+	"lion_awakened": preload("res://src/bossmaker/visuals/lion/rbm_lion_defeat.gd"),
+	# 白磁のカラー（2026-11-16）: 覚醒前は花びらになって吹かれカラーが一輪残る、覚醒後は背の大輪が枯れて弾ける。残った花は照らされたまま。
+	"flower": preload("res://src/bossmaker/visuals/flower/rbm_flower_defeat.gd"),
+	"flower_awakened": preload("res://src/bossmaker/visuals/flower/rbm_flower_defeat.gd"),
+	# 熔鉱炉の番人（2026-11-16）: 覚醒前は冷えて崩れ岩の山が残る、覚醒後は最後の大噴火の後に岩の山が残る。
+	"lava": preload("res://src/bossmaker/visuals/lava/rbm_lava_defeat.gd"),
+	"lava_awakened": preload("res://src/bossmaker/visuals/lava/rbm_lava_defeat.gd"),
 }
-## 共通の倒れ方（専用の倒れ方が覚醒前のコマ絵に依存するボスを、覚醒した後に倒した時。専用の倒れ方が無いボス＝ヒーローにも使う）。
+## 共通の倒れ方（専用の倒れ方が覚醒前のコマ絵に依存するボスを、覚醒した後に倒した時。専用の倒れ方が無いボス＝ヒーローの覚醒前にも使う）。
 const GENERIC := preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_generic.gd")
 const BEFORE_AWAKENING_ONLY := ["musha", "gentleman"]
 ## 耐久勝利（HARDCORE の勝利条件「指定ターンを生き残る」で勝った時、2026-10-29）の演出。撃破の演出（DEFEAT）は使わない。

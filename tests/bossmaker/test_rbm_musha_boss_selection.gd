@@ -45,7 +45,7 @@ func test_new_boss_is_appended_with_a_unique_id_and_existing_six_are_untouched()
 	for entry in RBMCreatorAppearanceCatalog.all():
 		ids.append(str(entry["id"]))
 	assert_eq(ids.slice(0, 6), EXISTING_IDS, "the six existing ids and their order are unchanged")
-	assert_eq(ids.size(), 11, "ぬいぐるみ・ヒーロー（2026-11-10）を足した数")
+	assert_eq(ids.size(), 14, "ぬいぐるみ・ヒーロー（2026-11-10）・金環の聖獣（2026-11-12）・白磁のカラー・熔鉱炉の番人（2026-11-16）を足した数")
 	assert_eq(ids[6], MUSHA)
 	var seen := {}
 	for id in ids:
@@ -100,7 +100,7 @@ func test_picker_lists_every_boss_including_the_new_one_without_squeezing_cards(
 	await _frames()
 	var grid: GridContainer = _find(picker, "AppearanceGrid")
 	assert_eq(grid.columns, 1)
-	assert_eq(grid.get_child_count(), 11)
+	assert_eq(grid.get_child_count(), 14)
 	for card in grid.get_children():
 		assert_gte((card as Control).size.y, (card as Control).custom_minimum_size.y - 0.5, "%s is not squeezed vertically" % card.name)
 		assert_gte((card as Control).size.x, (card as Control).custom_minimum_size.x - 0.5, "%s is not squeezed horizontally" % card.name)
@@ -120,8 +120,10 @@ func test_picker_scrolls_vertically_only_and_reaches_the_new_boss() -> void:
 	scroll.scroll_vertical = 0
 	await _frames()
 	assert_false(scroll.get_global_rect().encloses(musha_card.get_global_rect()), "not fully visible before scrolling")
-	scroll.scroll_vertical = int(vbar.max_value)
+	# 縦にスクロールして武者のカードまで行ける（2026-11-16: 14体になり、一番下まで送ると武者は上へ出るので、武者のカードまで送る）
+	scroll.ensure_control_visible(musha_card)
 	await _frames()
+	assert_gt(scroll.scroll_vertical, 0, "reached by scrolling down")
 	assert_true(scroll.get_global_rect().encloses(musha_card.get_global_rect()), "fully visible after scrolling down, without shrinking any card")
 	scroll.scroll_horizontal = 300
 	await _frames()

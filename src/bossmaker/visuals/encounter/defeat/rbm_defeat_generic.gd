@@ -20,6 +20,18 @@ func setup() -> void:
 		tint = Color("#ed274c")
 	elif asset == "hero_boss":
 		tint = Color("#5cc6fa")
+	elif asset == "lion":
+		tint = Color("#ffd27a")
+	elif asset == "lion_awakened":
+		tint = Color("#e0402a")
+	elif asset == "flower":
+		tint = Color("#f4f6ee")
+	elif asset == "flower_awakened":
+		tint = Color("#c4648a")
+	elif asset == "lava":
+		tint = Color("#ff9a24")
+	elif asset == "lava_awakened":
+		tint = Color("#ffc440")
 
 func duration() -> float:
 	return 1.5

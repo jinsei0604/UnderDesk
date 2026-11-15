@@ -30,6 +30,9 @@ const CHOREO := {
 	"musha": preload("res://src/bossmaker/visuals/encounter/intro/rbm_intro_musha.gd"),
 	"astronaut": preload("res://src/bossmaker/visuals/encounter/intro/rbm_intro_astronaut.gd"),
 	"gentleman": preload("res://src/bossmaker/visuals/encounter/intro/rbm_intro_gentleman.gd"),
+	"lion": preload("res://src/bossmaker/visuals/encounter/intro/rbm_intro_lion.gd"),
+	"flower": preload("res://src/bossmaker/visuals/encounter/intro/rbm_intro_flower.gd"),
+	"lava": preload("res://src/bossmaker/visuals/encounter/intro/rbm_intro_lava.gd"),
 }
 ## 前の画面が閉じる部分の長さ（rbm_screen_close.gd の DURATION と同じ）。
 const START_AGE := 0.30

@@ -1,0 +1,265 @@
+{
+	"lion": {
+		"awaken": {
+			"T": {
+				"beats": [
+					5.25,
+					5.5,
+					5.72
+				],
+				"bite": 0.9,
+				"distress": 1.0,
+				"done": 5.9,
+				"early": 3.55,
+				"end": 7.9,
+				"late": 4.55,
+				"stance": 6.9,
+				"sun": 0.15,
+				"tame": 5.15,
+				"total": 3.3
+			},
+			"duration": 7.9,
+			"hits": [],
+			"impact": 5.9,
+			"origin": 0.0,
+			"real_duration": 8.04,
+			"stops": [
+				[
+					5.9,
+					0.14
+				]
+			]
+		},
+		"fall": {
+			"T": {
+				"end": 3.1,
+				"full": 0.45,
+				"gone": 2.55,
+				"last": 2.25,
+				"melt": 0.95,
+				"ring": 0.0,
+				"stab": 2.48,
+				"sword": 2.3,
+				"wane": 0.7
+			},
+			"duration": 3.1,
+			"hits": [],
+			"impact": 1.0,
+			"origin": 0.0,
+			"real_duration": 3.1,
+			"stops": []
+		},
+		"fall_awakened": {
+			"T": {
+				"burst": 2.42,
+				"end": 3.75,
+				"flare": 0.55,
+				"full": 0.4,
+				"gone": 2.5,
+				"last": 2.35,
+				"melt": 1.05,
+				"ring": 0.0,
+				"stab": 3.05,
+				"sword": 2.85,
+				"wane": 0.85
+			},
+			"duration": 3.75,
+			"hits": [],
+			"impact": 1.0,
+			"origin": 0.0,
+			"real_duration": 3.75,
+			"stops": []
+		},
+		"intro": {
+			"T": {
+				"burst": 2.62,
+				"dim": 0.36,
+				"end": 5.0,
+				"giant_fall": 2.4,
+				"giant_hit": 2.56,
+				"giant_in": 1.98,
+				"reveal": 2.8,
+				"roar": 3.05,
+				"stance": 3.8,
+				"swords": [
+					0.78,
+					0.98,
+					1.15,
+					1.3,
+					1.43,
+					1.55,
+					1.65,
+					1.74
+				]
+			},
+			"duration": 5.0,
+			"hits": [],
+			"impact": 1.0,
+			"origin": 0.34,
+			"real_duration": 4.76,
+			"stops": [
+				[
+					2.56,
+					0.1
+				]
+			]
+		},
+		"post_all": {
+			"T": {
+				"beams": [
+					2.3,
+					2.55,
+					2.8,
+					3.05
+				],
+				"bite": 0.6,
+				"collapse": 3.55,
+				"crouch": 3.02,
+				"end": 5.7,
+				"fall": 3.3,
+				"settle": 4.75,
+				"sun": 0.4,
+				"total": 1.95
+			},
+			"duration": 5.7,
+			"hits": [
+				[
+					2.3,
+					1
+				],
+				[
+					2.55,
+					3
+				],
+				[
+					2.8,
+					0
+				],
+				[
+					3.05,
+					2
+				]
+			],
+			"impact": 3.55,
+			"origin": 0.0,
+			"real_duration": 5.84,
+			"stops": [
+				[
+					3.55,
+					0.14
+				]
+			]
+		},
+		"post_single": {
+			"T": {
+				"appear": 0.9,
+				"back": 1.84,
+				"end": 2.4,
+				"slam": 1.22,
+				"vanish": 0.66,
+				"vanish2": 1.62,
+				"windup": 0.26
+			},
+			"duration": 2.4,
+			"hits": [
+				[
+					0.9,
+					3
+				]
+			],
+			"impact": 1.22,
+			"origin": 0.0,
+			"real_duration": 2.64,
+			"stops": [
+				[
+					0.9,
+					0.12
+				],
+				[
+					1.22,
+					0.12
+				]
+			]
+		},
+		"pre_all": {
+			"T": {
+				"burst": 2.14,
+				"charge": 0.28,
+				"end": 3.7,
+				"pulses": [
+					1.34,
+					1.56,
+					1.78
+				],
+				"roar": 1.3,
+				"settle": 2.7
+			},
+			"duration": 3.7,
+			"hits": [
+				[
+					1.56,
+					0
+				],
+				[
+					1.59,
+					1
+				],
+				[
+					1.62,
+					2
+				],
+				[
+					1.65,
+					3
+				]
+			],
+			"impact": 2.14,
+			"origin": 0.0,
+			"real_duration": 3.8,
+			"stops": [
+				[
+					2.14,
+					0.1
+				]
+			]
+		},
+		"pre_single": {
+			"T": {
+				"back": 1.4,
+				"contact": 0.8,
+				"end": 1.85,
+				"follow": 1.06,
+				"leap": 0.7,
+				"vanish": 1.3,
+				"windup": 0.22
+			},
+			"duration": 1.85,
+			"hits": [],
+			"impact": 0.8,
+			"origin": 0.0,
+			"real_duration": 1.94,
+			"stops": [
+				[
+					0.8,
+					0.09
+				]
+			]
+		},
+		"support": {
+			"T": {
+				"back": 1.92,
+				"end": 2.36,
+				"gather": 0.46,
+				"halo": 0.24,
+				"impact": 1.2,
+				"pose": 0.2
+			},
+			"duration": 2.36,
+			"hits": [],
+			"impact": 1.2,
+			"origin": 0.0,
+			"real_duration": 2.36,
+			"stops": []
+		}
+	}
+}

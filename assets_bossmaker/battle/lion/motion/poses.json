@@ -1,0 +1,276 @@
+{
+	"canvas_px": [
+		320,
+		180
+	],
+	"origin_from_top_left_px": [
+		176,
+		155
+	],
+	"battle_display_scale": 2,
+	"source": "Codex four_boss_keyposes (2026-11-11)",
+	"poses": {
+		"pre_single": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					126,
+					60,
+					225,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/pre_single/lion_pre_single_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "windup",
+				"bbox": [
+					108,
+					55,
+					223,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/pre_single/lion_pre_single_02_windup.png"
+			},
+			{
+				"index": 3,
+				"pose": "attack",
+				"bbox": [
+					73,
+					71,
+					224,
+					145
+				],
+				"lift_px": 10,
+				"source_file": "sprites/lion/pre_single/lion_pre_single_03_attack.png"
+			},
+			{
+				"index": 4,
+				"pose": "follow",
+				"bbox": [
+					101,
+					67,
+					207,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/pre_single/lion_pre_single_04_follow.png"
+			}
+		],
+		"pre_all": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					117,
+					71,
+					224,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/pre_all/lion_pre_all_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "charge",
+				"bbox": [
+					126,
+					72,
+					231,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/pre_all/lion_pre_all_02_charge.png"
+			},
+			{
+				"index": 3,
+				"pose": "release",
+				"bbox": [
+					118,
+					65,
+					222,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/pre_all/lion_pre_all_03_release.png"
+			},
+			{
+				"index": 4,
+				"pose": "settle",
+				"bbox": [
+					121,
+					69,
+					224,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/pre_all/lion_pre_all_04_settle.png"
+			}
+		],
+		"awaken": [
+			{
+				"index": 1,
+				"pose": "normal",
+				"bbox": [
+					127,
+					65,
+					226,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/awaken/lion_awaken_01_normal.png"
+			},
+			{
+				"index": 2,
+				"pose": "distress",
+				"bbox": [
+					127,
+					72,
+					229,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/awaken/lion_awaken_02_distress.png"
+			},
+			{
+				"index": 3,
+				"pose": "change_early",
+				"bbox": [
+					115,
+					74,
+					227,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/awaken/lion_awaken_03_change_early.png"
+			},
+			{
+				"index": 4,
+				"pose": "change_late",
+				"bbox": [
+					111,
+					44,
+					241,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/awaken/lion_awaken_04_change_late.png"
+			},
+			{
+				"index": 5,
+				"pose": "awakened",
+				"bbox": [
+					102,
+					55,
+					250,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/awaken/lion_awaken_05_awakened.png"
+			}
+		],
+		"post_single": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					97,
+					65,
+					257,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/post_single/lion_post_single_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "windup",
+				"bbox": [
+					114,
+					38,
+					261,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/post_single/lion_post_single_02_windup.png"
+			},
+			{
+				"index": 3,
+				"pose": "attack",
+				"bbox": [
+					70,
+					34,
+					233,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/post_single/lion_post_single_03_attack.png"
+			},
+			{
+				"index": 4,
+				"pose": "follow",
+				"bbox": [
+					86,
+					45,
+					252,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/post_single/lion_post_single_04_follow.png"
+			}
+		],
+		"post_all": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					114,
+					39,
+					245,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/post_all/lion_post_all_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "charge",
+				"bbox": [
+					115,
+					17,
+					242,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/post_all/lion_post_all_02_charge.png"
+			},
+			{
+				"index": 3,
+				"pose": "release",
+				"bbox": [
+					86,
+					46,
+					230,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/post_all/lion_post_all_03_release.png"
+			},
+			{
+				"index": 4,
+				"pose": "settle",
+				"bbox": [
+					113,
+					35,
+					250,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/lion/post_all/lion_post_all_04_settle.png"
+			}
+		]
+	}
+}

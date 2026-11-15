@@ -1,0 +1,249 @@
+{
+	"awaken": {
+		"T": {
+			"beats": [
+				1.4,
+				1.9,
+				2.35,
+				2.75
+			],
+			"caldera": 2.45,
+			"curl": 0.45,
+			"dark": 0.9,
+			"done": 4.85,
+			"end": 7.3,
+			"erupt": 3.95,
+			"reveal": 4.75,
+			"rise": 3.3
+		},
+		"duration": 7.3,
+		"hits": [],
+		"impact": 4.85,
+		"real_duration": 7.42,
+		"stops": [
+			[
+				3.95,
+				0.12
+			]
+		]
+	},
+	"intro": {
+		"T": {
+			"boom": 3.05,
+			"end": 5.2,
+			"fall0": 0.15,
+			"land": 1.05,
+			"stance": 3.95,
+			"tremble": 1.35
+		},
+		"duration": 5.2,
+		"hits": [],
+		"impact": 3.05,
+		"real_duration": 5.38,
+		"stops": [
+			[
+				1.05,
+				0.06
+			],
+			[
+				3.05,
+				0.12
+			]
+		]
+	},
+	"post_all": {
+		"T": {
+			"charge": 0.35,
+			"end": 6.3,
+			"erupt": 2.95,
+			"glow": 1.3,
+			"jets": [
+				2.1,
+				2.26,
+				2.42,
+				2.58
+			],
+			"open": 1.8,
+			"open_furnace": 1.2,
+			"settle": 4.2,
+			"surge": 3.45
+		},
+		"duration": 6.3,
+		"hits": [
+			[
+				2.1,
+				0
+			],
+			[
+				2.26,
+				1
+			],
+			[
+				2.42,
+				2
+			],
+			[
+				2.58,
+				3
+			]
+		],
+		"impact": 2.95,
+		"real_duration": 6.44,
+		"stops": [
+			[
+				2.95,
+				0.14
+			]
+		]
+	},
+	"post_defeat": {
+		"T": {
+			"end": 5.2,
+			"erupt": 1.8,
+			"gone": 2.95,
+			"surge": 0.3
+		},
+		"duration": 5.2,
+		"hits": [],
+		"impact": 1.8,
+		"real_duration": 5.32,
+		"stops": [
+			[
+				1.8,
+				0.12
+			]
+		]
+	},
+	"post_single": {
+		"T": {
+			"back": 2.0,
+			"boom": 1.22,
+			"end": 2.8,
+			"follow": 1.36,
+			"gather_end": 0.95,
+			"punch": 1.0,
+			"windup": 0.3
+		},
+		"duration": 2.8,
+		"hits": [],
+		"impact": 1.22,
+		"real_duration": 2.93,
+		"stops": [
+			[
+				1.22,
+				0.13
+			]
+		]
+	},
+	"post_support": {
+		"T": {
+			"back": 1.95,
+			"end": 2.5,
+			"flow": 0.3,
+			"gather": 0.55,
+			"impact": 1.25,
+			"pose": 0.2
+		},
+		"duration": 2.5,
+		"hits": [],
+		"impact": 1.25,
+		"real_duration": 2.5,
+		"stops": []
+	},
+	"pre_all": {
+		"T": {
+			"charge": 0.3,
+			"drips": [
+				2.12,
+				2.3,
+				2.48,
+				2.66
+			],
+			"drop": 2.92,
+			"end": 4.8,
+			"gather_end": 2.0,
+			"impact": 3.16,
+			"release": 1.05,
+			"settle": 3.7
+		},
+		"duration": 4.8,
+		"hits": [
+			[
+				2.26,
+				0
+			],
+			[
+				2.44,
+				1
+			],
+			[
+				2.62,
+				2
+			],
+			[
+				2.8,
+				3
+			]
+		],
+		"impact": 3.16,
+		"real_duration": 4.92,
+		"stops": [
+			[
+				3.16,
+				0.12
+			]
+		]
+	},
+	"pre_defeat": {
+		"T": {
+			"cool": 0.3,
+			"crack": 1.05,
+			"end": 4.6,
+			"gone": 2.75,
+			"melt": 1.55
+		},
+		"duration": 4.6,
+		"hits": [],
+		"impact": 2.75,
+		"real_duration": 4.6,
+		"stops": []
+	},
+	"pre_single": {
+		"T": {
+			"drop": 1.98,
+			"end": 2.7,
+			"fall": 0.94,
+			"follow": 1.42,
+			"hop": 1.74,
+			"land": 2.1,
+			"leap": 0.66,
+			"slam": 1.1,
+			"windup": 0.3
+		},
+		"duration": 2.7,
+		"hits": [],
+		"impact": 1.1,
+		"real_duration": 2.82,
+		"stops": [
+			[
+				1.1,
+				0.12
+			]
+		]
+	},
+	"pre_support": {
+		"T": {
+			"back": 1.95,
+			"end": 2.5,
+			"flow": 0.3,
+			"gather": 0.55,
+			"impact": 1.25,
+			"pose": 0.2
+		},
+		"duration": 2.5,
+		"hits": [],
+		"impact": 1.25,
+		"real_duration": 2.5,
+		"stops": []
+	}
+}

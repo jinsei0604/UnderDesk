@@ -1,0 +1,246 @@
+{
+	"awaken": {
+		"T": {
+			"bloom": 2.15,
+			"bloom_end": 3.0,
+			"branch": 1.55,
+			"branch_end": 2.45,
+			"burst": 4.85,
+			"crack": 4.3,
+			"distress": 0.45,
+			"done": 5.05,
+			"end": 7.1,
+			"roots": 0.85,
+			"trunk": 1.0,
+			"trunk_end": 1.85,
+			"wither": 3.55,
+			"wither_end": 4.2
+		},
+		"duration": 7.1,
+		"hits": [],
+		"impact": 5.05,
+		"real_duration": 7.22,
+		"stops": [
+			[
+				4.85,
+				0.12
+			]
+		]
+	},
+	"intro": {
+		"T": {
+			"clear": 3.05,
+			"clear_end": 3.75,
+			"cover": 2.3,
+			"end": 5.3,
+			"hold": 2.75,
+			"rise": 4.5,
+			"start": 0.0
+		},
+		"duration": 5.3,
+		"hits": [],
+		"impact": 3.05,
+		"real_duration": 5.3,
+		"stops": []
+	},
+	"post_all": {
+		"T": {
+			"bloom": 2.6,
+			"buds": 1.55,
+			"burst": 2.98,
+			"charge": 0.45,
+			"dark": 0.2,
+			"end": 5.6,
+			"halo": 0.55,
+			"settle": 3.7,
+			"vines": 1.05,
+			"wave": 2.35
+		},
+		"duration": 5.6,
+		"hits": [
+			[
+				2.6,
+				0
+			],
+			[
+				2.66,
+				1
+			],
+			[
+				2.72,
+				2
+			],
+			[
+				2.78,
+				3
+			]
+		],
+		"impact": 2.98,
+		"real_duration": 5.74,
+		"stops": [
+			[
+				2.98,
+				0.14
+			]
+		]
+	},
+	"post_defeat": {
+		"T": {
+			"bloom": 0.85,
+			"burst": 2.15,
+			"end": 5.2,
+			"gone": 3.15,
+			"remain": 3.3,
+			"storm": 0.3,
+			"wither": 1.55
+		},
+		"duration": 5.2,
+		"hits": [],
+		"impact": 2.15,
+		"real_duration": 5.3,
+		"stops": [
+			[
+				2.15,
+				0.1
+			]
+		]
+	},
+	"post_single": {
+		"T": {
+			"back": 2.05,
+			"end": 2.7,
+			"follow": 1.48,
+			"lash": 0.82,
+			"squeeze": 1.4,
+			"windup": 0.3,
+			"wrap": 0.98
+		},
+		"duration": 2.7,
+		"hits": [
+			[
+				0.98,
+				3
+			]
+		],
+		"impact": 1.4,
+		"real_duration": 2.9,
+		"stops": [
+			[
+				0.98,
+				0.07
+			],
+			[
+				1.4,
+				0.13
+			]
+		]
+	},
+	"post_support": {
+		"T": {
+			"back": 1.95,
+			"bloom": 0.3,
+			"end": 2.45,
+			"gather": 0.6,
+			"impact": 1.25,
+			"pose": 0.2
+		},
+		"duration": 2.45,
+		"hits": [],
+		"impact": 1.25,
+		"real_duration": 2.45,
+		"stops": []
+	},
+	"pre_all": {
+		"T": {
+			"bow": 2.05,
+			"burst": 2.8,
+			"charge": 0.3,
+			"end": 4.4,
+			"open": 1.95,
+			"release": 1.3,
+			"settle": 3.55,
+			"storm": [
+				2.15,
+				2.27,
+				2.39,
+				2.51
+			]
+		},
+		"duration": 4.4,
+		"hits": [
+			[
+				2.15,
+				0
+			],
+			[
+				2.27,
+				1
+			],
+			[
+				2.39,
+				2
+			],
+			[
+				2.51,
+				3
+			]
+		],
+		"impact": 2.8,
+		"real_duration": 4.48,
+		"stops": [
+			[
+				2.8,
+				0.08
+			]
+		]
+	},
+	"pre_defeat": {
+		"T": {
+			"end": 4.4,
+			"gone": 2.45,
+			"melt": 1.2,
+			"remain": 2.55,
+			"wither": 0.3
+		},
+		"duration": 4.4,
+		"hits": [],
+		"impact": 2.45,
+		"real_duration": 4.4,
+		"stops": []
+	},
+	"pre_single": {
+		"T": {
+			"back": 1.55,
+			"contact": 0.86,
+			"end": 2.0,
+			"follow": 1.1,
+			"thrust": 0.8,
+			"windup": 0.3
+		},
+		"duration": 2.0,
+		"hits": [],
+		"impact": 0.86,
+		"real_duration": 2.08,
+		"stops": [
+			[
+				0.86,
+				0.08
+			]
+		]
+	},
+	"pre_support": {
+		"T": {
+			"back": 1.95,
+			"bloom": 0.3,
+			"end": 2.45,
+			"gather": 0.6,
+			"impact": 1.25,
+			"pose": 0.2
+		},
+		"duration": 2.45,
+		"hits": [],
+		"impact": 1.25,
+		"real_duration": 2.45,
+		"stops": []
+	}
+}

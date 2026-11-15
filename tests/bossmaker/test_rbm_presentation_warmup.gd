@@ -436,9 +436,31 @@ func test_first_plays_read_nothing_that_was_not_read_ahead() -> void:
 	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_attack("all")]), "hero_boss_all")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_attack("single")], false, true), "hero_boss_awakened_single")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_attack("all")], false, true), "hero_boss_awakened_all")
+	# 金環の聖獣（2026-11-12）
+	await _assert_first_play_reads_nothing_new(_battle("appearance_lion", [_attack("single")]), "lion_single")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_lion", [_attack("all")]), "lion_all")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_lion", [_attack("single")], false, true), "lion_awakened_single")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_lion", [_attack("all")], false, true), "lion_awakened_all")
+	# 金環の聖獣の支援（2026-11-13）
+	await _assert_first_play_reads_nothing_new(_battle("appearance_lion", [_heal()]), "lion_heal")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_lion", [_heal()], false, true), "lion_awakened_heal")
+	# 白磁のカラー（2026-11-16）
+	await _assert_first_play_reads_nothing_new(_battle("appearance_flower", [_attack("single")]), "flower_single")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_flower", [_attack("all")]), "flower_all")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_flower", [_attack("single")], false, true), "flower_awakened_single")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_flower", [_attack("all")], false, true), "flower_awakened_all")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_flower", [_heal()]), "flower_heal")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_flower", [_heal()], false, true), "flower_awakened_heal")
+	# 熔鉱炉の番人（2026-11-16）
+	await _assert_first_play_reads_nothing_new(_battle("appearance_lava", [_attack("single")]), "lava_single")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_lava", [_attack("all")]), "lava_all")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_lava", [_attack("single")], false, true), "lava_awakened_single")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_lava", [_attack("all")], false, true), "lava_awakened_all")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_lava", [_heal()]), "lava_heal")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_lava", [_heal()], false, true), "lava_awakened_heal")
 
 func test_first_awakenings_read_nothing_that_was_not_read_ahead() -> void:
-	for appearance in ["appearance_musha", "appearance_gentleman", "appearance_plush", "appearance_hero_boss"]:
+	for appearance in ["appearance_musha", "appearance_gentleman", "appearance_plush", "appearance_hero_boss", "appearance_lion", "appearance_flower", "appearance_lava"]:
 		var f := _battle(appearance, [_attack("single")], true)
 		var held := await _settle(f.stage)
 		var entry: Dictionary = {}

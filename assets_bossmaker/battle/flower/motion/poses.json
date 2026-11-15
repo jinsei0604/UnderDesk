@@ -1,0 +1,276 @@
+{
+	"canvas_px": [
+		320,
+		180
+	],
+	"origin_from_top_left_px": [
+		176,
+		155
+	],
+	"battle_display_scale": 2,
+	"source": "Codex four_boss_keyposes (2026-11-11)",
+	"poses": {
+		"pre_single": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					144,
+					74,
+					203,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/pre_single/flower_pre_single_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "windup",
+				"bbox": [
+					148,
+					76,
+					206,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/pre_single/flower_pre_single_02_windup.png"
+			},
+			{
+				"index": 3,
+				"pose": "attack",
+				"bbox": [
+					115,
+					91,
+					198,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/pre_single/flower_pre_single_03_attack.png"
+			},
+			{
+				"index": 4,
+				"pose": "follow",
+				"bbox": [
+					146,
+					75,
+					198,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/pre_single/flower_pre_single_04_follow.png"
+			}
+		],
+		"pre_all": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					148,
+					70,
+					205,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/pre_all/flower_pre_all_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "charge",
+				"bbox": [
+					162,
+					72,
+					197,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/pre_all/flower_pre_all_02_charge.png"
+			},
+			{
+				"index": 3,
+				"pose": "release",
+				"bbox": [
+					140,
+					63,
+					207,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/pre_all/flower_pre_all_03_release.png"
+			},
+			{
+				"index": 4,
+				"pose": "settle",
+				"bbox": [
+					139,
+					70,
+					204,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/pre_all/flower_pre_all_04_settle.png"
+			}
+		],
+		"awaken": [
+			{
+				"index": 1,
+				"pose": "normal",
+				"bbox": [
+					148,
+					70,
+					204,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/awaken/flower_awaken_01_normal.png"
+			},
+			{
+				"index": 2,
+				"pose": "distress",
+				"bbox": [
+					152,
+					82,
+					206,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/awaken/flower_awaken_02_distress.png"
+			},
+			{
+				"index": 3,
+				"pose": "change_early",
+				"bbox": [
+					149,
+					73,
+					203,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/awaken/flower_awaken_03_change_early.png"
+			},
+			{
+				"index": 4,
+				"pose": "change_late",
+				"bbox": [
+					139,
+					57,
+					216,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/awaken/flower_awaken_04_change_late.png"
+			},
+			{
+				"index": 5,
+				"pose": "awakened",
+				"bbox": [
+					142,
+					59,
+					210,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/awaken/flower_awaken_05_awakened.png"
+			}
+		],
+		"post_single": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					134,
+					55,
+					210,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/post_single/flower_post_single_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "windup",
+				"bbox": [
+					149,
+					65,
+					217,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/post_single/flower_post_single_02_windup.png"
+			},
+			{
+				"index": 3,
+				"pose": "attack",
+				"bbox": [
+					109,
+					76,
+					198,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/post_single/flower_post_single_03_attack.png"
+			},
+			{
+				"index": 4,
+				"pose": "follow",
+				"bbox": [
+					131,
+					56,
+					211,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/post_single/flower_post_single_04_follow.png"
+			}
+		],
+		"post_all": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					142,
+					59,
+					207,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/post_all/flower_post_all_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "charge",
+				"bbox": [
+					158,
+					56,
+					206,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/post_all/flower_post_all_02_charge.png"
+			},
+			{
+				"index": 3,
+				"pose": "release",
+				"bbox": [
+					118,
+					49,
+					223,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/post_all/flower_post_all_03_release.png"
+			},
+			{
+				"index": 4,
+				"pose": "settle",
+				"bbox": [
+					142,
+					56,
+					217,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/flower/post_all/flower_post_all_04_settle.png"
+			}
+		]
+	}
+}
