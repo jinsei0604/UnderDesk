@@ -8,7 +8,7 @@ extends GutTest
 ## 構造テストは picker._build_card() へその場限りの fixture Dictionary を直接渡して確かめる（実在の id と衝突しない
 ## "appearance_test_fixture*" だけを使う）。
 
-const AWAKENING_IDS := ["appearance_dragon", "appearance_musha", "appearance_astronaut", "appearance_gentleman", "appearance_plush", "appearance_hero_boss", "appearance_lion", "appearance_flower", "appearance_lava"]
+const AWAKENING_IDS := ["appearance_dragon", "appearance_musha", "appearance_astronaut", "appearance_gentleman", "appearance_plush", "appearance_hero_boss", "appearance_lion", "appearance_flower", "appearance_lava", "appearance_clock"]
 
 func after_each() -> void:
 	await get_tree().process_frame
@@ -152,8 +152,8 @@ func test_the_toggle_switches_the_profile_and_previews_to_awakened_and_back() ->
 	assert_false(picker.is_showing_awakened("appearance_dragon"))
 	assert_eq(sprite.texture, normal_texture)
 
-## 2026-10-29: 竜の通常の単体攻撃・全体攻撃の動画を足した（覚醒後の竜はまだ録っていないので準備中のまま）。
-func test_dragon_plays_its_normal_previews_and_keeps_the_awakened_placeholder() -> void:
+## 2026-10-29: 竜の通常の単体攻撃・全体攻撃の動画を足した。2026-11-16: 覚醒後の竜も録った（準備中の表示は出ない）。
+func test_dragon_plays_its_normal_and_awakened_previews() -> void:
 	var picker := _new_picker()
 	picker.open("appearance_dragon")
 	var expected := ["dragon_single.ogv", "dragon_all.ogv"]
@@ -169,8 +169,9 @@ func test_dragon_plays_its_normal_previews_and_keeps_the_awakened_placeholder() 
 	picker._on_preview_toggle_pressed("appearance_dragon")
 	for i in range(2):
 		var frame := _find(picker, frame_names[i])
-		assert_true((_find(frame, "PreviewPending") as Label).visible, "the awakened dragon is not recorded yet")
-		assert_null((frame.find_children("*", "VideoStreamPlayer", true, false)[0] as VideoStreamPlayer).stream)
+		assert_false((_find(frame, "PreviewPending") as Label).visible, "the awakened dragon is recorded too")
+	assert_true(str(picker._preview_videos[0].current_path).ends_with("dragon_awakened_single.ogv"))
+	assert_true(str(picker._preview_videos[1].current_path).ends_with("dragon_awakened_all.ogv"))
 
 func test_toggle_never_confirms_and_never_changes_the_selection() -> void:
 	var picker := _new_picker()

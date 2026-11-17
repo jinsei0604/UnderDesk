@@ -40,11 +40,11 @@ func run_gpu_verification(scene_tree: SceneTree, directory: String) -> int:
 	for resolution in [Vector2i(1280,720), Vector2i(1920,1080)]:
 		tree.root.size = resolution
 		await frames(10)
-		for boss in ["slime", "musha", "astronaut", "ghost", "dragon"]:
+		for boss in ["slime", "wolf", "knight", "dragon", "ghost", "golem", "musha", "astronaut", "gentleman", "plush", "hero_boss", "lion", "flower", "lava", "clock"]:
 			var select_start := Time.get_ticks_usec()
 			picker.select("appearance_" + boss)
 			var select_ms := float(Time.get_ticks_usec()-select_start)/1000.0
-			for awakened in ([false, true] if boss in ["musha", "astronaut"] else [false]):
+			for awakened in ([false, true] if boss in ["dragon", "musha", "astronaut", "gentleman", "plush", "hero_boss", "lion", "flower", "lava", "clock"] else [false]):
 				var form_start := Time.get_ticks_usec()
 				if awakened: picker._on_preview_toggle_pressed("appearance_" + boss)
 				var form_ms := float(Time.get_ticks_usec()-form_start)/1000.0
@@ -98,11 +98,11 @@ func run_gpu_verification(scene_tree: SceneTree, directory: String) -> int:
 			if pos < previous[i]-.1: wraps[i]+=1
 			previous[i]=pos
 	check(wraps[0]>=2 and wraps[1]>=2, "two natural loop boundaries for both clips")
-	# Unsupported bosses retain the existing pending display and release movies.
+	# 2026-11-16: 全ボスに動画がある（準備中の表示は出ない）。
 	for boss in ["wolf", "knight", "golem", "gentleman", "plush"]:
 		picker.select("appearance_"+boss)
-		for v in picker._preview_videos: check(v.player.stream == null, boss+": no video")
-	await shot("unsupported")
+		for v in picker._preview_videos: check(v.visible and not v.current_path.is_empty(), boss+": has video")
+	await shot("all_recorded")
 	# Back cancels; confirmation updates the existing draft; hiding stops playback.
 	picker._on_back_pressed()
 	await frames(4)

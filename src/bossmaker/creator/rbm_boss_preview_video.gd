@@ -1,7 +1,8 @@
 extends AspectRatioContainer
 ## UI-only playback of recordings of the existing production battle stage.
-const BOSSES := ["slime", "musha", "astronaut", "ghost", "dragon"]
-const AWAKENED := ["musha", "astronaut"]
+## 2026-11-16: 全15体（覚醒のあるボスは覚醒後も）の録画がそろった（ユーザー「選択画面のプレビュー動画も一気に終わらせて」）
+const BOSSES := ["slime", "wolf", "knight", "dragon", "ghost", "golem", "musha", "astronaut", "gentleman", "plush", "hero_boss", "lion", "flower", "lava", "clock"]
+const AWAKENED := ["dragon", "musha", "astronaut", "gentleman", "plush", "hero_boss", "lion", "flower", "lava", "clock"]
 const ROOT := "res://assets_bossmaker/video/boss_previews/"
 var player: VideoStreamPlayer
 var current_path := ""

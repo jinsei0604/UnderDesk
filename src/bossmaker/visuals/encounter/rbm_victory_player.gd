@@ -49,6 +49,9 @@ const DEFEAT := {
 	# 熔鉱炉の番人（2026-11-16）: 覚醒前は冷えて崩れ岩の山が残る、覚醒後は最後の大噴火の後に岩の山が残る。
 	"lava": preload("res://src/bossmaker/visuals/lava/rbm_lava_defeat.gd"),
 	"lava_awakened": preload("res://src/bossmaker/visuals/lava/rbm_lava_defeat.gd"),
+	# 振り子の給仕長（2026-11-16）: 専用の撃破はユーザーの確認待ち。それまでは共通の倒れ方（ヒーローの覚醒前と同じ）。
+	"clock": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_generic.gd"),
+	"clock_awakened": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_generic.gd"),
 }
 ## 共通の倒れ方（専用の倒れ方が覚醒前のコマ絵に依存するボスを、覚醒した後に倒した時。専用の倒れ方が無いボス＝ヒーローの覚醒前にも使う）。
 const GENERIC := preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_generic.gd")

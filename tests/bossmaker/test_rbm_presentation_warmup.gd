@@ -458,9 +458,14 @@ func test_first_plays_read_nothing_that_was_not_read_ahead() -> void:
 	await _assert_first_play_reads_nothing_new(_battle("appearance_lava", [_attack("all")], false, true), "lava_awakened_all")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_lava", [_heal()]), "lava_heal")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_lava", [_heal()], false, true), "lava_awakened_heal")
+	# 振り子の給仕長（2026-11-16。支援はまだ共通）
+	await _assert_first_play_reads_nothing_new(_battle("appearance_clock", [_attack("single")]), "clock_single")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_clock", [_attack("all")]), "clock_all")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_clock", [_attack("single")], false, true), "clock_awakened_single")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_clock", [_attack("all")], false, true), "clock_awakened_all")
 
 func test_first_awakenings_read_nothing_that_was_not_read_ahead() -> void:
-	for appearance in ["appearance_musha", "appearance_gentleman", "appearance_plush", "appearance_hero_boss", "appearance_lion", "appearance_flower", "appearance_lava"]:
+	for appearance in ["appearance_musha", "appearance_gentleman", "appearance_plush", "appearance_hero_boss", "appearance_lion", "appearance_flower", "appearance_lava", "appearance_clock"]:
 		var f := _battle(appearance, [_attack("single")], true)
 		var held := await _settle(f.stage)
 		var entry: Dictionary = {}

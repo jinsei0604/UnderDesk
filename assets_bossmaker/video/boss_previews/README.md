@@ -1,8 +1,9 @@
 # ボス選択画面用プレビュー
 
-収録対象はスライム・朽ちた機械武者・宇宙飛行士・幽霊・竜のみ。
-単体攻撃 / 全体攻撃の各2本。武者と宇宙飛行士は覚醒後も各2本（合計14本）。竜は通常（覚醒前）の2本だけ（2026-10-29 追加。
-撮り方は同じ capture_case()、prototypes/dragon_preview_2026-10-29/tools/capture_dragon_previews.gd）。
+全15体（スライム・狼・騎士・竜・幽霊・ゴーレム・朽ちた機械武者・宇宙飛行士・異形紳士・ぬいぐるみ・ヒーロー・金環の聖獣・白磁のカラー・熔鉱炉の番人・振り子の給仕長）の
+単体攻撃 / 全体攻撃の各2本。覚醒のある10体（竜・武者・宇宙飛行士・紳士・ぬいぐるみ・ヒーロー・聖獣・カラー・番人・給仕長）は覚醒後も各2本（合計50本）。
+2026-11-16: ユーザー「選択画面のプレビュー動画も一気に終わらせて」で、残り36本を同じ capture_case() で撮り、
+スライム・幽霊は新しい専用背景（同日追加）で撮り直した。撮る物は --cases=slime_single,clock_awakened_all のように選べる。
 既存の RBMBattleStage と専用の戦闘演出・背景・キャラクター素材を実GPUで録画したもの。
 新規のキャラクター画像・攻撃演出は制作していない。Steam紹介動画とは独立した素材。
 
@@ -20,7 +21,7 @@
 作業用プロジェクトで以下を実行する（本番の保存先とは別のAPPDATAを使用）。
 
 ```text
-godot --path <作業用プロジェクト> --windowed --resolution 960x540 --fixed-fps 30 --audio-driver Dummy res://tools/gpu_runner.tscn -- --tool=res://tools/capture_boss_picker_previews.gd --output=<フレーム出力先>
+godot --path <作業用プロジェクト> --windowed --resolution 960x540 --fixed-fps 30 --audio-driver Dummy res://tools/gpu_runner.tscn -- --tool=res://tools/capture_boss_picker_previews.gd --output=<フレーム出力先> [--cases=<id>,...]
 ffmpeg -framerate 30 -i <出力先>/<id>/%04d.png -vf scale=640:360:flags=lanczos -c:v libtheora -q:v 8 -pix_fmt yuv420p -an <id>.ogv
 ```
 

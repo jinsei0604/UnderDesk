@@ -7,36 +7,157 @@
   "clips": [
     {
       "fps": 30,
-      "frames": 122,
-      "id": "slime_single",
-      "ok": true,
-      "simulation_unchanged": true,
-      "file": "slime_single.ogv",
-      "seconds": 4.067,
-      "bytes": 519946,
-      "sha256": "72bae9b765a023b2f68b7e849a210d501038b834645c09ec8caa925e9caefe47"
-    },
-    {
-      "fps": 30,
       "frames": 107,
       "id": "slime_all",
       "ok": true,
       "simulation_unchanged": true,
       "file": "slime_all.ogv",
       "seconds": 3.567,
-      "bytes": 514635,
-      "sha256": "01997b68cc65624d9ffc8fa3e693c67b17ef54c15917b5158b78037155e7016e"
+      "bytes": 717704,
+      "sha256": "68071d3cc0d810b1e56faaeca0e872d488978f8751d7ec23118f97213beb04d9"
     },
     {
       "fps": 30,
-      "frames": 175,
-      "id": "musha_single",
+      "frames": 122,
+      "id": "slime_single",
       "ok": true,
       "simulation_unchanged": true,
-      "file": "musha_single.ogv",
-      "seconds": 5.833,
-      "bytes": 1447203,
-      "sha256": "ff0c5f7deb834416bfd3a28a7a1cbd655c5bf6c78e0b3fb3cc86dc559a8581da"
+      "file": "slime_single.ogv",
+      "seconds": 4.067,
+      "bytes": 770035,
+      "sha256": "84db18cfc54db37f168b5cf8b8cf6f133260e040416773131382269667d788b5"
+    },
+    {
+      "fps": 30,
+      "frames": 122,
+      "id": "wolf_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "wolf_all.ogv",
+      "seconds": 4.067,
+      "bytes": 898095,
+      "sha256": "8c40387f33db402f4a8a7f7587183b3d0733d5b55798fabcc71e9bad190f69df"
+    },
+    {
+      "fps": 30,
+      "frames": 92,
+      "id": "wolf_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "wolf_single.ogv",
+      "seconds": 3.067,
+      "bytes": 470197,
+      "sha256": "be034abc7dacf62d9d978cdfac1211bc1a68de34508d94cb043dc400c1c2b760"
+    },
+    {
+      "fps": 30,
+      "frames": 99,
+      "id": "knight_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "knight_all.ogv",
+      "seconds": 3.3,
+      "bytes": 610627,
+      "sha256": "a3751af53a297350c74f8cff4dfec4462a321e03a625a88471027784ad9e36b2"
+    },
+    {
+      "fps": 30,
+      "frames": 108,
+      "id": "knight_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "knight_single.ogv",
+      "seconds": 3.6,
+      "bytes": 594203,
+      "sha256": "42e2fac2330c5a32a5ccafd62a8c2d6578e90e197e9c9d14de22f6062c36f632"
+    },
+    {
+      "fps": 30,
+      "frames": 149,
+      "id": "dragon_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "dragon_all.ogv",
+      "seconds": 4.967,
+      "bytes": 1125174,
+      "sha256": "168c36407529404ba668c254e701b56959517623059ce4aa96d04c4fad01c138"
+    },
+    {
+      "fps": 30,
+      "frames": 232,
+      "id": "dragon_awakened_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "dragon_awakened_all.ogv",
+      "seconds": 7.733,
+      "bytes": 3187121,
+      "sha256": "bc9c524445231726954b9b2b1179071fc6ec4bdf4204224826337da5988f4498"
+    },
+    {
+      "fps": 30,
+      "frames": 158,
+      "id": "dragon_awakened_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "dragon_awakened_single.ogv",
+      "seconds": 5.267,
+      "bytes": 1275150,
+      "sha256": "72f5dc42f2c478338f29fe6bb819844d59795f6395499c71fd3d65428e23b543"
+    },
+    {
+      "fps": 30,
+      "frames": 158,
+      "id": "dragon_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "dragon_single.ogv",
+      "seconds": 5.267,
+      "bytes": 1246781,
+      "sha256": "e0760f986c3cd5e5bd8ad502053364178c4e7e41aca65a1aa239742fd7025d0d"
+    },
+    {
+      "fps": 30,
+      "frames": 151,
+      "id": "ghost_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "ghost_all.ogv",
+      "seconds": 5.033,
+      "bytes": 615626,
+      "sha256": "c2998b54bdccdd26cc164d3f58cadf3fe0dc99adf03f1ebcfb4be4432966a1d2"
+    },
+    {
+      "fps": 30,
+      "frames": 152,
+      "id": "ghost_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "ghost_single.ogv",
+      "seconds": 5.067,
+      "bytes": 511580,
+      "sha256": "46819016f98131d634583871e942c270228fe0426691987e8e669e1518b8153d"
+    },
+    {
+      "fps": 30,
+      "frames": 150,
+      "id": "golem_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "golem_all.ogv",
+      "seconds": 5,
+      "bytes": 1020763,
+      "sha256": "f7ae5c85f851a21a124db9e0ed48f2495d2361c4f5cacb92c68d402f6ad0fb26"
+    },
+    {
+      "fps": 30,
+      "frames": 94,
+      "id": "golem_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "golem_single.ogv",
+      "seconds": 3.133,
+      "bytes": 656802,
+      "sha256": "a2d5cd70db7c85c769fcfc0ba96def18e2351078cec0f5b698e2eaf64c2b75af"
     },
     {
       "fps": 30,
@@ -51,17 +172,6 @@
     },
     {
       "fps": 30,
-      "frames": 250,
-      "id": "musha_awakened_single",
-      "ok": true,
-      "simulation_unchanged": true,
-      "file": "musha_awakened_single.ogv",
-      "seconds": 8.333,
-      "bytes": 1847666,
-      "sha256": "dc21c0c1231a62015024709964e9bc1018fd4d90d3a000c6c148760927954d53"
-    },
-    {
-      "fps": 30,
       "frames": 360,
       "id": "musha_awakened_all",
       "ok": true,
@@ -73,14 +183,25 @@
     },
     {
       "fps": 30,
-      "frames": 235,
-      "id": "astronaut_single",
+      "frames": 250,
+      "id": "musha_awakened_single",
       "ok": true,
       "simulation_unchanged": true,
-      "file": "astronaut_single.ogv",
-      "seconds": 7.833,
-      "bytes": 1432765,
-      "sha256": "20865f3be313ddb865733c90cb4160184d50afd64b81d20e7c2d270b08d9f4b0"
+      "file": "musha_awakened_single.ogv",
+      "seconds": 8.333,
+      "bytes": 1847666,
+      "sha256": "dc21c0c1231a62015024709964e9bc1018fd4d90d3a000c6c148760927954d53"
+    },
+    {
+      "fps": 30,
+      "frames": 175,
+      "id": "musha_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "musha_single.ogv",
+      "seconds": 5.833,
+      "bytes": 1447203,
+      "sha256": "ff0c5f7deb834416bfd3a28a7a1cbd655c5bf6c78e0b3fb3cc86dc559a8581da"
     },
     {
       "fps": 30,
@@ -96,17 +217,6 @@
     {
       "fps": 30,
       "frames": 241,
-      "id": "astronaut_awakened_single",
-      "ok": true,
-      "simulation_unchanged": true,
-      "file": "astronaut_awakened_single.ogv",
-      "seconds": 8.033,
-      "bytes": 3334767,
-      "sha256": "33e8bf1ab7f6e6fb6a34845e9accbb5eebf32ab89fb623b7ee93a35bd4e9c1f4"
-    },
-    {
-      "fps": 30,
-      "frames": 241,
       "id": "astronaut_awakened_all",
       "ok": true,
       "simulation_unchanged": true,
@@ -117,47 +227,333 @@
     },
     {
       "fps": 30,
-      "frames": 152,
-      "id": "ghost_single",
+      "frames": 241,
+      "id": "astronaut_awakened_single",
       "ok": true,
       "simulation_unchanged": true,
-      "file": "ghost_single.ogv",
-      "seconds": 5.067,
-      "bytes": 549744,
-      "sha256": "25ac8764de88445cd1471df54ca898d879bf050720ae7e18417dc8a0afd327b4"
+      "file": "astronaut_awakened_single.ogv",
+      "seconds": 8.033,
+      "bytes": 3334767,
+      "sha256": "33e8bf1ab7f6e6fb6a34845e9accbb5eebf32ab89fb623b7ee93a35bd4e9c1f4"
     },
     {
       "fps": 30,
-      "frames": 151,
-      "id": "ghost_all",
+      "frames": 235,
+      "id": "astronaut_single",
       "ok": true,
       "simulation_unchanged": true,
-      "file": "ghost_all.ogv",
-      "seconds": 5.033,
-      "bytes": 655999,
-      "sha256": "e41dae37aabe00b1e20aa3ce6de340ea351994645d65e75f7547503044701cdb"
+      "file": "astronaut_single.ogv",
+      "seconds": 7.833,
+      "bytes": 1432765,
+      "sha256": "20865f3be313ddb865733c90cb4160184d50afd64b81d20e7c2d270b08d9f4b0"
     },
     {
       "fps": 30,
-      "frames": 158,
-      "id": "dragon_single",
+      "frames": 289,
+      "id": "gentleman_all",
       "ok": true,
       "simulation_unchanged": true,
-      "file": "dragon_single.ogv",
-      "seconds": 5.267,
-      "bytes": 1246781,
-      "sha256": "e0760f986c3cd5e5bd8ad502053364178c4e7e41aca65a1aa239742fd7025d0d"
+      "file": "gentleman_all.ogv",
+      "seconds": 9.633,
+      "bytes": 1548324,
+      "sha256": "7b0c423e94b48ba94061c94e69f3d9cb8243104caa932e5338ad04c46e8139f0"
     },
     {
       "fps": 30,
-      "frames": 149,
-      "id": "dragon_all",
+      "frames": 422,
+      "id": "gentleman_awakened_all",
       "ok": true,
       "simulation_unchanged": true,
-      "file": "dragon_all.ogv",
-      "seconds": 4.967,
-      "bytes": 1125174,
-      "sha256": "168c36407529404ba668c254e701b56959517623059ce4aa96d04c4fad01c138"
+      "file": "gentleman_awakened_all.ogv",
+      "seconds": 14.067,
+      "bytes": 2417351,
+      "sha256": "cec6e3025b3e151bd933cd6ff5d4b81e319cd1b37888497441c505e96ef4abb3"
+    },
+    {
+      "fps": 30,
+      "frames": 199,
+      "id": "gentleman_awakened_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "gentleman_awakened_single.ogv",
+      "seconds": 6.633,
+      "bytes": 1024289,
+      "sha256": "2f0c36e717a383133a43d19471cfdca1896f23cd530ec049d43755d03f9a0084"
+    },
+    {
+      "fps": 30,
+      "frames": 180,
+      "id": "gentleman_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "gentleman_single.ogv",
+      "seconds": 6,
+      "bytes": 832773,
+      "sha256": "a92e3d3b826d9b6c52c37eb2cb9084de40cdd3ae4b046810304a051aa145aa6a"
+    },
+    {
+      "fps": 30,
+      "frames": 142,
+      "id": "plush_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "plush_all.ogv",
+      "seconds": 4.733,
+      "bytes": 792623,
+      "sha256": "04a65cd7745d5d39f89798ea7b07c4d89c5e5499b728571fb1761e00efb7fce3"
+    },
+    {
+      "fps": 30,
+      "frames": 241,
+      "id": "plush_awakened_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "plush_awakened_all.ogv",
+      "seconds": 8.033,
+      "bytes": 745581,
+      "sha256": "0195082bbce4f41393396442976ac29bce9a4a17dfecafadd49792262b15a620"
+    },
+    {
+      "fps": 30,
+      "frames": 170,
+      "id": "plush_awakened_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "plush_awakened_single.ogv",
+      "seconds": 5.667,
+      "bytes": 1056026,
+      "sha256": "df1dfc6f3c8c4983dc7b3d29a18c3d0178d4edcc7c200b257b7434efd952ee7b"
+    },
+    {
+      "fps": 30,
+      "frames": 125,
+      "id": "plush_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "plush_single.ogv",
+      "seconds": 4.167,
+      "bytes": 668505,
+      "sha256": "b8727158ec68a5dfacac1490996d2bf2c3898e8ec10fa0f2a12deee240603a8c"
+    },
+    {
+      "fps": 30,
+      "frames": 220,
+      "id": "hero_boss_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "hero_boss_all.ogv",
+      "seconds": 7.333,
+      "bytes": 3393752,
+      "sha256": "f2015e2411505b8b9bebd201f801fb25e0152751ecc0742f98a125baac3128a0"
+    },
+    {
+      "fps": 30,
+      "frames": 237,
+      "id": "hero_boss_awakened_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "hero_boss_awakened_all.ogv",
+      "seconds": 7.9,
+      "bytes": 3319499,
+      "sha256": "185d8d45095f3014aa8fa0a9ab6e18e5ddfd8c339e67225d83ca7aae0894a9be"
+    },
+    {
+      "fps": 30,
+      "frames": 163,
+      "id": "hero_boss_awakened_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "hero_boss_awakened_single.ogv",
+      "seconds": 5.433,
+      "bytes": 2327873,
+      "sha256": "8afdc6b52cab1858ad9797ec53a74b0276b881176fa74698182736c68358c577"
+    },
+    {
+      "fps": 30,
+      "frames": 154,
+      "id": "hero_boss_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "hero_boss_single.ogv",
+      "seconds": 5.133,
+      "bytes": 1452301,
+      "sha256": "7e9083046e27043464607b327a8c09e8e3f335287757b6955370a7264ca5c4bc"
+    },
+    {
+      "fps": 30,
+      "frames": 157,
+      "id": "lion_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "lion_all.ogv",
+      "seconds": 5.233,
+      "bytes": 2451651,
+      "sha256": "c954ee5cd591141ea025d1d881bce9e6c165526f77b83bd5fbe1909bda79771d"
+    },
+    {
+      "fps": 30,
+      "frames": 218,
+      "id": "lion_awakened_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "lion_awakened_all.ogv",
+      "seconds": 7.267,
+      "bytes": 3360780,
+      "sha256": "c0ba02a71699a51ac987bd52724f6f2842f7a86a2bba72cd0fb8d3ee9249aaae"
+    },
+    {
+      "fps": 30,
+      "frames": 122,
+      "id": "lion_awakened_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "lion_awakened_single.ogv",
+      "seconds": 4.067,
+      "bytes": 1533335,
+      "sha256": "5406795bc1a2af46092f1d728e55198d353b62cfc4728b51c97866a0e4768520"
+    },
+    {
+      "fps": 30,
+      "frames": 101,
+      "id": "lion_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "lion_single.ogv",
+      "seconds": 3.367,
+      "bytes": 807212,
+      "sha256": "f6aa5ec9f767ff736460ed7500cdf3907dc3c2149ff6cba46a14198d58fafc5b"
+    },
+    {
+      "fps": 30,
+      "frames": 177,
+      "id": "flower_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "flower_all.ogv",
+      "seconds": 5.9,
+      "bytes": 1853091,
+      "sha256": "43931199e351609395f3ac7f0ee637c38cc503c451d558888438dcfba2d23da7"
+    },
+    {
+      "fps": 30,
+      "frames": 215,
+      "id": "flower_awakened_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "flower_awakened_all.ogv",
+      "seconds": 7.167,
+      "bytes": 2886355,
+      "sha256": "c6ce8f458743105307912a1d3d42e22bfe97836eb532b8f79991cc579769b798"
+    },
+    {
+      "fps": 30,
+      "frames": 130,
+      "id": "flower_awakened_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "flower_awakened_single.ogv",
+      "seconds": 4.333,
+      "bytes": 1388198,
+      "sha256": "baf0c548d4440d1269c79526d6d58dbffc483a397dd5eb800af64b8b4e1c687e"
+    },
+    {
+      "fps": 30,
+      "frames": 105,
+      "id": "flower_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "flower_single.ogv",
+      "seconds": 3.5,
+      "bytes": 678594,
+      "sha256": "30588ceebfad5a7e23c107ef3ff42a93311ed9e0efb844d9ca000a76f75c84f4"
+    },
+    {
+      "fps": 30,
+      "frames": 190,
+      "id": "lava_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "lava_all.ogv",
+      "seconds": 6.333,
+      "bytes": 2343290,
+      "sha256": "8f76ce41602b76267bd2e39c2f0f3865f581a9609274c4236a69be9bf238fd44"
+    },
+    {
+      "fps": 30,
+      "frames": 236,
+      "id": "lava_awakened_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "lava_awakened_all.ogv",
+      "seconds": 7.867,
+      "bytes": 3859197,
+      "sha256": "b163dd8e7af96178f602a18748dc76725fc00220218cb881804c68a18ae2d1bb"
+    },
+    {
+      "fps": 30,
+      "frames": 130,
+      "id": "lava_awakened_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "lava_awakened_single.ogv",
+      "seconds": 4.333,
+      "bytes": 1982778,
+      "sha256": "90d10fb372e08a5b1d839256a64060691eb6ce80c35c0dfc0088d246d941b591"
+    },
+    {
+      "fps": 30,
+      "frames": 127,
+      "id": "lava_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "lava_single.ogv",
+      "seconds": 4.233,
+      "bytes": 1494530,
+      "sha256": "5cba585da63e4c54fe7eb2154e81a5a08b085afed429928814c7cd1401bd32d0"
+    },
+    {
+      "fps": 30,
+      "frames": 165,
+      "id": "clock_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "clock_all.ogv",
+      "seconds": 5.5,
+      "bytes": 1538862,
+      "sha256": "7664c1c46a891094f6b6073408643c91e1836233003bb65b16b58024b81e1502"
+    },
+    {
+      "fps": 30,
+      "frames": 221,
+      "id": "clock_awakened_all",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "clock_awakened_all.ogv",
+      "seconds": 7.367,
+      "bytes": 1948593,
+      "sha256": "b6dfed68627cd330a31df505a3732e1bf1203029a9d7d4c8afb27daff0b2ce3f"
+    },
+    {
+      "fps": 30,
+      "frames": 130,
+      "id": "clock_awakened_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "clock_awakened_single.ogv",
+      "seconds": 4.333,
+      "bytes": 1149523,
+      "sha256": "93c3f253019604269d473277c3783d6471e79f25b29d3142780c45dff7bffe42"
+    },
+    {
+      "fps": 30,
+      "frames": 122,
+      "id": "clock_single",
+      "ok": true,
+      "simulation_unchanged": true,
+      "file": "clock_single.ogv",
+      "seconds": 4.067,
+      "bytes": 770811,
+      "sha256": "13f78d0833580a1ceda35a22e43cc725d4cf8edabe5e9ce6cead65e16bb84d99"
     }
   ],
   "presentation_source_sha256": {
@@ -229,5 +625,6 @@
     "src/bossmaker/visuals/rbm_slime_support.gd": "ee7fc473e17bd2a0a1de19b37c925b7d0abc5058f1b5d5fec952a61b5b5253af",
     "src/bossmaker/visuals/rbm_slime_vfx.gd": "9d0f85a17b536fb89a697ddcad5652b5a0e2f6a5dd3280acef4eb962cf6bbfe8",
     "src/bossmaker/visuals/rbm_tempo_map.gd": "958b719cb50d2617037f678590ac44a437df99efdec799f5c2c4c3e4065565b6"
-  }
+  },
+  "updated": "2026-11-16: 全15体（覚醒のあるボスは覚醒後も）の50本。スライム・幽霊は新しい専用背景で撮り直し"
 }

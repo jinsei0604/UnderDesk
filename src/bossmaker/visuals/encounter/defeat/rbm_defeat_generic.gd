@@ -32,6 +32,10 @@ func setup() -> void:
 		tint = Color("#ff9a24")
 	elif asset == "lava_awakened":
 		tint = Color("#ffc440")
+	elif asset == "clock":
+		tint = Color("#a8f0f0")
+	elif asset == "clock_awakened":
+		tint = Color("#7ee0ec")
 
 func duration() -> float:
 	return 1.5

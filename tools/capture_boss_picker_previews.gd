@@ -1,5 +1,8 @@
 extends RefCounted
 ## Capture only existing production presentations. Run with --fixed-fps 30.
+## 撮れるボス（2026-11-16: 全15体。覚醒のあるボスは覚醒後も）
+const BOSSES := ["slime", "wolf", "knight", "dragon", "ghost", "golem", "musha", "astronaut", "gentleman", "plush", "hero_boss", "lion", "flower", "lava", "clock"]
+const AWAKENING := ["dragon", "musha", "astronaut", "gentleman", "plush", "hero_boss", "lion", "flower", "lava", "clock"]
 var _gpu_verification_completed := false
 var tree: SceneTree
 var output := ""
@@ -12,9 +15,17 @@ func run_gpu_verification(scene_tree: SceneTree, directory: String) -> int:
 	tree.root.content_scale_size = Vector2i(1280, 720)
 	tree.root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	var cases: Array = []
-	for boss in ["slime", "musha", "astronaut", "ghost"]:
-		for awakened in ([false, true] if boss in ["musha", "astronaut"] else [false]):
+	# --cases=slime_single,lion_awakened_all のように撮る物を選べる（無ければ全ボス。覚醒のあるボスは覚醒後も）
+	var only: Array = []
+	for arg in OS.get_cmdline_user_args():
+		if str(arg).begins_with("--cases="):
+			only = Array(str(arg).trim_prefix("--cases=").split(",", false))
+	for boss in BOSSES:
+		for awakened in ([false, true] if boss in AWAKENING else [false]):
 			for kind in ["single", "all"]:
+				var tag: String = boss + ("_awakened" if awakened else "") + "_" + kind
+				if not only.is_empty() and not only.has(tag):
+					continue
 				cases.append(await capture_case(boss, awakened, kind))
 	FileAccess.open(output.path_join("capture.json"), FileAccess.WRITE).store_string(JSON.stringify(cases, "\t"))
 	_gpu_verification_completed = true

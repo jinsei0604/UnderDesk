@@ -1,0 +1,276 @@
+{
+	"canvas_px": [
+		320,
+		180
+	],
+	"origin_from_top_left_px": [
+		176,
+		155
+	],
+	"battle_display_scale": 2,
+	"source": "Codex four_boss_keyposes (2026-11-11)",
+	"poses": {
+		"pre_single": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					162,
+					70,
+					191,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/pre_single/clock_pre_single_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "windup",
+				"bbox": [
+					162,
+					79,
+					199,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/pre_single/clock_pre_single_02_windup.png"
+			},
+			{
+				"index": 3,
+				"pose": "attack",
+				"bbox": [
+					125,
+					88,
+					199,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/pre_single/clock_pre_single_03_attack.png"
+			},
+			{
+				"index": 4,
+				"pose": "follow",
+				"bbox": [
+					156,
+					76,
+					190,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/pre_single/clock_pre_single_04_follow.png"
+			}
+		],
+		"pre_all": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					147,
+					75,
+					193,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/pre_all/clock_pre_all_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "charge",
+				"bbox": [
+					162,
+					75,
+					192,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/pre_all/clock_pre_all_02_charge.png"
+			},
+			{
+				"index": 3,
+				"pose": "release",
+				"bbox": [
+					147,
+					75,
+					203,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/pre_all/clock_pre_all_03_release.png"
+			},
+			{
+				"index": 4,
+				"pose": "settle",
+				"bbox": [
+					145,
+					72,
+					190,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/pre_all/clock_pre_all_04_settle.png"
+			}
+		],
+		"awaken": [
+			{
+				"index": 1,
+				"pose": "normal",
+				"bbox": [
+					161,
+					67,
+					192,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/awaken/clock_awaken_01_normal.png"
+			},
+			{
+				"index": 2,
+				"pose": "distress",
+				"bbox": [
+					164,
+					81,
+					194,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/awaken/clock_awaken_02_distress.png"
+			},
+			{
+				"index": 3,
+				"pose": "change_early",
+				"bbox": [
+					159,
+					85,
+					197,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/awaken/clock_awaken_03_change_early.png"
+			},
+			{
+				"index": 4,
+				"pose": "change_late",
+				"bbox": [
+					161,
+					70,
+					192,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/awaken/clock_awaken_04_change_late.png"
+			},
+			{
+				"index": 5,
+				"pose": "awakened",
+				"bbox": [
+					160,
+					61,
+					193,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/awaken/clock_awaken_05_awakened.png"
+			}
+		],
+		"post_single": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					160,
+					63,
+					190,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/post_single/clock_post_single_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "windup",
+				"bbox": [
+					157,
+					73,
+					204,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/post_single/clock_post_single_02_windup.png"
+			},
+			{
+				"index": 3,
+				"pose": "attack",
+				"bbox": [
+					121,
+					92,
+					190,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/post_single/clock_post_single_03_attack.png"
+			},
+			{
+				"index": 4,
+				"pose": "follow",
+				"bbox": [
+					158,
+					62,
+					186,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/post_single/clock_post_single_04_follow.png"
+			}
+		],
+		"post_all": [
+			{
+				"index": 1,
+				"pose": "stance",
+				"bbox": [
+					154,
+					72,
+					194,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/post_all/clock_post_all_01_stance.png"
+			},
+			{
+				"index": 2,
+				"pose": "charge",
+				"bbox": [
+					157,
+					68,
+					195,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/post_all/clock_post_all_02_charge.png"
+			},
+			{
+				"index": 3,
+				"pose": "release",
+				"bbox": [
+					141,
+					63,
+					188,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/post_all/clock_post_all_03_release.png"
+			},
+			{
+				"index": 4,
+				"pose": "settle",
+				"bbox": [
+					140,
+					76,
+					193,
+					155
+				],
+				"lift_px": 0,
+				"source_file": "sprites/clock/post_all/clock_post_all_04_settle.png"
+			}
+		]
+	}
+}

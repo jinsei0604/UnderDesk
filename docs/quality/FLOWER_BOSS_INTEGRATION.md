@@ -42,8 +42,7 @@
 - 予算の「33ms超は0」は、覚醒後の全体と覚醒（1080p）でまだ満たしていない（金環の聖獣・ヒーローと同じ種類の、画面の広い範囲の塗りの重さ）。音の最大は -4.8dB（音割れなし）。
 
 ## まだ無い物
-- 専用の背景・BGM（ユーザーが後でまとめて送る。置き場所は `assets_bossmaker/battle/flower/background.png`・`assets_bossmaker/audio/bgm/flower/`）。
-- ボス選択のプレビュー動画。
+- 専用のBGM（ユーザーが後でまとめて送る）。背景とボス選択のプレビュー動画は 2026-11-16 に追加済み。
 
 ## 確かめ方
 - テスト: `test_flower_presentations.gd`（登録・キーポーズとデータのそろい・借りるポーズ・宣言した素材・支援のポーズとオーラ・登場の花びらの増え方とお辞儀・撃破の残る花と光・数字と impact・確定した対象・中断とカウンター・覚醒でオーラ・選択と保存）、`test_rbm_presentation_warmup.gd`、ボスの一覧のテスト（`test_rbm_boss_awakening_support`・`test_rbm_appearance_picker_awakening_preview`・`test_rbm_musha_boss_selection`・`test_rbm_hardcore_victory_conditions`）。
