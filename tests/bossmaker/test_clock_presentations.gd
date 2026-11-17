@@ -1,5 +1,5 @@
 extends GutTest
-## 振り子の給仕長／終刻の給仕長（clock）の本番の演出の契約（2026-11-16 に確認動画で採用した5技・常時のオーラ）。登場・支援・撃破はユーザーの確認待ちで、それまでは全ボス共通の物。
+## 振り子の給仕長／終刻の給仕長（clock）の本番の演出の契約（2026-11-16〜17 に確認動画で採用した5技・登場・支援・撃破・常時のオーラ）。
 ## 表示だけで戦闘を変えない・命中は1回・途中の当たりの小さな数字・後始末・覚醒で外見が替わる・選択と保存。作りは test_lion_presentations.gd と同じ。
 const Driver = preload("res://src/bossmaker/visuals/clock/rbm_clock_presentation.gd")
 const Visual = preload("res://src/bossmaker/visuals/clock/rbm_clock_visual.gd")
@@ -7,6 +7,12 @@ const AudioCatalog = preload("res://src/bossmaker/rbm_audio_catalog.gd")
 const AssetsReady = preload("res://tests/bossmaker/presentation_assets_ready.gd")
 const VictoryPlayer = preload("res://src/bossmaker/visuals/encounter/rbm_victory_player.gd")
 const IntroPlayer = preload("res://src/bossmaker/visuals/encounter/rbm_intro_player.gd")
+const Intro = preload("res://src/bossmaker/visuals/encounter/intro/rbm_intro_clock.gd")
+const Defeat = preload("res://src/bossmaker/visuals/clock/rbm_clock_defeat.gd")
+const Support = preload("res://src/bossmaker/visuals/clock/rbm_clock_support.gd")
+const IntroFx = preload("res://src/bossmaker/visuals/clock/rbm_clock_fx_intro.gd")
+const FallFx = preload("res://src/bossmaker/visuals/clock/rbm_clock_fx_fall.gd")
+const FallAwakenedFx = preload("res://src/bossmaker/visuals/clock/rbm_clock_fx_fall_awakened.gd")
 var _ready_assets: Array = []
 
 func before_all() -> void:
@@ -46,6 +52,17 @@ func _fixture(kind: String, awakened: bool = false, counter: bool = false) -> Di
 	return {"stage": stage, "session": session, "entry": entry, "skill": skill}
 
 ## エフェクトだけを木に入れて動かす（つなぎなし）
+func _fx_in_tree(script: GDScript) -> Node:
+	var fx = script.new()
+	var back := Node2D.new()
+	var front := Node2D.new()
+	add_child_autofree(back)
+	add_child_autofree(front)
+	fx.mid = back
+	add_child_autofree(fx)
+	fx.setup(back, front, [])
+	return fx
+
 func test_registered_like_the_other_bosses() -> void:
 	assert_true(RBMCreatorAppearanceCatalog.supports_awakening("appearance_clock"))
 	assert_eq(RBMCreatorAppearanceCatalog.display_name("appearance_clock"), TranslationServer.translate("振り子の給仕長"))
@@ -55,16 +72,24 @@ func test_registered_like_the_other_bosses() -> void:
 	assert_true(RBMVisualAssets.has_pose_frames("clock_awakened"))
 	assert_eq(RBMVisualAssets.display_height("clock"), 176.0)
 	assert_eq(RBMVisualAssets.display_height("clock_awakened"), 188.0)
-	for key in ["clock_single", "clock_all", "clock_awakening", "clock_awakened_single", "clock_awakened_all"]:
+	for key in ["clock_single", "clock_all", "clock_awakening", "clock_awakened_single", "clock_awakened_all", "clock_heal", "clock_buff", "clock_awakened_heal", "clock_awakened_buff"]:
 		assert_true(ResourceLoader.exists(str(AudioCatalog.FILES[key])), key)
-	# 登場・支援・撃破はユーザーの確認待ち（それまでは全ボス共通の物を使う）
-	assert_eq(VictoryPlayer.defeat_script("clock"), VictoryPlayer.GENERIC)
-	assert_eq(VictoryPlayer.defeat_script("clock_awakened"), VictoryPlayer.GENERIC)
-	assert_false(IntroPlayer.has_intro("clock"))
+	# 登場・支援・撃破（2026-11-17 ユーザー「これでいいね」で本番へ）
+	assert_eq(VictoryPlayer.defeat_script("clock"), Defeat)
+	assert_eq(VictoryPlayer.defeat_script("clock_awakened"), Defeat)
+	assert_true(IntroPlayer.has_intro("clock"))
+	assert_eq(IntroPlayer.CHOREO["clock"], Intro)
 	var stage := RBMBattleStage.new()
-	assert_false(stage.BOSS_SUPPORT_PRESENTATIONS.has("clock"))
+	assert_eq(stage.BOSS_SUPPORT_PRESENTATIONS["clock"], Support)
+	assert_eq(stage.BOSS_SUPPORT_PRESENTATIONS["clock_awakened"], Support)
 	assert_true(stage.BOSS_SINGLE_PRESENTATIONS.has("clock") and stage.BOSS_ALL_PRESENTATIONS.has("clock_awakened") and stage.BOSS_AWAKENING_PRESENTATIONS.has("clock"))
 	stage.free()
+	for script in [Intro, Defeat]:
+		var consts: Dictionary = script.get_script_constant_map()
+		for key in consts.get("SOUNDS", []):
+			assert_true(ResourceLoader.exists("res://assets_bossmaker/audio/%s.wav" % str(key).trim_prefix("game:")), str(key))
+		for path in consts.get("EXTRA_PATHS", []) + consts.get("VFX_PATHS", []):
+			assert_true(ResourceLoader.exists(str(path)), str(path))
 
 ## 本体はキーポーズをそのまま切り替えるだけ（中割りなし）。ポーズの番号・位置・オーラの距離がそろっている。借りるポーズは番号9など、技の絵と重ならない。
 func test_key_poses_and_their_data_line_up() -> void:
@@ -95,7 +120,7 @@ func test_key_poses_and_their_data_line_up() -> void:
 
 func test_every_warm_path_exists() -> void:
 	for asset_id in ["clock", "clock_awakened"]:
-		for kind in ["single", "all", "awakening"]:
+		for kind in ["single", "all", "awakening", "support"]:
 			for path in Driver.warm_paths(asset_id, kind):
 				assert_true(ResourceLoader.exists(path), path)
 
@@ -104,6 +129,130 @@ func test_every_warm_path_exists() -> void:
 ## 登場（2026-11-14〜15 ユーザーの案）: 花びらが少し → だんだん多く → 画面を覆い隠す → 晴れるとお辞儀をしている → 顔を上げて構え。カメラは寄らない（揺れだけ）。
 ## 撃破（2026-11-14〜16）: 花びらになってほどけ、床にカラーが一輪だけ残る。残った花は光を消さずに照らし続ける（2026-11-16 ユーザー指定）。
 ## 覚醒後は覚醒前より長く派手（背の大輪が枯れて弾ける）。
+## 支援: 立ち姿 → 支援のポーズ（回復＝全体の2枚目・強化＝3枚目）→ 立ち姿（切り替えは1回だけ）。回復・強化とも命中（数字）は1回、戦闘は変えず、終わると元へ戻る。
+## 覚醒後は支援のポーズの間もオーラが消えない（2026-11-15 ユーザー「覚醒後のときオーラ消えてるときある」）。
+func test_support_changes_pose_once_and_shows_one_number() -> void:
+	for aw in [false, true]:
+		for mode in ["heal", "buff"]:
+			var f := _support_fixture(mode, aw)
+			assert_false(f.entry.is_empty(), "%s %s: a real support entry" % [aw, mode])
+			if f.entry.is_empty(): continue
+			var snapshot: Dictionary = f.session.battle.snapshot().duplicate(true)
+			var seen: Array = []
+			f.stage.impact.connect(func(e): seen.append(e))
+			f.stage.play_entry(f.entry, f.skill)
+			var d = f.stage._skill_presentation
+			assert_true(d is Support, "the boss's own support")
+			if not d is Support: continue
+			var form := "post" if aw else "pre"
+			assert_eq(d.move, form + "_support")
+			assert_eq(d._fx.heal, mode == "heal")
+			assert_eq(d._fx.awakened, aw)
+			assert_eq(d._audio.stream.resource_path, str(AudioCatalog.FILES[("clock_awakened_" if aw else "clock_") + mode]))
+			var keys: Array = d._fx.pose_keys()
+			assert_eq(keys.size(), 3)
+			assert_eq([int(keys[0][1]), int(keys[2][1])], [0, 0], "starts and ends in the stance")
+			var borrowed := int(keys[1][1])
+			assert_eq(d._extra_src[borrowed], Driver.SUPPORT_POSES[d.move][mode], "borrows the pose the warm-up reads ahead")
+			assert_true(d._textures.has(borrowed), "the borrowed pose is loaded")
+			f.stage._tween.custom_step(d._fx.unwarp(float(keys[1][0])) + 0.1)
+			assert_eq(int(d._fx.body.pose), borrowed)
+			assert_eq(d._aura.visible, aw, "the awakened aura stays on in the borrowed pose")
+			f.stage._tween.custom_step(d.impact_time - d.age - .01)
+			assert_eq(seen.size(), 0)
+			f.stage._tween.custom_step(.02)
+			assert_eq(seen.size(), 1)
+			f.stage._tween.custom_step(20)
+			assert_eq(seen.size(), 1)
+			assert_null(f.stage._skill_presentation)
+			assert_eq(f.session.battle.snapshot(), snapshot)
+			assert_true(f.stage._visuals.boss.visible)
+			for key in f.stage._homes:
+				assert_eq(f.stage._visuals[key].position, f.stage._homes[key])
+			f.stage.queue_free()
+			await get_tree().process_frame
+
+func _support_fixture(mode: String, awakened: bool) -> Dictionary:
+	var draft := RBMCreatorDraft.new()
+	draft.appearance_id = "appearance_clock"
+	draft.boss_name = "Clock QA"
+	draft.hp = 3000
+	draft.spd = 1
+	for id in ["hero", "butler", "healer", "samurai"]: draft.add_party_character(id)
+	var id := draft.add_skill({"name": "Support", "type": "self_heal" if mode == "heal" else "atk_self_buff", "heal_amount": 200, "buff_multiplier": 1.3, "duration_turns": 3})
+	draft.normal_actions_enabled = true
+	draft.normal_action_percentages[id] = 100.0
+	var session := RBMCreatorTestSession.new(draft.to_definition(), 5)
+	session.battle.boss.hp = 1500
+	session.battle.is_awakened = awakened
+	var stage := RBMBattleStage.new()
+	stage.size = Vector2(1280, 720)
+	stage.set_meta("fullscreen_formation", true)
+	add_child_autofree(stage)
+	stage.configure(session.battle, "appearance_clock")
+	stage.set_state(session.battle.presentation_state())
+	var entry: Dictionary = {}
+	for attempt in range(12):
+		for e in session.resolve_ally_action({"type": "defend"}):
+			if str(e.get("actor")) == "boss": entry = e
+		if not entry.is_empty(): break
+	return {"stage": stage, "session": session, "entry": entry, "skill": RBMBattleUiKit.find_skill_for_actor("boss", id, session.battle)}
+
+## 登場（2026-11-16〜17）: 懐中時計が降りて刻む → 12時でひび → 砕けて飛び散る途中で時が止まる → 止まった中で一礼して現れる → 時が動く → 構え。
+## 砕けるまで体は出さない（2026-11-16 ユーザー「壊れる前に後ろにボスの足が出ちゃってる」）。カメラは寄らない（揺れだけ）。
+func test_intro_shatters_then_stops_time_and_bows() -> void:
+	var t_map: Dictionary = (IntroFx as Script).get_script_constant_map()["T"]
+	var order := ["drop", "twelve", "burst", "stop", "bow", "resume", "rise", "end"]
+	for i in range(1, order.size()):
+		assert_lt(float(t_map[order[i - 1]]), float(t_map[order[i]]), order[i])
+	var fx: RBMClockFxBase = _fx_in_tree(IntroFx)
+	for t in [0.5, float(t_map.twelve), float(t_map.burst) + 0.03, float(t_map.stop) + 0.1]:
+		fx.advance_pose(t)
+		assert_true(bool(fx.view.body.get("hidden", false)), "nobody is there before the watch is gone (%.2f)" % t)
+	fx.advance_pose(float(t_map.bow) + 0.2)
+	assert_false(bool(fx.view.body.get("hidden", false)))
+	assert_eq(int(fx.view.body.pose), int(IntroFx.BOW), "bowing while time stands still")
+	assert_false(fx.watch.visible, "the watch has shattered")
+	assert_gt(float(fx.view.get("post", {}).get("desat", 0.0)), 0.5, "colour drains while time is stopped")
+	fx.advance_pose(float(t_map.rise) + 0.1)
+	assert_eq(int(fx.view.body.pose), 0, "then takes the stance")
+	var src := FileAccess.get_file_as_string((Intro as Script).resource_path)
+	for call in ["camera.cut(", "\tcut(", "\tpan("]:
+		assert_false(src.contains(call), "no zoom (shake only): " + call)
+
+## 撃破（2026-11-16〜17）: 覚醒前は寝かせた小さな懐中時計、覚醒後は大時計の針が逆回転して12時で砕け、立てた懐中時計が残る。残った時計は照らされたまま。
+func test_defeats_leave_a_lit_pocket_watch_and_the_awakened_one_rewinds() -> void:
+	var t_map: Dictionary = (FallFx as Script).get_script_constant_map()["T"]
+	var ta_map: Dictionary = (FallAwakenedFx as Script).get_script_constant_map()["TP"]
+	for pair in [[t_map, ["slow", "stop", "crack", "melt", "gone", "remain", "end"]], [ta_map, ["surge", "sky", "twelve", "gone", "remain", "end"]]]:
+		var tm: Dictionary = pair[0]
+		var order: Array = pair[1]
+		for i in range(1, order.size()):
+			assert_lt(float(tm[order[i - 1]]), float(tm[order[i]]), str(order[i]))
+	assert_gt(float(ta_map.end), float(t_map.end), "the awakened defeat lasts longer")
+	for script in [FallFx, FallAwakenedFx]:
+		var fx: RBMClockFxBase = _fx_in_tree(script)
+		var end := float(fx.duration())
+		fx.advance_pose(float(fx.impact()) + 1.2)
+		assert_almost_eq(float(fx.body.dissolve), 1.0, 0.001, "gone by then")
+		fx.advance_pose(end)
+		assert_true(fx.left.visible, "a pocket watch is left on the floor")
+		var lit := 0.0
+		for c in fx.b_shaft._c:
+			lit = maxf(lit, c.a)
+		assert_gt(lit, 0.05, "and stays lit until the result screen")
+	# 覚醒後: 大時計の針は反時計回り（角度が減っていく）
+	var fa: RBMClockFxBase = _fx_in_tree(FallAwakenedFx)
+	var minutes: Array = []
+	for t in [float(ta_map.sky) + 0.3, float(ta_map.sky) + 0.6, float(ta_map.sky) + 0.9]:
+		fa.advance_pose(t)
+		minutes.append(float((fa.sky.material as ShaderMaterial).get_shader_parameter("minute")))
+	assert_lt(float(minutes[1]), float(minutes[0]), "the hands rewind (counter-clockwise)")
+	assert_lt(float(minutes[2]), float(minutes[1]))
+	var src := FileAccess.get_file_as_string((Defeat as Script).resource_path)
+	assert_false(src.contains("_world.visible = false"), "the watch stays until the victory layer is cleared")
+	assert_eq(Array((Defeat as Script).get_script_constant_map()["SOUNDS"]).size(), 2, "the awakened defeat has its own sound")
+
 func test_actions_show_partial_and_total_numbers_once_without_battle_mutation() -> void:
 	for aw in [false, true]:
 		for kind in ["single", "aoe"]:

@@ -3,8 +3,9 @@ extends Node2D
 ## 覚醒前: 単体＝指針突き（pre_single: 定められた時刻に時を止め、止めていた一撃がまとめて届く）、全体＝時刻の指揮（pre_all: 4拍で一人ずつ打ち、12時の鐘で大時計が砕ける）。
 ## 覚醒＝振り子の分岐（awaken: 振り子が過去と未来に分かれ、12時でぶつかる）。覚醒後: 単体＝狂針の宣告（post_single: 宣告 → 止まった時の中の連撃 → 振り子の執行）、
 ## 全体＝終刻の制止（post_all: 四人それぞれの時計を止めて砕く）。2026-11-16 にユーザーが確認動画（clock_v3 と直し）で採用した内容。
-## 支援・登場・撃破はユーザーの確認待ち（それまでは全ボス共通の物が使われる）。
-## 他の技のキーポーズを借りる技は、エフェクトの extra_poses() に書く（今の5技は借りない）。
+## 支援（2026-11-17）: 回復＝自分の時間を巻き戻す（全体の2枚目）、強化＝自分の時間を早送りする（全体の3枚目）。rbm_clock_fx_support.gd。
+## 登場は encounter/intro/rbm_intro_clock.gd、撃破は rbm_clock_defeat.gd。
+## 他の技のキーポーズを借りる技は、エフェクトの extra_poses() に書く（支援は回復＝全体の2枚目、強化＝全体の3枚目。SUPPORT_POSES）。
 ## 作りは金環の聖獣（rbm_lion_presentation.gd）と同じ。2026-11-16 ユーザー「どちらも実装して大丈夫」で本番へ。
 ## 本体は Codex のキーポーズ（RBMClockMotion）をそのまま切り替えるだけ。エフェクトは rbm_clock_fx_*.gd が 640×360 の論理ドットで描き、
 ## ここで2倍してステージ（全画面の並び 1280×720）へ重ねる。音は技ごとに1本の専用トラック（assets_bossmaker/audio/clock）。
@@ -18,12 +19,15 @@ const FX_SCRIPTS := {
 	"awaken": preload("res://src/bossmaker/visuals/clock/rbm_clock_fx_awaken.gd"),
 	"post_single": preload("res://src/bossmaker/visuals/clock/rbm_clock_fx_post_single.gd"),
 	"post_all": preload("res://src/bossmaker/visuals/clock/rbm_clock_fx_post_all.gd"),
+	"pre_support": preload("res://src/bossmaker/visuals/clock/rbm_clock_fx_support.gd"),
+	"post_support": preload("res://src/bossmaker/visuals/clock/rbm_clock_fx_support.gd"),
 }
-const SOUND_KEYS := {"pre_single": "clock_single", "pre_all": "clock_all", "awaken": "clock_awakening", "post_single": "clock_awakened_single", "post_all": "clock_awakened_all"}
-## 支援の強化の音（支援はまだ無い）
-const BUFF_SOUND_KEYS := {}
-## 支援のポーズ（支援はまだ無い）
-const SUPPORT_POSES := {}
+const SOUND_KEYS := {"pre_single": "clock_single", "pre_all": "clock_all", "awaken": "clock_awakening", "post_single": "clock_awakened_single", "post_all": "clock_awakened_all",
+	"pre_support": "clock_heal", "post_support": "clock_awakened_heal"}
+## 支援の強化の音（回復は SOUND_KEYS）
+const BUFF_SOUND_KEYS := {"pre_support": "clock_buff", "post_support": "clock_awakened_buff"}
+## 支援のポーズ（立ち姿から1回だけ切り替える。[技, 番号]）。エフェクトの extra_poses() と同じ（事前読み込み用。テストでそろいを確かめる）
+const SUPPORT_POSES := {"pre_support": {"heal": ["pre_all", 2], "buff": ["pre_all", 3]}, "post_support": {"heal": ["post_all", 2], "buff": ["post_all", 3]}}
 ## 演出が使うシェーダー（事前読み込みで中身の準備まで済ませる）
 const SHADER_PATHS := [
 	"res://src/bossmaker/visuals/hero_boss/shaders/actor.gdshader", "res://src/bossmaker/visuals/hero_boss/shaders/blast.gdshader",

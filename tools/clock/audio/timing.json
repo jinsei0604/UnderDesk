@@ -23,6 +23,34 @@
 			]
 		]
 	},
+	"intro": {
+		"T": {
+			"bow": 2.8,
+			"burst": 2.33,
+			"dim": 0.2,
+			"drop": 0.45,
+			"end": 4.95,
+			"resume": 3.4,
+			"rise": 3.9,
+			"stop": 2.45,
+			"ticks": [
+				1.2,
+				1.55,
+				1.9
+			],
+			"twelve": 2.25
+		},
+		"duration": 4.95,
+		"hits": [],
+		"impact": 3.4,
+		"real_duration": 5.03,
+		"stops": [
+			[
+				2.45,
+				0.08
+			]
+		]
+	},
 	"post_all": {
 		"T": {
 			"breaks": [
@@ -66,6 +94,26 @@
 			[
 				3.36,
 				0.16
+			]
+		]
+	},
+	"post_defeat": {
+		"T": {
+			"end": 5.2,
+			"gone": 2.95,
+			"remain": 3.1,
+			"sky": 0.55,
+			"surge": 0.3,
+			"twelve": 1.9
+		},
+		"duration": 5.2,
+		"hits": [],
+		"impact": 1.9,
+		"real_duration": 5.34,
+		"stops": [
+			[
+				1.9,
+				0.14
 			]
 		]
 	},
@@ -129,6 +177,21 @@
 			]
 		]
 	},
+	"post_support": {
+		"T": {
+			"back": 1.95,
+			"dial": 0.28,
+			"end": 2.45,
+			"gather": 0.6,
+			"impact": 1.25,
+			"pose": 0.2
+		},
+		"duration": 2.45,
+		"hits": [],
+		"impact": 1.25,
+		"real_duration": 2.45,
+		"stops": []
+	},
 	"pre_all": {
 		"T": {
 			"beats": [
@@ -172,6 +235,22 @@
 			]
 		]
 	},
+	"pre_defeat": {
+		"T": {
+			"crack": 1.5,
+			"end": 4.4,
+			"gone": 2.85,
+			"melt": 1.75,
+			"remain": 2.95,
+			"slow": 0.3,
+			"stop": 1.3
+		},
+		"duration": 4.4,
+		"hits": [],
+		"impact": 2.85,
+		"real_duration": 4.4,
+		"stops": []
+	},
 	"pre_single": {
 		"T": {
 			"appear": 1.08,
@@ -199,5 +278,20 @@
 				0.11
 			]
 		]
+	},
+	"pre_support": {
+		"T": {
+			"back": 1.95,
+			"dial": 0.28,
+			"end": 2.45,
+			"gather": 0.6,
+			"impact": 1.25,
+			"pose": 0.2
+		},
+		"duration": 2.45,
+		"hits": [],
+		"impact": 1.25,
+		"real_duration": 2.45,
+		"stops": []
 	}
 }

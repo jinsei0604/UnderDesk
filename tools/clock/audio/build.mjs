@@ -1,4 +1,4 @@
-// 振り子の給仕長／終刻の給仕長（clock）の効果音（2026-11-16 ユーザーが確認動画で採用した音。試作 prototypes/four_bosses_2026-11-11/audio/build.mjs の clock をそのまま移した）。
+// 振り子の給仕長／終刻の給仕長（clock）の効果音（2026-11-16〜17 ユーザーが確認動画で採用した音。5技・登場・支援・撃破。試作 prototypes/four_bosses_2026-11-11/audio/build.mjs の clock をそのまま移した）。
 // 時刻は timing.json（tools/clock/dump_clock_timing.gd が本番のエフェクトの T・ヒットストップから書き出す）。
 // 使い方: godot --headless --path . --script res://tools/clock/dump_clock_timing.gd → node tools/clock/audio/build.mjs [技の名前 ...] → tools/clock/audio/out/<名前>.wav
 // できた音は同じ名前で assets_bossmaker/audio/clock/ へ置く（置いた後に --import）。名前の対応は NAMES（技 → 音の名前）。
@@ -16,7 +16,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ASSET = path.resolve(HERE, "../../../assets_bossmaker/audio");
 const TIMING = JSON.parse(fs.readFileSync(path.join(HERE, "timing.json"), "utf8"));
 /** 技 → assets_bossmaker/audio/clock/ の音の名前 */
-const NAMES = {"pre_single":"single","pre_all":"all","awaken":"awakening","post_single":"awakened_single","post_all":"awakened_all"};
+const NAMES = {"pre_single":"single","pre_all":"all","awaken":"awakening","post_single":"awakened_single","post_all":"awakened_all","intro":"intro","pre_support_heal":"heal","pre_support_buff":"buff","post_support_heal":"awakened_heal","post_support_buff":"awakened_buff","pre_defeat":"defeat","post_defeat":"defeat_awakened"};
 const cache = new Map();
 function asset(name, speed) {
 	const key = `${name}@${speed}`;
@@ -108,6 +108,27 @@ function boomCore(tr, te, lvl, seed, len = 1.8) {
 const tick = (tr, te, lvl = -17, speed = 1, pan = 0.1) => tr.sfx("encounter/watch_tick", te, { db: lvl, speed, align: "onset", pan });
 // 時が止まる: 高いところから一気に沈む風の音（その後は無音）
 const stopFx = (tr, te, lvl = -14) => tr.put(sweepNoise({ sec: 0.32, f0: 3200, f1: 180, q: 1.1, curve: 0.5, seed: Math.floor(te * 997), env: hitDecay(1.2, 0.01) }), te, { db: lvl, send: 0.3 });
+// 給仕長の支援（2026-11-16 試作）: 回復＝巻き戻し（逆再生の刻み → 澄んだ二つの鐘）、強化＝早送り（だんだん速くなる刻み → 歯車がかみ合う音）
+function clockSupport(tr, T, heal, awakened) {
+	tr.sfx("encounter/gent_bow", T.pose - 0.05, { db: -21, pan: 0.2 });
+	let t = T.dial;
+	let gap = heal ? 0.12 : 0.14;
+	while (t < T.impact - 0.04) {
+		if (heal) tr.sfx("encounter/watch_tick", t, { db: -19, rev: true, pan: 0.2 });
+		else tick(tr, t, -19, 1.0 + (0.14 - gap) * 3.0, 0.2);
+		t += gap;
+		gap = Math.max(0.035, gap * (heal ? 0.9 : 0.85));
+	}
+	if (heal) {
+		tr.sfx("rewind", T.dial, { db: -16, speed: 1.0, send: 0.3, pan: 0.2 });
+		tr.put(bell(2200, 1.4, 5, 431), T.impact, { db: -16, pan: 0.2, send: 0.6 });
+		tr.put(bell(1650, 1.4, 5, 432), T.impact + 0.04, { db: -19, pan: 0.2, send: 0.6 });
+	} else {
+		tr.sfx("encounter/gent_cock", T.impact, { db: -11, speed: 0.8, align: "peak", pan: 0.2 });
+		tr.put(bell(880, 1.2, 5, 433, [1, 2, 3]), T.impact, { db: -17, pan: 0.2, send: 0.5 });
+	}
+	if (awakened) tr.put(drone({ sec: T.impact - T.dial, f0: 90, f1: 140, voices: [1, 1.5], cutoff: 900, env: swell(0, 0.8, 0.98), seed: 435 }), T.dial, { db: -20, send: 0.3 });
+}
 const clock = {
 	// 2026-11-16 v3: 技の意味に合わせて音も作り直し（数より質。止まる前は刻む音、止まっている間は静寂、動き出した瞬間にまとめて鳴る）
 	pre_single(tr, T) {
@@ -250,15 +271,74 @@ const clock = {
 		tr.sfx("encounter/dragon_detonation", T.burst, { db: -11, speed: 1.2, align: "peak", send: 0.4 });
 		tr.sfx("encounter/gent_bell", T.burst + 0.05, { db: -12, speed: 0.7, send: 0.5 });
 	},
+	// --- 登場・支援・撃破（2026-11-16 試作。確認待ち） ---
+	intro(tr, T) {
+		tr.put(drone({ sec: T.stop, f0: 55, f1: 58, voices: [1, 1.004, 2.0], cutoff: 380, env: swell(0, 0.4, 0.97), seed: 401 }), 0.0, { db: -20, send: 0.2 });
+		// 降りてくる懐中時計の鎖・刻む音
+		tr.put(sweepNoise({ sec: 0.5, f0: 2600, f1: 900, q: 1.2, curve: 0.8, seed: 403, env: swell(0, 0.4, 0.9) }), T.drop, { db: -24, pan: 0.2 });
+		T.ticks.forEach((tk, i) => tick(tr, tk, -13 + i, 1.0 - i * 0.07, 0.15));
+		// 12時: ひびが走る → 砕ける（ここはまだ時が動いている＝はっきりした音）
+		tick(tr, T.twelve, -10, 0.7, 0.15);
+		tr.sfx("ice_impact_light", T.twelve + 0.02, { db: -13, speed: 0.8, align: "peak", pan: 0.15 });
+		tr.sfx("ice_burst", T.burst, { db: -11, speed: 1.1, align: "peak", pan: 0.15, send: 0.3 });
+		tr.put(shatter({ sec: 0.3, count: 40, seed: 405, f0: 2200, f1: 8000 }), T.burst, { db: -14, pan: 0.15 });
+		// 飛び散る途中で時が止まる: 音がすっと吸い込まれて静寂（高い凍った音だけ）
+		stopFx(tr, T.stop, -10);
+		tr.put(drone({ sec: T.resume - T.stop, f0: 1760, f1: 1760, voices: [1, 1.5], cutoff: 3200, env: swell(0, 0.3, 0.9), seed: 406 }), T.stop + 0.1, { db: -31, send: 0.5 });
+		tr.put(bell(2640, 0.8, 8, 404), T.bow, { db: -26, pan: 0.15, send: 0.6 });
+		// 動き出す: かけらが散り、鐘
+		tr.sfx("ice_burst", T.resume, { db: -12, speed: 1.0, align: "peak", pan: 0.15, send: 0.3 });
+		tr.put(shatter({ sec: 0.9, count: 60, seed: 407, f0: 2200, f1: 8000 }), T.resume, { db: -15, pan: 0.15, send: 0.3 });
+		tr.sfx("encounter/gent_bell", T.resume + 0.05, { db: -11, speed: 0.8, send: 0.5 });
+		tr.sfx("encounter/gent_bow", T.rise - 0.05, { db: -20, pan: 0.2 });
+	},
+	pre_support_heal(tr, T) { clockSupport(tr, T, true, false); },
+	pre_support_buff(tr, T) { clockSupport(tr, T, false, false); },
+	post_support_heal(tr, T) { clockSupport(tr, T, true, true); },
+	post_support_buff(tr, T) { clockSupport(tr, T, false, true); },
+	pre_defeat(tr, T) {
+		// 針がだんだん遅くなり、12時でかちりと止まる → ひび → ガラスがこぼれる → 小さな時計の音
+		let t = 0.05;
+		let gap = 0.08;
+		while (t < T.stop - 0.05) {
+			tick(tr, t, -18, 1.0 - (gap - 0.08) * 1.5, 0.2);
+			t += gap;
+			gap *= 1.22;
+		}
+		tick(tr, T.stop, -11, 0.6, 0.2);
+		tr.put(subDrop({ sec: 0.5, f0: 70, f1: 34, decay: 5, seed: 411 }), T.stop, { db: -18 });
+		tr.sfx("ice_impact_light", T.crack, { db: -14, speed: 0.8, align: "peak", pan: 0.2 });
+		tr.put(shatter({ sec: T.gone - T.melt + 0.6, count: 80, seed: 413, f0: 1800, f1: 7000 }), T.melt, { db: -17, pan: 0.2, send: 0.35 });
+		tr.put(bell(1760, 1.6, 4, 415), T.remain + 0.2, { db: -24, pan: 0.2, send: 0.6 });
+		tick(tr, T.remain + 0.9, -24, 1.2, 0.2);
+	},
+	post_defeat(tr, T) {
+		tr.put(drone({ sec: T.twelve - T.surge, f0: 70, f1: 150, curve: 1.3, voices: [1, 1.06, 0.5, 1.5], cutoff: (_, u) => lerp(300, 1800, u), env: swell(0, 0.85, 0.99), seed: 421 }), T.surge, { db: -15, send: 0.2 });
+		tr.sfx("rewind", T.sky + 0.1, { db: -16, speed: 0.9, pan: -0.3, send: 0.3 });
+		let r = T.sky + 0.2;
+		let rg = 0.2;
+		while (r < T.twelve - 0.05) {
+			// 針が逆回転（巻き戻る）: 刻みは全部逆再生
+			tr.sfx("encounter/watch_tick", r, { db: -19, rev: true, pan: -0.2 });
+			tr.sfx("encounter/watch_tick", r + rg * 0.5, { db: -21, rev: true, speed: 1.1, pan: 0.2 });
+			r += rg;
+			rg = Math.max(0.04, rg * 0.88);
+		}
+		tr.sfx("encounter/gent_bell", T.twelve, { db: -6, speed: 0.55, send: 0.55 });
+		boomCore(tr, T.twelve, -9, 423, 2.0);
+		tr.sfx("ice_burst", T.twelve, { db: -9, speed: 0.75, align: "peak", send: 0.45 });
+		tr.put(shatter({ sec: 1.6, count: 150, seed: 425, f0: 1800, f1: 8000 }), T.twelve, { db: -12, send: 0.4 });
+		tr.put(bell(1320, 2.0, 3, 427), T.remain + 0.3, { db: -24, pan: 0.2, send: 0.6 });
+	},
 };
-
 
 
 const only = process.argv.slice(2);
 fs.mkdirSync(path.join(HERE, "out"), { recursive: true });
 for (const [move, fn] of Object.entries(clock)) {
 	if (only.length && !only.includes(move)) continue;
-	const info = TIMING[move];
+	// 支援の回復・強化は同じ時刻（pre_support / post_support）
+	const info = TIMING[move.replace(/_(heal|buff)$/, "")];
 	const tr = new Track(info);
 	fn(tr, info.T);
 	const { out } = tr.finish();

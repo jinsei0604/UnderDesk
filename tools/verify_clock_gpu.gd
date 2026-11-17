@@ -1,5 +1,5 @@
 extends RefCounted
-## 振り子の給仕長／終刻の給仕長（clock）の実GPUの確認（作りは verify_lion_gpu.gd と同じ。登場・支援・撃破は確認待ちのため共通の物）。本番の画面（TEST・クリアチェック・挑戦）、presenter、決まった戦闘の行動、実際の描画で確かめる。
+## 振り子の給仕長／終刻の給仕長（clock）の実GPUの確認（作りは verify_lion_gpu.gd と同じ。登場・支援・撃破も専用＝2026-11-17）。本番の画面（TEST・クリアチェック・挑戦）、presenter、決まった戦闘の行動、実際の描画で確かめる。
 ## 起動: godot --path . res://tools/gpu_runner.tscn -- --tool=res://tools/verify_clock_gpu.gd --output=<dir> [--perf] [--1080] [--capture] [--selection-only] [--defeat-only] [--awakened-defeat] [--english]
 ## --perf は実時間（録画モードなし）で、同じ起動で同じ技を2回ずつ測る。--capture は確認動画用（--write-movie と一緒に使う）。
 ## --new-only（2026-11-13）: 登場・支援（覚醒前後×回復・強化）・撃破（覚醒前後）だけ。--perf・--capture と組み合わせられる。
@@ -228,7 +228,7 @@ func _moments(m: String) -> Array:
 	fx.free()
 	return [imp * 0.5, imp * 0.85, imp + 0.05, minf(imp + 0.4, dur - 0.2), dur - 0.1]
 
-## 登場（挑戦の画面を開いた時に流れる。給仕長の専用の登場は確認待ち）。
+## 登場（挑戦の画面を開いた時に流れる。懐中時計が砕けて時が止まり、止まった中で一礼して現れる）。
 func _intro() -> void:
 	var definition := _definition_for()
 	definition.boss.boss_name = "振り子の給仕長"

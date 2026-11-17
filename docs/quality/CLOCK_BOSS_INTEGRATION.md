@@ -2,7 +2,7 @@
 
 - 外見ID `appearance_clock`、通常 `clock`、覚醒後 `clock_awakened`。熔鉱炉の番人の後ろ（15体目）に追加。表示名「振り子の給仕長」（英語は仮に「Pendulum Steward」）。覚醒あり。既存の Creator の条件・回復・強化・保存の方式をそのまま使い、技の性能値は固定しない。戦闘の計算・乱数・行動順・保存の仕様は変えていない。
 - 2026-11-11〜16 に試作（`prototypes/four_bosses_2026-11-11/`、確認動画 `out/clock_v3.mp4`・直しの `out/clock_v4.mp4`）でユーザーが採用した5技をそのまま移した（2026-11-16 ユーザー「これが終わったら実装していいよ」）。作りは金環の聖獣・白磁のカラー・熔鉱炉の番人（[LION_BOSS_INTEGRATION.md](LION_BOSS_INTEGRATION.md)・[FLOWER_BOSS_INTEGRATION.md](FLOWER_BOSS_INTEGRATION.md)）と同じ。
-- **登場・支援・撃破はまだ専用の物が無い**（ユーザーが試作の動画を見て決めてから入れる）。それまでは全ボス共通の登場・支援・倒れ方（`RBMVictoryPlayer.DEFEAT` の `clock`・`clock_awakened` に共通の `rbm_defeat_generic.gd`）。
+- 登場・支援・撃破は 2026-11-16 に試作し、2026-11-17 ユーザー「これでいいね」で本番へ（確認動画 `out/clock_extras.mp4`（支援）・`out/clock_extras_v3.mp4`（登場・撃破））。
 - 本体は Codex のキーポーズ（`assets_bossmaker/battle/clock/motion/<技>/<番号>.png`）をそのまま切り替えるだけ。立ち絵: 覚醒前＝覚醒の1枚目、覚醒後＝覚醒の5枚目。体の高さ（88・94ドット）を2倍で表示（176・188）。
 
 ## 技（`src/bossmaker/visuals/clock/`）— 技ごとに「意味」を一本通す（2026-11-16 ユーザー「ぽい物をつなげているように見える。一つ一つに意味を」）
@@ -20,12 +20,27 @@
 - 平らな光の円・輪、体や大きな物の近くの熱のゆがみ（`refract_wave`。振り子のおもりがゆがんだ）は使わない。
 - 覚醒後の常時オーラ: `rbm_clock_sun_aura.gd`（真夜中の青緑。金・深紅・溶岩色と重ならない）。
 
+## 支援（2026-11-17）
+- `rbm_clock_fx_support.gd`（入口 `rbm_clock_support.gd`、`BOSS_SUPPORT_PRESENTATIONS`）。回復＝「自分の時間を巻き戻す」: 全体の2枚目（両手を頭の時計へ）を借り、背後の文字盤の針が逆へ回り、離れた所の自分の残像が逆再生のように体へ戻る。強化＝「早送り」: 全体の3枚目を借り、文字盤の針と両脇の歯車が速く回り、後ろへ流れる残像 → 歯車がかみ合って止まり体の縁が真鍮色に光る。覚醒後は黒ずんだ真鍮・オーラが燃え上がる。
+
+## 登場（2026-11-17。挑戦・クリアチェックの画面）
+- `encounter/intro/rbm_intro_clock.gd`（つなぎ）＋ `rbm_clock_fx_intro.gd`。鎖に吊られた懐中時計が降りてきて揺れながら刻む → 12時でひび → 砕けて飛び散る途中で時が止まる（かけらが宙でぴたりと止まって青白くきらめく・色が抜ける・巨大な秒針の影。2026-11-16 ユーザー「割れる時に時が止まっているアニメーションを」）→ 止まった中でかけらの奥に一礼して現れる → 時が動き出す → 構え・題字。
+- 体は時計が砕けて時が止まった後まで出さない（ユーザー「壊れる前に後ろにボスの足が出ちゃってる」）。カメラは寄らない（揺れだけ）。
+
+## 撃破（2026-11-17）
+- `rbm_clock_defeat.gd`（`RBMVictoryPlayer.DEFEAT` の `clock`・`clock_awakened`）＋ `rbm_clock_fx_fall.gd`（覚醒前）・`rbm_clock_fx_fall_awakened.gd`（覚醒後）。とどめのスロー（胸の光の円と火花は出さない）の後に続く。
+- 覚醒前: 顔の時計の針がだんだん遅くなり12時でかちりと止まる → 顔のガラスにひび → ガラスと真鍮のかけらになってほどける → 床に寝かせた小さな懐中時計が残る（ユーザー「覚醒前はむしろ良い」）。
+- 覚醒後: 空の大時計の針がすべて逆回転（反時計回りに加速）して巻き戻り、12時で重なった瞬間に大時計と給仕長が同時に砕ける → 床に立てた黒い懐中時計（竜頭・吊り輪・鎖・12時で止まった針）が残る（ユーザー「覚醒後は針を逆回転に」「覚醒後の最後の時計が分かりにくい」）。
+- 残った時計は光を消さずに照らし続ける（結果の画面まで）。小さな盤には細かいひびを入れない（白い星に見えた）。
+
+## 性能（参照機・実時間・挑戦の画面・同じ起動で各2回、2026-11-17）
+- 登場・支援4種・撃破2種: 1280×720 は平均 59.9〜60.0fps で20ms超0。1920×1080 は登場で20ms超が1回（20ms）、覚醒後の撃破の砕ける瞬間に33ms超が1回（最悪34ms）、ほかは0。音の最大は -4.8dB（音割れなし）。
+
 ## まだ無い物
-- 専用の登場・支援・撃破（試作して動画で確認してから）。
 - 専用のBGM（背景は 2026-11-16 に追加済み: 時計塔の大広間。ボス選択のプレビュー動画も同日追加）。
 
 ## 確かめ方
 - テスト: `test_clock_presentations.gd`（登録・キーポーズとデータのそろい・宣言した素材・数字と impact・覚醒後の単体の連撃・確定した対象・中断とカウンター・覚醒でオーラ・選択と保存）、`test_rbm_presentation_warmup.gd`、ボスの一覧のテスト。
-- 実GPU: `godot --path . res://tools/gpu_runner.tscn -- --tool=res://tools/verify_clock_gpu.gd --output=<dir>`（`verify_lion_gpu` と同じ使い方。登場・支援の場合は専用の物ができてから）。
+- 実GPU: `godot --path . res://tools/gpu_runner.tscn -- --tool=res://tools/verify_clock_gpu.gd --output=<dir>`（`verify_lion_gpu` と同じ使い方。登場・支援4種・撃破2種は `--new-only`）。
 - 素材を作り直した時: `godot --headless --path . --script res://tools/clock/bake_clock_assets.gd` → `--import`。
-- 音を作り直した時: `godot --headless --path . --script res://tools/clock/dump_clock_timing.gd` → `node tools/clock/audio/build.mjs` → `tools/clock/audio/out/` の音を同じ名前で `assets_bossmaker/audio/clock/` へ → `--import`（2026-11-16 に5本とも採用した音とバイト一致）。
+- 音を作り直した時: `godot --headless --path . --script res://tools/clock/dump_clock_timing.gd` → `node tools/clock/audio/build.mjs` → `tools/clock/audio/out/` の音を同じ名前で `assets_bossmaker/audio/clock/` へ → `--import`（2026-11-17 に12本とも採用した音とバイト一致）。

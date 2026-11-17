@@ -280,3 +280,24 @@ func pendulum(b_line: RBMHeroFxBatch, b_metal: RBMHeroFxBatch, bob: ColorRect, p
 	p.merge(params, true)
 	show_dial(bob, c, bob_r, p)
 	return c
+
+## 上から差す光の筋（2026-11-14 上端を硬く切らない: 上は透明 → 3割の所で半分 → 足元で一番明るい。左右の端も透明）。
+func light_shaft(b: RBMHeroFxBatch, foot: Vector2, height: float, w_top: float, w_bot: float, col: Color, a: float) -> void:
+	if a <= 0.005:
+		return
+	var ys := [0.0, 0.35, 1.0]
+	var al := [0.0, 0.55, 1.0]
+	for s in range(2):
+		var y0: float = foot.y - height * (1.0 - float(ys[s]))
+		var y1: float = foot.y - height * (1.0 - float(ys[s + 1]))
+		var w0: float = lerpf(w_top, w_bot, float(ys[s]))
+		var w1: float = lerpf(w_top, w_bot, float(ys[s + 1]))
+		var c0 := Color(col, a * float(al[s]))
+		var c1 := Color(col, a * float(al[s + 1]))
+		var e := Color(col, 0.0)
+		b.quad(Vector2(foot.x - w0, y0), Vector2(foot.x, y0), Vector2(foot.x, y1), Vector2(foot.x - w1, y1), e, c0, c1, e)
+		b.quad(Vector2(foot.x, y0), Vector2(foot.x + w0, y0), Vector2(foot.x + w1, y1), Vector2(foot.x, y1), c0, e, e, c1)
+
+## カラーの花を一輪（2026-11-14 白磁のカラーの撃破に残る花・支援の花。上から見た放射状の花は小さいと星に見えるので、横から見た一輪にする）。
+## base は茎の根元（地面）、h は高さ、open 0〜1 で茎が伸びて苞が開く、lean は傾き（右が正）。
+## sp = [苞の奥（喉）, 苞, 苞の明るい先], stem = [茎の濃い側, 明るい側]。輪郭 line_c。
