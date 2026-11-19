@@ -6,6 +6,8 @@ render_mode blend_premul_alpha;
 uniform vec2 size = vec2(800., 520.);
 // 矩形の左上（ワールド矩形内の座標）。色が付きうる範囲だけ描くため、矩形を縮めた時に使う。
 uniform vec2 origin = vec2(0.);
+// 値を揃える格子（画面の画素）。普通は2（2×2画素ごとに同じ値）。半分の解像度で描く時（rbm_hero_fx_half_res.gd）は1。
+uniform float grid_px = 2.;
 uniform vec4 blobs[48];
 uniform int count = 0;
 uniform vec3 pal_a[8];
@@ -82,7 +84,7 @@ float surface(vec2 p, float d0, float h){
 }
 
 void fragment(){
-	vec2 uv = hfx_grid(UV, FRAGCOORD.xy, 2.);
+	vec2 uv = hfx_grid(UV, FRAGCOORD.xy, grid_px);
 	vec2 p = origin + uv * size;
 	float h, side, _a, _b;
 	float d0 = field(p, h, side);

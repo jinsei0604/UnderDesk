@@ -90,6 +90,8 @@ func blast_quad(parent: Node, pal_a: Array, pal_b: Array, params: Dictionary = {
 	var q := quad(parent, RBMHeroFx.WORLD, "blast", p)
 	# 色が付きうる範囲の計算に使う値（blast.gdshader の既定値と同じ）
 	q.set_meta("blast_reach", Vector3(float(p.get("amp", 18.0)), float(p.get("k", 0.09)), float(p.get("glow_r", 40.0))))
+	# 性能（2026-11-19）: 画面の半分の解像度で描いて2倍に拡大して重ねる（計算する位置は元と同じ。rbm_hero_fx_half_res.gd）
+	RBMHeroFxHalfRes.wrap(parent, q)
 	return q
 
 func ring_quad(parent: Node, pal_hex: Array, params: Dictionary = {}) -> ColorRect:

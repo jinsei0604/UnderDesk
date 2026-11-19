@@ -548,3 +548,44 @@ func test_normal_defeat_runs_through_and_cancel_restores_the_stage() -> void:
 	assert_null(stage.find_child("HeroDownWorld", false, false), "no defeat layer remains")
 	assert_true(stage._visuals["boss"].visible)
 	assert_eq(stage.scale, Vector2.ONE)
+
+# ---------------------------------------------------------------------------
+# 性能（2026-11-19）: 爆炎は画面の半分の解像度の描画先で描き、2倍に拡大して元の層の同じ順番の所へ重ねる（rbm_hero_fx_half_res.gd）。
+# 計算する位置は元と同じ（格子をやめて1画素ずつ）。画素の比較は tools/verify_blast_half_res_gpu.gd。
+
+func test_blasts_render_at_half_resolution_where_the_quad_was() -> void:
+	assert_true(RBMHeroFxHalfRes.enabled, "on by default")
+	var back := Node2D.new()
+	add_child_autofree(back)
+	var fx := RBMHeroFxBase.new()
+	add_child_autofree(fx)
+	var before := Node2D.new()
+	back.add_child(before)
+	var q := fx.blast_quad(back, RBMHeroFx.FIRE, RBMHeroFx.PLASMA, {"amp": 34., "k": .05})
+	var after := Node2D.new()
+	back.add_child(after)
+	assert_true(q.get_viewport() is SubViewport, "drawn in its own half-resolution target")
+	var display: Node = back.get_child(1)
+	assert_true(display is Sprite2D, "the enlarged picture takes the quad's place in the layer")
+	assert_eq((display as Sprite2D).texture, q.get_viewport().get_texture())
+	assert_eq(((display as Sprite2D).material as CanvasItemMaterial).blend_mode, CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA)
+	assert_eq((display as Sprite2D).texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST)
+	assert_lt(before.get_index(), display.get_index())
+	assert_lt(display.get_index(), after.get_index(), "drawn in the same order as before")
+	assert_almost_eq(float((q.material as ShaderMaterial).get_shader_parameter("grid_px")), 1.0, 0.001, "one pixel per 2x2 block")
+	# 消している間は描画先も止める
+	q.visible = false
+	var helper: RBMHeroFxHalfRes = null
+	for n in back.get_children():
+		if n is RBMHeroFxHalfRes:
+			helper = n
+	assert_not_null(helper)
+	helper._sync()
+	assert_false(display.visible)
+	assert_eq(helper.viewport.render_target_update_mode, SubViewport.UPDATE_DISABLED)
+	# 切り替えを切ると、今までどおり元の層へ直接描く
+	RBMHeroFxHalfRes.enabled = false
+	var direct := fx.blast_quad(back, RBMHeroFx.FIRE, RBMHeroFx.PLASMA, {})
+	RBMHeroFxHalfRes.enabled = true
+	assert_eq(direct.get_parent(), back)
+	assert_null((direct.material as ShaderMaterial).get_shader_parameter("grid_px"), "the shader's default 2px grid")
