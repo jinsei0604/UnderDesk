@@ -498,8 +498,14 @@ func test_declared_shaders_are_prepared_before_the_first_play() -> void:
 	var warm = f.stage._presentation_warmup
 	assert_eq(warm.ensure(script, "hero_boss", "single"), [], "prepared shaders do not hold the start")
 	# 準備が済んでいない物があれば、その演出は始まらずに待ち、1フレームに1本ずつ準備して揃う。
-	var probe: String = shaders[0]
-	var second: String = shaders[1]
+	# 試すのはこの技が宣言するシェーダー（held には味方の覚醒の第2版のシェーダーも入るため、先頭の2本とは限らない。2026-11-19）
+	var own: Array = []
+	for path in script.call("warm_paths", "hero_boss", "single"):
+		if str(path).get_extension() == "gdshader" and shaders.has(str(path)):
+			own.append(str(path))
+	assert_gt(own.size(), 1, "the hero's single attack declares shaders")
+	var probe: String = own[0]
+	var second: String = own[1]
 	Warmup._gpu_ready.erase(load(probe).get_instance_id())
 	Warmup._gpu_ready.erase(load(second).get_instance_id())
 	warm._gpu_step_used = true

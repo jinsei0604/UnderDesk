@@ -7,13 +7,17 @@ const TEST_DIR := "user://bossmaker_test_ally_awakening/stages"
 const IDS := ["hero", "butler", "healer", "samurai", "tank"]
 const Stage = preload("res://src/bossmaker/visuals/rbm_battle_stage.gd")
 const AllyAwakening = preload("res://src/bossmaker/visuals/rbm_ally_awakening_presentation.gd")
+const Warmup = preload("res://src/bossmaker/visuals/rbm_presentation_warmup.gd")
 ## 演出の素材（事前読み込みの代わりにテストが持つ。持っていないと演出が読み終えるまで始まらない）。
 var held: Array = []
 
 func before_all() -> void:
 	for character_id in IDS:
 		for path in AllyAwakening.warm_paths(character_id, "awakening_ally"):
-			held.append(load(path))
+			var resource := load(path)
+			# 第2版（2026-11-19）はシェーダーも宣言する。事前読み込みと同じく中身の準備まで済ませる（presentation_assets_ready.gd と同じ）
+			Warmup.prepare_shader(resource)
+			held.append(resource)
 
 func before_each() -> void:
 	RBMLocalStageRepository.set_stages_dir_for_testing(TEST_DIR)
@@ -507,18 +511,23 @@ func test_presentation_plays_once_with_impact_at_release_for_all_five() -> void:
 		assert_eq(stage.scale, Vector2.ONE, "寄りを戻す")
 		assert_eq(f.battle.snapshot(), snapshot, "演出は戦闘の状態を変えない")
 
-func test_scenes_are_the_approved_ones_and_keep_the_codex_sound_timing() -> void:
-	# 2026-10-28 ユーザーの決定: 少女は Codex の版、ほか4人は新しい版。音（Codex の charge/release）の解放の時刻と長さは同じ。
-	assert_eq(AllyAwakening.SCENES["healer"], "res://ally_awakening/scenes/healer.tscn")
+func test_scenes_are_the_approved_ones_and_keep_their_own_sound_timing() -> void:
+	# 2026-11-19 ユーザーの承認: 5人とも第2版（各味方に対応するボスの要素。少女の Codex の版も置き換え）。
+	# 音は演出ごとに1本（演出の0秒＝音の0秒）。演出の時刻（fx の T）から音を作るので、長さと解放の時刻は T と同じ。
 	for id in IDS:
+		assert_eq(AllyAwakening.SCENES[id], "res://src/bossmaker/visuals/ally_awakening/rbm_%s_awakening_seq.tscn" % id, id)
 		var scene: Node2D = (load(AllyAwakening.SCENES[id]) as PackedScene).instantiate()
-		var codex: Node2D = (load("res://ally_awakening/scenes/%s.tscn" % id) as PackedScene).instantiate()
 		assert_eq(scene.character_id, id)
-		assert_eq([scene.duration, scene.release_time], [codex.duration, codex.release_time], id)
-		if id != "healer":
-			assert_true(str(AllyAwakening.SCENES[id]).begins_with("res://src/bossmaker/visuals/ally_awakening/"), id)
+		assert_eq(scene.sound_path, AllyAwakening.V2_SOUNDS[id], id)
+		var timing: Dictionary = scene.fx_script.T
+		assert_eq([scene.duration, scene.release_time], [float(timing.end), float(timing.release)], id)
+		# 解放は2倍の寄りの間に起きる
+		assert_between(scene.release_time, AllyAwakening.CLOSEUP_START, scene.duration - AllyAwakening.CLOSEUP_END_BEFORE, id)
+		var sound := load(scene.sound_path) as AudioStream
+		assert_not_null(sound, id)
+		if sound != null:
+			assert_almost_eq(sound.get_length(), scene.duration, 0.02, "%s: 音の長さ＝演出の長さ" % id)
 		scene.free()
-		codex.free()
 
 func test_aura_follows_awakened_state() -> void:
 	var f := _stage_fixture("hero")

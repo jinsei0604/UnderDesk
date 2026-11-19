@@ -601,6 +601,9 @@ func _start_dedicated(script: Script, asset_id: String, kind: String) -> void:
 func _begin_dedicated(script: Script) -> void:
 	_skill_presentation = script.new()
 	add_child(_skill_presentation)
+	# 共通の効果の絵（待っている間に描いた物）を消す。専用の演出の間は _draw_effects が何も描かない（2026-11-19）
+	if is_instance_valid(_effects):
+		_effects.queue_redraw()
 	_tween = _skill_presentation.play(self)
 
 func _dedicated_ready(script: Script, asset_id: String, kind: String) -> bool:
@@ -1403,6 +1406,8 @@ func _draw() -> void:
 
 func _draw_effects() -> void:
 	if is_instance_valid(_skill_presentation): return
+	# 専用の演出の素材を待っている間は、共通の効果を描かない（待った後に専用の演出の上へ残っていた。2026-11-19）
+	if _phase == "waiting": return
 	_canvas = _effects
 	if not _playing or _profile.is_empty():
 		return

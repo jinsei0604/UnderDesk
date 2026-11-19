@@ -8,20 +8,27 @@ extends Node2D
 const Frames = preload("res://src/bossmaker/visuals/encounter/rbm_encounter_ally_frames.gd")
 const ClosedEyes = preload("res://ally_awakening/core/samurai_closed_eyes.gd")
 const Camera = preload("res://src/bossmaker/visuals/rbm_battlefield_camera.gd")
-const SCENE_DIR := "res://ally_awakening/scenes/"
 const AUDIO_DIR := "res://ally_awakening/audio/"
 const AURA_SCENE := "res://ally_awakening/scenes/aura.tscn"
 const IDS := ["hero", "butler", "healer", "samurai", "tank"]
 ## 発動のシーン（2026-10-28 ユーザーの決定: 勇者・老執事・侍・ハンマー使いは新しい版、少女は Codex の版のまま）。
+## 2026-11-19 から第2版（ボスの演出と同じ部品で描く。rbm_ally_awakening_seq.gd）へ順に替えている: 勇者・老執事・少女（Codex の版を置き換え）・侍・ハンマー使い（5人とも）。
+## 2026-11-19 ユーザー「全部ボスとのつながりが分かるように」: 勇者＝金環の聖獣の金環、老執事＝給仕長の文字盤、少女＝白磁のカラーの花、侍＝機械武者の墨、ハンマー使い＝熔鉱炉の番人の溶岩。
 const SCENES := {
-	"hero": "res://src/bossmaker/visuals/ally_awakening/rbm_hero_awakening.tscn",
-	"butler": "res://src/bossmaker/visuals/ally_awakening/rbm_butler_awakening.tscn",
-	"healer": SCENE_DIR + "healer.tscn",
-	"samurai": "res://src/bossmaker/visuals/ally_awakening/rbm_samurai_awakening.tscn",
-	"tank": "res://src/bossmaker/visuals/ally_awakening/rbm_tank_awakening.tscn",
+	"hero": "res://src/bossmaker/visuals/ally_awakening/rbm_hero_awakening_seq.tscn",
+	"butler": "res://src/bossmaker/visuals/ally_awakening/rbm_butler_awakening_seq.tscn",
+	"healer": "res://src/bossmaker/visuals/ally_awakening/rbm_healer_awakening_seq.tscn",
+	"samurai": "res://src/bossmaker/visuals/ally_awakening/rbm_samurai_awakening_seq.tscn",
+	"tank": "res://src/bossmaker/visuals/ally_awakening/rbm_tank_awakening_seq.tscn",
 }
 ## 発動の中で使う既存の12ポーズ（各シーンの pose_at）。中割り（s:N）は Frames.warm_paths が読む。
-const BODY_POSES := {"hero": [0, 6], "butler": [0], "healer": [0], "samurai": [0], "tank": [0, 4, 5, 6, 8]}
+const BODY_POSES := {"hero": [0, 8, 6], "butler": [0, 6, 8, 5], "healer": [0, 4, 9, 5], "samurai": [0], "tank": [0, 4, 5, 6, 8]}
+## 第2版の音（1本。演出の0秒＝音の0秒）。ここに無い味方は Codex の charge/release の2本。
+const V2_SOUNDS := {"hero": "res://assets_bossmaker/audio/ally_awakening/hero.wav", "butler": "res://assets_bossmaker/audio/ally_awakening/butler.wav", "healer": "res://assets_bossmaker/audio/ally_awakening/healer.wav", "samurai": "res://assets_bossmaker/audio/ally_awakening/samurai.wav", "tank": "res://assets_bossmaker/audio/ally_awakening/tank.wav"}
+## 第2版が使うシェーダー（事前に読んで準備する）
+const V2_SHADERS := ["res://src/bossmaker/visuals/hero_boss/shaders/blast.gdshader", "res://src/bossmaker/visuals/hero_boss/shaders/ring.gdshader", "res://src/bossmaker/visuals/hero_boss/shaders/pillar.gdshader", "res://src/bossmaker/visuals/hero_boss/shaders/cracks.gdshader", "res://src/bossmaker/visuals/clock/shaders/clockface.gdshader", "res://src/bossmaker/visuals/flower/shaders/bloom.gdshader", "res://src/bossmaker/visuals/lion/shaders/eclipse.gdshader", "res://src/bossmaker/visuals/lava/shaders/magma.gdshader", "res://src/bossmaker/visuals/lava/shaders/eruption.gdshader", "res://src/bossmaker/visuals/hero_boss/shaders/ribbon.gdshader"]
+## 本体に重ねる単色（閃光・照り）の描き方（登場・勝利と同じ、色だけを変えるシェーダー）
+const FLAT_SHADER := "res://src/bossmaker/visuals/encounter/rbm_encounter_sprite.gdshader"
 ## 2倍の寄りの区間と中心（Codex のプレビュー studio.gd と同じ: 0.45 秒から終わりの 1.0 秒前まで、足元から 71px 上）。
 const CLOSEUP_START := 0.45
 const CLOSEUP_END_BEFORE := 1.0
@@ -39,6 +46,10 @@ var _asset := ""
 var _actor: Control
 var _sequence: Node2D
 var _body: Node2D
+## 本体に重ねる単色（第2版の閃光・照り）
+var _body_flat: Node2D
+var _flat_mat: ShaderMaterial
+var _flat_alpha := 0.0
 var _camera
 var _dark: ColorRect
 var _flash: ColorRect
@@ -58,8 +69,13 @@ static func warm_paths(asset_id: String, _kind: String) -> Array[String]:
 	if not IDS.has(asset_id):
 		return paths
 	paths.append(str(SCENES[asset_id]))
-	paths.append(AUDIO_DIR + asset_id + "_charge.wav")
-	paths.append(AUDIO_DIR + asset_id + "_release.wav")
+	if V2_SOUNDS.has(asset_id):
+		paths.append(str(V2_SOUNDS[asset_id]))
+		paths.append_array(V2_SHADERS)
+		paths.append(FLAT_SHADER)
+	else:
+		paths.append(AUDIO_DIR + asset_id + "_charge.wav")
+		paths.append(AUDIO_DIR + asset_id + "_release.wav")
 	paths.append(AURA_SCENE)
 	paths.append_array(Frames.warm_paths([asset_id]))
 	for pose in BODY_POSES[asset_id]:
@@ -94,6 +110,15 @@ func play(stage: Control) -> Tween:
 	_body.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_body.draw.connect(_draw_body)
 	add_child(_body)
+	_body_flat = Node2D.new()
+	_body_flat.z_index = 3
+	_body_flat.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_flat_mat = ShaderMaterial.new()
+	_flat_mat.shader = load(FLAT_SHADER)
+	_flat_mat.set_shader_parameter("mode", 1)
+	_body_flat.material = _flat_mat
+	_body_flat.draw.connect(_draw_body_flat)
+	add_child(_body_flat)
 	_flash = _overlay(Color(FLASH_COLOR, 0.0), 8)
 	_camera = Camera.new()
 	_camera.attach(stage)
@@ -132,6 +157,7 @@ func _advance(t: float) -> void:
 	var dt := maxf(0.0, t - age)
 	age = t
 	_sequence.advance(t)
+	_apply_body_light()
 	if _camera != null:
 		if t >= CLOSEUP_START and t < duration - CLOSEUP_END_BEFORE and not _closeup:
 			_closeup = true
@@ -141,11 +167,31 @@ func _advance(t: float) -> void:
 			_camera.cut(1, Vector2.ZERO)
 		_camera.advance(dt)
 
+## 第2版: 本体に重ねる単色（閃光が強い方を優先。照りは薄く重ねる）
+func _apply_body_light() -> void:
+	if not is_instance_valid(_body_flat) or not ("body_flash" in _sequence):
+		return
+	var flash := float(_sequence.body_flash)
+	var lit := float(_sequence.body_lit) * 0.35
+	var a := maxf(flash, lit)
+	var col: Color = _sequence.body_flash_color if flash >= lit else _sequence.body_lit_color
+	if absf(a - _flat_alpha) > 0.002 or a > 0.0:
+		_flat_alpha = a
+		_flat_mat.set_shader_parameter("flat_color", Color(col, 1.0))
+		_body_flat.queue_redraw()
+
+func _draw_body_flat() -> void:
+	if _asset.is_empty() or _flat_alpha <= 0.003:
+		return
+	Frames.draw(_body_flat, _asset, _frame, _foot.round(), Color(1, 1, 1, _flat_alpha))
+
 func _on_pose(frame: String) -> void:
 	# 侍は発動の間、納刀（s:18）を保つ（Codex の引継ぎ: b:0 を s:18 へ読み替える）。
 	_frame = "s:18" if _asset == "samurai" and frame == "b:0" else frame
 	if is_instance_valid(_body):
 		_body.queue_redraw()
+	if is_instance_valid(_body_flat):
+		_body_flat.queue_redraw()
 
 func _on_screen(darkness: float, flash: float) -> void:
 	if is_instance_valid(_dark):
