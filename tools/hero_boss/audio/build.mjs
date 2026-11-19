@@ -2,7 +2,9 @@
 // 時刻は src/bossmaker/visuals/hero_boss/rbm_hero_fx_timing.gd から読むので、演出の時刻を直せば音も一緒に動く。
 // 使い方: node tools/hero_boss/audio/build.mjs [blade|array|breach|shear|press ...] → tools/hero_boss/audio/out/<技>.wav
 // できた音は次の名前で assets_bossmaker/audio/hero_boss/ へ置く（置いた後に --import）:
-//   blade → single.wav, array → all.wav, breach → awakening.wav, shear → awakened_single.wav, press → awakened_all.wav, defeat → awakened_defeat.wav
+//   blade → single.wav, array → all.wav, breach → awakening.wav, shear → awakened_single.wav, press → awakened_all.wav, defeat → awakened_defeat.wav,
+//   intro → intro.wav（2026-11-17 登場）、down → defeat.wav（2026-11-17 覚醒前の撃破）、
+//   support_heal → heal.wav, support_buff → buff.wav, support_awakened_heal → awakened_heal.wav, support_awakened_buff → awakened_buff.wav（2026-11-17 支援）
 // 素材: 既存のゲームの効果音（assets_bossmaker/audio/*.wav）を切り出し・速さ・重ね方で使い、合成の層（dsp.mjs）を足す。乱数は種つきで、毎回同じ音になる。
 import fs from "node:fs";
 import path from "node:path";
@@ -533,7 +535,134 @@ function defeatScene() {
 	return tr;
 }
 
-const scenes = { blade, array, breach, shear, press, defeat: defeatScene };
+
+// ---- 登場「救難信号」（2026-11-17） ----
+function introScene() {
+	const t = T.INTRO, L = t.land, B = t.boom, D = t.duration;
+	const tr = new Track(D);
+	// 夕暮れの屋上の風
+	tr.put(sweepNoise({ sec: L, f0: 300, f1: 420, q: 0.6, curve: 1, seed: 501, env: (_, u) => smooth(0, 0.3, u) * (1 - smooth(0.9, 1, u)) }), 0, { db: -30, send: 0.2 });
+	// 照射器は最初から点いて床を照らしている（2026-11-19。点く音・振る音は無し）: 低いうなりだけ
+	[0, 1].forEach((i) => {
+		tr.put(drone({ sec: t.settle, f0: 98 + i * 7, f1: 98 + i * 7, voices: [1, 2.0, 3.0], cutoff: 900, env: (_, u) => smooth(0, 0.08, u) * (1 - smooth(0.9, 1, u)) }), 0, { db: -29, pan: i ? 0.5 : -0.5, send: 0.2 });
+	});
+	// 流れ星が降りる（高い所から低い所へ。光る音が先に聞こえる）
+	tr.sfx("encounter/sparkle", t.fall - 0.05, { db: -19, speed: 1.1, send: 0.45, pan: 0.05 });
+	tr.put(sweepNoise({ sec: L - t.fall + 0.05, f0: 4200, f1: 400, q: 1.2, curve: 0.6, seed: 507, env: (_, u) => smooth(0, 0.5, u) }), t.fall, { db: -15, pan: 0.05, send: 0.2 });
+	tr.sfx("lightning_move", t.fall, { db: -19, speed: 1.2, pan: 0.05 });
+	// ヒーロー着地: 重い着地・床の衝撃・破片
+	tr.sfx("encounter/astro_land", L, { db: -9, speed: 0.9, align: "peak", pan: 0.05, send: 0.25 });
+	tr.sfx("boss_impact_mass", L, { db: -10, align: "peak", pan: 0.05 });
+	tr.sfx("lightning_impact_heavy", L, { db: -13, speed: 0.9, align: "peak", pan: 0.05, send: 0.3 });
+	tr.put(subDrop({ sec: 1.0, f0: 86, f1: 30, decay: 3.4, seed: 509 }), L, { db: -9 });
+	tr.put(rumble({ sec: 1.0, cutoff: 90, seed: 511, env: hitDecay(1.4, 0.015) }), L + 0.02, { db: -15 });
+	tr.sfx("encounter/golem_pebbles", L + 0.08, { db: -19, speed: 1.1, pan: 0.1 });
+	// 立ち上がる・腕を組む・バイザーが光る
+	armor(tr, t.rise, -22, 1.0, 0.1);
+	armor(tr, t.arms, -21, 1.15, 0.1);
+	tr.sfx("encounter/knight_visor", t.arms + 0.02, { db: -18, speed: 1.2, pan: 0.1 });
+	tr.sfx("encounter/sparkle", t.arms + 0.04, { db: -22, speed: 1.3, send: 0.4, pan: 0.1 });
+	// 腕を組んだまま、背後で大爆発
+	tr.put(sweepNoise({ sec: 0.18, f0: 300, f1: 1800, q: 1, curve: 1.4, seed: 513, env: rise(0, 0.9, 0.98) }), B - 0.18, { db: -20, pan: 0.05 });
+	tr.sfx("encounter/dragon_detonation", B, { db: -7, speed: 1.0, align: "peak", send: 0.4, pan: 0.05 });
+	tr.sfx("fire_burst", B, { db: -12, speed: 0.85, align: "peak", send: 0.3, pan: 0.05 });
+	tr.put(subDrop({ sec: 1.4, f0: 80, f1: 26, decay: 2.6, seed: 515 }), B, { db: -8 });
+	tr.put(flame({ sec: 1.5, f: 380, q: 0.5, seed: 517, env: hitDecay(1.4, 0.02), flutter: 0.5 }), B + 0.02, { db: -15, pan: 0.05, send: 0.3 });
+	tr.put(crackle({ sec: 1.4, density: 26, seed: 519, env: hitDecay(1.2, 0.03) }), B + 0.05, { db: -24, pan: 0.05, send: 0.3 });
+	return tr;
+}
+
+// ---- 覚醒前の撃破「力尽きる」（2026-11-17） ----
+// 胸の灯が点く時刻（rbm_hero_fx_down.gd の blink_phase と同じ式。位相が整数になる時刻）
+function blinkTimes(t) {
+	const b = t.blink, o = t.out, f0 = t.blink_f0, f1 = t.blink_f1, a = (f1 - f0) / (2 * (o - b));
+	const out = [];
+	for (let k = 0; k < 64; k++) {
+		const x = a > 0 ? (-f0 + Math.sqrt(f0 * f0 + 4 * a * k)) / (2 * a) : k / f0;
+		if (b + x >= o) break;
+		out.push(b + x);
+	}
+	return out;
+}
+function downScene() {
+	const t = T.DOWN, D = t.duration;
+	const tr = new Track(D);
+	// よろめく・立ち直る: 鎧のきしみ
+	armor(tr, 0.02, -22, 0.85, 0.2);
+	armor(tr, t.stand, -24, 1.0, 0.2);
+	// 鎧の継ぎ目の火花（短い放電）
+	t.sparks.forEach((at, i) => {
+		tr.put(electric({ sec: 0.22, density: 140, seed: 601 + i, env: (_, u) => fall(u, 1.6) }), at, { db: -21 - (i % 2) * 2, pan: [-0.1, 0.35, 0.1, 0.4, -0.05][i], send: 0.12 });
+	});
+	// 胸の灯の警告音（点くたびに短く鳴る。だんだん速く、少しずつ大きく）
+	const beeps = blinkTimes(t);
+	beeps.forEach((at, i) => {
+		const u = i / Math.max(1, beeps.length - 1);
+		tr.put(drone({ sec: 0.075, f0: 1480, voices: [1, 0.5], cutoff: 4200, seed: 603 + i, env: (_, v) => smooth(0, 0.06, v) * (1 - smooth(0.6, 1, v)) }), at, { db: -24 + u * 4, pan: 0.15, send: 0.1 });
+	});
+	// 片膝をつく
+	tr.sfx("encounter/astro_land", t.kneel, { db: -16, speed: 0.84, align: "peak", pan: 0.2 });
+	armor(tr, t.kneel, -21, 0.9);
+	tr.put(subDrop({ sec: 0.5, f0: 70, f1: 34, decay: 6, seed: 611 }), t.kneel, { db: -14 });
+	tr.sfx("encounter/golem_pebbles", t.kneel + 0.04, { db: -24, speed: 1.2, pan: 0.2 });
+	// 胸の灯が消える: 警告音が下がって途切れる（力が尽きた）
+	tr.put(drone({ sec: 0.6, f0: 1480, f1: 740, curve: 1.6, voices: [1, 0.5], cutoff: 4200, seed: 612, env: (_, u) => smooth(0, 0.03, u) * (1 - smooth(0.5, 1, u)) }), t.out, { db: -21, pan: 0.15, send: 0.25 });
+	tr.sfx("encounter/crt_off", t.out + 0.02, { db: -20, pan: 0.15, send: 0.2 });
+	tr.put(subDrop({ sec: 0.9, f0: 60, f1: 28, decay: 4, seed: 613 }), t.out, { db: -15 });
+	// 光の粒になって昇る
+	tr.sfx("encounter/sparkle", t.melt + 0.05, { db: -21, speed: 0.9, send: 0.45, pan: 0.15 });
+	tr.sfx("encounter/sparkle", t.melt + 0.5, { db: -23, speed: 1.06, send: 0.45, pan: 0.2 });
+	tr.put(sweepNoise({ sec: t.gone - t.melt + 0.2, f0: 900, f1: 3200, q: 3, curve: 1, seed: 615, env: (_, u) => smooth(0, 0.3, u) * (1 - smooth(0.6, 1, u)) }), t.melt, { db: -30, pan: 0.15, send: 0.4 });
+	// 静かな余韻（やわらかい和音。光の粒が消えていく所。照射器は使わない、2026-11-19）
+	tr.put(drone({ sec: D - t.gone + 0.4, f0: 196, voices: [1, 1.5, 2, 1.26], cutoff: 1400, seed: 619, env: (_, u) => smooth(0, 0.35, u) * (1 - smooth(0.6, 1, u)) }), t.gone - 0.4, { db: -27, pan: 0.1, send: 0.5 });
+	return tr;
+}
+
+// ---- 支援（2026-11-17）: 回復・強化 × 覚醒前後。時刻は SUPPORT ----
+function supportScene(awakened, heal) {
+	const t = T.SUPPORT, D = t.duration, I = t.impact, pan = 0.15;
+	const tr = new Track(D);
+	// 支援のポーズへ（鎧の音）
+	armor(tr, t.pose, -23, awakened ? 0.85 : 1.0, pan);
+	armor(tr, t.back, -26, 1.0, pan);
+	if (!awakened && heal) {
+		// 光の粒が胸の灯へ集まる（充電の上がる音。照射器は使わない、2026-11-19）
+		tr.sfx("encounter/sparkle", t.gather, { db: -24, speed: 1.2, send: 0.4, pan });
+		tr.put(drone({ sec: I - t.gather + 0.05, f0: 520, f1: 1560, curve: 1.4, voices: [1, 2.0], cutoff: 4000, seed: 703, env: (_, u) => smooth(0, 0.3, u) * (1 - smooth(0.96, 1, u)) }), t.gather, { db: -27, pan, send: 0.3 });
+		tr.sfx("heal_hp", I, { db: -12, align: "onset", pan, send: 0.4 });
+		tr.sfx("encounter/sparkle", I + 0.08, { db: -19, send: 0.5, pan });
+		tr.sfx("encounter/sparkle", I + 0.5, { db: -24, speed: 1.15, send: 0.5, pan: -0.1 });
+	} else if (!awakened) {
+		// 力をためる: 小石が鳴り、低い唸りが上がる → 青い炎が燃え上がる・床を衝撃が走る
+		tr.sfx("encounter/golem_pebbles", t.gather, { db: -25, speed: 1.3, pan });
+		tr.put(drone({ sec: I - t.gather + 0.05, f0: 70, f1: 140, curve: 1.3, voices: [1, 1.006, 0.5, 1.498], cutoff: (_, u) => lerp(300, 1600, u * u), seed: 705, env: (_, u) => smooth(0, 0.3, u) * (1 - smooth(0.96, 1, u)) }), t.gather, { db: -21, pan, send: 0.15 });
+		tr.put(sweepNoise({ sec: I - t.gather, f0: 300, f1: 2400, q: 1, curve: 1.6, seed: 707, env: rise(0, 0.9, 0.98) }), t.gather, { db: -24, pan });
+		tr.sfx("buff_atk", I, { db: -12, align: "onset", pan, send: 0.3 });
+		tr.put(subDrop({ sec: 0.6, f0: 84, f1: 34, decay: 5, click: 0.08, seed: 709 }), I, { db: -13 });
+		tr.put(flame({ sec: 1.0, f: 520, q: 0.6, seed: 711, env: hitDecay(1.3, 0.02) }), I, { db: -16, pan, send: 0.2 });
+		tr.sfx("encounter/knight_visor", I + 0.04, { db: -20, speed: 1.2, pan });
+	} else if (heal) {
+		// 周りの闇を吸い込む（逆向きにふくらむ煙の音）→ 胸が赤く脈打つ
+		tr.put(drone({ sec: D - t.pose, f0: 55, f1: 62, voices: [1, 1.06, 0.5, 1.41], cutoff: 500, seed: 713, env: (_, u) => smooth(0, 0.2, u) * (1 - smooth(0.8, 1, u)) }), t.pose, { db: -22, send: 0.3 });
+		tr.put(flame({ sec: I - t.gather + 0.1, f: 300, q: 0.6, seed: 715, flutter: 0.5, env: (_, u) => smooth(0, 0.85, u) * (1 - smooth(0.95, 1, u)) }), t.gather, { db: -19, pan, send: 0.2 });
+		tr.put(sweepNoise({ sec: I - t.gather, f0: 2400, f1: 260, q: 1.2, curve: 0.7, seed: 717, env: rise(0, 0.9, 0.98) }), t.gather, { db: -24, pan });
+		[0.0, 0.32].forEach((d, i) => tr.put(subDrop({ sec: 0.3, f0: 70, f1: 40, decay: 12, click: 0.05, seed: 719 + i }), I + d, { db: -15 - i * 2 }));
+		tr.sfx("heal_hp", I, { db: -14, speed: 0.78, align: "onset", pan, send: 0.4 });
+	} else {
+		// 黒紅の炎が大きく燃え上がる
+		tr.put(flame({ sec: I - t.gather + 0.05, f: 260, q: 0.6, seed: 723, flutter: 0.55, env: (_, u) => smooth(0, 0.9, u) * (1 - smooth(0.96, 1, u)) }), t.gather, { db: -18, pan, send: 0.15 });
+		tr.put(drone({ sec: I - t.gather + 0.05, f0: 48, f1: 96, curve: 1.3, voices: [1, 1.006, 0.5, 1.498], cutoff: (_, u) => lerp(200, 1100, u * u), seed: 725, env: (_, u) => smooth(0, 0.3, u) * (1 - smooth(0.96, 1, u)) }), t.gather, { db: -20, send: 0.12 });
+		tr.sfx("buff_atk", I, { db: -13, speed: 0.8, align: "onset", pan, send: 0.3 });
+		tr.sfx("encounter/dragon_burn", I, { db: -15, speed: 0.9, align: "onset", pan, send: 0.25 });
+		tr.put(subDrop({ sec: 0.8, f0: 72, f1: 28, decay: 4, click: 0.08, seed: 727 }), I, { db: -11 });
+		tr.put(crackle({ sec: 1.0, density: 24, seed: 729, env: hitDecay(1.2, 0.03) }), I + 0.04, { db: -24, pan, send: 0.3 });
+	}
+	return tr;
+}
+
+const scenes = { blade, array, breach, shear, press, defeat: defeatScene, intro: introScene, down: downScene,
+	support_heal: () => supportScene(false, true), support_buff: () => supportScene(false, false),
+	support_awakened_heal: () => supportScene(true, true), support_awakened_buff: () => supportScene(true, false) };
 const only = process.argv.slice(2);
 for (const [name, fn] of Object.entries(scenes)) {
 	if (only.length && !only.includes(name)) continue;

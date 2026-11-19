@@ -2,8 +2,10 @@ extends RefCounted
 ## ヒーロー（hero_boss）の実GPUの確認。本番の画面（TEST・クリアチェック・挑戦）、presenter、決まった戦闘の行動、実際の描画で確かめる。
 ## 起動: godot --path . res://tools/gpu_runner.tscn -- --tool=res://tools/verify_hero_boss_gpu.gd --output=<dir> [--perf] [--1080] [--capture] [--selection-only] [--defeat-only] [--awakened-defeat] [--english]
 ## --perf は実時間（録画モードなし）で、同じ起動で同じ技を2回ずつ測る。--capture は確認動画用（--write-movie と一緒に使う）。
+## --intro-only・--new-only（2026-11-17）: 登場だけ／登場・支援（覚醒前後×回復・強化）・撃破（覚醒前後）だけ。--perf・--capture と組み合わせられる。
 const Driver = preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_boss_presentation.gd")
 const Victory = preload("res://src/bossmaker/visuals/encounter/rbm_victory_player.gd")
+const IntroPlayer = preload("res://src/bossmaker/visuals/encounter/rbm_intro_player.gd")
 var _gpu_verification_completed := false
 var _tree_override: SceneTree
 var output_dir: String
@@ -41,6 +43,8 @@ func run_gpu_verification(tree: SceneTree, directory: String) -> int:
 	report.renderer = RenderingServer.get_current_rendering_method()
 	report.adapter = RenderingServer.get_video_adapter_name()
 	report.requested_size = [1920, 1080] if "--1080" in _args() else [1280, 720]
+	# 重いコマの CPU・GPU の内訳（2026-11-17。描画の時間を測る設定を入れる）
+	RenderingServer.viewport_set_measure_render_time(tree.root.get_viewport_rid(), true)
 	var original_locale := RBMLocale.current_locale()
 	tree.process_frame.connect(_observe_audio)
 	await _run()
@@ -60,10 +64,28 @@ func run_gpu_verification(tree: SceneTree, directory: String) -> int:
 	print("HERO_BOSS_GPU_DONE ", report.passed, " cases=", report.case_count, " peak_db=", audio_peak_db)
 	return 0 if report.passed else 1
 
+## 確認動画を切り出すための印（--write-movie の何コマ目か）
+func _mark(tag: String, what: String) -> void:
+	if "--capture" in _args():
+		print("HERO_BOSS_MARK ", tag, " ", what, " ", Engine.get_frames_drawn())
+
 func _observe_audio() -> void:
 	audio_peak_db = maxf(audio_peak_db, maxf(AudioServer.get_bus_peak_volume_left_db(0, 0), AudioServer.get_bus_peak_volume_right_db(0, 0)))
 
 func _run() -> void:
+	if "--intro-only" in _args():
+		for repetition in (2 if "--perf" in _args() else 1):
+			await _intro()
+		return
+	if "--new-only" in _args():
+		for repetition in (2 if "--perf" in _args() else 1):
+			await _intro()
+			for aw in [false, true]:
+				for mode in ["heal", "buff"]:
+					await _support(mode, aw)
+			await _defeat(false)
+			await _defeat(true)
+		return
 	if "--selection-only" in _args():
 		await _selection()
 		return
@@ -156,7 +178,11 @@ func _case(mode: String, kind: String, awakened: bool, counter: bool = false) ->
 			if frame > 8:
 				samples.append(dt)
 				if dt > 20:
-					slow.append({"ms": dt, "age": driver.age, "frame": frame})
+					var rid := _tree().root.get_viewport_rid()
+					slow.append({"ms": snappedf(dt, 0.1), "age": snappedf(driver.age, 0.01), "frame": frame,
+						"render_cpu_ms": snappedf(RenderingServer.viewport_get_measured_render_time_cpu(rid), 0.1),
+						"render_gpu_ms": snappedf(RenderingServer.viewport_get_measured_render_time_gpu(rid), 0.1),
+						"draw_calls": int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))})
 			if driver.scene != ({"single": "shear" if awakened else "blade", "aoe": "press" if awakened else "array"}[kind]):
 				_fail(tag + ": wrong move " + driver.scene)
 			for moment in _moments(driver.scene):
@@ -204,6 +230,145 @@ func _moments(scene: String) -> Array:
 		"press": return [1.8, 3.24, 3.3, 3.7, 3.9, 4.3]
 		"breach": return [1.2, 2.4, 3.1, 3.4, 5.0, 5.5]
 	return []
+
+func _intro() -> void:
+	var definition := _definition_for()
+	definition.boss.boss_name = "ヒーロー"
+	view = RBMChallengeBattleView.new()
+	_tree().root.add_child(view)
+	view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	view.set_boss_appearance("appearance_hero_boss")
+	view.request_encounter({"boss_name": "ヒーロー", "author": ""})
+	view.start_battle(definition, RBMBattleUiKit.ALL_VISIBLE, "appearance_hero_boss")
+	var observed := false
+	var done := false
+	var samples: Array = []
+	var shots := {}
+	var slow: Array = []
+	var max_age := 0.0
+	var last := Time.get_ticks_usec()
+	for i in range(1200):
+		await _tree().process_frame
+		await RenderingServer.frame_post_draw
+		var now := Time.get_ticks_usec()
+		var dt := float(now - last) / 1000.0
+		last = now
+		if stage == null and is_instance_valid(view) and view.get("_battlefield_ally_row") != null:
+			stage = view._battlefield_ally_row.get_meta("visual_stage", null)
+		var player = null
+		if stage != null:
+			for node in stage.get_children():
+				if node.get_script() == IntroPlayer:
+					player = node
+		if player != null:
+			if not observed:
+				_mark("intro", "start")
+			if observed and player.state == "playing":
+				samples.append(dt)
+				if dt > 20:
+					slow.append({"ms": snappedf(dt, 0.1), "age": snappedf(float(player.age), 0.01)})
+			observed = true
+			max_age = maxf(max_age, float(player.age))
+			for moment in [0.5, 0.9, 1.2, 1.45, 1.75, 1.95, 2.3, 3.0, 3.3, 3.75, 3.9, 4.1, 4.5, 5.2]:
+				if float(player.age) >= moment and not shots.has(moment):
+					shots[moment] = true
+					_save("intro_%.2f" % moment)
+		elif observed:
+			done = true
+			for k in range(20):
+				await _tree().process_frame
+			_mark("intro", "end")
+			break
+	if not observed or not done:
+		_fail("intro did not play through (observed=%s done=%s)" % [observed, done])
+	if stage != null and (stage.scale != Vector2.ONE or not stage._visuals.boss.visible):
+		_fail("intro: stage not restored")
+	for n in ["HeroIntroWorld", "HeroIntroDim", "HeroIntroPost"]:
+		if stage != null and stage.find_child(n, false, false) != null:
+			for i in range(3):
+				await _tree().process_frame
+			if stage.find_child(n, false, false) != null:
+				_fail("intro: left behind " + n)
+	samples.sort()
+	report.cases.append({"id": "intro", "observed": observed, "done": done, "max_age": max_age, "frames": samples.size(), "max_ms": samples.back() if not samples.is_empty() else 0, "slow": slow})
+	report.cases.back().merge(_timings(samples))
+	print("HERO_BOSS_CASE intro ", JSON.stringify(_timings(samples)), " max=", samples.back() if not samples.is_empty() else 0, " slow=", JSON.stringify(slow))
+	await _close_view()
+
+## 支援（回復・強化）。立ち姿 → 支援のポーズ → 立ち姿、命中は1回。
+func _support(mode: String, awakened: bool) -> void:
+	var definition := _definition_for()
+	definition.boss.skills = [{"skill_id": "boss_claw", "name": "救援の光" if mode == "heal" else "正義の構え", "type": "self_heal" if mode == "heal" else "atk_self_buff", "heal_amount": 200, "buff_multiplier": 1.3, "duration_turns": 3}]
+	definition.boss.spd = 1
+	definition.boss.boss_name = "ヒーロー"
+	# 支援は登場・勝利の演出を使わない TEST の画面で（同じ戦場の描画。登場を毎回待たない）
+	if not await _open_view("test", definition):
+		return
+	view.session.battle.boss.hp = 1000
+	view.session.battle.is_awakened = awakened
+	var before: Dictionary = {}
+	var entry: Dictionary = {}
+	for attempt in range(16):
+		before = view.session.battle.presentation_state().duplicate(true)
+		for e in view.session.resolve_ally_action({"type": "defend"}):
+			if str(e.get("actor")) == "boss":
+				entry = e
+		if not entry.is_empty():
+			break
+	var tag := "support_" + ("awakened_" if awakened else "normal_") + mode
+	if entry.is_empty():
+		_fail(tag + ": no resolved entry")
+		await _close_view()
+		return
+	var snapshot: Dictionary = view.session.battle.snapshot().duplicate(true)
+	stage.set_state(before)
+	RBMBattlePresenter.apply_status_snapshot(view, before)
+	var seen: Array = []
+	stage.impact.connect(func(e): seen.append(e))
+	var observed := false
+	var samples: Array = []
+	var shots := {}
+	var last := Time.get_ticks_usec()
+	for k in range(20):
+		await _tree().process_frame
+	_mark(tag, "start")
+	view._present_batch([entry], before)
+	for frame in range(900):
+		await _tree().process_frame
+		await RenderingServer.frame_post_draw
+		var now := Time.get_ticks_usec()
+		var dt := float(now - last) / 1000.0
+		last = now
+		var driver = stage._skill_presentation
+		if is_instance_valid(driver) and driver is Driver:
+			observed = true
+			if frame > 8:
+				samples.append(dt)
+			var expected := ("awakened_" if awakened else "") + mode
+			if driver.scene != expected:
+				_fail(tag + ": wrong scene " + driver.scene)
+			for moment in [0.2, 0.5, 0.8, 1.1, 1.25, 1.35, 1.6, 2.0]:
+				if driver.age >= moment and not shots.has(moment):
+					shots[moment] = true
+					_save(tag + "_%.2f" % moment)
+		if observed and not view._presenter.is_playing() and not stage.is_playing():
+			break
+	for k in range(20):
+		await _tree().process_frame
+	_mark(tag, "end")
+	if not observed:
+		_fail(tag + ": no hero support driver")
+	if seen.size() != 1:
+		_fail(tag + ": impact not exactly once")
+	if view.session.battle.snapshot() != snapshot:
+		_fail(tag + ": simulation mutated")
+	if stage.is_playing() or is_instance_valid(stage._skill_presentation) or not stage._visuals.boss.visible or stage.scale != Vector2.ONE:
+		_fail(tag + ": cleanup")
+	samples.sort()
+	report.cases.append({"id": tag, "impact_count": seen.size(), "frames": samples.size(), "max_ms": samples.back() if not samples.is_empty() else 0})
+	report.cases.back().merge(_timings(samples))
+	print("HERO_BOSS_CASE ", tag, " ", JSON.stringify(_timings(samples)))
+	await _close_view()
 
 func _awakening() -> void:
 	var definition := _definition_for()
@@ -290,8 +455,12 @@ func _defeat(awakened: bool) -> void:
 	view.session.battle.is_awakened = awakened
 	var before: Dictionary = view.session.battle.presentation_state().duplicate(true)
 	stage.set_state(before)
-	view._present_batch(view.session.resolve_ally_action({"type": "attack"}), before)
 	var tag := "defeat_awakened" if awakened else "defeat_normal"
+	var shots := {}
+	for k in range(20):
+		await _tree().process_frame
+	_mark(tag, "start")
+	view._present_batch(view.session.resolve_ally_action({"type": "attack"}), before)
 	var observed := false
 	var done := false
 	var first := 0
@@ -310,14 +479,18 @@ func _defeat(awakened: bool) -> void:
 				observed = true
 				if node.state == "playing" and i > first + 2:
 					samples.append(dt)
+				if node.state == "playing":
+					for moment in [0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.8, 3.2, 3.6, 4.2, 4.8]:
+						if float(node.age) >= moment and not shots.has(moment):
+							shots[moment] = true
+							_save(tag + "_t%.2f" % moment)
 				if node.state == "done":
 					done = true
-		if observed and (i - first) % 12 == 0 and i - first <= 96:
-			_save(tag + "_%03d" % (i - first))
 		if done:
 			break
 	for i in range(150):
 		await _tree().process_frame
+	_mark(tag, "end")
 	_save(tag)
 	if not observed or not done:
 		_fail(tag + ": victory did not complete")
@@ -392,7 +565,7 @@ func _definition_for() -> Dictionary:
 		definition.party.append({"character_id": id, "allowed_skill_ids": skill_ids})
 	return definition
 
-func _open_view(mode: String, definition: Dictionary) -> bool:
+func _open_view(mode: String, definition: Dictionary, encounter: bool = true) -> bool:
 	match mode:
 		"test": view = RBMCreatorTestBattleView.new()
 		"clear_check": view = RBMCreatorClearCheckView.new()
@@ -402,7 +575,7 @@ func _open_view(mode: String, definition: Dictionary) -> bool:
 	if mode != "challenge":
 		view.setup(null)
 	view.set_boss_appearance("appearance_hero_boss")
-	if mode != "test":
+	if mode != "test" and encounter:
 		view.request_encounter({"boss_name": "ヒーロー", "author": ""})
 	if mode == "test":
 		view.start(definition, 20260906)
@@ -420,6 +593,11 @@ func _open_view(mode: String, definition: Dictionary) -> bool:
 	while view._presenter.is_playing() and ticks < 600:
 		await _tree().process_frame
 		ticks += 1
+	# 登場（2026-11-17 からヒーローにもある）が終わるのを待つ
+	var encounter_node = view.get("_encounter")
+	while encounter_node != null and is_instance_valid(encounter_node) and encounter_node.is_playing() and ticks < 1200:
+		await _tree().process_frame
+		ticks += 1
 	stage.set_state(view.session.battle.presentation_state())
 	return true
 
@@ -431,6 +609,10 @@ func _close_view() -> void:
 	await _tree().process_frame
 
 func _expected_case_count() -> int:
+	if "--intro-only" in _args():
+		return 2 if "--perf" in _args() else 1
+	if "--new-only" in _args():
+		return 14 if "--perf" in _args() else 7
 	if "--selection-only" in _args():
 		return 1
 	if "--defeat-only" in _args():

@@ -366,3 +366,65 @@ func test_v12_stationary_body_and_connected_arm_reach_strike_and_recovery() -> v
 	assert_lt(body.BODY_TINT.r,.25)
 	assert_lt(body.RUSH_TINT.r,.30)
 	f.stage.cancel()
+
+# ---------------------------------------------------------------------------
+# 登場「縫い直し」（2026-11-17、2026-11-19 部位ごとの糸に作り直し・針で縫い付ける動きを足した）: バラバラの頭・胴・両腕・両足 → 部位ごとに糸
+# → 足・腕・頭の順に引き寄せ、付いた所を1本の針が3針ずつ縫って回る → 針が抜けて糸が切れる → 全身がそろう → 手を振る → 立ち姿。
+const IntroPlayer = preload("res://src/bossmaker/visuals/encounter/rbm_intro_player.gd")
+const Intro = preload("res://src/bossmaker/visuals/encounter/intro/rbm_intro_plush.gd")
+const PlushData = preload("res://src/bossmaker/visuals/plush/rbm_plush_data.gd")
+
+func test_intro_sews_the_scattered_parts_together_and_ends_on_the_battle_stance() -> void:
+	assert_true(IntroPlayer.has_intro("plush"))
+	assert_eq(IntroPlayer.CHOREO["plush"], Intro)
+	var T: Dictionary = Intro.T
+	assert_eq(Intro.ORDER, ["leg_l", "leg_r", "arm_l", "arm_r", "head"], "legs, then arms, then the head")
+	var last_arrival := 0.0
+	for i in range(Intro.ORDER.size()):
+		assert_lt(float(T.shoot[i]) + float(T.shot), float(T.pull[i]), "the thread reaches the part before pulling it")
+		if i > 0:
+			assert_lt(float(T.pull[i - 1]), float(T.pull[i]), "one part after another")
+		last_arrival = maxf(last_arrival, float(T.pull[i]) + float(T.travel[i]))
+	assert_lte(last_arrival, float(T.whole), "every part is pulled in before the whole body appears")
+	# 針: 付いた部位の縫い目を順に3針ずつ縫う（付く前には縫わない・縫い目どうしは重ならない）→ 頭の後に上へ抜けて糸が切れる
+	assert_lt(float(T.needle_in), float(T.sew[0]))
+	for i in range(Intro.ORDER.size()):
+		assert_gte(float(T.sew[i]), float(T.pull[i]) + float(T.travel[i]) - 0.001, Intro.ORDER[i] + " is sewn after it arrives")
+		var sew_end := float(T.sew[i]) + float(T.stitch) * Intro.STITCHES
+		if i + 1 < Intro.ORDER.size():
+			assert_lte(sew_end, float(T.sew[i + 1]), "one seam at a time")
+		else:
+			assert_lte(sew_end, float(T.needle_out), "the needle leaves after the head")
+	assert_lt(float(T.needle_out), float(T.snap))
+	assert_lte(float(T.sew[Intro.ORDER.size() - 1]) + float(T.stitch) * Intro.STITCHES, float(T.whole), "sewn up before the whole body appears")
+	assert_eq(Intro.stitch_times().size(), Intro.ORDER.size() * Intro.STITCHES)
+	var order := ["whole", "alive", "eye", "settle", "end"]
+	for i in range(1, order.size()):
+		assert_lt(float(T[order[i - 1]]), float(T[order[i]]), order[i])
+	# バラバラ → 付いた位置へ（伸縮・回転はしない。動かすだけ）
+	for part in Intro.ORDER:
+		assert_eq(Intro.part_offset(part, 0.0), Vector2(Intro.SCATTER[part]).round(), part + " starts scattered")
+		var i: int = Intro.ORDER.find(part)
+		assert_eq(Intro.part_offset(part, float(T.pull[i]) + float(T.travel[i])), Vector2.ZERO, part + " is sewn on")
+	assert_eq(Intro.part_offset("torso", 0.0), Vector2(Intro.SCATTER["torso"]), "the torso lies on the floor")
+	assert_eq(Intro.part_offset("torso", float(T.pull[1]) + float(T.travel[1])), Vector2.ZERO, "and stands up once both legs are on")
+	assert_eq(Intro.frame_at(0.0), -1, "drawn part by part until the body is whole")
+	assert_eq(Intro.frame_at(float(T.whole)), Intro.STAND)
+	assert_eq(Intro.frame_at(float(T.end)), 0, "ends on the battle stance")
+	# 部位の絵はコマ 0 と同じ大きさ・同じ左上で重ねる（重ねるとコマ 0 と一致することは tools/plush/bake_intro_parts.gd が確かめる）
+	for path in Intro.EXTRA_PATHS:
+		assert_true(ResourceLoader.exists(str(path)), str(path))
+	for part in ["torso"] + Intro.ORDER:
+		var tex := load(Intro.PARTS_ROOT + part + ".png") as Texture2D
+		assert_eq(tex.get_size(), Vector2(106, 170), part)
+	var offset0: Array = PlushData.ANIMATION.frames[Intro.STAND].offset
+	assert_eq(Intro.FRAME_OFFSET, Vector2(float(offset0[0]), float(offset0[1])))
+	# 最後の立ち姿は戦闘中の立ち姿と同じ絵・同じ足元（frames.json の bbox と ANIMATION の offset が一致）
+	var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets_bossmaker/battle/plush/frames.json"))
+	var bbox: Array = meta.poses[0].bbox
+	assert_eq([int(bbox[0]) - int(meta.foot[0]), int(bbox[1]) - int(meta.foot[1])], [int(offset0[0]), int(offset0[1])])
+	for key in Intro.SOUNDS:
+		assert_true(ResourceLoader.exists("res://assets_bossmaker/audio/%s.wav" % str(key).trim_prefix("game:")), str(key))
+	var src := FileAccess.get_file_as_string((Intro as Script).resource_path)
+	for call in ["camera.cut(", "\tcut(", "\tpan("]:
+		assert_false(src.contains(call), "no zoom (shake only): " + call)

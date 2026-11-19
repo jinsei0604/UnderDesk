@@ -15,9 +15,15 @@ const SCENE_SCRIPTS := {
 	"breach": preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_fx_breach.gd"),
 	"shear": preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_fx_shear.gd"),
 	"press": preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_fx_press.gd"),
+	# 支援（2026-11-17）: 回復・強化 × 覚醒前後。中身は1つ（heal・dark を場面から決める）
+	"heal": preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_fx_support.gd"),
+	"buff": preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_fx_support.gd"),
+	"awakened_heal": preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_fx_support.gd"),
+	"awakened_buff": preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_fx_support.gd"),
 }
 const PressFx := preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_fx_press.gd")
-const SOUND_KEYS := {"blade": "hero_boss_single", "array": "hero_boss_all", "breach": "hero_boss_awakening", "shear": "hero_boss_awakened_single", "press": "hero_boss_awakened_all"}
+const SOUND_KEYS := {"blade": "hero_boss_single", "array": "hero_boss_all", "breach": "hero_boss_awakening", "shear": "hero_boss_awakened_single", "press": "hero_boss_awakened_all",
+	"heal": "hero_boss_heal", "buff": "hero_boss_buff", "awakened_heal": "hero_boss_awakened_heal", "awakened_buff": "hero_boss_awakened_buff"}
 const SHADERS := ["actor", "aura", "blast", "cracks", "dark_aura", "fissure", "orb", "pillar", "pool", "post", "ribbon", "ring"]
 ## 基準の並び（論理ドット）: 本体の足元と、味方の4か所（rbm_battle_stage.gd の全画面の並びの半分。エフェクトの番号の順）。
 const HOME_FOOT := Vector2(390, 238)
@@ -25,12 +31,13 @@ const PARTY := [Vector2(137, 185), Vector2(214, 203), Vector2(137, 245), Vector2
 ## 単体攻撃の基準の相手（右手前）
 const SINGLE_SLOT := 3
 ## 立ち位置が動かない技の足元（コマごとに矩形の幅が違うので、足元の効果はこの位置に固定する）
-const LOCK_FOOT := {"array": Vector2(390, 238), "breach": Vector2(390, 238)}
+const LOCK_FOOT := {"array": Vector2(390, 238), "breach": Vector2(390, 238), "heal": Vector2(390, 238), "buff": Vector2(390, 238), "awakened_heal": Vector2(390, 238), "awakened_buff": Vector2(390, 238)}
 ## 影を置く地面の線 [立ち位置 x, y, 踏み込み先 x, y]
-const GROUND := {"blade": [393, 238, 243, 270], "array": [390, 238, 390, 238], "breach": [390, 238, 390, 238], "shear": [391, 238, 242, 266], "press": [388, 238, 284, 276]}
+const GROUND := {"blade": [393, 238, 243, 270], "array": [390, 238, 390, 238], "breach": [390, 238, 390, 238], "shear": [391, 238, 242, 266], "press": [388, 238, 284, 276],
+	"heal": [390, 238, 390, 238], "buff": [390, 238, 390, 238], "awakened_heal": [390, 238, 390, 238], "awakened_buff": [390, 238, 390, 238]}
 ## 単体攻撃で相手の前まで踏み込んだ時の足元の x（基準の相手の時）。ここまでの進み具合で、相手の位置へのずれを足す。
 const REACH_X := {"blade": 243.0, "shear": 242.0}
-const AURA_STYLES := {"blade": "blue", "array": "blue_big", "breach": "dark", "shear": "dark", "press": "dark"}
+const AURA_STYLES := {"blade": "blue", "array": "blue_big", "breach": "dark", "shear": "dark", "press": "dark", "heal": "blue", "buff": "blue_big", "awakened_heal": "dark", "awakened_buff": "dark"}
 ## 1回の行動のダメージを、途中の当たりで分けて見せる時の最後の一撃の割合
 const FINAL_SHARE := {"blade": .6, "array": .4, "shear": .5, "press": .4}
 const VOLUME_DB := -8.0
@@ -78,17 +85,27 @@ static func scene_for(asset_id: String, action_kind: String) -> String:
 	var aw := asset_id.ends_with("_awakened")
 	match action_kind:
 		"awakening": return "breach"
+		"support", "heal": return "awakened_heal" if aw else "heal"
+		"buff": return "awakened_buff" if aw else "buff"
 		"all", "aoe": return "press" if aw else "array"
 		_: return "shear" if aw else "blade"
 
 ## 事前読み込み（rbm_presentation_warmup.gd）。kind はステージの "single" / "all" / "awakening"。
 static func warm_paths(asset_id: String, action_kind: String) -> Array[String]:
 	var s := scene_for(asset_id, action_kind)
-	var out: Array[String] = [Motion.SHEET_PATH, str(AudioCatalog.FILES[SOUND_KEYS[s]])]
+	# 支援は回復・強化のどちらが来るか分からないので両方
+	var scenes: Array[String] = [s]
+	if action_kind == "support":
+		scenes = [scene_for(asset_id, "heal"), scene_for(asset_id, "buff")]
+	var out: Array[String] = [Motion.SHEET_PATH]
+	for one in scenes:
+		out.append(str(AudioCatalog.FILES[SOUND_KEYS[one]]))
 	for name in SHADERS:
 		out.append("res://src/bossmaker/visuals/hero_boss/shaders/%s.gdshader" % name)
-	for cel in Motion.cels_of(s):
-		out.append(RBMHeroDarkAura.field_path(cel))
+	for one in scenes:
+		for cel in Motion.cels_of(one):
+			if not out.has(RBMHeroDarkAura.field_path(cel)):
+				out.append(RBMHeroDarkAura.field_path(cel))
 	if s == "breach":
 		out.append(RBMHeroDarkAura.field_path(Motion.STANCE["awakened"]))
 		out.append(RBMVisualAssets.frame_path("hero_boss_awakened", 0))
@@ -99,6 +116,9 @@ func play(stage: Control) -> Tween:
 	active = true
 	awakened = str(stage._asset_ids.get("boss", "")) == "hero_boss_awakened"
 	scene = scene_for(str(stage._asset_ids.get("boss", "")), kind)
+	if kind == "support":
+		var heal := str(stage._skill.get("effect", "")) in ["heal", "self_heal"]
+		scene = ("awakened_" if awakened else "") + ("heal" if heal else "buff")
 	timing = Motion.TIMINGS[scene]
 	duration = float(timing["duration"])
 	impact_time = _impact_time()
@@ -127,7 +147,7 @@ func play(stage: Control) -> Tween:
 	if not stage._guards.is_empty():
 		stage._sound.play_sound("cover_move", -5)
 	# 何回も当たる攻撃: 途中の当たりのたびに小さな数字、最後の一撃（impact）で合計（stage.begin_multi_hit()）
-	if kind != "awakening":
+	if kind != "awakening" and kind != "support":
 		stage.begin_multi_hit(_multi_hit_plan(), float(FINAL_SHARE.get(scene, .5)))
 	_advance(0.0)
 	var tween := create_tween()
@@ -250,6 +270,9 @@ func _build() -> void:
 	_body.material = _body_mat
 	_actor.add_child(_body)
 	_fx = (SCENE_SCRIPTS[scene] as GDScript).new()
+	if kind == "support":
+		_fx.set("heal", scene.ends_with("heal"))
+		_fx.set("dark", awakened)
 	_fx.mid = _mid
 	_fx.focus_delta = _focus_delta if scene in ["blade", "shear"] else Vector2.ZERO
 	var targets := []

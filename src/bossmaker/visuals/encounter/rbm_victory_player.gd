@@ -37,8 +37,8 @@ const DEFEAT := {
 	"musha": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_musha.gd"),
 	"astronaut": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_astronaut.gd"),
 	"gentleman": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_gentleman.gd"),
-	# ヒーロー: 覚醒前は専用の倒れ方がまだ無いので共通の倒れ方（2026-11-10）。覚醒後は専用（2026-11-11）。
-	"hero_boss": preload("res://src/bossmaker/visuals/encounter/defeat/rbm_defeat_generic.gd"),
+	# ヒーロー: 覚醒前は専用の「力尽きる」（2026-11-19）、覚醒後は専用（2026-11-11）。
+	"hero_boss": preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_boss_defeat.gd"),
 	"hero_boss_awakened": preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_boss_defeat_awakened.gd"),
 	# 金環の聖獣（2026-11-13）: 覚醒前・覚醒後とも専用（金環日食が欠けて消えていく。覚醒後は深紅の輪）。
 	"lion": preload("res://src/bossmaker/visuals/lion/rbm_lion_defeat.gd"),

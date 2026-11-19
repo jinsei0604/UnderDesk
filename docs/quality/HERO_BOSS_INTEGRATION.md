@@ -20,9 +20,9 @@
 - 音は専用の1本のトラックを演出の開始で1回鳴らす（`play_sound_phase()` が true を返し、汎用の SE は鳴らさない）。音量 −8dB。音の作り方は `tools/hero_boss/audio/build.mjs`（既存のゲームの効果音の切り出しと合成の層。種つきの乱数で毎回同じ音になり、置いてある5本とバイト単位で一致することを確認済み）。
 
 ## 既存のボスと違う所・まだ無い物
-- **支援（回復・強化）**: 専用の演出は無い。汎用の流れ（立ち姿のまま・汎用の SE）。
-- **登場の演出**: 無い（ぬいぐるみと同じ。`rbm_intro_player.gd` の `CHOREO` に無い）。
-- **撃破（覚醒前）**: 専用の倒れ方は無く、共通の倒れ方 `rbm_defeat_generic.gd`（ほどける縁は青 `#5cc6fa`）。立ち姿しか無いので姿勢の変化は無く、砂ぼこり → 粒になってほどける。
+- **支援（回復・強化、2026-11-17 試作、2026-11-19 回復の照射器を外してユーザーが採用）**: `rbm_hero_boss_support.gd`（`kind = "support"`）＋ エフェクト `rbm_hero_fx_support.gd`、時刻 `RBMHeroFxTiming.SUPPORT`（2.5秒、命中 1.25秒）。正式モーションに支援の並びが無いので、立ち姿 → 他の技のコマを1枚（`Motion.SUPPORT_POSE`: 回復＝腕組み blade1、強化＝構え array2、覚醒後の回復＝両腕を広げる release3、覚醒後の強化＝爪を掲げる release4）→ 立ち姿。覚醒前の回復＝光の粒が胸の灯へ集まる（炎も照射器も使わない）、覚醒前の強化＝青い炎のオーラが燃え上がり床を輪が走る、覚醒後の回復＝周りの闇を吸い込む、覚醒後の強化＝黒紅の炎が大きく燃え上がる。覚醒後は常時のオーラを強さ1より下げない。音は `audio/hero_boss/heal.wav`・`buff.wav`・`awakened_heal.wav`・`awakened_buff.wav`。
+- **登場の演出「救難信号」（2026-11-17 試作、2026-11-19 ユーザーの指摘で作り直して採用）**: `encounter/intro/rbm_intro_hero_boss.gd` ＋ エフェクト `rbm_hero_fx_intro.gd`・照射器の光 `rbm_hero_rooftop.gd`（背景の照射器のレンズ `LENS_L (151,26)`・`LENS_R (541,33)` を背景の絵から測った）、時刻 `RBMHeroFxTiming.INTRO`（4.4秒）、音 `audio/hero_boss/intro.wav`。照射器は最初から着地点の床 `SPOT` を照らして動かさない → 画面の上から流れ星が光の中へ落ち、ヒーロー着地（release1）→ 立ち上がり照射器に照らされる → 腕を組む（blade1、バイザーが光る）→ 腕を組んだまま背後で爆発 → 立ち姿・題字。手を突き出すコマ（array_standing_palms）は使わない。背後の爆発は全体技 array と同じ消え方（放射の模様 polar を使うと消え際が尖った欠片になる）。着地点に屈折は使わない（体の近く）。
+- **撃破（覚醒前）「力尽きる」（2026-11-17 試作、2026-11-19 最後に照射器で照らす所を外して採用）**: `rbm_hero_boss_defeat.gd` ＋ エフェクト `rbm_hero_fx_down.gd`、時刻 `RBMHeroFxTiming.DOWN`（3.7秒）、音 `audio/hero_boss/defeat.wav`。よろめく（bridge0）→ 頭を押さえて立つ（release0）・鎧の継ぎ目から火花・胸の灯が赤く点滅してだんだん速くなる（音の警告音も同じ式 `blink_phase`）→ 片膝（release1。四角い粒で消えるので覚醒後の撃破の切り出し絵 `hero_boss_awakened/defeat/release1.png` を流用、コマの中心は x=42）→ 胸の灯が消える → 青い光の粒になって昇り、粒が消えて終わる。とどめは共通の入りから胸の小さな光の円と火花を除いた物（聖獣・時計と同じ）。
 - **撃破（覚醒後、2026-11-11）**: 専用 `rbm_hero_boss_defeat_awakened.gd`（エフェクト `rbm_hero_fx_fall.gd`、時刻 `RBMHeroFxTiming.FALL`、3.1秒、音 `audio/hero_boss/awakened_defeat.wav`）。とどめのスロー（共通）→ 膝をつく（release2）→ 闇が暴れ、内から青い稲妻が漏れる（鼓動3回、オーラは途中で弱めない）→ 1.04秒に黒紅の炎が外へ噴き出し、紅いひびが走り、青い光の柱が立つ（release3）→ 1.3秒に元の青い姿で膝をつく（release1）→ 青い光の粒になって昇る（共通の四角い粒の消え方）。本体のコマは `tools/hero_boss/bake_hero_boss_assets.gd` が `hero_boss_awakened/defeat/` に1枚ずつ切り出す。実測（2回目、33ms超）: 1280×720 で1、1920×1080 で9（最悪34ms）。
 - **耐久勝利**: 共通の `SURVIVAL_GENERIC`（全ボス共通）。
 - **ボス選択のプレビュー動画**: まだ無い（「プレビュー準備中」。紳士・ぬいぐるみなどと同じ）。

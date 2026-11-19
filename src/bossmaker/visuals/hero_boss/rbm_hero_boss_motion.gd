@@ -12,7 +12,13 @@ const SEQUENCES := {"blade": "01", "array": "02", "breach": "03", "shear": "05",
 const TIMINGS := {
 	"blade": RBMHeroFxTiming.BLADE, "array": RBMHeroFxTiming.ARRAY, "breach": RBMHeroFxTiming.BREACH,
 	"shear": RBMHeroFxTiming.SHEAR, "press": RBMHeroFxTiming.PRESS,
+	"heal": RBMHeroFxTiming.SUPPORT, "buff": RBMHeroFxTiming.SUPPORT, "awakened_heal": RBMHeroFxTiming.SUPPORT, "awakened_buff": RBMHeroFxTiming.SUPPORT,
 }
+## 支援（2026-11-17）: 正式モーションには支援の並びが無いので、他の技のコマを1枚借りる（立ち姿 → このコマ → 立ち姿。中割りなし）。
+## heal＝腕を組む（blade1）、buff＝力をためる構え（array2）、awakened_heal＝両腕を広げる（release3）、awakened_buff＝爪を掲げる（release4）。
+const SUPPORT_POSE := {"heal": "blade1", "buff": "array2", "awakened_heal": "release3", "awakened_buff": "release4"}
+## 支援のコマを置く足元（立ち姿と同じ。コマの下辺中央）
+const SUPPORT_FOOT := Vector2(390, 238)
 ## 待機の立ち絵（覚醒前・覚醒後）
 const STANCE := {"normal": "normal", "awakened": "omega"}
 
@@ -37,6 +43,15 @@ static func frames(scene: String) -> Array:
 		return _frames[scene]
 	var out: Array = []
 	var timing: Dictionary = TIMINGS.get(scene, {})
+	if SUPPORT_POSE.has(scene):
+		var stance: String = STANCE["awakened" if scene.begins_with("awakened_") else "normal"]
+		for i in range(int(ceil(float(timing["duration"]) * FPS)) + 1):
+			var t := float(i) / FPS
+			var cel: String = SUPPORT_POSE[scene] if t >= float(timing["pose"]) and t < float(timing["back"]) else stance
+			var r := rect(cel)
+			out.append([cel, SUPPORT_FOOT - Vector2(round(r.size.x * 0.5), r.size.y)])
+		_frames[scene] = out
+		return out
 	for seq: Dictionary in data().get("sequences", []):
 		if str(seq.get("id", "")) != str(SEQUENCES.get(scene, "")):
 			continue

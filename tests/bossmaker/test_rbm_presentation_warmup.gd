@@ -436,6 +436,9 @@ func test_first_plays_read_nothing_that_was_not_read_ahead() -> void:
 	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_attack("all")]), "hero_boss_all")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_attack("single")], false, true), "hero_boss_awakened_single")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_attack("all")], false, true), "hero_boss_awakened_all")
+	# 支援（2026-11-17）
+	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_heal()]), "hero_boss_heal")
+	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_heal()], false, true), "hero_boss_awakened_heal")
 	# 金環の聖獣（2026-11-12）
 	await _assert_first_play_reads_nothing_new(_battle("appearance_lion", [_attack("single")]), "lion_single")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_lion", [_attack("all")]), "lion_all")

@@ -11,3 +11,10 @@
 - Rendererのv7/v8/v9/v11/v12という名前は承認履歴と依存層を残すためのもの。試作動画やレビュー用の古いゲームコピーはGitに含めない。
 
 検証：`test_plush_presentations.gd`、`test_rbm_presentation_warmup.gd`、選択・保存・覚醒関連および全GUT。実GPUは正式の `tools/gpu_runner.tscn` から `tools/verify_plush_release_gpu.gd` を実行。`--selection-only --english` は英語の選択画面、`--perf --1080` は1920×1080の実時間確認。確認動画の録画速度を性能値として使用しない。
+
+## 登場「縫い直し」（2026-11-17 試作、2026-11-19 ユーザーの指摘で部位ごとの糸に作り直し、同日 針で縫い付ける動きを足してユーザーが採用）
+- `src/bossmaker/visuals/encounter/intro/rbm_intro_plush.gd`（`rbm_intro_player.gd` の `CHOREO["plush"]`）。音は `assets_bossmaker/audio/plush/intro.wav`（`node tools/plush/audio/build.mjs` → `tools/plush/audio/out/intro.wav` を置いて `--import`。時刻は intro の `T` を読む）。5.1秒。
+- 意味: 裁縫部屋の床に頭・胴・両腕・両足がバラバラに散らばっている → 胴の縫い目から部位ごとに赤い糸が飛んで各部位を刺す → 糸が張り、足・腕・頭の順に引き寄せる（両足が付く間に胴が立ち上がる。付いた所に綿のくず）→ 付いた所を、赤い糸を通した1本の針が縫い目に沿って3針ずつ縫って回る（初版の針の縫い方。1針ごとに体がびくっと動き、赤い縫い跡が1つずつ増える）→ 頭を縫い終えると針が上へ抜け、糸がぷつっと切れる → 全身がそろう → 色が戻り、ボタンの目が一瞬だけ赤く光る（覚醒後の予告）→ 手を振る → 立ち姿・題字。
+- 部位の絵: `assets_bossmaker/battle/plush/intro_parts/`（head・torso・arm_l・arm_r・leg_l・leg_r。どれもコマ 0 と同じ 106×170）。`godot --headless --path . --script res://tools/plush/bake_intro_parts.gd` で作り直す（黒い輪郭を壁にして塗りを部位へ割り当て、輪郭は隣り合う部位の両方に入れる。6つを重ねるとコマ 0 と画素が一致することを確かめ、縫い目の点を出す。股の右側の輪郭の切れ目3画素は壁として扱う）。部位は動かすだけで、伸縮・回転しない。全部そろった所で立ち姿のコマ 0 に替える（同じ絵）。手を振るのは全体攻撃のコマ 57/53/57。
+- 最後の立ち姿は戦闘中の立ち姿と同じ絵・同じ足元（`frames.json` の bbox と ANIMATION の offset が一致。テストで確かめる）。体を白く重ねる光は使わない（等倍の絵に重ねると透けて見える）。カメラは寄らない（揺れだけ）。
+- 確かめ方: `test_plush_presentations.gd` の `test_intro_sews_the_scattered_parts_together_and_ends_on_the_battle_stance`、`test_rbm_encounter`。実GPU は `tools/verify_boss_intro_gpu.gd --boss=plush`（時刻ごとの画像、`--perf`（`--1080`）で実時間、`--capture` で確認動画）。

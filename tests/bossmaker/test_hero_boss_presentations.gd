@@ -1,5 +1,5 @@
 extends GutTest
-## ヒーロー（hero_boss）の本番の演出の契約（2026-11-10 採用の5技・常時オーラ）。
+## ヒーロー（hero_boss）の本番の演出の契約（2026-11-10 採用の5技・常時オーラ。2026-11-17 登場・支援・覚醒前の撃破）。
 ## 表示だけで戦闘を変えない・命中は1回・途中の当たりの小さな数字・後始末・覚醒で外見が替わる・選択と保存。
 const Driver = preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_boss_presentation.gd")
 const Motion = preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_boss_motion.gd")
@@ -52,7 +52,7 @@ func test_registered_like_the_other_bosses() -> void:
 	assert_true(RBMVisualAssets.has_pose_frames("hero_boss"))
 	assert_true(RBMVisualAssets.has_pose_frames("hero_boss_awakened"))
 	assert_eq(RBMVisualAssets.display_height("hero_boss"), 180.0)
-	for key in ["hero_boss_single", "hero_boss_all", "hero_boss_awakening", "hero_boss_awakened_single", "hero_boss_awakened_all"]:
+	for key in ["hero_boss_single", "hero_boss_all", "hero_boss_awakening", "hero_boss_awakened_single", "hero_boss_awakened_all", "hero_boss_heal", "hero_boss_buff", "hero_boss_awakened_heal", "hero_boss_awakened_buff"]:
 		assert_true(ResourceLoader.exists(str(AudioCatalog.FILES[key])), key)
 	# 味方の勇者（hero）と名前が混ざらない
 	assert_eq(RBMVisualAssets.ALLY_IDS.count("hero_boss"), 0)
@@ -79,7 +79,7 @@ func test_motion_follows_the_approved_exposures() -> void:
 
 func test_every_warm_path_exists() -> void:
 	for asset_id in ["hero_boss", "hero_boss_awakened"]:
-		for kind in ["single", "all", "awakening"]:
+		for kind in ["single", "all", "awakening", "support"]:
 			for path in Driver.warm_paths(asset_id, kind):
 				assert_true(ResourceLoader.exists(path), path)
 
@@ -217,14 +217,14 @@ func test_selection_save_and_reload() -> void:
 	RBMLocalStageRepository.set_stages_dir_for_testing("")
 
 # ---------------------------------------------------------------------------
-# 覚醒後の撃破（2026-11-11）: 専用の撃破（覚醒前は共通の倒れ方のまま）、素材の宣言、中断で元に戻る、倒れ切る
+# 覚醒後の撃破（2026-11-11）: 専用の撃破、素材の宣言、中断で元に戻る、倒れ切る（覚醒前の撃破は 2026-11-17 から専用。下の方で確かめる）
 
 const VictoryPlayer = preload("res://src/bossmaker/visuals/encounter/rbm_victory_player.gd")
 const Defeat = preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_boss_defeat_awakened.gd")
 
 func test_awakened_defeat_is_dedicated_and_declares_its_materials() -> void:
 	assert_eq(VictoryPlayer.defeat_script("hero_boss_awakened"), Defeat)
-	assert_eq(VictoryPlayer.defeat_script("hero_boss"), VictoryPlayer.GENERIC, "the normal form keeps the common fall for now")
+	assert_ne(VictoryPlayer.defeat_script("hero_boss"), Defeat, "the normal form has its own defeat (2026-11-17)")
 	var warm := VictoryPlayer.warm_paths("hero_boss_awakened", ["hero", "butler", "healer", "samurai"])
 	var before_hit := VictoryPlayer.final_blow_paths("hero_boss_awakened")
 	for path in Defeat.VFX_PATHS:
@@ -324,3 +324,227 @@ func test_awakened_defeat_runs_through_and_the_body_is_gone() -> void:
 	assert_eq(cels.keys(), ["omega", "release2", "release3", "release1"], "kneel → burst → restored → light")
 	assert_true(player.defeat.gone, "the body is gone at the end")
 	assert_true(player.defeat.dissolve >= 0.99)
+
+# ---------------------------------------------------------------------------
+# 登場「救難信号」・支援・覚醒前の撃破「力尽きる」（2026-11-17）
+
+const IntroPlayer = preload("res://src/bossmaker/visuals/encounter/rbm_intro_player.gd")
+const Intro = preload("res://src/bossmaker/visuals/encounter/intro/rbm_intro_hero_boss.gd")
+const IntroFx = preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_fx_intro.gd")
+const Support = preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_boss_support.gd")
+const NormalDefeat = preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_boss_defeat.gd")
+const DownFx = preload("res://src/bossmaker/visuals/hero_boss/rbm_hero_fx_down.gd")
+
+## エフェクトだけを木に入れて動かす（つなぎなし）
+func _hero_fx_in_tree(script: GDScript) -> Node:
+	var fx = script.new()
+	var back := Node2D.new()
+	var front := Node2D.new()
+	add_child_autofree(back)
+	add_child_autofree(front)
+	fx.mid = back
+	add_child_autofree(fx)
+	fx.setup(back, front, [])
+	return fx
+
+## 登場: 照射器は最初から着地点の床を照らして動かない → 流れ星 → 着地するまで体は出さない → 立つ・腕を組む → 腕を組んだまま背後で爆発 → 立ち姿。
+## 手を突き出すコマは使わない（2026-11-19 ユーザーの指摘）。カメラは寄らない（揺れだけ）。
+func test_intro_signal_lands_then_poses() -> void:
+	assert_true(IntroPlayer.has_intro("hero_boss"))
+	assert_eq(IntroPlayer.CHOREO["hero_boss"], Intro)
+	var T: Dictionary = RBMHeroFxTiming.INTRO
+	var order := ["fall", "land", "rise", "arms", "boom", "settle", "end"]
+	for i in range(1, order.size()):
+		assert_lt(float(T[order[i - 1]]), float(T[order[i]]), order[i])
+	var fx = _hero_fx_in_tree(IntroFx)
+	# 照射器の光は動かない（最初と流れ星の直前で、光の帯の形が同じ）
+	fx.advance(0.1, fx.cel_at(0.1), Intro.HOME_FOOT, Intro.HOME_FOOT)
+	var beams_first: PackedVector2Array = fx.b_sky._p.duplicate()
+	assert_false(beams_first.is_empty(), "the searchlights are on from the start")
+	fx.advance(float(T.fall) - 0.05, fx.cel_at(float(T.fall) - 0.05), Intro.HOME_FOOT, Intro.HOME_FOOT)
+	assert_eq(fx.b_sky._p, beams_first, "the searchlights do not move")
+	for t in [0.2, float(T.fall) + 0.1]:
+		fx.advance(t, fx.cel_at(t), Intro.HOME_FOOT, Intro.HOME_FOOT)
+		assert_true(bool(fx.view.body.hidden), "nobody before the landing (%.2f)" % t)
+	fx.advance(float(T.land) + 0.1, fx.cel_at(float(T.land) + 0.1), Intro.HOME_FOOT, Intro.HOME_FOOT)
+	assert_false(bool(fx.view.body.hidden))
+	assert_eq(fx.cel_at(float(T.land) + 0.1), "release1", "lands on one knee")
+	assert_eq(fx.cel_at(float(T.arms) + 0.1), "blade1", "crosses the arms")
+	assert_eq(fx.cel_at(float(T.boom) + 0.1), "blade1", "keeps the arms crossed while the explosion goes off")
+	assert_eq(fx.cel_at(float(T.end)), Motion.STANCE["normal"], "ends in the battle stance")
+	for i in range(int(float(T.end) * 30.0) + 1):
+		assert_ne(fx.cel_at(float(i) / 30.0), "array_standing_palms", "the hands-out pose is not used")
+	for key in Intro.SOUNDS:
+		assert_true(ResourceLoader.exists("res://assets_bossmaker/audio/%s.wav" % str(key).trim_prefix("game:")), str(key))
+	for path in Intro.EXTRA_PATHS:
+		assert_true(ResourceLoader.exists(str(path)), str(path))
+	var src := FileAccess.get_file_as_string((Intro as Script).resource_path)
+	for call in ["camera.cut(", "\tcut(", "\tpan("]:
+		assert_false(src.contains(call), "no zoom (shake only): " + call)
+
+func _support_fixture(mode: String, awakened: bool) -> Dictionary:
+	var draft := RBMCreatorDraft.new()
+	draft.appearance_id = "appearance_hero_boss"
+	draft.boss_name = "Hero QA"
+	draft.hp = 3000
+	draft.spd = 1
+	for id in ["hero", "butler", "healer", "samurai"]: draft.add_party_character(id)
+	var id := draft.add_skill({"name": "Support", "type": "self_heal" if mode == "heal" else "atk_self_buff", "heal_amount": 200, "buff_multiplier": 1.3, "duration_turns": 3})
+	draft.normal_actions_enabled = true
+	draft.normal_action_percentages[id] = 100.0
+	var session := RBMCreatorTestSession.new(draft.to_definition(), 5)
+	session.battle.boss.hp = 1500
+	session.battle.is_awakened = awakened
+	var stage := RBMBattleStage.new()
+	stage.size = Vector2(1280, 720)
+	stage.set_meta("fullscreen_formation", true)
+	add_child_autofree(stage)
+	stage.configure(session.battle, "appearance_hero_boss")
+	stage.set_state(session.battle.presentation_state())
+	var entry: Dictionary = {}
+	for attempt in range(12):
+		for e in session.resolve_ally_action({"type": "defend"}):
+			if str(e.get("actor")) == "boss": entry = e
+		if not entry.is_empty(): break
+	return {"stage": stage, "session": session, "entry": entry, "skill": RBMBattleUiKit.find_skill_for_actor("boss", id, session.battle)}
+
+## 支援: 立ち姿 → 支援のポーズ1枚 → 立ち姿。回復・強化とも命中（数字）は1回、戦闘は変えず、終わると元へ戻る。
+## 覚醒後は常時のオーラを消さない（強さ1より下げない）。覚醒前の回復は炎を出さない（強化の青い炎と見分ける）。
+func test_support_changes_pose_once_and_shows_one_number() -> void:
+	for aw in [false, true]:
+		for mode in ["heal", "buff"]:
+			var f := _support_fixture(mode, aw)
+			assert_false(f.entry.is_empty(), "%s %s: a real support entry" % [aw, mode])
+			if f.entry.is_empty(): continue
+			var snapshot: Dictionary = f.session.battle.snapshot().duplicate(true)
+			var seen: Array = []
+			f.stage.impact.connect(func(e): seen.append(e))
+			f.stage.play_entry(f.entry, f.skill)
+			var d = f.stage._skill_presentation
+			assert_true(d is Support, "the boss's own support")
+			if not d is Support: continue
+			var scene: String = ("awakened_" if aw else "") + mode
+			assert_eq(d.scene, scene)
+			assert_eq(d._audio.stream.resource_path, str(AudioCatalog.FILES[Driver.SOUND_KEYS[scene]]))
+			var stance: String = Motion.STANCE["awakened" if aw else "normal"]
+			assert_eq(Motion.cels_of(scene), [stance, Motion.SUPPORT_POSE[scene]] as Array[String], "one borrowed pose between the stances")
+			assert_eq(str(Motion.at(scene, float(RBMHeroFxTiming.SUPPORT.duration))[0]), stance)
+			var auras: Array = []
+			f.stage._tween.custom_step(0.4)
+			auras.append(float(d._fx.view.hero.get("dark_aura", 0.0)))
+			assert_eq(str(Motion.at(scene, d.age)[0]), Motion.SUPPORT_POSE[scene])
+			f.stage._tween.custom_step(d.impact_time - d.age - .01)
+			auras.append(float(d._fx.view.hero.get("dark_aura", 0.0)))
+			assert_eq(seen.size(), 0)
+			f.stage._tween.custom_step(.02)
+			assert_eq(seen.size(), 1)
+			f.stage._tween.custom_step(0.5)
+			auras.append(float(d._fx.view.hero.get("dark_aura", 0.0)))
+			for a in auras:
+				if aw:
+					assert_gte(float(a), 1.0, "the awakened aura stays on")
+				elif mode == "heal":
+					assert_almost_eq(float(a), 0.0, 0.001, "healing has no flame")
+			f.stage._tween.custom_step(20)
+			assert_eq(seen.size(), 1)
+			assert_null(f.stage._skill_presentation)
+			assert_eq(f.session.battle.snapshot(), snapshot)
+			assert_true(f.stage._visuals.boss.visible)
+			for key in f.stage._homes:
+				assert_eq(f.stage._visuals[key].position, f.stage._homes[key])
+			f.stage.queue_free()
+			await get_tree().process_frame
+
+## 覚醒前の撃破: 胸の灯の点滅がだんだん速くなる → 片膝 → 光の粒になって消える。照射器では照らさない（2026-11-19 ユーザーの指摘）。
+## とどめで胸の小さな光の円・火花（共通の入りの印）を出さない。
+func test_normal_defeat_runs_down_and_fades_away() -> void:
+	assert_eq(VictoryPlayer.defeat_script("hero_boss"), NormalDefeat)
+	var T: Dictionary = RBMHeroFxTiming.DOWN
+	var order := ["stand", "kneel", "out", "melt", "gone", "end"]
+	for i in range(1, order.size()):
+		assert_lt(float(T[order[i - 1]]), float(T[order[i]]), order[i])
+	var b := float(T.blink)
+	var o := float(T.out)
+	assert_lt(DownFx.blink_phase(b + 0.4) - DownFx.blink_phase(b), DownFx.blink_phase(o) - DownFx.blink_phase(o - 0.4), "the warning light blinks faster and faster")
+	var fx = _hero_fx_in_tree(DownFx)
+	assert_false("b_beam" in fx, "no searchlight beams")
+	fx.advance(float(T.end), "release1", Vector2(396, 238), Vector2(396, 238))
+	var left := 0.0
+	for c in fx.b_add._c:
+		left = maxf(left, c.a)
+	assert_lt(left, 0.01, "the light particles are gone at the end")
+	var warm := VictoryPlayer.warm_paths("hero_boss", ["hero", "butler", "healer", "samurai"])
+	var before_hit := VictoryPlayer.final_blow_paths("hero_boss")
+	for path in NormalDefeat.VFX_PATHS:
+		assert_true(ResourceLoader.exists(path), path)
+		assert_true(warm.has(path), "read before the victory: " + path)
+		assert_true(before_hit.has(path), "read before the final blow: " + path)
+	assert_true(ResourceLoader.exists("res://assets_bossmaker/audio/hero_boss/defeat.wav"))
+	assert_true(VictoryPlayer.victory_keys("hero_boss").has(NormalDefeat.SOUND))
+	assert_false(VictoryPlayer.victory_keys("hero_boss_awakened").has(NormalDefeat.SOUND), "only the normal defeat plays it")
+	assert_eq((load(NormalDefeat.KNEEL_PATH) as Texture2D).get_size(), NormalDefeat.KNEEL_CANVAS)
+	assert_almost_eq(NormalDefeat.new().duration(), float(T.end), 0.001)
+	var src := FileAccess.get_file_as_string((NormalDefeat as Script).resource_path)
+	assert_false(src.contains("p.fx.flash("), "no chest mark on the final blow")
+	assert_false(src.contains("p.fx.sparks("))
+
+func _normal_victory() -> Dictionary:
+	var draft := RBMCreatorDraft.new()
+	draft.appearance_id = "appearance_hero_boss"
+	draft.boss_name = "Hero QA"
+	draft.hp = 1
+	draft.atk = 1
+	draft.spd = 1
+	for id in ["hero", "butler", "healer", "samurai"]: draft.add_party_character(id)
+	var id := draft.add_skill({"name": "Hero QA skill", "type": "attack", "target": "single", "attribute": "NEUTRAL", "atk_multiplier": 1.0})
+	draft.normal_actions_enabled = true
+	draft.normal_action_percentages[id] = 100.0
+	var view := RBMChallengeBattleView.new()
+	add_child_autofree(view)
+	view.presentation_enabled = false
+	view.start_battle(draft.to_definition(), RBMBattleUiKit.ALL_VISIBLE, "appearance_hero_boss")
+	var stage: Control = view._battlefield_ally_row.get_meta("visual_stage")
+	stage.set_state(view.session.battle.presentation_state())
+	for i in 20:
+		if view.session.battle.battle_over:
+			break
+		view.act_attack(view.session.pending_ally_id())
+	var director: RBMEncounterDirector = view._encounter
+	director.begin_battle({"boss_name": "QA", "author": "qa"})
+	director.on_impact({"visual_state": view.session.battle.presentation_state()})
+	return {"view": view, "stage": stage, "director": director}
+
+func test_normal_defeat_runs_through_and_cancel_restores_the_stage() -> void:
+	var f := _normal_victory()
+	var view = f.view
+	var stage: Control = f.stage
+	var director: RBMEncounterDirector = f.director
+	assert_true(view.session.battle.battle_over)
+	assert_eq(str(stage._asset_ids.boss), "hero_boss")
+	assert_true(director.on_presentation_finished())
+	var player: Node = null
+	for n in stage.get_children():
+		if n.get_script() == VictoryPlayer:
+			player = n
+	assert_not_null(player)
+	assert_true(stage.find_child("HeroDownWorld", false, false) != null, "the defeat builds its own layer")
+	for i in 600:
+		if player.state == "playing":
+			break
+		await get_tree().process_frame
+	assert_eq(player.state, "playing")
+	var cels := {}
+	var t := 0.0
+	while t < float(RBMHeroFxTiming.DOWN.end) + 0.3 and is_instance_valid(player):
+		player._process(1.0 / 30.0)
+		t += 1.0 / 30.0
+		if player.state == "playing" and not player.defeat.gone:
+			cels[str(player.defeat.bs.get("cel", ""))] = true
+	assert_eq(cels.keys(), ["bridge0", "release0", "release1"], "staggers, holds the head, then kneels")
+	assert_true(player.defeat.gone, "the body is gone at the end")
+	director.cancel()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_null(stage.find_child("HeroDownWorld", false, false), "no defeat layer remains")
+	assert_true(stage._visuals["boss"].visible)
+	assert_eq(stage.scale, Vector2.ONE)
