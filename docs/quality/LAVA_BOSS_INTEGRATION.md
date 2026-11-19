@@ -1,6 +1,6 @@
 # 熔鉱炉の番人／噴界炉の巨神 — 本番への組み込み（2026-11-16）
 
-- 外見ID `appearance_lava`、通常 `lava`、覚醒後 `lava_awakened`。白磁のカラーの後ろ（14体目）に追加。表示名「熔鉱炉の番人」（英語は仮に「Furnace Warden」）。覚醒あり。既存の Creator の条件・回復・強化・保存の方式をそのまま使い、技の性能値は固定しない。戦闘の計算・乱数・行動順・保存の仕様は変えていない。
+- 外見ID `appearance_lava`、通常 `lava`、覚醒後 `lava_awakened`。白磁のカラーの後ろ（14体目）に追加。表示名「熔鉱炉の番人」（英語は「Furnace Warden」。2026-11-19 ユーザーが確定）。覚醒あり。既存の Creator の条件・回復・強化・保存の方式をそのまま使い、技の性能値は固定しない。戦闘の計算・乱数・行動順・保存の仕様は変えていない。
 - 2026-11-11〜16 に試作（`prototypes/four_bosses_2026-11-11/`、確認動画 `out/lava_v4.mp4`・`out/lava_extras_v2.mp4`）でユーザーが採用した内容をそのまま移した（2026-11-16 ユーザー「どちらも実装して大丈夫」）。作りは金環の聖獣（[LION_BOSS_INTEGRATION.md](LION_BOSS_INTEGRATION.md)）・白磁のカラー（[FLOWER_BOSS_INTEGRATION.md](FLOWER_BOSS_INTEGRATION.md)）と同じ。
 - 本体は Codex のキーポーズ（2026-11-11、`assets_bossmaker/battle/lava/motion/<技>/<番号>.png`、320×180、足元 (176,155)）をそのまま切り替えるだけ。中割り・変形・パーツ分割はしない。**巨人を地面の上で滑らせない**（2026-11-14 ユーザー「画面の上でドラッグして動かしているように見える」。高く跳んで画面の上へ消え、影だけ動き、真上から落ちる）。
 - 立ち絵: 覚醒前＝覚醒の1枚目、覚醒後＝覚醒の5枚目（`RBMLavaMotion.STANCE`）。体の高さ（覚醒前95・覚醒後110ドット）を2倍で表示（`RBMVisualAssets.HEIGHTS` 190・220）。

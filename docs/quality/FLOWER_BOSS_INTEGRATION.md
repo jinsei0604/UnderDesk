@@ -1,6 +1,6 @@
 # 白磁のカラー／喪華のカラー女王 — 本番への組み込み（2026-11-16）
 
-- 外見ID `appearance_flower`、通常 `flower`、覚醒後 `flower_awakened`。金環の聖獣の後ろ（13体目）に追加。表示名「白磁のカラー」（英語は仮に「Porcelain Calla」）。覚醒あり。既存の Creator の条件・回復・強化・保存の方式をそのまま使い、技の性能値は固定しない。戦闘の計算・乱数・行動順・保存の仕様は変えていない。
+- 外見ID `appearance_flower`、通常 `flower`、覚醒後 `flower_awakened`。金環の聖獣の後ろ（13体目）に追加。表示名「白磁のカラー」（英語は「Porcelain Calla」。2026-11-19 ユーザーが確定）。覚醒あり。既存の Creator の条件・回復・強化・保存の方式をそのまま使い、技の性能値は固定しない。戦闘の計算・乱数・行動順・保存の仕様は変えていない。
 - 2026-11-11〜16 に試作（`prototypes/four_bosses_2026-11-11/`、確認動画 `out/flower_v4.mp4`・`out/flower_extras_v2.mp4`）でユーザーが採用した内容をそのまま移した（2026-11-16 ユーザー「どちらも実装して大丈夫」）。作りは金環の聖獣（[LION_BOSS_INTEGRATION.md](LION_BOSS_INTEGRATION.md)）と同じ。
 - 本体は Codex のキーポーズ（2026-11-11、`assets_bossmaker/battle/flower/motion/<技>/<番号>.png`、320×180、足元 (176,155)）をそのまま切り替えるだけ。中割り・変形・パーツ分割はしない。
 - 立ち絵: 覚醒前＝覚醒の1枚目、覚醒後＝覚醒の5枚目（`RBMFlowerMotion.STANCE`）。`STANCE_CROP` で切り出して12ポーズに置く。体の高さ（覚醒前85・覚醒後96ドット）を2倍で表示（`RBMVisualAssets.HEIGHTS` 170・192）。

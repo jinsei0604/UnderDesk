@@ -1,6 +1,6 @@
 # 振り子の給仕長／終刻の給仕長 — 本番への組み込み（2026-11-16）
 
-- 外見ID `appearance_clock`、通常 `clock`、覚醒後 `clock_awakened`。熔鉱炉の番人の後ろ（15体目）に追加。表示名「振り子の給仕長」（英語は仮に「Pendulum Steward」）。覚醒あり。既存の Creator の条件・回復・強化・保存の方式をそのまま使い、技の性能値は固定しない。戦闘の計算・乱数・行動順・保存の仕様は変えていない。
+- 外見ID `appearance_clock`、通常 `clock`、覚醒後 `clock_awakened`。熔鉱炉の番人の後ろ（15体目）に追加。表示名「振り子の給仕長」（英語は「Pendulum Steward」。2026-11-19 ユーザーが確定）。覚醒あり。既存の Creator の条件・回復・強化・保存の方式をそのまま使い、技の性能値は固定しない。戦闘の計算・乱数・行動順・保存の仕様は変えていない。
 - 2026-11-11〜16 に試作（`prototypes/four_bosses_2026-11-11/`、確認動画 `out/clock_v3.mp4`・直しの `out/clock_v4.mp4`）でユーザーが採用した5技をそのまま移した（2026-11-16 ユーザー「これが終わったら実装していいよ」）。作りは金環の聖獣・白磁のカラー・熔鉱炉の番人（[LION_BOSS_INTEGRATION.md](LION_BOSS_INTEGRATION.md)・[FLOWER_BOSS_INTEGRATION.md](FLOWER_BOSS_INTEGRATION.md)）と同じ。
 - 登場・支援・撃破は 2026-11-16 に試作し、2026-11-17 ユーザー「これでいいね」で本番へ（確認動画 `out/clock_extras.mp4`（支援）・`out/clock_extras_v3.mp4`（登場・撃破））。
 - 本体は Codex のキーポーズ（`assets_bossmaker/battle/clock/motion/<技>/<番号>.png`）をそのまま切り替えるだけ。立ち絵: 覚醒前＝覚醒の1枚目、覚醒後＝覚醒の5枚目。体の高さ（88・94ドット）を2倍で表示（176・188）。

@@ -1,6 +1,6 @@
 # ヒーローボス — 本番への組み込み（2026-11-10）
 
-- 外見ID `appearance_hero_boss`、通常 `hero_boss`、覚醒後 `hero_boss_awakened`。既存10体の後ろ（11体目）に追加。表示名「ヒーロー」（英語は仮に「Hero of Light」。味方の勇者が「Hero」のため）。覚醒あり。既存の Creator の条件・回復・強化・保存の方式をそのまま使い、技の性能値は固定しない。戦闘の計算・乱数・行動順・保存の仕様は変えていない。
+- 外見ID `appearance_hero_boss`、通常 `hero_boss`、覚醒後 `hero_boss_awakened`。既存10体の後ろ（11体目）に追加。表示名「ヒーロー」（英語は「The Hero」。味方の勇者が「Hero」なので、同じ名前にならないよう The を付けた。2026-11-19 ユーザーが決定）。覚醒あり。既存の Creator の条件・回復・強化・保存の方式をそのまま使い、技の性能値は固定しない。戦闘の計算・乱数・行動順・保存の仕様は変えていない。
 - 本体の動きは Codex の正式モーション（2026-11-09 正式採用。`assets_bossmaker/battle/hero_boss/motion/cels.png`・`exposures.json`、受け渡しの物と同じ）。エフェクト・音・画面の演出は Claude（2026-11-09〜10 にユーザーが1つずつ採用）。本体の絵と座標は変えず、技の時刻表 `rbm_hero_fx_timing.gd` の `tame_hold`（指定のコマを止める長さ）と `body_swap`（④の切った後の直立をやめた差し替え）だけを足す。
 - 体高は正式モーションの立ち姿90ドットを2倍の180px（`RBMVisualAssets.HEIGHTS`）。待機・被弾の12ポーズは立ち姿1枚（覚醒前 `normal`、覚醒後 `omega`）を足元で揃えて置いたもの（`tools/hero_boss/bake_hero_boss_assets.gd` が作る）。
 
