@@ -50,6 +50,7 @@ const FILES := {
   "gentleman_buff": "res://assets_bossmaker/audio/gentleman/buff.wav",
   "gentleman_heal": "res://assets_bossmaker/audio/gentleman/heal.wav",
   "gentleman_awakening": "res://assets_bossmaker/audio/gentleman/awakening.wav",
+  "gentleman_awakening_v2": "res://assets_bossmaker/audio/gentleman/awakening_v2.wav",
   "gentleman_awakened_single": "res://assets_bossmaker/audio/gentleman/awakened_single.wav",
   "gentleman_awakened_all": "res://assets_bossmaker/audio/gentleman/awakened_all.wav",
 

@@ -7,6 +7,8 @@ var slam_center:=Vector2(816,500)
 var ground_contacts: Array[Vector2]=[Vector2(770,495),Vector2(867,495)]
 var age:=-1.0
 var attribute:="NEUTRAL"
+## 前の版の平たい圧力の輪を描くか（2026-11-20 から false。エフェクトは rbm_golem_fx.gd。大きな岩 rock() は描く）
+var legacy_fx:=true
 var routes: Array[PackedVector2Array]=[
 	PackedVector2Array([Vector2(770,495),Vector2(793,510),Vector2(738,507),Vector2(713,491),Vector2(660,500),Vector2(636,483),Vector2(583,486),Vector2(550,465),Vector2(501,479),Vector2(460,456),Vector2(418,466),Vector2(386,450),center]),
 	PackedVector2Array([Vector2(867,495),Vector2(848,520),Vector2(813,507),Vector2(793,510)]),
@@ -50,11 +52,13 @@ func _draw() -> void:
 	crack(routes[3],clampf((travel-.69)*6,0,1),fade)
 	for i in range(4,routes.size()): crack(routes[i],clampf((age-1.45)/.32,0,1),fade)
 	if age>=1.52:
+		# 大きな岩は残す（2026-11-20 ユーザー「もともとあった大きい岩を追加して」）。平たい圧力の輪は描かない
 		rock(age-1.52)
-		shock(age-1.52)
+		if legacy_fx:
+			shock(age-1.52)
 		debris(age-1.52)
 	# The first ring marks the two-hand ground contact, before the travelling fissure.
-	slam_shock(age-.72)
+	if legacy_fx:slam_shock(age-.72)
 	var dust_age:=age-.72
 	if dust_age<.35:
 		for contact in ground_contacts:

@@ -10,6 +10,9 @@ var contact:=Vector2(436,470)
 const SWORD_TIP=(Vector2(84,449)-Vector2(256,460))*SCALE
 var endpoint:=contact-SWORD_TIP
 const SINGLE_HIT=.84
+## 単体: 振り下ろす時刻と、踏み込む一歩（ステージの画素）
+const SWING=.64
+const STEP_DIST=18.0
 const AOE_HIT=1.08
 var wave_source:=Vector2(718,402)
 
@@ -17,22 +20,25 @@ func sample(kind: String,t: float) -> Dictionary:
 	var state={"foot":home,"pose":0,"flip":false}
 	if t<0: return state
 	if kind=="single":
+		# 2026-11-20 作り直し（ユーザー「本来の動きでない、動きがありすぎ」→ ゴーレム・狼と同じく画面を滑らない）:
+		# その場で剣を立てて構える → 頭上に振りかぶって溜める → 一歩だけ重く踏み込んで振り下ろす（剣圧が飛んで相手を斬る）
+		# → 振り下ろした姿のまま見届ける → 一歩下がって剣を立て、構えに戻る。
+		var step:=home+Vector2(-STEP_DIST,0)
 		if t<.12: state.pose=8
-		elif t<.42: state.pose=9
-		elif t<.78:
-			var q:=clampf((t-.42)/.36,0,1)
-			state.foot=home.lerp(endpoint+Vector2(18,0),smoothstep(0,1,q))
-			state.pose=9 if q<.78 else 8
-		elif t<SINGLE_HIT:
-			state.foot=(endpoint+Vector2(18,0)).lerp(endpoint,(t-.78)/.06)
-			state.pose=8
-		elif t<1.18:
-			state.foot=endpoint
+		elif t<SWING-.04: state.pose=9
+		elif t<SWING+.06:
+			var m:=clampf((t-SWING+.04)/.10,0,1)
+			state.foot=(home.lerp(step,m*m*(3-2*m))+Vector2(0,-3*sin(m*PI))).round()
+			state.pose=9 if m<.4 else 2
+		elif t<1.20:
+			state.foot=step+Vector2(0,roundf(2*(1-smoothstep(SWING+.06,SWING+.16,t))))
 			state.pose=2
-		elif t<1.92:
-			var q:=clampf((t-1.18)/.74,0,1)
-			state.foot=endpoint.lerp(home,smoothstep(0,1,q))
-			state.pose=8 if q<.55 else 0
+		elif t<1.36:
+			var m:=(t-1.20)/.16
+			state.foot=(step.lerp(home,m*m*(3-2*m))+Vector2(0,-3*sin(m*PI))).round()
+			state.pose=8
+		elif t<1.80:
+			state.pose=8
 	elif kind=="aoe":
 		if t<.62: state.pose=4
 		elif t<.76: state.pose=5

@@ -19,6 +19,9 @@ var _boss_z:=1
 var _boss_visible:=true
 var _pose_layer: Node2D
 var _pose_index:=0
+## 2026-11-20 作り直し: エフェクトは knight/rbm_knight_fx.gd（ヒーロー・聖獣と同じ部品）。前の版の平たい三日月（rbm_knight_vfx.gd）と
+## 共通の支援の光は描かない（_vfx は属性の受け渡しのために残す）。
+var _fx_host: RBMFxHost
 
 func play(stage: Control) -> Tween:
 	_stage=stage
@@ -61,6 +64,19 @@ func play(stage: Control) -> Tween:
 	for key in stage._targets:
 		if key!="boss": _vfx.feet.append(stage._foot(key))
 	viewport.add_child(_vfx)
+	_vfx.visible=false
+	var fx:=RBMKnightFx.new()
+	fx.mode=kind
+	fx.accent=preload("res://src/bossmaker/visuals/rbm_boss_support_vfx.gd").COLORS[kind] if kind in ["buff","heal"] else preload("res://src/bossmaker/visuals/rbm_attribute_vfx_palette.gd").color_for(_vfx.attack_attribute)
+	fx.contact=aim*0.5
+	fx.hit_time=impact_time
+	fx.swing_time=Motion.SWING
+	var target_feet: Array=[]
+	for key in stage._targets:
+		if key!="boss":target_feet.append(stage._foot(key)+Vector2(stage._guard_offsets.get(key,Vector2.ZERO)))
+	_fx_host=RBMFxHost.new()
+	add_child(_fx_host)
+	_fx_host.setup(stage,fx,target_feet)
 	var display:=Sprite2D.new()
 	display.texture=viewport.get_texture()
 	display.centered=false
@@ -95,7 +111,7 @@ func _advance(t: float) -> void:
 		_stage._visuals[key].position=(Vector2(_stage._homes[key])+Vector2(_stage._guard_offsets[key])*progress).round()
 		_stage._pose(key,10)
 	_update_pose_layer(int(state.pose))
-	if t>=(.62 if kind=="aoe" else .42) and not _released:
+	if t>=(.62 if kind=="aoe" else Motion.SWING) and not _released:
 		_released=true
 		_stage._play_se("release")
 	if t>=impact_time and not _hit:
@@ -115,6 +131,7 @@ func _advance(t: float) -> void:
 				var unit: Dictionary=_stage._unit_state(key)
 				_stage._pose(key,11 if unit.get("is_downed",false) else (10 if unit.get("is_defending",false) or _stage._counters.has(key) else 0))
 	_vfx.advance(t)
+	if is_instance_valid(_fx_host):_fx_host.advance(t,motion.home+Vector2(state.foot)-motion.home)
 
 func _restore_transform() -> void:
 	if not is_instance_valid(_stage): return
@@ -124,6 +141,7 @@ func _restore_transform() -> void:
 	boss.z_index=_boss_z
 	boss.visible=_boss_visible
 	if is_instance_valid(_pose_layer): _pose_layer.visible=false
+	if is_instance_valid(_fx_host): _fx_host.clear()
 
 func stop() -> void:
 	_restore_transform()

@@ -15,6 +15,9 @@ var _display: Sprite2D
 var _shake:=Vector2.ZERO
 var _slammed:=false
 var _hit:=false
+## 2026-11-20 エフェクトの強化（ユーザー「ゴーレムは動きはいい、エフェクトが弱い」）: 叩きつけ・地割れの先・噴き上がりは
+## rbm_golem_fx.gd（ヒーロー・聖獣と同じ部品）。地割れの線と小石は前の版のまま、平たい圧力の輪と灰色の岩の板は描かない。
+var _fx_host: RBMFxHost
 
 func play(stage: Control) -> Tween:
 	_stage=stage
@@ -33,13 +36,29 @@ func play(stage: Control) -> Tween:
 	for key in stage._targets: feet.append(stage._foot(key))
 	_vfx.configure(stage._foot("boss"),feet)
 	_vfx.attribute=str(stage._skill.get("attribute",stage._entry.get("attribute","NEUTRAL")))
+	_vfx.legacy_fx=false
 	viewport.add_child(_vfx)
+	var fx:=RBMGolemFx.new()
+	fx.mode="slam"
+	fx.accent=preload("res://src/bossmaker/visuals/rbm_attribute_vfx_palette.gd").color_for(_vfx.attribute)
+	fx.slam_center=_vfx.slam_center*0.5
+	fx.contacts=[_vfx.ground_contacts[0]*0.5,_vfx.ground_contacts[1]*0.5]
+	fx.center=_vfx.center*0.5
+	var route:=PackedVector2Array()
+	for p in _vfx.routes[0]:route.append(p*0.5)
+	fx.route=route
+	fx.slam_time=.72
+	fx.travel=Vector2(.82,1.50)
+	fx.erupt_time=1.52
+	_fx_host=RBMFxHost.new()
 	_display=Sprite2D.new()
 	_display.texture=viewport.get_texture()
 	_display.centered=false
 	_display.scale=Vector2(4,4)
 	_display.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
 	add_child(_display)
+	add_child(_fx_host)
+	_fx_host.setup(stage,fx,feet)
 	var tween:=create_tween()
 	if stage._samurai_finish:
 		tween.tween_method(_advance,0.0,1.90,1.90)
@@ -81,6 +100,7 @@ func _advance(t: float) -> void:
 			_stage._pose(key,11 if state.get("is_downed",false) else (10 if state.get("is_defending",false) else 0))
 	_vfx.age=t
 	_vfx.queue_redraw()
+	if is_instance_valid(_fx_host):_fx_host.advance(t,_stage._foot("boss"))
 	if t>=.72 and t<.82:
 		_shake=Vector2([2,-2,0][int((t-.72)*60)%3],0)
 	elif t>=HIT and t<HIT+.20:
@@ -95,6 +115,7 @@ func _counter_handoff(t: float) -> void:
 	age=1.90+t
 	_vfx.age=age
 	_vfx.queue_redraw()
+	if is_instance_valid(_fx_host):_fx_host.advance(age,_stage._foot("boss"))
 	_stage._samurai_finish_progress(t)
 
 func _clear_shake() -> void:

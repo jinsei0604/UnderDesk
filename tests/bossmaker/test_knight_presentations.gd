@@ -55,8 +55,10 @@ func test_attack_palette_contact_and_approved_followthrough() -> void:
 			assert_eq(seen.size(),1)
 			assert_eq(seen[0],f.entry)
 			if kind=="single":
-				var tip: Vector2=f.stage._foot("boss")+driver.Motion.SWORD_TIP
-				assert_lt(tip.distance_to(driver.motion.contact),1.0)
+				# 2026-11-20 作り直し（ユーザー「動きがありすぎ」）: 相手の所まで滑らず、その場から一歩だけ踏み込んで剣を振り下ろし、剣圧を飛ばす
+				var moved: float=absf(f.stage._foot("boss").x-driver.motion.home.x)
+				assert_lte(moved,driver.Motion.STEP_DIST+1.0,"その場から一歩だけ")
+				assert_eq(f.stage._poses["boss"],2,"当たる時は振り下ろした姿")
 				f.stage._tween.custom_step(1.20-driver.age)
 				assert_gt(f.stage._visuals["boss"].scale.x,0.0,"Single return does not turn away")
 			else:
@@ -157,8 +159,8 @@ func test_cover_redirected_target_and_normal_attack_use_slash() -> void:
 	assert_eq(driver.kind,"single")
 	f.stage._tween.custom_step(.85)
 	var chest: Vector2=f.stage._foot("1")-Vector2(0,f.stage.Assets.display_height("butler")*.55)+Vector2(6,0)
-	assert_lt(driver.motion.contact.distance_to(chest),1.0)
-	assert_lt((f.stage._foot("boss")+driver.Motion.SWORD_TIP).distance_to(chest),1.5)
+	assert_lt(driver.motion.contact.distance_to(chest),1.0,"剣圧はかばった相手の胸へ")
+	assert_lt(driver._fx_host.fx.contact.distance_to(chest*0.5),1.0)
 	f.stage.cancel()
 	for key in f.stage._homes: assert_eq(f.stage._visuals[key].position,f.stage._homes[key])
 

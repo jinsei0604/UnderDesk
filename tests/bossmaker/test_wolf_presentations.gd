@@ -61,8 +61,14 @@ func test_attack_palette_contact_fast_path_and_turning_return() -> void:
 				assert_lt(f.stage._visuals["boss"].scale.x,0.0,"Approved turn-and-run return")
 			else:
 				assert_eq(f.entry.get("hits",{}).size(),4)
-				f.stage._tween.custom_step(1.23-driver.age)
-				assert_eq(f.stage._foot("boss"),driver.motion.home,"Fast rush already returned")
+				# 2026-11-20 第4版（ユーザー「全体は四方八方に何度も見えない速さで」）: 四人のまわりの7か所の間を AOE_LEGS 回駆け抜けて
+				# 元の場所へ戻り（AOE_START+AOE_RUN）、振り向いた所で爪の跡が一斉に裂ける（AOE_HIT）。駆け抜けるたびに相手を切り裂く。
+				assert_gt(driver.Motion.AOE_HIT,driver.Motion.AOE_START+driver.Motion.AOE_RUN,"爪の跡は駆け回った後")
+				assert_eq(f.stage._foot("boss"),driver.motion.home,"爪の跡が裂ける時、狼は元の場所にいる")
+				for key in f.stage._party_keys:
+					var passes: Array=driver.motion.aoe_hit_times(f.stage._foot(key))
+					assert_gte(passes.size(),2,"どの相手も何度も切り裂かれる")
+					for p in passes:assert_lt(float(p),driver.impact_time,"途中の当たりは爪の跡より前")
 			f.stage._tween.custom_step(4)
 			assert_eq(seen.size(),1)
 			assert_null(f.stage._skill_presentation)
@@ -156,3 +162,23 @@ func test_cover_redirected_target_and_normal_attack_use_bite() -> void:
 	assert_lt((f.stage._foot("boss")+driver.Motion.MOUTH).distance_to(chest),1.5)
 	f.stage.cancel()
 	for key in f.stage._homes: assert_eq(f.stage._visuals[key].position,f.stage._homes[key])
+
+func test_aoe_wolf_is_hidden_while_shredding_and_shown_again() -> void:
+	# 2026-11-20 ユーザー「切り刻む時は狼の姿を見せない」: 駆け抜けている間は本体を隠し、元の場所に戻った所で現れる。途中で止めても戻る。
+	var f:=_fixture("aoe")
+	f.stage.play_entry(f.entry,f.skill)
+	var driver=f.stage._skill_presentation
+	assert_true(f.stage._visuals["boss"].visible,"構えている間は見える")
+	f.stage._tween.custom_step(driver.Motion.AOE_START+.3)
+	assert_false(f.stage._visuals["boss"].visible,"切り刻んでいる間は見えない")
+	f.stage._tween.custom_step(driver.Motion.AOE_START+driver.Motion.AOE_RUN+.02-driver.age)
+	assert_true(f.stage._visuals["boss"].visible,"元の場所に戻ると見える")
+	assert_eq(f.stage._foot("boss"),driver.motion.home)
+	f.stage._tween.custom_step(4)
+	var g:=_fixture("aoe")
+	g.stage.play_entry(g.entry,g.skill)
+	g.stage._tween.custom_step(driver.Motion.AOE_START+.3)
+	assert_false(g.stage._visuals["boss"].visible)
+	g.stage.cancel()
+	await get_tree().process_frame
+	assert_true(g.stage._visuals["boss"].visible,"途中で止めても姿が戻る")

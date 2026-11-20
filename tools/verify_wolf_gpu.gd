@@ -81,6 +81,9 @@ func _case(mode: String,kind: String,attribute: String,counter: bool) -> void:
 	var observed:=false
 	var turn_seen:=false
 	var colored_pixels:=-1
+	# 2026-11-20: 狼のエフェクトを作り直し（wolf/rbm_wolf_fx.gd。ステージに直接描く）。前の版の層（rbm_wolf_vfx.gd の SubViewport）は描かないので、
+	# 画面全体（root）で、演出の最初のコマより属性・支援の色が増えたかを数える。新しいエフェクトに色が渡っていることも確かめる。
+	var baseline_pixels:=-1
 	var expected: Color=VFX.SUPPORT[kind] if kind in VFX.SUPPORT else Palette.color_for(attribute)
 	for frame in range(780 if counter else 240):
 		if frame==30: view._present_batch([entry],before)
@@ -92,14 +95,17 @@ func _case(mode: String,kind: String,attribute: String,counter: bool) -> void:
 				if driver.kind!=kind: _fail(tag+": wrong motion")
 				if kind in ["single","aoe"] and driver._vfx.attack_attribute!=attribute: _fail(tag+": wrong attribute input")
 				if kind=="single" and driver.age>=1.0 and driver.age<1.45 and stage._visuals["boss"].scale.x<0: turn_seen=true
-				if driver.age>=driver.impact_time+.10 and colored_pixels<0:
-					colored_pixels=_matching_pixels(driver._vfx.get_parent().get_texture().get_image(),expected)
+				if is_instance_valid(driver._fx_host) and not driver._fx_host.fx.accent.is_equal_approx(expected): _fail(tag+": effect color input")
+				if baseline_pixels<0:
+					baseline_pixels=_matching_pixels(root.get_texture().get_image(),expected)
+				if driver.age>=driver.impact_time and driver.age<=driver.impact_time+.30:
+					colored_pixels=maxi(colored_pixels,_matching_pixels(root.get_texture().get_image(),expected))
 		await process_frame
 		await RenderingServer.frame_post_draw
 		if frame in [68,95,105,230] and mode=="test" and not counter:
 			var img:=root.get_texture().get_image()
 			if img!=null: img.save_png(output_dir.path_join("%s_%03d.png"%[tag,frame]))
-	if not observed or colored_pixels<10: _fail(tag+": expected rendered color not found")
+	if not observed or colored_pixels-baseline_pixels<10: _fail(tag+": expected rendered color not found")
 	if kind=="single" and not turn_seen: _fail(tag+": turning return missing")
 	if seen.size()!=1 or seen[0]!=entry: _fail(tag+": impact contract")
 	if stage.is_playing() or is_instance_valid(stage._skill_presentation): _fail(tag+": cleanup")
@@ -107,6 +113,6 @@ func _case(mode: String,kind: String,attribute: String,counter: bool) -> void:
 	for key in stage._homes:
 		if stage._visuals[key].position!=stage._homes[key]: _fail(tag+": position not restored")
 	if view.session.battle.snapshot()!=resolved: _fail(tag+": simulation changed during playback")
-	report.cases.append({"mode":mode,"kind":kind,"attribute":attribute,"expected_color":expected.to_html(),"rendered_color_pixels":colored_pixels,"counter":counter,"counter_count":counters,"production_skill_id":entry.get("skill_id"),"impact_events":seen.size(),"turning_return":turn_seen,"simulation_unchanged":view.session.battle.snapshot()==resolved})
+	report.cases.append({"mode":mode,"kind":kind,"attribute":attribute,"expected_color":expected.to_html(),"rendered_color_pixels":colored_pixels,"baseline_color_pixels":baseline_pixels,"counter":counter,"counter_count":counters,"production_skill_id":entry.get("skill_id"),"impact_events":seen.size(),"turning_return":turn_seen,"simulation_unchanged":view.session.battle.snapshot()==resolved})
 	print("WOLF_CASE ",tag," pixels=",colored_pixels)
 	await _close_view()

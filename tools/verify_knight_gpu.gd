@@ -6,6 +6,9 @@ const VFX=preload("res://src/bossmaker/visuals/rbm_knight_vfx.gd")
 ## 0.10 s to 0.50 s after the impact, and the most pixels seen must exceed the count on the first
 ## playback frame by at least MIN_ADDED_PIXELS. One sample at a fixed moment fell on the rising
 ## edge of the support effect, right at the threshold, and shifted with any long frame.
+## 2026-11-20: 騎士のエフェクトを作り直し（knight/rbm_knight_fx.gd。ステージに直接描く）。前の版の層（rbm_knight_vfx.gd の SubViewport）は
+## 描かなくなったので、画面全体（root）で、演出の最初のコマから新しく変わった画素のうち期待の色のものを数える（背景が同じ色相でも数えられる）。
+## 新しいエフェクトに属性・支援の色が渡っていることも確かめる。
 const COLOR_WINDOW_START:=.10
 const COLOR_WINDOW_END:=.50
 const MIN_ADDED_PIXELS:=10
@@ -42,6 +45,21 @@ func _run() -> void:
 	print("KNIGHT_GPU_DONE passed=",report.passed," cases=",report.case_count)
 
 
+## 最初のコマ（base）から大きく変わった画素のうち、期待の色のもの
+func _added_pixels(img: Image,base: Image,expected: Color) -> int:
+	if img==null or base==null: return 0
+	var count:=0
+	for y in range(0,mini(img.get_height(),base.get_height()),2):
+		for x in range(0,mini(img.get_width(),base.get_width()),2):
+			var c:=img.get_pixel(x,y)
+			var b:=base.get_pixel(x,y)
+			if absf(c.r-b.r)+absf(c.g-b.g)+absf(c.b-b.b)<.25: continue
+			if expected.s<.12:
+				if c.s<.14 and c.v>.6: count+=1
+			else:
+				var delta:=absf(c.h-expected.h)
+				if minf(delta,1-delta)<.055 and c.s>.18: count+=1
+	return count
 func _matching_pixels(img: Image,expected: Color) -> int:
 	if img==null: return 0
 	var count:=0
@@ -100,6 +118,7 @@ func _case(mode: String,kind: String,attribute: String,counter: bool) -> void:
 	var followthrough_seen:=false
 	var colored_pixels:=-1
 	var baseline_pixels:=-1
+	var base_image: Image=null
 	var color_samples:=0
 	var screenshots:={}
 	var expected: Color=VFX.SUPPORT[kind] if kind in VFX.SUPPORT else Palette.color_for(attribute)
@@ -113,12 +132,14 @@ func _case(mode: String,kind: String,attribute: String,counter: bool) -> void:
 				if driver.kind!=kind: _fail(tag+": wrong motion")
 				if kind in ["single","aoe"] and driver._vfx.attack_attribute!=attribute: _fail(tag+": wrong attribute input")
 				if kind=="aoe" and driver.age>=.78 and driver.age<1.24 and driver._pose_index==3 and driver._pose_layer.visible: followthrough_seen=true
-				if baseline_pixels<0:
-					baseline_pixels=_matching_pixels(driver._vfx.get_parent().get_texture().get_image(),expected)
+				if is_instance_valid(driver._fx_host) and not driver._fx_host.fx.accent.is_equal_approx(expected): _fail(tag+": effect color input")
+				if base_image==null:
+					base_image=_tree().root.get_texture().get_image()
+					baseline_pixels=0
 				var since_impact: float=driver.age-driver.impact_time
 				if since_impact>=COLOR_WINDOW_START and since_impact<=COLOR_WINDOW_END:
 					color_samples+=1
-					colored_pixels=maxi(colored_pixels,_matching_pixels(driver._vfx.get_parent().get_texture().get_image(),expected))
+					colored_pixels=maxi(colored_pixels,_added_pixels(_tree().root.get_texture().get_image(),base_image,expected))
 		await _tree().process_frame
 		await RenderingServer.frame_post_draw
 		if frame in [68,95,105,230] and mode=="test" and not counter:

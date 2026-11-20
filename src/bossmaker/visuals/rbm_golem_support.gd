@@ -9,6 +9,8 @@ var active:=false
 var _stage: Control
 var _vfx: Node2D
 var _impact_sent:=false
+## 2026-11-20 エフェクトの強化（ユーザー「ゴーレムはエフェクトが弱い」）: 足元の割れ目が光り、小石が浮き、色の衝撃の輪（rbm_golem_fx.gd）
+var _fx_host: RBMFxHost
 
 static func pose_at(t: float) -> int:
 	if t<0: return 0
@@ -42,6 +44,13 @@ func play(stage: Control) -> Tween:
 	display.scale=Vector2(4,4)
 	display.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
 	add_child(display)
+	var fx:=RBMGolemFx.new()
+	fx.mode=mode
+	fx.accent=VFX.COLORS[mode]
+	fx.hit_time=IMPACT
+	_fx_host=RBMFxHost.new()
+	add_child(_fx_host)
+	_fx_host.setup(stage,fx,[])
 	stage._play_se("cast")
 	var tween:=create_tween()
 	tween.tween_method(_advance,0.0,DURATION,DURATION)
@@ -55,6 +64,7 @@ func _advance(t: float) -> void:
 	_stage._visuals["boss"].position=_stage._homes["boss"]
 	_vfx.age=t
 	_vfx.queue_redraw()
+	if is_instance_valid(_fx_host):_fx_host.advance(t,_stage._foot("boss"))
 	if t>=IMPACT and not _impact_sent:
 		_impact_sent=true
 		_stage._strike()

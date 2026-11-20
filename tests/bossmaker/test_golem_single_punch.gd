@@ -38,12 +38,18 @@ func test_all_attributes_one_hit_exact_fist_contact_and_unchanged_simulation() -
 		f.stage.play_entry(f.entry,f.skill)
 		var driver=f.stage._skill_presentation
 		assert_not_null(driver)
+		# 当たる所は相手の胸の上の方（演出を始めた時の相手の位置で比べる）
+		var target_key: String=f.stage._targets[0]
+		var upper: Vector2=f.stage._foot(target_key)-Vector2(0,f.stage.Assets.display_height(str(f.stage._asset_ids[target_key]))*.80)
+		assert_lt(driver.contact.distance_to(upper),1.5,"当たる所は相手の胸の上の方")
 		f.stage._tween.custom_step(.77)
 		assert_eq(seen.size(),0)
 		f.stage._tween.custom_step(.02)
 		assert_eq(seen.size(),1)
-		var fist: Vector2=f.stage._foot("boss")+Vector2(40-256,280-460)*f.stage._visuals["boss"]._pixel_scale
-		assert_lt(fist.distance_to(driver.contact),1.5,"Native fist touches intended upper torso")
+		# 2026-11-20 作り直し（ユーザー「本来のゴーレムはこんな動きをしない」）: 相手の所まで歩かず、その場で一歩だけ踏み込んで地面を殴る。
+		# 衝撃が地面を走り、当たる時（HIT）に相手の足元から岩が突き上がる。当たる所（contact）は相手の胸の上の方のまま。
+		var moved: float=absf(f.stage._visuals["boss"].position.x-f.stage._homes["boss"].x)
+		assert_lte(moved,driver.STEP_DIST+4.0,"その場から一歩だけ")
 		f.stage._tween.custom_step(.10)
 		assert_eq(driver._vfx.impact_color,Palette.COLORS[attribute])
 		f.stage._tween.custom_step(2)

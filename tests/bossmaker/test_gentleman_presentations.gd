@@ -64,7 +64,7 @@ func test_all_attributes_and_both_forms_deliver_one_impact_and_preserve_combat()
 				assert_true(d is Driver)
 				assert_eq(d._vfx.attribute,attribute)
 				# 戦闘テンポ（2026-10-16）: 命中は演出の時刻 impact_time のまま。実際の経過時間では、詰めた区間（Timeline.tempo）の分だけ早く着く。
-				var hit: float=TempoMap.real_time_at(d.impact_time,d.duration,Timeline.tempo(d.action_kind))
+				var hit: float=TempoMap.real_time_at(d.impact_time,d.duration,d.tempo())
 				assert_lte(hit,d.impact_time)
 				f.stage._tween.custom_step(hit-.01)
 				assert_eq(seen.size(),0)
@@ -102,7 +102,11 @@ func test_awakening_aura_and_rewind_restore_normal_form() -> void:
 	f.stage.play_entry({"actor":"boss","action":"awakening"},{})
 	var d=f.stage._skill_presentation
 	assert_true(d is Driver)
-	f.stage._tween.custom_step(8.0)
+	# 2026-11-20 作り直した覚醒（rbm_gentleman_fx_awaken.gd）: 姿が変わるのは演出の解放の時刻（前の版の 8.08 秒より早い）
+	assert_not_null(d._fx)
+	assert_almost_eq(d.impact_time,float(d._fx.impact()),.001)
+	assert_lt(d.duration,8.0,"派手にして短く（前の版は12秒）")
+	f.stage._tween.custom_step(d.impact_time-.05)
 	assert_eq(f.stage._asset_ids.boss,"gentleman")
 	f.stage._tween.custom_step(.10)
 	assert_eq(f.stage._asset_ids.boss,"gentleman_awakened")
@@ -188,101 +192,83 @@ func _sheets(pairs: Array) -> Array:
 	paths.sort()
 	return paths
 
-func test_impact_sheets_are_read_once_per_battle_for_the_boss_attacks_and_form() -> void:
+func test_impact_sheets_are_no_longer_read_for_any_form_or_attribute() -> void:
+	# 2026-11-20: 命中は rbm_gentleman_vfx.gd の hit() が毎回描く（白い星形の衝撃の絵 impacts/*.png は使わない）。
+	# 戦闘中に 2560x2240 の絵を持たないので、読み込み係は覚醒の前も後も何も持たない。
+	assert_true(Vfx.IMPACT_STYLES.is_empty())
 	var f := _sheet_stage()
 	var stage: RBMBattleStage = f.stage
-	# Before awakening only the single FIRE draws a sheet (the normal all-target attack draws none).
-	assert_eq(await _settle(stage), _sheets([["FIRE", "duel"]]))
-	var kept: Texture2D = stage._gentleman_impacts._held[Vfx.impact_path("FIRE", "duel")]
-	for attack in 2:
-		var entry: Dictionary = {}
-		var before: Dictionary = {}
-		for attempt in 12:
-			before = f.session.battle.presentation_state().duplicate(true)
-			for e in f.session.resolve_ally_action({"type": "defend"}):
-				if str(e.get("actor")) == "boss": entry = e
-			if not entry.is_empty(): break
-		stage.set_state(before)
-		stage.play_entry(entry, RBMBattleUiKit.find_skill_for_actor("boss", f.skill, f.session.battle))
-		var d = stage._skill_presentation
-		assert_eq(d.action_kind, "single")
-		stage._tween.custom_step(d.impact_time + .1)
-		await get_tree().process_frame
-		await get_tree().process_frame
-		# The drawn sheet is the one kept since the battle began, not a fresh read.
-		assert_same(d._vfx._impact_textures.get("duel"), kept)
-		stage._tween.custom_step(30)
-		await get_tree().process_frame
-	assert_eq(await _settle(stage), _sheets([["FIRE", "duel"]]))
-	# Awakened: the duel sheet can no longer be drawn and is released; REWIND reads it again.
+	assert_eq(await _settle(stage), [])
 	var awakened: Dictionary = f.session.battle.presentation_state()
 	awakened.is_awakened = true
 	stage.set_state(awakened)
-	assert_eq(await _settle(stage), _sheets([["FIRE", "first"], ["FIRE", "heavy"], ["ICE", "first"]]))
-	awakened.is_awakened = false
-	stage.set_state(awakened)
-	assert_eq(await _settle(stage), _sheets([["FIRE", "duel"]]))
-	# Leaving the battle releases every sheet.
-	var sheets = stage._gentleman_impacts
-	stage.get_parent().remove_child(stage)
-	assert_true(sheets._held.is_empty())
-	assert_true(sheets._pending.is_empty())
-	stage.queue_free()
+	assert_eq(await _settle(stage), [])
+	for attribute in ["NEUTRAL", "FIRE", "ICE", "LIGHTNING", "WIND"]:
+		stage._gentleman_impacts.request(attribute, "awakened_single")
+	assert_true(stage._gentleman_impacts._held.is_empty())
+	assert_true(stage._gentleman_impacts._pending.is_empty())
 
 func test_impact_sheets_without_awakening_and_for_other_bosses() -> void:
 	var f := _sheet_stage("appearance_gentleman", false)
-	assert_eq(await _settle(f.stage), _sheets([["FIRE", "duel"]]))
+	assert_eq(await _settle(f.stage), [])
 	var other := _sheet_stage("appearance_slime")
 	assert_eq(await _settle(other.stage), [])
 
-func test_impact_sheets_stay_within_three_for_a_boss_of_many_attributes() -> void:
-	var draft := RBMCreatorDraft.new()
-	draft.appearance_id = "appearance_gentleman"
-	draft.boss_name = "異形紳士"
-	draft.hp = 3000
-	draft.atk = 1
-	draft.spd = 1
-	for id in ["hero", "butler", "healer", "samurai"]: draft.add_party_character(id)
-	draft.normal_actions_enabled = true
-	for attribute in ["NEUTRAL", "FIRE", "ICE", "LIGHTNING", "WIND"]:
-		var id := draft.add_skill({"name": attribute, "type": "attack", "target": "single", "attribute": attribute, "atk_multiplier": 1.0})
-		draft.normal_action_percentages[id] = 20.0
-	var session := RBMCreatorTestSession.new(draft.to_definition(), 5)
-	var stage := RBMBattleStage.new()
-	stage.size = Vector2(1280, 720)
-	stage.set_meta("fullscreen_formation", true)
-	add_child_autofree(stage)
-	stage.configure(session.battle, "appearance_gentleman")
-	stage.set_state(session.battle.presentation_state())
-	var sheets = stage._gentleman_impacts
-	# Read ahead in the order of the boss's skills, up to three sheets.
-	assert_eq(await _settle(stage), _sheets([["NEUTRAL", "duel"], ["FIRE", "duel"], ["ICE", "duel"]]))
-	var entry: Dictionary = {}
-	var before: Dictionary = {}
-	for attempt in 12:
-		before = session.battle.presentation_state().duplicate(true)
-		for e in session.resolve_ally_action({"type": "defend"}):
-			if str(e.get("actor")) == "boss": entry = e
-		if not entry.is_empty(): break
-	for attribute in ["ICE", "LIGHTNING", "WIND", "NEUTRAL", "FIRE"]:
-		stage.set_state(before)
-		stage.play_entry(entry, {"attribute": attribute, "effect": "damage", "target": "ally_random_single"})
-		var d = stage._skill_presentation
-		assert_eq(d._vfx.attribute, attribute)
-		assert_true(sheets._held.size() + sheets._pending.size() <= Sheets.MAX_SHEETS, attribute)
-		stage._tween.custom_step(d.impact_time + .1)
-		await get_tree().process_frame
-		await get_tree().process_frame
-		var drawn = d._vfx._impact_textures.get("duel")
-		assert_not_null(drawn, attribute)
-		assert_same(drawn, sheets._held.get(Vfx.impact_path(attribute, "duel")), attribute)
-		assert_true(sheets._held.size() + sheets._pending.size() <= Sheets.MAX_SHEETS, attribute)
-		stage._tween.custom_step(30)
-		await get_tree().process_frame
-	# The three most recently used remain.
-	var held: Array = sheets._held.keys()
-	held.sort()
-	assert_eq(held, _sheets([["WIND", "duel"], ["NEUTRAL", "duel"], ["FIRE", "duel"]]))
+func test_bullets_fly_along_the_gun_and_shadows_do_not_overlap() -> void:
+	# 2026-11-20 ユーザー「銃弾の角度がおかしい」「全体攻撃で影が重なると変」: 弾は銃口から水平に対して3度以内、
+	# 同じ相手を狙う影どうし・違う相手を狙う影どうしの体が重ならない。
+	for kind in ["single", "aoe"]:
+		var f := _fixture(kind)
+		f.stage.play_entry(f.entry, f.skill)
+		var d = f.stage._skill_presentation
+		var v = d._vfx
+		if kind == "single":
+			var mouth: Vector2 = v.duel_foot() + Timeline.gun(Timeline.AIM_POSE, "near").p
+			var dest: Vector2 = v.aim(mouth, Vector2(v.foot(0).x + 4, v.line_y(0, mouth.x)))
+			assert_lte(absf(dest.y - mouth.y), absf(dest.x - mouth.x) * Vfx.SLOPE + .01, "単体の弾の傾き")
+		else:
+			var spots: Array = []
+			for i in v.clone_count():
+				var spot: Dictionary = v.clone_spot(i)
+				var g: Dictionary = Timeline.gun(Timeline.AIM_POSE, "near", spot.flip)
+				var mouth: Vector2 = spot.foot + g.p
+				assert_lte(absf(spot.dest.y - mouth.y), absf(spot.dest.x - mouth.x) * Vfx.SLOPE + .01, "影 %d の弾の傾き" % i)
+				assert_gt(signf(spot.dest.x - mouth.x) * g.d.x, 0.0, "影 %d は銃の向きに撃つ" % i)
+				spots.append(spot)
+			for i in spots.size():
+				for j in range(i + 1, spots.size()):
+					var a: Vector2 = spots[i].foot
+					var b: Vector2 = spots[j].foot
+					# 体（幅 約28・高さ 約90 の絵の画素）が重ならない
+					assert_true(absf(a.x - b.x) >= 28.0 or absf(a.y - b.y) >= 90.0, "影 %d と %d が重なる %s %s" % [i, j, a, b])
+		f.stage._tween.custom_step(40)
+
+func test_rebuilt_awakened_all_hits_everyone_once_and_cleans_up() -> void:
+	# 2026-11-20 作り直した覚醒後の全体「深紅の終幕」（rbm_gentleman_fx_post_all.gd）: 途中の弾は小さな数字、最後の一撃で1回だけ impact。
+	var f := _fixture("aoe", "FIRE", true)
+	var snapshot: Dictionary = f.session.battle.snapshot().duplicate(true)
+	var seen: Array = []
+	f.stage.impact.connect(func(e): seen.append(e))
+	f.stage.play_entry(f.entry, f.skill)
+	var d = f.stage._skill_presentation
+	assert_eq(d.action_kind, "awakened_all")
+	assert_not_null(d._fx)
+	assert_eq(d._audio.stream.resource_path, "res://assets_bossmaker/audio/gentleman/awakened_all.wav")
+	assert_almost_eq(d._audio.stream.get_length(), d.duration, .05, "音の長さ＝演出の長さ")
+	var plan: Dictionary = d._v2_hit_plan()
+	assert_eq(plan.size(), 4, "途中の弾は四人全員に当たる")
+	f.stage._tween.custom_step(d.impact_time - .01)
+	assert_eq(seen.size(), 0)
+	f.stage._tween.custom_step(.02)
+	assert_eq(seen.size(), 1)
+	f.stage._tween.custom_step(30)
+	await get_tree().process_frame
+	assert_eq(seen.size(), 1)
+	assert_false(f.stage.is_playing())
+	assert_true(f.stage._visuals.boss.visible)
+	for key in f.stage._party_keys:
+		assert_eq(f.stage._visuals[key].self_modulate, Color.WHITE, "味方の暗さを戻す")
+	assert_eq(f.session.battle.snapshot(), snapshot)
 
 func test_each_attack_draws_exactly_the_sheets_kept_for_it() -> void:
 	for setup in [["single", false], ["single", true], ["aoe", true], ["aoe", false]]:

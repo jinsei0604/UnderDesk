@@ -15,6 +15,10 @@ var _released:=false
 var _scale:=Vector2.ONE
 var _pivot:=Vector2.ZERO
 var _boss_z:=1
+var _boss_visible:=true
+## 2026-11-20 エフェクトの作り直し（ユーザー「狼はエフェクトも変えてほしい」）: wolf/rbm_wolf_fx.gd（ヒーロー・聖獣と同じ部品）。
+## 前の版の四角い粒のエフェクト（rbm_wolf_vfx.gd）は描かない。
+var _fx_host: RBMFxHost
 
 func play(stage: Control) -> Tween:
 	_stage=stage
@@ -28,6 +32,7 @@ func play(stage: Control) -> Tween:
 	_scale=boss.scale
 	_pivot=boss.pivot_offset
 	_boss_z=boss.z_index
+	_boss_visible=boss.visible
 	boss.pivot_offset=boss.foot_position()
 	boss.z_index=3
 	z_index=3
@@ -52,6 +57,30 @@ func play(stage: Control) -> Tween:
 	for key in stage._targets:
 		if key!="boss": _vfx.feet.append(stage._foot(key))
 	viewport.add_child(_vfx)
+	_vfx.visible=false
+	var fx:=RBMWolfFx.new()
+	fx.mode=kind
+	fx.motion=motion
+	fx.accent=preload("res://src/bossmaker/visuals/rbm_boss_support_vfx.gd").COLORS[kind] if kind in ["buff","heal"] else preload("res://src/bossmaker/visuals/rbm_attribute_vfx_palette.gd").color_for(_vfx.attack_attribute)
+	fx.contact=aim*0.5
+	fx.hit_time=impact_time if kind!="aoe" else Motion.AOE_HIT
+	var target_feet: Array=[]
+	for key in stage._targets:
+		if key=="boss":continue
+		var tf: Vector2=stage._foot(key)+Vector2(stage._guard_offsets.get(key,Vector2.ZERO))
+		target_feet.append(tf)
+		if kind=="aoe":fx.claw_times.append(motion.aoe_hit_times(tf,90.0,99))
+	_fx_host=RBMFxHost.new()
+	add_child(_fx_host)
+	_fx_host.setup(stage,fx,target_feet)
+	# 全体（2026-11-20）: 駆け抜けるたびに小さな数字、最後に爪の跡が一斉に裂けた所で合計（stage.begin_multi_hit）
+	if kind=="aoe":
+		var plan:={}
+		for key in stage._targets:
+			if key=="boss":continue
+			var times: Array=motion.aoe_hit_times(stage._foot(key)+Vector2(stage._guard_offsets.get(key,Vector2.ZERO)))
+			if not times.is_empty():plan[str(key)]=times
+		stage.begin_multi_hit(plan,.4)
 	var display:=Sprite2D.new()
 	display.texture=viewport.get_texture()
 	display.centered=false
@@ -80,6 +109,8 @@ func _advance(t: float) -> void:
 	_stage._pose("boss",state.pose)
 	boss.position=(Vector2(_stage._homes["boss"])+Vector2(state.foot)-motion.home).round()
 	boss.scale=Vector2(-_scale.x if state.flip else _scale.x,_scale.y)
+	# 全体で切り刻んでいる間は姿を見せない
+	boss.visible=_boss_visible and not bool(state.get("hidden",false))
 	for key in _stage._guards:
 		var progress:=smoothstep(.0,.24,t)*(1-smoothstep(.96,1.52,t))
 		_stage._visuals[key].position=(Vector2(_stage._homes[key])+Vector2(_stage._guard_offsets[key])*progress).round()
@@ -105,6 +136,8 @@ func _advance(t: float) -> void:
 				_stage._pose(key,11 if unit.get("is_downed",false) else (10 if unit.get("is_defending",false) or _stage._counters.has(key) else 0))
 	_vfx.age=t
 	_vfx.queue_redraw()
+	if kind=="aoe":_stage.advance_multi_hit(t)
+	if is_instance_valid(_fx_host):_fx_host.advance(t,Vector2(state.foot))
 
 func _restore_transform() -> void:
 	if not is_instance_valid(_stage): return
@@ -112,6 +145,7 @@ func _restore_transform() -> void:
 	boss.scale=_scale
 	boss.pivot_offset=_pivot
 	boss.z_index=_boss_z
+	boss.visible=_boss_visible
 
 func stop() -> void:
 	_restore_transform()
