@@ -384,6 +384,11 @@ func _online_publish_failure_message(error_kind: String, detail: String) -> Stri
 			return tr("オンライン公開はまだ準備中です（正式Steam認証の設定待ち）。")
 		"forbidden":
 			return tr("この投稿を更新する権限がありません。")
+		# 体験版（2026-11-22: サーバーが断った理由も出す。それまでは「送信内容に問題がありました」になっていた）
+		"demo_publish_limit":
+			return tr("体験版で公開できるボスは%d体までです。公開中のボスを非公開にすると入れ替えられます。") % RBMEdition.DEMO_MAX_ONLINE_PUBLISHED
+		"demo_not_allowed":
+			return tr("このボスは体験版では公開できません。製品版で公開できます。")
 		"not_found":
 			return tr("投稿先が見つかりませんでした。")
 		"network_error", "http_5xx":

@@ -146,7 +146,7 @@ func publish(draft: RBMCreatorDraft, boss_id: String = "") -> bool:
 		publish_succeeded.emit(_last_boss_id, int(response.get("revision", 0)))
 		return true
 
-	_fail(str(response.get("error_kind", "unknown")), str(response.get("message", "")))
+	_fail(error_kind_of(response), str(response.get("message", "")))
 	return false
 
 ## ソフト取り下げ——DB上のボスデータ自体は削除しない、既存のunpublish-boss
@@ -178,7 +178,7 @@ func unpublish(boss_id: String) -> bool:
 		_set_state(PublishState.SUCCEEDED)
 		return true
 
-	_fail(str(response.get("error_kind", "unknown")), str(response.get("message", "")))
+	_fail(error_kind_of(response), str(response.get("message", "")))
 	return false
 
 ## publish()/unpublish()共通のSteamチケット取得手順（可用性/ログイン確認
@@ -197,6 +197,12 @@ func _acquire_ticket() -> Dictionary:
 		_fail(str(result.get("error_kind", "unknown")), str(result.get("message", "")))
 		return {"ok": false}
 	return {"ok": true, "hex": str(result.get("hex", ""))}
+
+## サーバーが4xxで断った時は、本文の理由（server_error_kind。例: demo_publish_limit）を使う（2026-11-22。それまでは
+## 理由に関係なく "http_4xx" になり、画面には「送信内容に問題がありました」としか出なかった）。
+static func error_kind_of(response: Dictionary) -> String:
+	var server_kind := str(response.get("server_error_kind", ""))
+	return server_kind if not server_kind.is_empty() else str(response.get("error_kind", "unknown"))
 
 func _fail(error_kind: String, message: String) -> void:
 	_last_error_kind = error_kind

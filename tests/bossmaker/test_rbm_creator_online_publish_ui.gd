@@ -579,3 +579,23 @@ func test_full_lifecycle_publish_unpublish_close_reopen_sync_and_republish_reuse
 	assert_true(final_reload.is_online_published())
 
 	await get_tree().process_frame # drain queued UI-rebuild frees before GUT's orphan check
+
+## 2026-11-22: 体験版の公開上限でサーバーが断った時は「送信内容に問題がありました」ではなく、上限の文を出す。
+func test_trial_publish_limit_rejection_shows_the_limit_message() -> void:
+	var creator := _new_creator()
+	var auth := _ready_steam_auth(true, true)
+	var api := RBMFakeBossApiAdapter.new()
+	api.configure_publish_response({"ok": false, "error_kind": "http_4xx", "http_status": 403, "server_error_kind": "demo_publish_limit", "message": "リクエストエラー (HTTP 403)"})
+	var summary := _summary_of(creator)
+	_install_fake_publisher(summary, auth, api)
+	_make_cleared(creator)
+	creator.go_to_step(5)
+	var fake_steam := auth.adapter_for_testing() as RBMFakeSteamAdapter
+	var button: Button = summary.find_child("PublishOnlineButton", true, false)
+	button.pressed.emit()
+	await wait_process_frames(1)
+	fake_steam.fire_ticket_response(fake_steam.last_issued_handle(), RBMFakeSteamAdapter.RESULT_OK, 3, PackedByteArray([1, 2, 3]))
+	await wait_process_frames(2)
+	var status_label: Label = summary.find_child("OnlinePublishStatusLabel", true, false)
+	assert_true(status_label.text.contains("体験版で公開できるボスは2体まで"), status_label.text)
+	assert_false(status_label.text.contains("送信内容"))

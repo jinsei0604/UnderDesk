@@ -61,6 +61,9 @@ static func parse(response_code: int, body: PackedByteArray) -> Dictionary:
 			"message": TranslationServer.translate("リクエストエラー (HTTP %d)") % response_code,
 			"supabase_message": parsed_4xx.get("message", ""),
 			"supabase_code": parsed_4xx.get("code", ""),
+			# 2026-11-22: Edge Function が返した断った理由（本文の error_kind。例: demo_publish_limit）。error_kind は今までどおり
+			# "http_4xx" のまま（ほかの流れの判断を変えない）。理由で文を出し分けたい所（オンライン公開）だけがこれを読む。
+			"server_error_kind": parsed_4xx.get("error_kind", ""),
 			"rows": [],
 		}
 
@@ -120,4 +123,5 @@ static func _try_parse_supabase_error(body_text: String) -> Dictionary:
 	return {
 		"message": str(data.get("message", "")),
 		"code": str(data.get("code", "")),
+		"error_kind": str(data.get("error_kind", "")),
 	}

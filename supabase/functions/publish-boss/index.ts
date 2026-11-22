@@ -160,11 +160,13 @@ export async function handlePublish(
   const ownerSteamId = verification.steamId as string;
 
   // --- 体験版(体験版のアプリのチケット、2026-10-28): SIMPLE・体験版の4体だけ、公開は1人2体まで(このボスの更新は数えない) ---
+  // 2026-11-22: 数えるのは「体験版から公開した分」(published_edition=demo)だけ。製品版から公開したボスは数えない(ユーザー確定)。
+  const publishedEdition = verification.edition === "demo" ? "demo" : "full";
   if (verification.edition === "demo") {
     if (!isDemoPayload(payload)) {
       return jsonResponse({ ok: false, error_kind: "demo_not_allowed", message: "This boss cannot be published from the trial version" }, 403);
     }
-    const published = await db.select<BossRow>("bosses", `owner_steam_id=eq.${ownerSteamId}&is_published=eq.true&select=id`);
+    const published = await db.select<BossRow>("bosses", `owner_steam_id=eq.${ownerSteamId}&is_published=eq.true&published_edition=eq.demo&select=id`);
     if (!published.ok) {
       return jsonResponse({ ok: false, error_kind: "db_error", message: published.errorMessage ?? "" }, 502);
     }
@@ -228,6 +230,7 @@ export async function handlePublish(
       battle_hash: payload.battle_hash,
       is_published: true,
       published_at: now,
+      published_edition: publishedEdition,
       idempotency_key: idempotencyKey,
     });
     if (!inserted.ok || inserted.rows.length === 0) {
@@ -245,6 +248,7 @@ export async function handlePublish(
     battle_hash: payload.battle_hash,
     is_published: true,
     published_at: now,
+    published_edition: publishedEdition,
     idempotency_key: idempotencyKey,
   });
   if (!updated.ok || updated.rows.length === 0) {

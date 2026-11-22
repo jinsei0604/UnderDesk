@@ -356,3 +356,19 @@ func test_check_online_published_returns_unknown_for_an_empty_boss_id_without_ca
 	var result: Dictionary = await publisher.check_online_published("")
 	assert_eq(result.get("state"), "unknown")
 	assert_eq(api.get_calls.size(), 0)
+
+## 2026-11-22: サーバーが4xxで断った時は、本文の理由（server_error_kind）を last_error_kind にする（体験版の公開上限など）。
+func test_publish_uses_the_server_reason_of_a_4xx_rejection() -> void:
+	var auth := _ready_steam_auth()
+	var api := RBMFakeBossApiAdapter.new()
+	api.configure_publish_response({"ok": false, "error_kind": "http_4xx", "http_status": 403, "server_error_kind": "demo_publish_limit", "message": "リクエストエラー (HTTP 403)"})
+	var publisher := _publisher(auth, api)
+	_schedule_ticket_success(auth)
+	assert_false(await publisher.publish(_cleared_draft()))
+	assert_eq(publisher.last_error_kind(), "demo_publish_limit")
+	var api2 := RBMFakeBossApiAdapter.new()
+	api2.configure_publish_response({"ok": false, "error_kind": "http_4xx", "http_status": 413, "message": "リクエストエラー (HTTP 413)"})
+	var publisher2 := _publisher(auth, api2)
+	_schedule_ticket_success(auth)
+	assert_false(await publisher2.publish(_cleared_draft()))
+	assert_eq(publisher2.last_error_kind(), "http_4xx", "without a server reason the kind stays http_4xx")

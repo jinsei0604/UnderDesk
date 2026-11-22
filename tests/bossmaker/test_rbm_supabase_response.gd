@@ -68,3 +68,12 @@ func test_single_object_body_is_wrapped_as_a_one_row_array() -> void:
 	var rows: Array = result.get("rows", [])
 	assert_eq(rows.size(), 1)
 	assert_eq(str((rows[0] as Dictionary).get("name", "")), "TEST BOSS")
+
+## 2026-11-22: Edge Function が4xxで返した理由（本文の error_kind）を server_error_kind に残す。error_kind は今までどおり http_4xx。
+func test_4xx_keeps_the_edge_function_error_kind_as_server_error_kind() -> void:
+	var result := RBMSupabaseResponse.parse(403, _body('{"ok":false,"error_kind":"demo_publish_limit","message":"The trial version can publish up to 2 bosses"}'))
+	assert_eq(result.get("error_kind", ""), "http_4xx")
+	assert_eq(result.get("server_error_kind", ""), "demo_publish_limit")
+	assert_eq(result.get("supabase_message", ""), "The trial version can publish up to 2 bosses")
+	var plain := RBMSupabaseResponse.parse(401, _body('{"message":"Invalid API key","code":"401"}'))
+	assert_eq(plain.get("server_error_kind", ""), "", "PostgREST/gateway style bodies have no error_kind")

@@ -12,7 +12,7 @@
   - ボスは竜・スライム・幽霊・朽ちた機械武者の4体。
   - 作成は SIMPLE だけ（HARDCORE は「製品版限定」で押せない）。
   - 手元の保存は5体まで。
-  - オンライン公開は1人2体まで（公開中のボスを非公開にすると入れ替えられる）。
+  - オンライン公開は1人2体まで（公開中のボスを非公開にすると入れ替えられる）。2026-11-22 から、数えるのは体験版から公開した分だけ（製品版から公開したボスは数えない。体験版のボスを製品版から更新すると、そのボスは体験版の枠から外れる）。
   - オンラインの一覧・検索・ランダム・ランキングは、体験版の4体で作られた SIMPLE のボスだけを出す。
   - プレイ時間の制限は無い。
 - 体験版だけの表示: ホーム左上の「ガイド」と、初めて起動した時のガイド（`rbm_demo_guide.gd`）。
@@ -118,7 +118,7 @@
 - 本人の版は「Steam のチケットがどちらのアプリのものか」で決める（`steam-auth/steam_ticket_verifier.ts`）。
   - 製品版の AppID で確かめて失敗した時だけ、環境変数 `STEAM_DEMO_APP_ID` の AppID でも確かめる。
   - 製品版のチケットの扱いは今までどおり。
-- 体験版のチケットで公開すると、`publish-boss` が SIMPLE・4体だけ、公開中は2体まで、に制限する（`_shared/edition.ts`）。
+- 体験版のチケットで公開すると、`publish-boss` が SIMPLE・4体だけ、公開中は2体まで、に制限する（`_shared/edition.ts`）。2026-11-22 から、数えるのは `bosses.published_edition = demo`（最後に体験版のチケットで公開した行）だけ。`publish-boss` が公開・更新のたびにチケットの版（demo／full）を書く。それより前の行は null で数えない（migration `20261122000000_add_published_edition_to_bosses`。適用は migration → `publish-boss` のデプロイの順）。ゲームは4xxの本文の `error_kind` を `server_error_kind` に残し、公開の画面は上限の文を出す（それまでは理由に関係なく「送信内容に問題がありました」）。
 - 一覧（list-bosses・search-bosses・random-boss・list-popular-bosses・list-hard-bosses・list-unchallenged-bosses）と get-boss は、`edition=demo` の時に体験版の範囲だけを返す。
 - 体験版のチケットでは、範囲外のボスの挑戦の記録（record-challenge-attempt・record-challenge-clear）・戦闘チケット（issue-battle-ticket・submit-battle-result の続けて挑戦）を断る（`demoBossRejection`）。
   - これは表示の範囲を決めるだけで、権限には使わない。

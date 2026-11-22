@@ -770,6 +770,7 @@ HP回復：HP%d,HP Heal: %d HP
 体験版で保存できるボスは%d体までです。保存したボス戦を削除するか、上書き保存してください。,The trial version can save up to %d bosses. Delete a saved boss battle or overwrite one.
 このボスは体験版では遊べません。製品版で挑戦できます。,This boss is not available in the trial version. You can challenge it in the full version.
 体験版で公開できるボスは%d体までです。公開中のボスを非公開にすると入れ替えられます。,The trial version can publish up to %d bosses. Unpublish one to publish another.
+このボスは体験版では公開できません。製品版で公開できます。,This boss cannot be published from the trial version. You can publish it in the full version.
 ガイド,Guide
 体験版ガイド,Trial Guide
 前へ,Previous

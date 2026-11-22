@@ -109,6 +109,38 @@ Deno.test("the trial can publish two bosses, a third is refused, and unpublishin
   assertEquals(swap.status, 201);
 });
 
+Deno.test("2026-11-22: only bosses published from the trial count toward the trial limit", async () => {
+  const db = freshDb();
+  // 製品版から公開した体験版の範囲のボス2体（同じアカウント）
+  for (const appearance of ["appearance_dragon", "appearance_slime"]) {
+    const res = await handlePublish(publishRequest({ ticket: "abcd", payload: { ...payload(appearance), boss_name: "full-" + appearance } }), verifier(FULL_APP, DEMO_APP).verifier, db, FULL_APP);
+    assertEquals(res.status, 201);
+  }
+  // どちらから公開したか分からない今までの行（published_edition が無い）も数えない
+  await db.insert("bosses", { owner_steam_id: "76561198000000009", boss_name: "old", author_name: "a", schema_version: 1, revision: 1, payload: payload("appearance_ghost"), battle_hash: "e".repeat(64), is_published: true, published_at: "2026-11-04T00:00:00Z", idempotency_key: "old-row" });
+  // 体験版からは2体まで公開できる
+  const ids: string[] = [];
+  for (const appearance of ["appearance_ghost", "appearance_musha"]) {
+    const res = await handlePublish(publishRequest({ ticket: "abcd", payload: { ...payload(appearance), boss_name: "demo-" + appearance } }), verifier(DEMO_APP, DEMO_APP).verifier, db, FULL_APP);
+    assertEquals(res.status, 201, "product and old bosses do not use trial slots");
+    ids.push(((await res.json()) as PublishResponseBody).boss_id as string);
+  }
+  const third = await handlePublish(publishRequest({ ticket: "abcd", payload: { ...payload("appearance_slime"), boss_name: "demo-third" } }), verifier(DEMO_APP, DEMO_APP).verifier, db, FULL_APP);
+  assertEquals(third.status, 403);
+  assertEquals(((await third.json()) as PublishResponseBody).error_kind, "demo_publish_limit");
+  // 公開した版が行に残る
+  const rows = (await db.select<{ id: string; boss_name: string; published_edition?: string }>("bosses", "select=id,boss_name,published_edition")).rows;
+  for (const row of rows) {
+    const expected = row.boss_name.startsWith("demo-") ? "demo" : (row.boss_name.startsWith("full-") ? "full" : undefined);
+    assertEquals(row.published_edition, expected, row.boss_name);
+  }
+  // 体験版のボスを製品版から更新すると、体験版の枠が空く
+  const moved = await handlePublish(publishRequest({ ticket: "abcd", boss_id: ids[0], payload: { ...payload("appearance_ghost"), boss_name: "moved" } }), verifier(FULL_APP, DEMO_APP).verifier, db, FULL_APP);
+  assertEquals(moved.status, 200);
+  const again = await handlePublish(publishRequest({ ticket: "abcd", payload: { ...payload("appearance_slime"), boss_name: "demo-again" } }), verifier(DEMO_APP, DEMO_APP).verifier, db, FULL_APP);
+  assertEquals(again.status, 201);
+});
+
 Deno.test("the trial cannot publish a HARDCORE boss or a full-version-only boss", async () => {
   for (const [appearance, mode] of [["appearance_dragon", "advanced"], ["appearance_golem", "simple"]]) {
     const res = await handlePublish(publishRequest({ ticket: "abcd", payload: payload(appearance, mode) }), verifier(DEMO_APP, DEMO_APP).verifier, freshDb(), FULL_APP);
