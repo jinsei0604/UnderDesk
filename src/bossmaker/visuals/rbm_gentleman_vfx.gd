@@ -59,6 +59,10 @@ var body_flash := 0.0
 var body_flash_col := Color.WHITE
 var body_lit := 0.0
 var body_lit_col := Color.WHITE
+## 2026-11-23 強めたエフェクト（ユーザー「全体的にエフェクトが弱くてクオリティが低い」）: 単体・全体・覚醒後の単体・支援は、
+## エフェクトを rbm_gentleman_fx_*.gd（RBMHeroFxBase。覚醒後の全体と同じ部品）が描く。ここは本体・影・霧（動き）だけを描き、
+## 銃火・弾・命中・裂け目・足元のひび・支援の光は描かない。弾の出来事（shot_events）は fx が読む。
+var fx_layer := false
 var _flat: Node2D
 
 static func impact_path(attribute: String, style: String) -> String:
@@ -364,10 +368,12 @@ func support_effects() -> void:
 ## 本体に重ねる単色（閃光が強い方を優先。縁の光は薄く）
 func _draw_flat() -> void:
 	var a:=maxf(body_flash,body_lit*.35)
-	if not v2 or a<=.003 or pose_override.is_empty():return
+	var pose:=pose_override if v2 else (Motion.frame(kind,age) if fx_layer else "")
+	if not (v2 or fx_layer) or a<=.003 or pose.is_empty():return
+	a*=host_alpha()
 	(_flat.material as ShaderMaterial).set_shader_parameter("flat_color",body_flash_col if body_flash>=body_lit*.35 else body_lit_col)
 	_flat.draw_set_transform(host_foot().round())
-	_flat.draw_texture(Motion.texture(pose_override),Vector2(-72,-112),Color(1,1,1,a))
+	_flat.draw_texture(Motion.texture(pose),Vector2(-72,-112),Color(1,1,1,a))
 	_flat.draw_set_transform(Vector2.ZERO)
 
 func _draw() -> void:
@@ -380,7 +386,7 @@ func _draw() -> void:
 	if kind=="awakening":awakening_effects()
 	var impact_t:=age-float(data.impact)
 	# 全体の締め: 相手の足元のひび（影と本体より奥に描く）
-	if kind in ["all","awakened_all"]:
+	if kind in ["all","awakened_all"] and not fx_layer:
 		for j in feet.size():ground_crack(foot(j),impact_t,1.15 if awakened else 1.0,j*37+5)
 	# 影: 相手の横に並び、要所の絵で撃つ（奥から順に）
 	var order: Array=[]
@@ -400,62 +406,78 @@ func _draw() -> void:
 		mist(duel_foot(),age,2.4*envelope(BACK_OUT[0]-.05,BACK_OUT[1],BACK_IN[0],BACK_IN[1]+.15,age),46,60,71,INK)
 		mist(boss,age,2.4*envelope(BACK_OUT[1],BACK_IN[0]+.05,BACK_IN[1],BACK_IN[1]+.35,age),46,60,73,INK)
 	sprite(Motion.frame(kind,age),host,false,Color(1,1,1,host_alpha()))
+	if is_instance_valid(_flat) and fx_layer:_flat.queue_redraw()
+	if fx_layer:return
 	if kind in ["buff","heal"]:support_effects()
-	# 影の射撃: 構えた銃口から水平に、並んだ相手へ
+	for e in shot_events():
+		var dt:=age-float(e.time)
+		match str(e.src):
+			"clone":
+				if dt<-.01 or dt>1.6:continue
+				if clone_alpha(int(e.shooter))>.05 or dt>0:flash(e.mouth,e.d,dt,float(e.big))
+				tracer(e.mouth,e.dest,dt,float(e.hit)-float(e.time),Color(.9,.83,.65))
+				hit(e.dest,e.d,age-float(e.hit),accent,float(e.power),int(e.seed))
+			"host":
+				if dt<-.4 or dt>3.0:continue
+				flash(e.mouth,e.d,dt,float(e.big))
+				if e.has("intake"):
+					# 銃身の先の裂け目へ撃ち込み、相手のそばの裂け目から当てる（覚醒後）
+					rift(e.intake,age,envelope(float(e.time)-.25,float(e.time)-.05,float(e.time)+.18,float(e.time)+.45,age),11+int(e.index)*5)
+					tracer(e.mouth,e.intake,dt,.07,Color(.92,.8,.68) if int(e.index)==0 else Color(.92,.39,.45))
+					for x in e.exits:
+						rift(x.exit,age,envelope(float(x.open),float(x.open)+.28,float(e.hit)+.04,float(e.hit)+.25,age),int(x.seed))
+						tracer(x.exit,x.dest,age-float(x.from),float(e.hit)-float(x.from),Color(.95,.18,.3))
+						hit(x.dest,x.dest-x.exit,age-float(e.hit),accent,float(e.power),int(x.hit_seed))
+				else:
+					tracer(e.mouth,e.dest,dt,float(e.hit)-float(e.time),Color(.95,.85,.7) if kind=="all" else Color(.92,.8,.68))
+					hit(e.dest,e.d,age-float(e.hit),accent,float(e.power),int(e.seed))
+
+## 弾ごとの出来事（この層の座標。今の時刻の本体・影の位置から）。_draw と、強めたエフェクト（rbm_gentleman_fx_*.gd）が読む。
+## src: "clone"（影）/"host"（本体）、mouth・d: 銃口と銃身の向き、time: 撃つ時刻、hit: 当たる時刻、dest: 当たる所、target: 相手の番号
+## （-1 は四人の中心）、power: 命中の強さ、big: 銃火の大きさ。覚醒後は intake（銃身の先の裂け目）と exits（相手のそばの裂け目）。
+func shot_events() -> Array:
+	var out: Array=[]
 	for i in clone_count():
 		var spot:=clone_spot(i)
 		var g:=Motion.gun(Motion.AIM_POSE,"near",spot.flip)
 		var mouth: Vector2=spot.foot+g.p
 		for s in clone_shots(i):
-			var dt:=age-float(s.time)
-			if dt<-.01 or dt>1.6:continue
-			if clone_alpha(i)>.05 or dt>0:
-				flash(mouth,g.d,dt,1.2 if s.get("volley",false) else 1.0)
-			tracer(mouth,spot.dest,dt,float(s.hit)-float(s.time),Color(.9,.83,.65))
-			hit(spot.dest,g.d,age-float(s.hit),accent,1.3 if s.get("volley",false) else .6,i*40+int(float(s.time)*10))
-	# 本体の射撃
+			var volley:=bool(s.get("volley",false))
+			out.append({"src":"clone","shooter":i,"mouth":mouth,"d":g.d,"time":float(s.time),"hit":float(s.hit),"dest":spot.dest,
+				"target":int(spot.target),"volley":volley,"power":1.3 if volley else .6,"big":1.2 if volley else 1.0,"seed":i*40+int(float(s.time)*10)})
+	var host:=host_foot()
 	for i in data.host.size():
-		var e: Dictionary=data.host[i];var dt:=age-float(e.time)
-		if dt<-.4 or dt>3.0:continue
+		var e: Dictionary=data.host[i]
 		var pose:=Motion.frame(kind,float(e.time)-1.0/60.0)
 		if kind=="single":pose=Motion.AIM_POSE
 		var g:=Motion.gun(pose,str(e.hand))
 		if g.is_empty():g={"p":Motion.muzzle(kind,float(e.time),str(e.hand)),"d":Vector2.LEFT}
 		var mouth: Vector2=host+g.p
 		var d: Vector2=g.d
-		flash(mouth,d,dt,1.4 if awakened else 1.2)
+		var ev:={"src":"host","index":i,"mouth":mouth,"d":d,"time":float(e.time),"hit":float(e.hit),"big":1.4 if awakened else 1.2}
 		if kind=="single":
-			var dest:=aim(mouth,Vector2(foot(0).x+4,line_y(0,mouth.x)))
-			tracer(mouth,dest,dt,float(e.hit)-float(e.time),Color(.92,.8,.68))
-			hit(dest,d,age-float(e.hit),accent,1.4,12)
+			ev.dest=aim(mouth,Vector2(foot(0).x+4,line_y(0,mouth.x)));ev.target=0;ev.power=1.4;ev.seed=12
 		elif kind=="all":
-			# 最後の一発（影が一斉に撃つ合図）: 構えた銃の向きのまま四人の中心へ（水平から3度以内）。当たった所で墨と光が弾ける
+			# 最後の一発（影が一斉に撃つ合図）: 構えた銃の向きのまま四人の中心へ（水平から3度以内）
 			var mid:=center()
-			var dest:=aim(mouth,Vector2(mid.x+4,mid.y-GUN_H*.55))
-			tracer(mouth,dest,dt,float(e.hit)-float(e.time),Color(.95,.85,.7))
-			hit(dest,d,age-float(e.hit),accent,1.6,21)
+			ev.dest=aim(mouth,Vector2(mid.x+4,mid.y-GUN_H*.55));ev.target=-1;ev.power=1.6;ev.seed=21
 		elif kind=="awakened_single":
-			# 銃身の先の裂け目へ撃ち込み、相手のそばの裂け目から当てる
-			var intake:=mouth+d*44
-			rift(intake,age,envelope(float(e.time)-.25,float(e.time)-.05,float(e.time)+.18,float(e.time)+.45,age),11+i*5)
-			tracer(mouth,intake,dt,.07,Color(.92,.8,.68) if i==0 else Color(.92,.39,.45))
 			# 出口の裂け目は相手の右（紳士の側の空いている所）: 1発目は斜め上から、2発目は真横から
 			var exit:=point(0)+(Vector2(36,-34) if i==0 else Vector2(44,0))
-			rift(exit,age,envelope(float(e.reentry)-.36,float(e.reentry)-.08,float(e.hit)+.04,float(e.hit)+.25,age),31+i*5)
-			tracer(exit,point(0),age-float(e.reentry),float(e.hit)-float(e.reentry),Color(.95,.18,.3))
-			hit(point(0),point(0)-exit,age-float(e.hit),accent,1.55 if i==0 else 2.85,100+i*30)
+			ev.intake=mouth+d*44;ev.target=0;ev.power=1.55 if i==0 else 2.85;ev.dest=point(0)
+			ev.exits=[{"exit":exit,"dest":point(0),"open":float(e.reentry)-.36,"from":float(e.reentry),"seed":31+i*5,"hit_seed":100+i*30,"target":0}]
 		elif kind=="awakened_all":
 			# 二丁の弾を銃身の先の裂け目へ。1発目は全員の頭上から、2発目は全員の横から当てる
-			var intake:=mouth+d*40
-			rift(intake,age,envelope(float(e.time)-.22,float(e.time)-.04,float(e.time)+.16,float(e.time)+.4,age),11+i*5)
-			tracer(mouth,intake,dt,.06,Color(.92,.8,.68) if i==0 else Color(.92,.39,.45))
+			ev.intake=mouth+d*40;ev.target=-1;ev.power=1.6 if i==0 else 2.2;ev.dest=center()
+			var exits: Array=[]
 			for j in points.size():
 				var body:=point(j)
-				var exit:=body+(Vector2(34,-32) if i==0 else Vector2(40,2))
-				var travel:=float(e.hit)-float(e.time)-.02
-				rift(exit,age,envelope(float(e.time)-.05,float(e.time)+.03,float(e.hit)+.06,float(e.hit)+.3,age),51+j*7+i*3)
-				tracer(exit,body,age-float(e.time)-.02,travel,Color(.95,.18,.3))
-				hit(body,body-exit,age-float(e.hit),accent,1.6 if i==0 else 2.2,80+j*40+i*7)
+				exits.append({"exit":body+(Vector2(34,-32) if i==0 else Vector2(40,2)),"dest":body,"open":float(e.time)-.05,"from":float(e.time)+.02,"seed":51+j*7+i*3,"hit_seed":80+j*40+i*7,"target":j})
+			ev.exits=exits
+		else:
+			continue
+		out.append(ev)
+	return out
 
 # ---- タイトルの紳士の部屋（rbm_gentleman_title_room.gd の PracticeEffects）が使う、前の版の銃火・弾・命中（見た目は前のまま）----
 func tri(a: Vector2,b: Vector2,d: Vector2,color: Color) -> void:

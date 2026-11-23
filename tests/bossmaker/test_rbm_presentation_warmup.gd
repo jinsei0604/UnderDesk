@@ -430,7 +430,8 @@ func test_first_plays_read_nothing_that_was_not_read_ahead() -> void:
 	await _assert_first_play_reads_nothing_new(_battle("appearance_ghost", [_attack("single")]), "")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_ghost", [_attack("all")]), "")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_gentleman", [_attack("single")]), "gentleman_single")
-	await _assert_first_play_reads_nothing_new(_battle("appearance_gentleman", [_attack("all")]), "gentleman_all")
+	# 2026-11-23 覚醒前の全体を「跳弾」に作り直し、専用の音も gentleman_all_v2 に替えた
+	await _assert_first_play_reads_nothing_new(_battle("appearance_gentleman", [_attack("all")]), "gentleman_all_v2")
 	# ヒーロー（2026-11-10）
 	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_attack("single")]), "hero_boss_single")
 	await _assert_first_play_reads_nothing_new(_battle("appearance_hero_boss", [_attack("all")]), "hero_boss_all")

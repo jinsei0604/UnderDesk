@@ -214,34 +214,134 @@ func test_impact_sheets_without_awakening_and_for_other_bosses() -> void:
 	var other := _sheet_stage("appearance_slime")
 	assert_eq(await _settle(other.stage), [])
 
-func test_bullets_fly_along_the_gun_and_shadows_do_not_overlap() -> void:
-	# 2026-11-20 ユーザー「銃弾の角度がおかしい」「全体攻撃で影が重なると変」: 弾は銃口から水平に対して3度以内、
-	# 同じ相手を狙う影どうし・違う相手を狙う影どうしの体が重ならない。
-	for kind in ["single", "aoe"]:
-		var f := _fixture(kind)
+func test_single_bullet_flies_along_the_gun() -> void:
+	# 2026-11-20 ユーザー「銃弾の角度がおかしい」: 単体の弾は銃口から水平に対して3度以内。
+	var f := _fixture("single")
+	f.stage.play_entry(f.entry, f.skill)
+	var d = f.stage._skill_presentation
+	var v = d._vfx
+	var mouth: Vector2 = v.duel_foot() + Timeline.gun(Timeline.AIM_POSE, "near").p
+	var dest: Vector2 = v.aim(mouth, Vector2(v.foot(0).x + 4, v.line_y(0, mouth.x)))
+	assert_lte(absf(dest.y - mouth.y), absf(dest.x - mouth.x) * Vfx.SLOPE + .01, "単体の弾の傾き")
+	f.stage._tween.custom_step(40)
+
+func test_ricochet_draws_a_pentagram_through_everyone_and_lands_once() -> void:
+	# 2026-11-23 覚醒前の全体を「跳弾」に作り直し（ユーザー「狼と同じすごい速さで」「軌道は五芒星に。弾は画面の外へ行かず、
+	# 最後に当たった所で止まる」「最後の着弾地点はパーティー側の誰かに」）: 弾は伸ばした腕の銃口から出て、星の頂点で一つ飛ばしに
+	# 跳ね返って五芒星を描き、最初の頂点へ戻ると一番近い一人の胸へ食い込んで止まる。五本の線で四人全員を貫く。一本は狼の駆け抜けと同じくらい速い。小さな数字は一人3つまで、最後の一撃は1回。
+	var f := _fixture("aoe")
+	var seen: Array = []
+	f.stage.impact.connect(func(e): seen.append(e))
+	f.stage.play_entry(f.entry, f.skill)
+	var d = f.stage._skill_presentation
+	assert_true(d._fx != null and d._fx.get_script() == Driver.V2_FX["all"], "跳弾の演出")
+	var fx = d._fx
+	f.stage._tween.custom_step(fx.T.fire + 0.01)
+	var path: Array = fx.path
+	assert_eq(path.size(), fx.COUNT + 3, "銃口・最初の頂点・一つ飛ばしの五本・一人の胸")
+	assert_lt(Vector2(path[0]).distance_to(fx.foot + fx.MUZZLE * fx.UNIT), 0.5, "弾は伸ばした腕の銃口から出る")
+	assert_eq(Vector2(path[fx.COUNT + 1]), Vector2(path[1]), "五本で最初の頂点へ戻る（星が閉じる）")
+	var lodged := -1
+	for i in range(4):
+		if Vector2(path.back()).distance_to(fx.target_chest(i)) < 0.5:
+			lodged = i
+	assert_gte(lodged, 0, "最後はパーティの一人の胸で止まる（画面の外へ行かない）")
+	var verts := {}
+	for k in range(1, fx.COUNT + 1):
+		verts[Vector2(path[k])] = true
+		assert_true(Rect2(0, 0, 640, 320).has_point(path[k]), "頂点 %d は画面の中" % k)
+	assert_eq(verts.size(), 5, "五つの頂点")
+	# 五芒星: 星の中心から見て、続く頂点は 144 度ずつ回る
+	var c := Vector2.ZERO
+	for v in verts:
+		c += Vector2(v)
+	c /= 5.0
+	for k in range(1, fx.COUNT + 1):
+		var turn := absf(wrapf((Vector2(path[k + 1]) - c).angle() - (Vector2(path[k]) - c).angle(), -PI, PI))
+		assert_almost_eq(turn, deg_to_rad(144.0), deg_to_rad(12.0), "星の線 %d" % k)
+	var bl: Dictionary = fx._bullet(fx.T.click - 0.01)
+	assert_true(bool(bl.get("stopped", false)) and Vector2(bl.p) == Vector2(path.back()), "弾は一人の胸に食い込んで止まっている")
+	var who := {}
+	for ps in fx.passes:
+		var k: int = ps.seg
+		var a: Vector2 = path[k]
+		var b: Vector2 = path[k + 1]
+		var u := clampf((Vector2(ps.p) - a).dot(b - a) / maxf((b - a).length_squared(), 0.001), 0.0, 1.0)
+		assert_lt(a.lerp(b, u).distance_to(ps.p), 0.6, "貫く所は星の線の上")
+		who[int(ps.who)] = true
+	for i in range(4):
+		assert_true(who.has(i), "相手 %d も貫く" % i)
+	assert_lte(fx.STEP, 0.08, "一本は狼の駆け抜けと同じくらい速い")
+	var per := {}
+	for h in fx.hits():
+		assert_lt(float(h[0]), fx.impact(), "途中の当たりは最後の一撃より前")
+		per[int(h[1])] = int(per.get(int(h[1]), 0)) + 1
+	for i in per:
+		assert_lte(int(per[i]), fx.MAX_SMALL, "小さな数字は一人3つまで")
+	f.stage._tween.custom_step(40)
+	assert_eq(seen.size(), 1, "最後の一撃は1回")
+
+## 全体攻撃の場面: 味方の顔ぶれ（ids）と、攻撃の前に倒れている味方（downed: ids の番号）を変えられる
+func _aoe_fixture(ids: Array, downed: Array = []) -> Dictionary:
+	var draft := RBMCreatorDraft.new()
+	draft.appearance_id = "appearance_gentleman"
+	draft.boss_name = "異形紳士"
+	draft.hp = 3000
+	draft.atk = 40
+	draft.spd = 1
+	for id in ids: draft.add_party_character(id)
+	var id := draft.add_skill({"name": "異形紳士 skill", "type": "attack", "target": "all", "attribute": "NEUTRAL", "atk_multiplier": 1.0})
+	draft.normal_actions_enabled = true
+	draft.normal_action_percentages[id] = 100.0
+	var session := RBMCreatorTestSession.new(draft.to_definition(), 5)
+	session.battle.boss.hp = 1500
+	for i in downed:
+		session.battle.party[int(i)].hp = 0
+	var stage := RBMBattleStage.new()
+	stage.size = Vector2(1280, 720)
+	stage.set_meta("fullscreen_formation", true)
+	add_child_autofree(stage)
+	stage.configure(session.battle, "appearance_gentleman")
+	stage.set_state(session.battle.presentation_state())
+	var entry: Dictionary = {}
+	for attempt in range(12):
+		for e in session.resolve_ally_action({"type": "defend"}):
+			if str(e.get("actor")) == "boss": entry = e
+		if not entry.is_empty(): break
+	return {"stage": stage, "session": session, "entry": entry, "skill": RBMBattleUiKit.find_skill_for_actor("boss", id, session.battle)}
+
+func test_ricochet_follows_the_party_size_and_formation() -> void:
+	# 2026-11-23 ユーザー「最後の跳弾が当たるのは、ちゃんと今のパーティの人数や配置に対応したものに。味方一人なら誰もいない所へ
+	# 行かないように」: 1〜4人・倒れている味方がいる時も、弾が貫く相手と最後に食い込む相手は、今の攻撃の対象（生きている味方）だけ。
+	for spec in [[["hero"], []], [["hero", "butler"], []], [["hero", "butler", "healer"], []], [["hero", "butler", "healer", "samurai"], [1, 2]]]:
+		var ids: Array = spec[0]
+		var downed: Array = spec[1]
+		var label := "%d人（倒れている %d人）" % [ids.size(), downed.size()]
+		var f := _aoe_fixture(ids, downed)
+		assert_false(f.entry.is_empty(), label + ": 紳士の全体攻撃")
 		f.stage.play_entry(f.entry, f.skill)
 		var d = f.stage._skill_presentation
-		var v = d._vfx
-		if kind == "single":
-			var mouth: Vector2 = v.duel_foot() + Timeline.gun(Timeline.AIM_POSE, "near").p
-			var dest: Vector2 = v.aim(mouth, Vector2(v.foot(0).x + 4, v.line_y(0, mouth.x)))
-			assert_lte(absf(dest.y - mouth.y), absf(dest.x - mouth.x) * Vfx.SLOPE + .01, "単体の弾の傾き")
-		else:
-			var spots: Array = []
-			for i in v.clone_count():
-				var spot: Dictionary = v.clone_spot(i)
-				var g: Dictionary = Timeline.gun(Timeline.AIM_POSE, "near", spot.flip)
-				var mouth: Vector2 = spot.foot + g.p
-				assert_lte(absf(spot.dest.y - mouth.y), absf(spot.dest.x - mouth.x) * Vfx.SLOPE + .01, "影 %d の弾の傾き" % i)
-				assert_gt(signf(spot.dest.x - mouth.x) * g.d.x, 0.0, "影 %d は銃の向きに撃つ" % i)
-				spots.append(spot)
-			for i in spots.size():
-				for j in range(i + 1, spots.size()):
-					var a: Vector2 = spots[i].foot
-					var b: Vector2 = spots[j].foot
-					# 体（幅 約28・高さ 約90 の絵の画素）が重ならない
-					assert_true(absf(a.x - b.x) >= 28.0 or absf(a.y - b.y) >= 90.0, "影 %d と %d が重なる %s %s" % [i, j, a, b])
+		var fx = d._fx
+		f.stage._tween.custom_step(fx.T.fire + 0.01)
+		var live: Array = []
+		for i in range(4):
+			if fx.present[i]:
+				live.append(i)
+		assert_eq(live.size(), ids.size() - downed.size(), label + ": 対象は生きている味方だけ")
+		assert_has(live, fx.last_target, label + ": 最後は生きている味方の胸で止まる")
+		assert_lt(Vector2(fx.path.back()).distance_to(fx.target_chest(fx.last_target)), 0.5, label + ": 止まる所はその味方の胸")
+		var key: String = d._fx_keys[fx.last_target]
+		assert_true(f.stage._targets.has(key) and not (f.stage._unit_state(key).get("is_downed", false)), label + ": 止まる味方は今の対象 %s" % key)
+		var passed := {}
+		for ps in fx.passes:
+			assert_has(live, int(ps.who), label + ": 貫くのは生きている味方だけ")
+			passed[int(ps.who)] = true
+		for i in live:
+			assert_true(passed.has(i), label + ": 味方 %d も貫く" % i)
+		for k in range(1, fx.path.size()):
+			assert_true(Rect2(0, 0, 640, 320).has_point(fx.path[k]), label + ": 弾の通る点 %d は画面の中" % k)
 		f.stage._tween.custom_step(40)
+		await get_tree().process_frame
 
 func test_rebuilt_awakened_all_hits_everyone_once_and_cleans_up() -> void:
 	# 2026-11-20 作り直した覚醒後の全体「深紅の終幕」（rbm_gentleman_fx_post_all.gd）: 途中の弾は小さな数字、最後の一撃で1回だけ impact。

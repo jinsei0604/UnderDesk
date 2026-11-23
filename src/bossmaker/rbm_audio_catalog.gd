@@ -47,6 +47,7 @@ const FILES := {
   "hero_boss_awakened_heal": "res://assets_bossmaker/audio/hero_boss/awakened_heal.wav",
   "hero_boss_awakened_buff": "res://assets_bossmaker/audio/hero_boss/awakened_buff.wav",
   "gentleman_all": "res://assets_bossmaker/audio/gentleman/all.wav",
+  "gentleman_all_v2": "res://assets_bossmaker/audio/gentleman/all_v2.wav",
   "gentleman_buff": "res://assets_bossmaker/audio/gentleman/buff.wav",
   "gentleman_heal": "res://assets_bossmaker/audio/gentleman/heal.wav",
   "gentleman_awakening": "res://assets_bossmaker/audio/gentleman/awakening.wav",

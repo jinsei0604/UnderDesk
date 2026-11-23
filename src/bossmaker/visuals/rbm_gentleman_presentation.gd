@@ -11,8 +11,18 @@ const Camera=preload("res://src/bossmaker/visuals/rbm_battlefield_camera.gd")
 const V2_FX := {
 	"awakening": preload("res://src/bossmaker/visuals/gentleman/rbm_gentleman_fx_awaken.gd"),
 	"awakened_all": preload("res://src/bossmaker/visuals/gentleman/rbm_gentleman_fx_post_all.gd"),
+	# 2026-11-23 作り直した覚醒前の全体「跳弾」（前の版は影の射撃。ユーザー「アイデア自体が良くない。クールなキャラに合った技を」）
+	"all": preload("res://src/bossmaker/visuals/gentleman/rbm_gentleman_fx_all.gd"),
 }
-const V2_SOUNDS := {"awakening": "gentleman_awakening_v2", "awakened_all": "gentleman_awakened_all"}
+const V2_SOUNDS := {"awakening": "gentleman_awakening_v2", "awakened_all": "gentleman_awakened_all", "all": "gentleman_all_v2"}
+## 2026-11-23 強めたエフェクト（ユーザー「全体的にエフェクトが弱くてクオリティが低い。覚醒後の全体攻撃を基準に」）: 動き・時刻・音は
+## 今のまま（rbm_gentleman_vfx.gd が本体・影・霧を描く）、エフェクトだけを覚醒後の全体と同じ部品の層（RBMGentlemanFxLayer）で描く。
+const FX_LAYER := {
+	"single": preload("res://src/bossmaker/visuals/gentleman/rbm_gentleman_fx_single.gd"),
+	"awakened_single": preload("res://src/bossmaker/visuals/gentleman/rbm_gentleman_fx_awakened_single.gd"),
+	"buff": preload("res://src/bossmaker/visuals/gentleman/rbm_gentleman_fx_support.gd"),
+	"heal": preload("res://src/bossmaker/visuals/gentleman/rbm_gentleman_fx_support.gd"),
+}
 const V2_SHADERS := ["blast", "cracks", "pillar", "pool", "post", "ribbon", "ring"]
 const POST_DEFAULTS := {"chroma": 0.0, "radial": 0.0, "split_amt": 0.0, "split_head": 99.0, "split_soft": .18, "split_gap": 0.0, "corrupt": 0.0, "desat": 0.0, "tint": Color.WHITE, "vig": 0.0, "impact": 0.0, "flash": 0.0}
 const POST_MARGIN := 32.0
@@ -48,7 +58,7 @@ func is_gentleman() -> bool:return true
 
 ## 戦闘テンポで詰める区間（覚醒と、2026-11-20 に作り直した技は詰めない）
 func tempo() -> Array:
-	return [] if kind=="awakening" or _fx!=null else Motion.tempo(action_kind)
+	return [] if kind=="awakening" or V2_FX.has(action_kind) else Motion.tempo(action_kind)
 
 ## Read in the background once the boss is known (rbm_presentation_warmup.gd), so the first play never
 ## parses the motion data or decodes its track on its first frame. kind is the stage's action kind.
@@ -58,7 +68,7 @@ static func warm_paths(asset_id: String, kind: String) -> Array[String]:
 	var keys: Array={"single":[form+"single"],"all":[form+"all"],"support":["buff","heal"],"awakening":["awakening"]}.get(kind,[])
 	for key in keys:
 		out.append(str(Audio.FILES[V2_SOUNDS[key]] if V2_SOUNDS.has(key) else Audio.FILES["gentleman_"+key]))
-		if V2_FX.has(key):
+		if V2_FX.has(key) or FX_LAYER.has(key):
 			for name in V2_SHADERS:out.append("res://src/bossmaker/visuals/hero_boss/shaders/%s.gdshader"%name)
 	if kind=="awakening":out.append(RBMVisualAssets.frame_path("gentleman_awakened",0))
 	return out
@@ -74,6 +84,9 @@ func play(stage: Control) -> Tween:
 	if V2_FX.has(action_kind):
 		_fx=(V2_FX[action_kind] as GDScript).new()
 		duration=_fx.duration();impact_time=_fx.impact()
+	elif FX_LAYER.has(action_kind):
+		_fx=(FX_LAYER[action_kind] as GDScript).new()
+		_fx.set("data",data);_fx.set("action_kind",action_kind)
 	stage._playing=true;stage._phase="gentleman_"+action_kind
 	stage._motion_offset=Vector2.ZERO
 	if kind=="awakening":stage._awakened_appearance_applied=false
@@ -109,6 +122,7 @@ func play(stage: Control) -> Tween:
 	if not _vfx.feet.is_empty():target=_vfx.feet[0]*_unit
 	_vfx.target=target/_unit
 	_viewport.add_child(_vfx)
+	if FX_LAYER.has(action_kind):_fx.set("vfx",_vfx)
 	_picture=TextureRect.new();_picture.texture=_viewport.get_texture()
 	_picture.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
 	_picture.mouse_filter=Control.MOUSE_FILTER_IGNORE
@@ -116,7 +130,7 @@ func play(stage: Control) -> Tween:
 	add_child(_picture)
 	if _fx!=null:_build_v2()
 	var sound_key: String=V2_SOUNDS[action_kind] if V2_FX.has(action_kind) else "gentleman_"+action_kind
-	_audio=AudioStreamPlayer.new();_audio.stream=load(Audio.FILES[sound_key]);_audio.volume_db=-3.0 if _fx!=null else -6.0
+	_audio=AudioStreamPlayer.new();_audio.stream=load(Audio.FILES[sound_key]);_audio.volume_db=-3.0 if V2_FX.has(action_kind) else -6.0
 	add_child(_audio)
 	stage._sound.history.append(sound_key)
 	if stage._sound.history.size()>64:stage._sound.history.pop_front()
@@ -124,7 +138,8 @@ func play(stage: Control) -> Tween:
 	if not stage._sound.muted:_audio.play()
 	if not stage._guards.is_empty():stage._sound.play_sound("cover_move",-5)
 	# 何回も当たる攻撃（2026-10-23）: 影の射撃・先の弾が当たるたびに小さな数字、最後の一撃（impact）で合計（stage.begin_multi_hit()）
-	if kind in ["single","aoe"]:stage.begin_multi_hit(_v2_hit_plan() if _fx!=null else _multi_hit_plan(data),float(_fx.get("final_share")) if _fx!=null and _fx.get("final_share")!=null else (.6 if kind=="single" else .4))
+	var v2:=V2_FX.has(action_kind)
+	if kind in ["single","aoe"]:stage.begin_multi_hit(_v2_hit_plan() if v2 else _multi_hit_plan(data),float(_fx.get("final_share")) if v2 and _fx.get("final_share")!=null else (.6 if kind=="single" else .4))
 	_advance(0)
 	var tween:=create_tween()
 	# 戦闘テンポ（2026-10-16）: 止まっている区間だけ詰める（覚醒は詰めない）。通しの音も同じ時刻へ合わせ直す。
@@ -218,6 +233,8 @@ func _restore() -> void:
 	if is_instance_valid(_viewport):_viewport.render_target_update_mode=SubViewport.UPDATE_DISABLED
 	if _camera!=null:
 		_camera.reset();_camera=null
+		var numbers: CanvasItem=_stage.get("_damage_numbers") if is_instance_valid(_stage) else null
+		if is_instance_valid(numbers):numbers.visible=true
 	if is_instance_valid(_stage) and _fx!=null:
 		for key in _stage._party_keys:
 			var visual: Control=_stage._visuals.get(key)
@@ -267,7 +284,8 @@ func _build_v2() -> void:
 	add_child(_post)
 	_camera=Camera.new()
 	_camera.attach(_stage)
-	_vfx.v2=true
+	if FX_LAYER.has(action_kind):_vfx.fx_layer=true
+	else:_vfx.v2=true
 
 func _v2_layer(layer_name: String, z: int) -> Node2D:
 	var n:=Node2D.new()
@@ -300,6 +318,15 @@ func _advance_v2(t: float) -> void:
 	_dim.color=dc
 	_allies_v2(view,dim)
 	var shake: Vector2=view.get("shake",Vector2.ZERO)
+	# 寄りのカット（2026-11-23 覚醒「紅の眼差し」）: view["cam"]=[倍率, 寄りの中心（論理ドット）]。無ければ引き（1倍）
+	var cam: Array=view.get("cam",[])
+	if cam.size()==2:
+		_camera.zoom=int(cam[0]);_camera.focus=Vector2(cam[1])*2.0
+	else:
+		_camera.zoom=1
+	# 寄っている間は、前の攻撃のダメージの数字を隠す（寄りで大きく映らないように。表示だけ、戻す時に必ず出す）
+	var numbers: CanvasItem=_stage.get("_damage_numbers")
+	if is_instance_valid(numbers):numbers.visible=_camera.zoom<=1
 	_camera._offset=(shake*2.0*_camera.shake_strength()).snapped(Vector2(2,2))
 	_camera.apply()
 	_apply_post(view,t)
