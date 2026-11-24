@@ -151,6 +151,7 @@ func _build_ui() -> void:
 		button.name = "Weak_%s" % attribute
 		button.text = tr(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute, attribute)))
 		button.toggle_mode = true
+		_style_attribute_toggle(button, WEAK_SELECTED_FILL, WEAK_SELECTED_BORDER)
 		button.pressed.connect(_on_weak_button_pressed.bind(attribute))
 		weak_row.add_child(button)
 		_weak_buttons[attribute] = button
@@ -173,6 +174,7 @@ func _build_ui() -> void:
 		button.name = "Resist_%s" % attribute
 		button.text = tr(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute, attribute)))
 		button.toggle_mode = true
+		_style_attribute_toggle(button, RESIST_SELECTED_FILL, RESIST_SELECTED_BORDER)
 		button.pressed.connect(_on_resist_button_pressed.bind(attribute))
 		resist_row.add_child(button)
 		_resist_buttons[attribute] = button
@@ -285,9 +287,48 @@ func _on_resist_button_pressed(attribute: String) -> void:
 
 func _sync_attribute_buttons() -> void:
 	for attribute in _weak_buttons.keys():
-		(_weak_buttons[attribute] as Button).button_pressed = _staged_weak.has(attribute)
+		_set_attribute_toggle(_weak_buttons[attribute] as Button, attribute, _staged_weak.has(attribute))
 	for attribute in _resist_buttons.keys():
-		(_resist_buttons[attribute] as Button).button_pressed = _staged_resist.has(attribute)
+		_set_attribute_toggle(_resist_buttons[attribute] as Button, attribute, _staged_resist.has(attribute))
+	_fit_attribute_toggle_widths()
+
+## ボタンごとに「✓ ＋ そのボタンの名前」が入る幅を先に取っておく（押しても幅が変わらず、並びが動かない）。
+## 全部を同じ幅にすると英語（Lightning など）で横にはみ出すので、幅はボタンごと。
+func _fit_attribute_toggle_widths() -> void:
+	for pair in [_weak_buttons, _resist_buttons]:
+		for attribute in pair.keys():
+			var b := pair[attribute] as Button
+			var font := b.get_theme_font("font")
+			var size := b.get_theme_font_size("font_size")
+			var label := tr(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute, attribute)))
+			var text_w := font.get_string_size(SELECTED_MARK + label, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+			b.custom_minimum_size.x = maxf(ATTRIBUTE_TOGGLE_MIN_WIDTH, ceilf(text_w + RBMCreatorUiKit.BUTTON_CONTENT_MARGIN_H * 2.0 + 4.0))
+
+## 2026-11-24 ユーザー指摘「弱点・耐性を選んでも色が少ししか変わらず分かりにくい」: 選んだボタンは
+## 地を塗って枠を太く明るくし（弱点＝赤・耐性＝水色）、文字の頭に「✓」を付ける（色だけに頼らない。ACCESSIBILITY §3）。
+## 幅は「✓ 炎」が入る幅にそろえ、押しても並びが動かないようにする。選んでいないボタンは今までどおり。
+const WEAK_SELECTED_FILL := Color("#4a1a1d")
+const WEAK_SELECTED_BORDER := Color("#ff8a6e")
+const RESIST_SELECTED_FILL := Color("#0d3942")
+const RESIST_SELECTED_BORDER := RBMCreatorUiKit.COLOR_SILVER_BRIGHT
+const ATTRIBUTE_TOGGLE_MIN_WIDTH := 72.0
+const SELECTED_MARK := "✓ "
+
+func _style_attribute_toggle(button: Button, fill: Color, border: Color) -> void:
+	button.custom_minimum_size.x = ATTRIBUTE_TOGGLE_MIN_WIDTH
+	var on := RBMCreatorUiKit._box(fill, border)
+	on.set_border_width_all(2)
+	var on_hover := RBMCreatorUiKit._box(fill.lightened(0.12), border.lightened(0.15))
+	on_hover.set_border_width_all(2)
+	button.add_theme_stylebox_override("pressed", on)
+	button.add_theme_stylebox_override("hover_pressed", on_hover)
+	button.add_theme_color_override("font_pressed_color", Color.WHITE)
+	button.add_theme_color_override("font_hover_pressed_color", Color.WHITE)
+
+func _set_attribute_toggle(button: Button, attribute: String, selected: bool) -> void:
+	button.button_pressed = selected
+	var label := tr(str(RBMDefinitionLoader.ATTRIBUTE_LABELS.get(attribute, attribute)))
+	button.text = (SELECTED_MARK + label) if selected else label
 
 func set_hp(value: int) -> void:
 	draft.hp = clampi(value, RBMDefinitionLoader.BOSS_HP_MIN, RBMDefinitionLoader.BOSS_HP_MAX)

@@ -147,6 +147,31 @@ func test_step2_same_attribute_moves_sides_via_ui() -> void:
 	assert_false((step2._weak_buttons["FIRE"] as Button).button_pressed)
 	assert_true((step2._resist_buttons["FIRE"] as Button).button_pressed)
 
+## 2026-11-24: 選んだ弱点・耐性は色だけでなく「✓」でも分かる。外すと「✓」が消える。押した状態の地と枠は
+## 弱点＝赤・耐性＝水色の太い枠（選んでいない時の見た目は変えない）。押しても幅は変わらない。
+func test_step2_selected_weak_and_resist_show_a_check_mark_and_a_colored_frame() -> void:
+	var creator := _new_creator()
+	var step2: RBMCreatorStep2Stats = creator._step_views[1]
+	var weak := step2._weak_buttons["FIRE"] as Button
+	var resist := step2._resist_buttons["ICE"] as Button
+	var label := tr("炎")
+	step2.refresh()  # 画面を出した時と同じ（幅は表示の時に「✓ ＋ 名前」で測って決まる）
+	assert_eq(weak.text, label, "選んでいない時は名前だけ")
+	var width_before := weak.custom_minimum_size.x
+	step2.toggle_weak("FIRE")
+	step2.toggle_resist("ICE")
+	assert_eq(weak.text, "✓ " + label)
+	assert_eq(resist.text, "✓ " + tr("氷"))
+	assert_eq(weak.custom_minimum_size.x, width_before, "押しても幅が変わらない")
+	var weak_box := weak.get_theme_stylebox("pressed") as StyleBoxFlat
+	var resist_box := resist.get_theme_stylebox("pressed") as StyleBoxFlat
+	assert_eq(weak_box.border_color, RBMCreatorStep2Stats.WEAK_SELECTED_BORDER)
+	assert_eq(resist_box.border_color, RBMCreatorStep2Stats.RESIST_SELECTED_BORDER)
+	assert_eq(weak_box.border_width_top, 2)
+	assert_ne(weak_box.bg_color, resist_box.bg_color, "弱点と耐性は違う色")
+	step2.toggle_weak("FIRE")
+	assert_eq(weak.text, label, "外すと「✓」が消える")
+
 # ---------------------------------------------------------------------------
 # 共通行動作成フォーム (RBMActionEditorForm)
 #
