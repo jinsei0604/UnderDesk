@@ -279,6 +279,13 @@ func test_switching_the_language_relabels_the_carry_over_button_and_confirmation
 		var dialog := root.find_child("DemoCarryOverConfirmation", true, false) as ConfirmationDialog
 		assert_eq(dialog.ok_button_text, "Carry Over" if english else "引き継ぐ")
 		assert_eq(dialog.cancel_button_text, "Later" if english else "あとで")
+		# 2026-11-24: 題名（無いと Godot の既定の英語「Please Confirm...」）と本文も今の言語（本文は翻訳表のキーと改行が違って日本語のままだった）
+		assert_eq(dialog.title, "Carry Over from Trial" if english else "体験版から引き継ぐ")
+		var body: String = root._carry_over_text({"stages": 2})
+		if english:
+			assert_true(body.begins_with("Trial data was found. Carry over 2 saved boss battles"), body)
+		else:
+			assert_true(body.begins_with("体験版のデータが見つかりました。保存したボス戦2体"), body)
 
 ## 2026-11-05: 体験版のホームのボス作成のカードは HARDCORE の札を残し（製品版で遊べると知らせる）、横に「製品版で解放」を添える。
 ## 製品版のカードは今までどおり（添え書きなし・札は普通の濃さ）。

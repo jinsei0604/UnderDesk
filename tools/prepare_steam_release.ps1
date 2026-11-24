@@ -27,6 +27,25 @@ $exeName = $packs[0].BaseName + '.exe'
 $required = @($exeName, $packName, 'libgodotsteam.windows.template_release.x86_64.dll', 'steam_api64.dll')
 foreach ($name in $required) { if (-not (Test-Path -LiteralPath (Join-Path $source $name) -PathType Leaf)) { throw "Missing runtime file: $name" } }
 
+# Works on Windows PowerShell 5.1 and PowerShell 7 (2026-11-24: this PC has no pwsh).
+$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+function Get-Hex([byte[]]$Bytes) { return [BitConverter]::ToString($Bytes).Replace('-', '') }
+function Get-Md5([byte[]]$Bytes) { $h = [Security.Cryptography.MD5]::Create(); try { return ,$h.ComputeHash($Bytes) } finally { $h.Dispose() } }
+function Get-Sha256Bytes([byte[]]$Bytes) { $h = [Security.Cryptography.SHA256]::Create(); try { return ,$h.ComputeHash($Bytes) } finally { $h.Dispose() } }
+function Write-TextNoBom([string]$Path, [string]$Text) { [IO.File]::WriteAllText($Path, $Text, $Utf8NoBom) }
+# Runs a native program with stdout and stderr in one log, without PowerShell 5.1 turning stderr lines into errors.
+function Invoke-Native([string]$Exe, [string[]]$Arguments, [string]$Log) {
+    $quoted = @($Arguments | ForEach-Object { if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ } })
+    $out = "$Log.stdout"; $err = "$Log.stderr"
+    $p = Start-Process -FilePath $Exe -ArgumentList ($quoted -join ' ') -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+    $null = $p.Handle
+    $p.WaitForExit()
+    $text = ''
+    foreach ($part in @($out, $err)) { if (Test-Path -LiteralPath $part) { $text += [IO.File]::ReadAllText($part); Remove-Item -LiteralPath $part } }
+    Write-TextNoBom $Log $text
+    return $p.ExitCode
+}
+
 function Read-Pack([string]$Path) {
     $stream = [IO.File]::OpenRead($Path)
     $r = [IO.BinaryReader]::new($stream)
@@ -84,12 +103,9 @@ if ($RepairMissingPublicConfig) {
         $publicLines=@(Get-Content -LiteralPath $ConfigFile | Where-Object { $_ -match '^\s*SUPABASE_(URL|PUBLISHABLE_KEY)\s*=' })
         [IO.File]::WriteAllLines((Join-Path $mini 'supabase_poc.local.env'),[string[]]$publicLines)
     }
-    & $Godot --headless --path $mini --editor --import --quit *> (Join-Path $work 'config_import.log')
-    if ($LASTEXITCODE -ne 0) { throw 'Config project import failed.' }
-    & $Godot --headless --path $mini -s res://make_supabase_public_config.gd *> (Join-Path $work 'config_generate.log')
-    if ($LASTEXITCODE -ne 0) { throw 'Public config generation failed; values are not logged.' }
-    & $Godot --headless --path $mini -s res://make_supabase_public_config.gd -- --check *> (Join-Path $work 'config_check.log')
-    if ($LASTEXITCODE -ne 0) { throw 'Public config validation failed.' }
+    if ((Invoke-Native $Godot @('--headless','--path',$mini,'--editor','--import','--quit') (Join-Path $work 'config_import.log')) -ne 0) { throw 'Config project import failed.' }
+    if ((Invoke-Native $Godot @('--headless','--path',$mini,'-s','res://make_supabase_public_config.gd') (Join-Path $work 'config_generate.log')) -ne 0) { throw 'Public config generation failed; values are not logged.' }
+    if ((Invoke-Native $Godot @('--headless','--path',$mini,'-s','res://make_supabase_public_config.gd','--','--check') (Join-Path $work 'config_check.log')) -ne 0) { throw 'Public config validation failed.' }
     $bytes=[IO.File]::ReadAllBytes((Join-Path $mini 'supabase_public.env'))
     # Append one file and a replacement directory. Existing resource bytes and offsets stay unchanged.
     $stream=[IO.File]::Open($targetPack, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite)
@@ -106,7 +122,7 @@ if ($RepairMissingPublicConfig) {
         $pathBytes=[Text.Encoding]::UTF8.GetBytes('supabase_public.env')
         $padded=[byte[]]::new([int]([Math]::Ceiling($pathBytes.Length/4.0)*4))
         [Array]::Copy($pathBytes,$padded,$pathBytes.Length)
-        $w.Write([uint32]$padded.Length);$w.Write($padded);$w.Write($offset);$w.Write([uint64]$bytes.Length);$w.Write([Security.Cryptography.MD5]::HashData($bytes));$w.Write([uint32]0)
+        $w.Write([uint32]$padded.Length);$w.Write($padded);$w.Write($offset);$w.Write([uint64]$bytes.Length);$w.Write([byte[]](Get-Md5 $bytes));$w.Write([uint32]0)
         $stream.Position=32; $w.Write($directory)
     } finally { $w.Dispose() }
 }
@@ -142,8 +158,8 @@ foreach ($e in $basePack.Items) {
         try { $payload=$token.Value.Split('.')[1].Replace('-','+').Replace('_','/');while($payload.Length%4){$payload+='='};$role=([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payload))|ConvertFrom-Json).role } catch { continue }
         if ($role -eq 'service_role') { throw 'Service-role JWT found in PCK.' }
     }
-    $hash=[Security.Cryptography.MD5]::HashData($after)
-    if ([Convert]::ToHexString($hash) -ne [Convert]::ToHexString($e.MD5) -or [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($before)) -ne [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($after))) { throw 'Original resource content changed or is corrupt.' }
+    $hash=Get-Md5 $after
+    if ((Get-Hex $hash) -ne (Get-Hex $e.MD5) -or (Get-Hex (Get-Sha256Bytes $before)) -ne (Get-Hex (Get-Sha256Bytes $after))) { throw 'Original resource content changed or is corrupt.' }
     $preserved++
 }
 if ($newPack.Items.Count -ne $basePack.Items.Count + [int]$RepairMissingPublicConfig.IsPresent) { throw 'Unexpected PCK additions.' }
@@ -163,8 +179,8 @@ foreach ($dll in @('libgodotsteam.windows.template_debug.x86_64.dll','steam_api6
     Copy-Item -LiteralPath (Join-Path $repo "addons/godotsteam/win64/$dll") -Destination $debugDllDir
 }
 $report=Join-Path $output 'pack_check.json'
-& $runnerGodot --headless --path $runner --main-pack $targetPack -s (Join-Path $repo 'tools/check_release_pack.gd') --log-file (Join-Path $work 'pack_check.log') -- "--report=$report" *> (Join-Path $work 'pack_check_console.log')
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $report)) { throw 'Godot PCK check failed.' }
+$checkExit=Invoke-Native $runnerGodot @('--headless','--path',$runner,'--main-pack',$targetPack,'-s',(Join-Path $repo 'tools/check_release_pack.gd'),'--log-file',(Join-Path $work 'pack_check.log'),'--',"--report=$report") (Join-Path $work 'pack_check_console.log')
+if ($checkExit -ne 0 -or -not (Test-Path -LiteralPath $report)) { throw 'Godot PCK check failed.' }
 if (Select-String -LiteralPath (Join-Path $work 'pack_check_console.log') -Pattern 'ERROR:|SCRIPT ERROR:' -Quiet) { throw 'Godot reported an engine/script error during PCK validation.' }
 $check=Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
 if (@($check.problems).Count -ne 0 -or -not $check.public_config_ok) { throw 'PCK check refused upload preparation.' }
@@ -174,9 +190,12 @@ $hashes=@(foreach ($name in $required) {
     if ($name -ne $packName -and $h -ne $original) { throw 'Runtime binary changed.' }
     [pscustomobject]@{file=$name;sha256=$h;source_sha256=$original}
 })
-[ordered]@{mode=$(if($RepairMissingPublicConfig){'public-config-only-repair'}else{'validate-and-prepare'});source=$source;preserved_resources=$preserved;added_resources=[int]$RepairMissingPublicConfig.IsPresent;files=$hashes;public_config_ok=$true;steam_upload_performed=$false} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'release_manifest.json') -Encoding utf8
+[ordered]@{mode=$(if($RepairMissingPublicConfig){'public-config-only-repair'}else{'validate-and-prepare'});source=$source;preserved_resources=$preserved;added_resources=[int]$RepairMissingPublicConfig.IsPresent;files=$hashes;public_config_ok=$true;steam_upload_performed=$false} | ConvertTo-Json -Depth 5 | ForEach-Object { Write-TextNoBom (Join-Path $output 'release_manifest.json') $_ }
 # Exact file mappings exclude reports, configs outside the PCK, and temporary files.
-$mapping=($required | ForEach-Object { "    `"FileMapping`" { `"LocalPath`" `"$_`" `"DepotPath`" `"$_`" `"recursive`" `"0`" }" }) -join "`n"
+# DepotPath is the destination folder inside the install directory. "." = the install root. Writing the file name
+# here makes Steam create a folder with that name and put the file inside it, so the game cannot start (found on the
+# demo, 2026-11-04; the same fix as tools/prepare_steam_demo_upload.ps1).
+$mapping=($required | ForEach-Object { "    `"FileMapping`" { `"LocalPath`" `"$_`" `"DepotPath`" `".`" `"recursive`" `"0`" }" }) -join "`n"
 @"
 "DepotBuildConfig"
 {
@@ -184,21 +203,21 @@ $mapping=($required | ForEach-Object { "    `"FileMapping`" { `"LocalPath`" `"$_
     "contentroot" "$($content.Replace('\','/'))"
 $mapping
 }
-"@ | Set-Content -LiteralPath (Join-Path $output 'depot_5482411.vdf') -Encoding utf8NoBOM
+"@ | ForEach-Object { Write-TextNoBom (Join-Path $output 'depot_5482411.vdf') $_ }
 @"
 "appbuild"
 {
     "appid" "5482410"
-    "desc" "Windows x64 public config repair"
+    "desc" "$(if($RepairMissingPublicConfig){'Windows x64 public config repair'}else{'Windows x64 release'})"
     "buildoutput" "$($output.Replace('\','/'))/steam_build_logs"
     "setlive" ""
     "preview" "0"
     "depots" { "5482411" "$($output.Replace('\','/'))/depot_5482411.vdf" }
 }
-"@ | Set-Content -LiteralPath (Join-Path $output 'app_5482410.vdf') -Encoding utf8NoBOM
+"@ | ForEach-Object { Write-TextNoBom (Join-Path $output 'app_5482410.vdf') $_ }
 $manifestPath=Join-Path $output 'release_manifest.json'
 $manifest=Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 $manifest | Add-Member -NotePropertyName steam_configs -NotePropertyValue @(foreach ($name in @('app_5482410.vdf','depot_5482411.vdf')) { [pscustomobject]@{file=$name;sha256=(Get-FileHash -LiteralPath (Join-Path $output $name) -Algorithm SHA256).Hash} })
-$manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+Write-TextNoBom $manifestPath ($manifest | ConvertTo-Json -Depth 6)
 & (Join-Path $repo 'tools/verify_steam_upload.ps1') -PreparedDirectory $output
 Write-Output "STEAM_PREPARED preserved_resources=$preserved public_config_ok=true uploads=0 output=$output"

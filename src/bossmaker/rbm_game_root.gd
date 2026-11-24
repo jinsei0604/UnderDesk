@@ -430,6 +430,8 @@ func _build_edition_ui() -> void:
 		_carry_over_dialog.exclusive = true
 		_carry_over_dialog.dialog_autowrap = true
 		_carry_over_dialog.min_size = Vector2i(560, 220)
+		# 題名を入れないと Godot の既定の英語「Please Confirm...」が出る（日本語の画面でも）
+		_carry_over_dialog.title = tr("体験版から引き継ぐ")
 		_carry_over_dialog.ok_button_text = tr("引き継ぐ")
 		_carry_over_dialog.cancel_button_text = tr("あとで")
 		_carry_over_dialog.add_theme_stylebox_override("panel", style._box(Color("091521"), style.CYAN_DIM, 1, -1, Vector4(24, 24, 24, 24)))
@@ -480,12 +482,14 @@ func _open_carry_over_dialog() -> void:
 func _carry_over_text(p: Dictionary = {}) -> String:
 	if p.is_empty():
 		p = RBMDemoCarryOver.pending()
-	return tr("体験版のデータが見つかりました。保存したボス戦%d体と討伐記録を製品版に引き継ぎますか？製品版のデータは上書き・削除しません。") % int(p["stages"])
+	# 翻訳表（ui_strings.csv）のキーと1文字でも違うと訳が見つからず、英語の画面でも日本語のまま出る（2026-11-24。改行の有無が違っていた）
+	return tr("体験版のデータが見つかりました。保存したボス戦%d体と討伐記録を製品版に引き継ぎますか？\n製品版のデータは上書き・削除しません。") % int(p["stages"])
 
 func _on_carry_over_confirmed() -> void:
 	var result := RBMDemoCarryOver.import_all()
 	var done := AcceptDialog.new()
 	done.name = "DemoCarryOverResult"
+	done.title = tr("体験版から引き継ぐ")  # 既定の英語「Alert!」を出さない
 	done.dialog_autowrap = true
 	done.dialog_text = tr("体験版から保存したボス戦%d体を引き継ぎました。") % int(result["stages"]) if bool(result["ok"]) else tr("引き継げなかったデータがあります。もう一度お試しください。")
 	_title_screen.add_child(done)
@@ -587,6 +591,7 @@ func _refresh_demo_ui_locale() -> void:
 	if is_instance_valid(_carry_over_button):
 		_carry_over_button.text = tr("体験版から引き継ぐ")
 	if is_instance_valid(_carry_over_dialog):
+		_carry_over_dialog.title = tr("体験版から引き継ぐ")
 		_carry_over_dialog.ok_button_text = tr("引き継ぐ")
 		_carry_over_dialog.cancel_button_text = tr("あとで")
 		if _carry_over_dialog.visible:

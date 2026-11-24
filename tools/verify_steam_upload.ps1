@@ -18,7 +18,8 @@ if (-not $depot.Contains('"contentroot" "'+$content.Replace('\','/')+'"') -or $d
 foreach ($entry in $manifest.files) {
     if ([IO.Path]::GetFileName($entry.file) -ne $entry.file) { throw 'Unsafe manifest filename.' }
     if ((Get-FileHash -LiteralPath (Join-Path $content $entry.file) -Algorithm SHA256).Hash -ne $entry.sha256) { throw "Content changed after validation: $($entry.file)" }
-    if (-not $depot.Contains('"LocalPath" "'+$entry.file+'" "DepotPath" "'+$entry.file+'" "recursive" "0"')) { throw 'Depot mapping changed.' }
+    # DepotPath must be "." (install root). A file name there becomes a folder on the player's PC.
+    if (-not $depot.Contains('"LocalPath" "'+$entry.file+'" "DepotPath" "." "recursive" "0"')) { throw 'Depot mapping changed.' }
 }
 $app=Get-Content -LiteralPath (Join-Path $root 'app_5482410.vdf') -Raw
 if (-not $app.Contains('"5482411" "'+$root.Replace('\','/')+'/depot_5482411.vdf"') -or -not $app.Contains('"appid" "5482410"')) { throw 'App depot configuration changed.' }

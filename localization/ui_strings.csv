@@ -619,6 +619,8 @@ to continue or revise it."
 ターン終了時に追加で使う,Use additionally at turn end
 通常行動の追加方法を選んでください,Choose how to add a normal action
 指定行動の追加方法を選んでください,Choose how to add a scripted action
+行動の追加方法を選んでください,Choose how to add an action
+追加,Add
 既存の行動から選ぶ,Choose an Existing Action
 新しく行動を作る,Create a New Action
 既存の行動から選んでください,Choose an existing action
@@ -776,7 +778,9 @@ HP回復：HP%d,HP Heal: %d HP
 前へ,Previous
 引き継ぐ,Carry Over
 あとで,Later
-体験版のデータが見つかりました。保存したボス戦%d体と討伐記録を製品版に引き継ぎますか？\n製品版のデータは上書き・削除しません。,Trial data was found. Carry over %d saved boss battles and your defeat records to the full version?\nYour full-version data will not be overwritten or deleted.
+"体験版のデータが見つかりました。保存したボス戦%d体と討伐記録を製品版に引き継ぎますか？
+製品版のデータは上書き・削除しません。","Trial data was found. Carry over %d saved boss battles and your defeat records to the full version?
+Your full-version data will not be overwritten or deleted."
 体験版から保存したボス戦%d体を引き継ぎました。,Carried over %d saved boss battles from the trial.
 引き継げなかったデータがあります。もう一度お試しください。,Some data could not be carried over. Please try again.
 ぷるぷると弾む赤いスライム,A bouncy red slime
