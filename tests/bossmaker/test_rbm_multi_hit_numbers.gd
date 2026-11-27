@@ -1,7 +1,8 @@
 extends GutTest
 ## 何回も当たる攻撃のダメージの数字（2026-10-23 ユーザーの決定）: 当たるたびに小さな数字（その回の分）、最後の一撃で合計。
 ## 小さな数字を全部足すと合計。HP は当たるたびに減り、最後の一撃（impact）で確定。戦闘の計算・記録は変えない。
-## 対象: 竜の覚醒後の全体（小さな隕石→巨大隕石）、武者（単体・全体）、武者の覚醒後（単体・全体）、紳士（全体・覚醒後の単体・全体）。
+## 対象: 竜の覚醒後の全体（小さな隕石→巨大隕石）、竜の息吹（覚醒前の全体・覚醒後の単体。2026-11-26 ユーザー「ブレスの当たりが1回はおかしい」）、
+## 武者（単体・全体）、武者の覚醒後（単体・全体）、紳士（全体・覚醒後の単体・全体）。
 const AssetsReady = preload("res://tests/bossmaker/presentation_assets_ready.gd")
 const DamageNumbers = preload("res://src/bossmaker/visuals/rbm_damage_numbers.gd")
 var _ready_assets: Array = []
@@ -173,7 +174,8 @@ func test_dragon_awakened_meteors_count_down_to_the_giant_meteor() -> void:
 
 func test_musha_gentleman_and_awakened_attacks_split_their_hits() -> void:
 	for spec in [["musha", "single", false], ["musha", "all", false], ["musha", "single", true], ["musha", "all", true],
-			["gentleman", "all", false], ["gentleman", "single", true], ["gentleman", "all", true]]:
+			["gentleman", "all", false], ["gentleman", "single", true], ["gentleman", "all", true],
+			["dragon", "all", false], ["dragon", "single", true]]:
 		var f := _fixture(spec[0], spec[1], spec[2])
 		var label := "%s %s%s" % [spec[0], spec[1], " awakened" if spec[2] else ""]
 		assert_false(f.entry.is_empty(), label)
@@ -188,7 +190,8 @@ func test_musha_gentleman_and_awakened_attacks_split_their_hits() -> void:
 		await get_tree().process_frame
 
 func test_single_hit_attacks_are_unchanged() -> void:
-	for spec in [["dragon", "all", false], ["dragon", "single", true], ["gentleman", "single", false]]:
+	# 竜の息吹（覚醒前の全体・覚醒後の単体）は 2026-11-26 から何回も当たる（上のテスト）。竜の1回だけの攻撃は急降下
+	for spec in [["dragon", "single", false], ["gentleman", "single", false]]:
 		var f := _fixture(spec[0], spec[1], spec[2])
 		var rec := _play(f)
 		assert_eq(rec.impacts, 1)

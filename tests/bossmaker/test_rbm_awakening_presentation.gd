@@ -1,6 +1,17 @@
 extends GutTest
 ## Dragon-specific awakening and synchronization of presentation snapshots.
 const Awakening = preload("res://src/bossmaker/visuals/rbm_dragon_awakening.gd")
+const Bolts = preload("res://src/bossmaker/visuals/dragon/rbm_dragon_awaken_bolts.gd")
+const AssetsReady = preload("res://tests/bossmaker/presentation_assets_ready.gd")
+## 演出の契約は、事前読み込みが素材を読み終えた状態で検証する(QA-06)。2026-11-26 から竜の覚醒も黒い雷の
+## シェーダーを warm_paths() で宣言する（読み終えていない時の待ちは test_rbm_presentation_warmup.gd が検証する）。
+var _ready_assets: Array = []
+
+func before_all() -> void:
+	_ready_assets = AssetsReady.hold(["dragon"])
+
+func after_all() -> void:
+	_ready_assets.clear()
 
 func _session() -> RBMCreatorTestSession:
 	var draft := RBMCreatorDraft.new()
@@ -189,3 +200,26 @@ func test_roar_reuses_the_intro_clip_when_the_awakened_form_appears() -> void:
 	stage2._tween.custom_step(Awakening.DURATION)
 	await get_tree().process_frame
 	assert_eq(stage2._sound.history.count("dragon_roar"), 2)
+
+## 2026-11-26 ユーザー承認: 今の覚醒の流れのまま、画面全体に黒い雷を重ねる（dragon/rbm_dragon_awaken_bolts.gd）。
+## 落ちる雷・暗転の直前の巨大な雷・解放の放射状の雷が描かれ、戦闘の状態は変えず、覚醒の演出と一緒に片付く。
+func test_black_lightning_covers_the_awakening_and_leaves_the_battle_alone() -> void:
+	var session := _session()
+	var stage := _stage(session)
+	var entry := _awakening_entry(session)
+	var snapshot := session.battle.snapshot().duplicate(true)
+	stage.play_entry(entry)
+	var driver = stage._skill_presentation
+	assert_true(driver is Awakening)
+	var bolts = driver._bolts
+	assert_true(bolts is Bolts)
+	var giant: float = float(Bolts.STRIKES.back()[0])
+	stage._tween.custom_step(giant + .01)
+	assert_gt(bolts.b_core._p.size(), 0, "The giant black bolt strikes the cocoon before the blackout")
+	assert_gt(bolts.b_glow._p.size(), 0)
+	stage._tween.custom_step(Bolts.REVEAL + .03 - (giant + .01))
+	assert_gt(bolts.b_core._p.size(), 0, "Black lightning runs from the dragon to the screen edges at the reveal")
+	stage._tween.custom_step(Awakening.DURATION)
+	await get_tree().process_frame
+	assert_false(is_instance_valid(bolts), "Cleaned up with the awakening")
+	assert_eq(session.battle.snapshot(), snapshot)

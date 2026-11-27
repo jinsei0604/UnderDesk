@@ -92,7 +92,10 @@ const MushaAwakenedMotion = preload("res://src/bossmaker/visuals/rbm_musha_awake
 const MushaAwakenedFrames = preload("res://src/bossmaker/visuals/rbm_musha_awakened_frame_presentation.gd")
 const MushaInk = preload("res://src/bossmaker/visuals/rbm_musha_ink_director.gd")
 const AstronautTimeline = preload("res://src/bossmaker/visuals/rbm_astronaut_timeline.gd")
-const DragonMotion = preload("res://src/bossmaker/visuals/rbm_dragon_motion.gd")
+const DragonHost = preload("res://src/bossmaker/visuals/dragon/rbm_dragon_attack_host.gd")
+const DragonDive = preload("res://src/bossmaker/visuals/dragon/rbm_dragon_fx_dive.gd")
+const DragonBreath = preload("res://src/bossmaker/visuals/dragon/rbm_dragon_fx_breath.gd")
+const DragonMeteors = preload("res://src/bossmaker/visuals/dragon/rbm_dragon_fx_meteors.gd")
 const GhostMotion = preload("res://src/bossmaker/visuals/rbm_ghost_motion.gd")
 const GhostDriver = preload("res://src/bossmaker/visuals/rbm_ghost_presentation.gd")
 const KnightMotion = preload("res://src/bossmaker/visuals/rbm_knight_motion.gd")
@@ -176,10 +179,14 @@ func test_every_boss_table_keeps_the_impacts_and_the_ending() -> void:
 		assert_true(float(seg[0]) >= MushaInk.A_CLICK2 + 0.14 and float(seg[1]) <= MushaInk.A_SWEEP, "only the stillness between the click and the delayed cuts")
 	for kind in AstronautTimeline.TEMPO:
 		_check_table("astronaut " + kind, AstronautTimeline.tempo(kind), float(AstronautTimeline.DURATIONS[kind]), [float(AstronautTimeline.IMPACTS[kind])], true)
-	# 竜の長さは rbm_dragon_presentation.gd の duration の表（ブレス 4.05・覚醒後のブレス 4.45・隕石 6.65）
-	var dragon := {"breath": [4.05, DragonMotion.BREATH_HIT], "focused_breath": [4.45, DragonMotion.FOCUSED_HIT], "meteors": [6.65, DragonMotion.METEOR_HIT]}
-	for kind in DragonMotion.TEMPO:
-		_check_table("dragon " + kind, DragonMotion.tempo(kind), float(dragon[kind][0]), [float(dragon[kind][1])], true)
+	# 竜の攻撃4種（2026-11-26 の新しい演出、dragon/rbm_dragon_attack_host.gd）。最初に当たる時刻を守る。
+	# 今は詰める区間なし（最後まで煙・火の粉・砂煙が消えていく途中で、止まった区間が無い）。表に足したらここで確かめる
+	var dragon := {"dive": [DragonDive.T.end, DragonDive.T.hit], "breath": [DragonBreath.TN.end, DragonBreath.TN.hit],
+		"focused_breath": [DragonBreath.TF.end, DragonBreath.TF.hit], "meteors": [DragonMeteors.END, 1.65]}
+	for kind in DragonHost.TEMPO:
+		assert_true(dragon.has(kind), "dragon " + kind + " is one of the four attacks")
+	for kind in dragon:
+		_check_table("dragon " + kind, DragonHost.tempo(kind), float(dragon[kind][0]), [float(dragon[kind][1])], true)
 	var ghost = GhostDriver.new()
 	var ghost_duration: float = ghost.duration
 	ghost.free()

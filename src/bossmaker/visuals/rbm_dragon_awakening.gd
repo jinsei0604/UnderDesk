@@ -30,6 +30,13 @@ var _thundered := false
 var _erupted := false
 var _roared := false
 var _shake := Vector2.ZERO
+## 2026-11-26 ユーザー承認: 今の流れのまま、画面全体に黒い雷を重ねる（dragon/rbm_dragon_awaken_bolts.gd）
+const Bolts = preload("res://src/bossmaker/visuals/dragon/rbm_dragon_awaken_bolts.gd")
+var _bolts: Node2D
+
+## 事前読み込み（rbm_presentation_warmup.gd）: 黒い雷が使う画面全体の処理のシェーダー（中身の準備まで済ませる）
+static func warm_paths(_asset_id: String, _kind: String) -> Array[String]:
+	return ["res://src/bossmaker/visuals/hero_boss/shaders/post.gdshader"]
 
 func _init() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -51,6 +58,9 @@ func play(stage: Control) -> Tween:
 	_body.z_index = -87
 	add_child(_body)
 	_body.configure(stage)
+	_bolts = Bolts.new()
+	add_child(_bolts)
+	_bolts.setup(stage)
 	boss.visible = false
 	_play_sound("dragon_awakening", 0.0)
 	advance(0.0)
@@ -86,6 +96,8 @@ func advance(time: float) -> void:
 			mouth = _body.call("mouth_point")
 		if _body.has_method("eye_point"):
 			eye = _body.call("eye_point")
+		if is_instance_valid(_bolts):
+			_bolts.advance(age, home, eye)
 		var force := 0.0
 		if age>=.55 and age<2.16: force=2+smoothstep(.55,2.16,age)*4
 		if age>=1.30 and age<1.95: force+=12*(1-(age-1.30)/.65)

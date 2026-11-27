@@ -12,13 +12,23 @@ const MeteorSky=preload("res://src/bossmaker/visuals/rbm_dragon_meteor_sky.gd")
 const AudioCatalog=preload("res://src/bossmaker/rbm_audio_catalog.gd")
 const TempoMap=preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
 var _sky: Node2D
+## 攻撃4種（2026-11-26 ユーザー承認）: 噛みつき→急降下「天翔墜撃」・息吹・覚醒後の集中の息吹・隕石は、新しい作り
+## （dragon/rbm_dragon_attack_host.gd）で再生する。強化・回復は今までどおり下の再生（Motion・Body・VFX）。
+const Host=preload("res://src/bossmaker/visuals/dragon/rbm_dragon_attack_host.gd")
+## 攻撃の種類 → 再生役の技の名前（噛みつきは急降下に置き換えた）
+const HOST_ACTIONS={"bite":"dive","breath":"breath","focused_breath":"focused_breath","meteors":"meteors"}
+var _host: Node2D
 var _sound_started:=false
 var kind:="single"
 var form:="normal"
 var action_kind:="focused_breath"
 var duration:=2.35
 var impact_time:=Motion.FOCUSED_HIT
-var age:=-1.0
+var _age:=-1.0
+## 演出の時刻（検証の道具・計測が読む）。攻撃4種は再生役（_host）の時刻、強化・回復は下の再生の時刻
+var age: float:
+	get: return float(_host.age) if is_instance_valid(_host) else _age
+	set(value): _age=value
 var active:=false
 var motion: RefCounted
 var _stage: Control
@@ -29,16 +39,19 @@ var _released:=false
 var _boss_visible:=true
 var _shake:=Vector2.ZERO
 
-## Read in the background once the boss is known (rbm_presentation_warmup.gd): the bite frames, the
-## boss pose frames the timelines switch to, and the approved ranged clips.
+## Read in the background once the boss is known (rbm_presentation_warmup.gd): the boss pose frames the
+## timelines switch to, the approved ranged clips, and (2026-11-26) the new attack effects' shaders and the
+## dive's roar (dragon/rbm_dragon_attack_host.gd). The old bite frames are no longer used.
 static func warm_paths(asset_id: String, kind: String) -> Array[String]:
 	var awakened:=asset_id=="dragon_awakened"
 	var out: Array[String]=[]
-	if kind=="single" and not awakened:
-		for i in range(12): out.append(BiteBody.ROOT+"%02d.png" % i)
 	for pose in range(1,11): out.append(RBMVisualAssets.frame_path(asset_id,pose))
 	var ranged: String={"single":"focused_breath" if awakened else "","all":"meteors" if awakened else "breath"}.get(kind,"")
 	if ranged!="": out.append(str(AudioCatalog.FILES[RANGED_SOUNDS[ranged]]))
+	var attack: String={"single":"focused_breath" if awakened else "bite","all":"meteors" if awakened else "breath"}.get(kind,"")
+	if attack!="":
+		for path in Host.warm_paths(HOST_ACTIONS[attack]):
+			if not out.has(path): out.append(path)
 	return out
 
 func play(stage: Control) -> Tween:
@@ -49,6 +62,17 @@ func play(stage: Control) -> Tween:
 	if kind in ["buff","heal"]: action_kind=kind
 	elif kind=="single": action_kind="focused_breath" if form=="awakened" else "bite"
 	else: action_kind="meteors" if form=="awakened" else "breath"
+	if HOST_ACTIONS.has(action_kind):
+		z_index=0
+		_host=Host.new()
+		add_child(_host)
+		var attr:=str(stage._skill.get("attribute",stage._entry.get("attribute","NEUTRAL")))
+		var tw: Tween=_host.play(stage,HOST_ACTIONS[action_kind],form=="awakened",attr)
+		duration=_host.duration
+		impact_time=_host.impact_time
+		# 覚醒後のオーラ（rbm_dragon_aura.gd）が、攻撃中も host の体に付いていくように
+		_body=_host.get("_body")
+		return tw
 	duration={"bite":BiteMotion.DURATION,"breath":4.05,"focused_breath":4.45,"meteors":6.65,"buff":2.35,"heal":2.35}[action_kind]
 	impact_time={"bite":BiteMotion.HIT,"breath":Motion.BREATH_HIT,"focused_breath":Motion.FOCUSED_HIT,"meteors":Motion.METEOR_HIT,"buff":Motion.SUPPORT_HIT,"heal":Motion.SUPPORT_HIT}[action_kind]
 	stage._playing=true
@@ -198,6 +222,7 @@ func _jump_track(t: float) -> void:
 		_stage._sound.jump(RANGED_SOUNDS[action_kind],t)
 
 func play_sound_phase(phase: String) -> bool:
+	if is_instance_valid(_host): return _host.play_sound_phase(phase)
 	if not action_kind in RANGED_SOUNDS: return false
 	if phase=="cast" and not _sound_started:
 		_sound_started=true
@@ -221,6 +246,12 @@ func _restore_transform() -> void:
 	if is_instance_valid(_sky): _sky.visible=false
 
 func stop() -> void:
+	if is_instance_valid(_host):
+		_host.stop()
+		active=false
+		visible=false
+		_stage=null
+		return
 	_restore_transform()
 	active=false
 	visible=false

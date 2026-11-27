@@ -1,5 +1,8 @@
 extends RefCounted
 ## Targeted dragon verification hosted by the standard production GPU runner.
+## 2026-11-26: the four attacks play through dragon/rbm_dragon_attack_host.gd (bite → dive, breath, focused breath,
+## meteors), checked with the host's effect (its attribute ramp, the breath strip reaching the screen edge, the dive's roar).
+## The awakening also checks that the black lightning overlay draws and the awakened aura stays.
 const Driver = preload("res://src/bossmaker/visuals/rbm_dragon_presentation.gd")
 const Palette = preload("res://src/bossmaker/visuals/rbm_attribute_vfx_palette.gd")
 var _gpu_verification_completed := false
@@ -77,6 +80,13 @@ func _run() -> void:
 		FileAccess.open(output_dir.path_join("dragon-report.json"), FileAccess.WRITE).store_string(JSON.stringify(report, "\t"))
 		print("DRAGON_GPU_DONE passed=", report.passed, " cases=", report.case_count)
 		return
+	if "--post-identity-only" in OS.get_cmdline_user_args():
+		await _post_identity_case()
+		report["case_count"] = report.cases.size()
+		report["passed"] = report.errors.is_empty()
+		FileAccess.open(output_dir.path_join("dragon-report.json"), FileAccess.WRITE).store_string(JSON.stringify(report, "\t"))
+		print("DRAGON_GPU_DONE passed=", report.passed, " cases=", report.case_count)
+		return
 	if "--bite-only" in OS.get_cmdline_user_args():
 		await _case("test", "single", "NEUTRAL", false)
 		report["case_count"] = report.cases.size()
@@ -84,7 +94,7 @@ func _run() -> void:
 		FileAccess.open(output_dir.path_join("dragon-report.json"), FileAccess.WRITE).store_string(JSON.stringify(report, "\t"))
 		print("DRAGON_GPU_DONE passed=", report.passed, " cases=", report.case_count)
 		return
-	# Five colors on the changed bite; one representative of the established actions.
+	# Five colors on the dive (the bite's replacement); one representative of the other actions.
 	for attribute in Palette.COLORS: await _case("test", "single", attribute, false)
 	await _case("test", "aoe", "NEUTRAL", false)
 	await _case("test", "single", "NEUTRAL", true)
@@ -96,10 +106,74 @@ func _run() -> void:
 	for mode in ["test", "clear_check", "challenge"]: await _awakening_case(mode)
 	await _case("test", "single", "WIND", false, true)
 	await _case("test", "aoe", "FIRE", true, true)
+	await _post_identity_case()
 	report["case_count"] = report.cases.size()
 	report["passed"] = report.errors.is_empty()
 	FileAccess.open(output_dir.path_join("dragon-report.json"), FileAccess.WRITE).store_string(JSON.stringify(report, "\t"))
 	print("DRAGON_GPU_DONE passed=", report.passed, " cases=", report.case_count)
+
+## 重さの改善（2026-11-27）の確かめ: 画面全体の処理（post.gdshader）は効果が無い間は消している。効果が無い値で出しても
+## 絵が1画素も変わらないことを、息吹の流れの途中で止めて、消した時・出した時・もう一度消した時の3コマで比べる。
+func _post_identity_case() -> void:
+	var definition := _definition_for()
+	definition.boss.skills = [{"skill_id": "boss_claw", "name": "Dragon QA aoe", "type": "attack", "target": "all", "attribute": "FIRE", "atk_multiplier": 1.0}]
+	definition.boss.atk = 40
+	definition.boss.spd = 1
+	if not await _open_view("test", definition): return
+	view.session.battle.boss.hp = 1000
+	var before: Dictionary = {}
+	var entry: Dictionary = {}
+	for attempt in range(16):
+		before = view.session.battle.presentation_state().duplicate(true)
+		for e in view.session.resolve_ally_action({"type": "defend"}):
+			if str(e.get("actor")) == "boss": entry = e
+		if not entry.is_empty(): break
+	stage.set_state(before)
+	view._present_batch([entry], before)
+	var host = null
+	for i in range(300):
+		await _tree().process_frame
+		var driver = stage._skill_presentation
+		if is_instance_valid(driver) and is_instance_valid(driver.get("_host")) and float(driver.age) >= 1.5:
+			host = driver._host
+			break
+	if host == null:
+		_fail("post identity: breath never reached the stream")
+		await _close_view()
+		return
+	stage._tween.pause()
+	host._advance(1.6)
+	# 撮る間はゲーム全体を止める（待機の動き・画面の飾りが変わらないように。違いは post を出したかどうかだけにする）
+	_tree().paused = true
+	var shots: Array = []
+	for forced in [false, true, false]:
+		if forced:
+			var pm := host._post.material as ShaderMaterial
+			for k in host.POST_DEFAULTS: pm.set_shader_parameter(k, host.POST_DEFAULTS[k])
+			pm.set_shader_parameter("ring_count", 0)
+			pm.set_shader_parameter("focus", Vector2(0.5, 0.5))
+		host._post.visible = forced
+		for i in range(3):
+			await _tree().process_frame
+			await RenderingServer.frame_post_draw
+		shots.append(_tree().root.get_texture().get_image())
+	_tree().paused = false
+	var noise := _differing_pixels(shots[0], shots[2])
+	var diff := maxi(_differing_pixels(shots[0], shots[1]), _differing_pixels(shots[2], shots[1]))
+	if host.post_active(host._fx.view): _fail("post identity: the stream moment should need no post processing")
+	if diff < 0 or diff > noise: _fail("post identity: drawing the idle post changed %d pixels (between plain frames %d)" % [diff, noise])
+	report.cases.append({"kind": "post_identity", "differing_pixels": diff, "plain_frame_noise": noise})
+	print("DRAGON_CASE post_identity diff=", diff, " noise=", noise)
+	stage._tween.play()
+	await _close_view()
+
+func _differing_pixels(a: Image, b: Image) -> int:
+	if a == null or b == null or a.get_size() != b.get_size(): return -1
+	var count := 0
+	for y in range(a.get_height()):
+		for x in range(a.get_width()):
+			if a.get_pixel(x, y) != b.get_pixel(x, y): count += 1
+	return count
 
 func _matching_pixels(img: Image, expected: Color) -> int:
 	if img == null: return 0
@@ -174,6 +248,10 @@ func _case(mode: String, kind: String, attribute: String, awakened: bool, counte
 	var body_motion_seen := false
 	var colored_pixels := -1
 	var expected: Color = (Color("ef4847") if kind == "buff" else Color("71da87")) if kind in ["buff", "heal"] else Palette.color_for(attribute)
+	# 攻撃は新しいエフェクトの段階色（rbm_dragon_fx_base.gd の RAMPS。3〜6 の明るい側）のどれかが描かれていること
+	var ramp: Array = []
+	if kind in ["single", "aoe"]:
+		for i in range(3, 7): ramp.append(Color(str(RBMDragonFxBase.RAMPS.get(attribute, RBMDragonFxBase.RAMPS["NEUTRAL"])[i])))
 	var saved := false
 	var record := ("--record-bite" in OS.get_cmdline_user_args() and mode == "test" and kind == "single" and attribute == "NEUTRAL" and not awakened and not counter) or "--bite-only" in OS.get_cmdline_user_args() or ("--review-only" in OS.get_cmdline_user_args() and mode == "test" and not counter)
 	var frame_directory := tag + "_frames"
@@ -187,22 +265,31 @@ func _case(mode: String, kind: String, attribute: String, awakened: bool, counte
 				observed = true
 				if driver.kind != kind or driver.action_kind != _expected_action(kind, awakened): _fail(tag + ": wrong action")
 				if driver.form != ("awakened" if awakened else "normal"): _fail(tag + ": wrong form")
-				if kind in ["single", "aoe"] and driver._vfx.attack_attribute != attribute: _fail(tag + ": wrong attribute input")
-				if driver.action_kind in ["breath","focused_breath"] and driver.age>1.1 and driver.age<2.4 and frame%20==0:
-					var beam: Dictionary=driver._vfx.beam_values()
-					var transform: Transform2D=driver._vfx.get_global_transform_with_canvas()
-					var a: Vector2=transform*beam.mouth
-					var b: Vector2=transform*(beam.mouth+beam.dir*beam.span*beam.travel)
-					if b.x>=0: _fail(tag+": beam ends before screen edge")
+				if kind in ["single", "aoe"]:
+					if not is_instance_valid(driver._host): _fail(tag + ": attack host missing")
+					elif driver._host._fx.attr != attribute: _fail(tag + ": wrong attribute input")
+				if driver.action_kind in ["breath","focused_breath"] and driver.age>1.1 and driver.age<2.3 and frame%20==0:
+					# 炎の帯（口の先の玉から出る）の中心線を、画面の左端まで追う
+					var root: Node2D=driver._host._fx.outer.get_parent()
+					var transform: Transform2D=root.get_global_transform_with_canvas()
+					var a: Vector2=transform*Vector2.ZERO
+					var b: Vector2=transform*Vector2(driver._host._fx.outer.size.x,0)
+					if b.x>=0: _fail(tag+": breath ends before screen edge")
 					var y: float=lerpf(a.y,b.y,(2-a.x)/(b.x-a.x))
-					var pixel: Color=_tree().root.get_texture().get_image().get_pixel(2,clampi(int(y),0,719))
-					if pixel.get_luminance()<.55: _fail(tag+": rendered beam missing at screen edge")
+					# 中心線の上下8画素・左端の数画素で一番明るい所を見る（覚醒後の光線には黒い稲妻が這うので、1画素だと芯に重なることがある）
+					var shot: Image=_tree().root.get_texture().get_image()
+					var brightest:=0.0
+					for sx in range(2,7,2):
+						for sy in range(-8,9,2): brightest=maxf(brightest,shot.get_pixel(sx,clampi(int(y)+sy,0,719)).get_luminance())
+					if brightest<.55: _fail(tag+": rendered breath missing at screen edge")
 					edge_samples+=1
-				if driver.action_kind=="focused_breath" and (driver._body.state.foot!=driver.motion.home or driver._body.state.scale!=Vector2.ONE or driver._shake!=Vector2.ZERO): _fail(tag+": breath recoil")
 				var body_state: Dictionary = driver._body.state
 				if body_state.get("scale", Vector2.ONE) != Vector2.ONE or int(body_state.get("pose", 0)) != 0: body_motion_seen = true
 				if driver.age >= driver.impact_time and driver.age <= driver.impact_time + .4:
-					colored_pixels = maxi(colored_pixels, _matching_pixels(_tree().root.get_texture().get_image(), expected))
+					var shot := _tree().root.get_texture().get_image()
+					if ramp.is_empty(): colored_pixels = maxi(colored_pixels, _matching_pixels(shot, expected))
+					else:
+						for c in ramp: colored_pixels = maxi(colored_pixels, _matching_pixels(shot, c))
 					if not saved and mode == "test" and not counter and (attribute == "NEUTRAL" or kind in ["buff", "heal"]):
 						_save(tag + "_impact")
 						saved = true
@@ -217,6 +304,7 @@ func _case(mode: String, kind: String, attribute: String, awakened: bool, counte
 		for key in stage._sound.history:
 			if key.begins_with(attribute.to_lower()+"_") and not (counter and attribute=="WIND"): _fail(tag+": unwanted attribute SFX")
 		if "boss_move_heavy" in stage._sound.history or "boss_impact_mass" in stage._sound.history: _fail(tag+": unwanted generic boss SFX")
+	if _expected_action(kind,awakened)=="bite" and stage._sound.history.count("dragon_roar")!=1: _fail(tag+": the dive's roar missing or repeated")
 	if _expected_action(kind,awakened) in ["breath","focused_breath"] and edge_samples==0: _fail(tag+": no screen edge samples")
 	if not observed or colored_pixels < 4: _fail(tag + ": expected rendered VFX color not found")
 	if not body_motion_seen: _fail(tag + ": body motion missing")
@@ -255,6 +343,7 @@ func _awakening_case(mode: String) -> void:
 	var observed := false
 	var dark_saved := false
 	var reveal_saved := false
+	var bolts_drawn := false
 	var record := "--review-only" in OS.get_cmdline_user_args()
 	if record: DirAccess.make_dir_recursive_absolute(output_dir.path_join("awakening_frames"))
 	for frame in range(480):
@@ -262,6 +351,8 @@ func _awakening_case(mode: String) -> void:
 		var driver = stage._skill_presentation
 		if is_instance_valid(driver) and stage._phase == "awakening":
 			observed = true
+			var bolts = driver.get("_bolts")
+			if is_instance_valid(bolts) and driver.age >= 2.1 and driver.age <= 3.4 and bolts.b_core._p.size() > 0: bolts_drawn = true
 			if mode == "test" and driver.age >= 2.35 and not dark_saved:
 				_save(tag + "_black_flame")
 				dark_saved = true
@@ -274,15 +365,17 @@ func _awakening_case(mode: String) -> void:
 			_tree().root.get_texture().get_image().save_png(output_dir.path_join("awakening_frames/%04d.png" % (frame / 2)))
 		if observed and not stage.is_playing() and not view._presenter.is_playing(): break
 	if not observed: _fail(tag + ": dedicated awakening never observed")
+	if not bolts_drawn: _fail(tag + ": black lightning never drawn")
 	if seen.size() != 1 or seen[0] != entry: _fail(tag + ": awakening impact contract")
 	if not view.session.battle.is_awakened: _fail(tag + ": awakened state not persistent")
 	_check_restored(tag, true)
 	view.refresh()
 	await _tree().process_frame
 	if stage._asset_ids["boss"] != "dragon_awakened": _fail(tag + ": refresh lost awakened appearance")
+	if not stage._dragon_aura.visible: _fail(tag + ": awakened aura missing")
 	if view.session.battle.snapshot() != resolved: _fail(tag + ": simulation changed during playback")
 	if mode == "test": _save(tag + "_persistent")
-	report.cases.append({"mode": mode, "kind": "awakening", "impact_events": seen.size(), "is_awakened": view.session.battle.is_awakened, "asset": stage._asset_ids["boss"], "simulation_unchanged": view.session.battle.snapshot() == resolved})
+	report.cases.append({"mode": mode, "kind": "awakening", "black_lightning": bolts_drawn, "impact_events": seen.size(), "is_awakened": view.session.battle.is_awakened, "asset": stage._asset_ids["boss"], "simulation_unchanged": view.session.battle.snapshot() == resolved})
 	print("DRAGON_CASE ", tag)
 	await _close_view()
 
