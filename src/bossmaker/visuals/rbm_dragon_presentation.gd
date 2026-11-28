@@ -1,29 +1,23 @@
 extends Node2D
 ## Resolved battle entries only; normal and awakened dragons share playback plumbing.
+## 2026-11-28: 前の攻撃（噛みつき・前の息吹・前の隕石）のスクリプトと噛みつきのコマ画像は、使わなくなったので削除した。
 const Motion=preload("res://src/bossmaker/visuals/rbm_dragon_motion.gd")
 const Body=preload("res://src/bossmaker/visuals/rbm_dragon_body.gd")
-const BiteMotion=preload("res://src/bossmaker/visuals/rbm_dragon_bite_motion.gd")
-const BiteBody=preload("res://src/bossmaker/visuals/rbm_dragon_bite_body.gd")
-const BiteVFX=preload("res://src/bossmaker/visuals/rbm_dragon_bite_vfx.gd")
 const VFX=preload("res://src/bossmaker/visuals/rbm_dragon_vfx.gd")
-const RangedVFX=preload("res://src/bossmaker/visuals/rbm_dragon_ranged_vfx.gd")
+## 息吹・隕石の完成トラック（攻撃の再生役が鳴らす。事前読み込みと検証の道具もこの表を読む）
 const RANGED_SOUNDS={"breath":"dragon_normal_breath","focused_breath":"dragon_awakened_breath","meteors":"dragon_awakened_meteors"}
-const MeteorSky=preload("res://src/bossmaker/visuals/rbm_dragon_meteor_sky.gd")
 const AudioCatalog=preload("res://src/bossmaker/rbm_audio_catalog.gd")
-const TempoMap=preload("res://src/bossmaker/visuals/rbm_tempo_map.gd")
-var _sky: Node2D
 ## 攻撃4種（2026-11-26 ユーザー承認）: 噛みつき→急降下「天翔墜撃」・息吹・覚醒後の集中の息吹・隕石は、新しい作り
-## （dragon/rbm_dragon_attack_host.gd）で再生する。強化・回復は今までどおり下の再生（Motion・Body・VFX）。
+## （dragon/rbm_dragon_attack_host.gd）で再生する。強化・回復は今までどおり下の再生（Motion・Body・VFX の咆哮）。
 const Host=preload("res://src/bossmaker/visuals/dragon/rbm_dragon_attack_host.gd")
 ## 攻撃の種類 → 再生役の技の名前（噛みつきは急降下に置き換えた）
 const HOST_ACTIONS={"bite":"dive","breath":"breath","focused_breath":"focused_breath","meteors":"meteors"}
 var _host: Node2D
-var _sound_started:=false
 var kind:="single"
 var form:="normal"
 var action_kind:="focused_breath"
 var duration:=2.35
-var impact_time:=Motion.FOCUSED_HIT
+var impact_time:=Motion.SUPPORT_HIT
 var _age:=-1.0
 ## 演出の時刻（検証の道具・計測が読む）。攻撃4種は再生役（_host）の時刻、強化・回復は下の再生の時刻
 var age: float:
@@ -37,7 +31,6 @@ var _vfx: Node2D
 var _hit:=false
 var _released:=false
 var _boss_visible:=true
-var _shake:=Vector2.ZERO
 
 ## Read in the background once the boss is known (rbm_presentation_warmup.gd): the boss pose frames the
 ## timelines switch to, the approved ranged clips, and (2026-11-26) the new attack effects' shaders and the
@@ -73,8 +66,9 @@ func play(stage: Control) -> Tween:
 		# 覚醒後のオーラ（rbm_dragon_aura.gd）が、攻撃中も host の体に付いていくように
 		_body=_host.get("_body")
 		return tw
-	duration={"bite":BiteMotion.DURATION,"breath":4.05,"focused_breath":4.45,"meteors":6.65,"buff":2.35,"heal":2.35}[action_kind]
-	impact_time={"bite":BiteMotion.HIT,"breath":Motion.BREATH_HIT,"focused_breath":Motion.FOCUSED_HIT,"meteors":Motion.METEOR_HIT,"buff":Motion.SUPPORT_HIT,"heal":Motion.SUPPORT_HIT}[action_kind]
+	# ここから下は強化・回復（咆哮）だけ
+	duration=Motion.SUPPORT_DURATION
+	impact_time=Motion.SUPPORT_HIT
 	stage._playing=true
 	stage._phase="dragon_"+action_kind
 	stage._motion_offset=Vector2.ZERO
@@ -82,57 +76,23 @@ func play(stage: Control) -> Tween:
 	var boss: Control=stage._visuals["boss"]
 	_boss_visible=boss.visible
 	z_index=3
-	_body=BiteBody.new() if action_kind=="bite" else Body.new()
+	_body=Body.new()
 	add_child(_body)
 	_body.configure(stage)
 	boss.visible=false
-	motion=BiteMotion.new() if action_kind=="bite" else Motion.new()
-	var aim: Vector2=stage._foot("boss")
-	var feet: Array[Vector2]=[]
-	var hits: Array[Vector2]=[]
-	for key in stage._targets:
-		if key=="boss": continue
-		var foot: Vector2=stage._foot(key)+Vector2(stage._guard_offsets.get(key,Vector2.ZERO))
-		var height: float=stage.Assets.display_height(str(stage._asset_ids[key]))
-		feet.append(foot)
-		hits.append(foot-Vector2(0,height*.55)+Vector2(6,0))
-	if not hits.is_empty(): aim=hits[0]
-	var origin: Vector2=stage._foot("boss")
-	if action_kind=="bite": origin+=_body.anchor_offset()
-	motion.configure(origin,aim,feet)
-	if action_kind=="bite": motion.endpoint=aim-_body.local_point(6,"mouth")
-	_vfx=BiteVFX.new() if action_kind=="bite" else (RangedVFX.new() if action_kind in RANGED_SOUNDS else VFX.new())
-	_vfx.motion=motion
+	motion=Motion.new()
+	motion.configure(stage._foot("boss"))
+	_vfx=VFX.new()
 	_vfx.body=_body
 	_vfx.kind=action_kind
-	_vfx.attack_attribute=str(stage._skill.get("attribute",stage._entry.get("attribute","NEUTRAL")))
-	_vfx.feet=feet
-	_vfx.hits=hits
 	_vfx.prepare()
 	add_child(_vfx)
-	if action_kind=="meteors" and not _vfx.meteors.is_empty():
-		# 何回も当たる攻撃（2026-10-23）: 小さな隕石が当たるたびに小さな数字、最後の巨大隕石で合計（stage.begin_multi_hit()）。
-		# 命中の確定（_strike）は巨大隕石へ。小さな隕石は hits[i % 人数] の相手へ当たる（rbm_dragon_ranged_vfx.gd の prepare()）。
-		impact_time=float(_vfx.meteors.back().arrival)
-		var keys: Array[String]=[]
-		for key in stage._targets:
-			if key!="boss": keys.append(key)
-		var plan:={}
-		for i in range(_vfx.meteors.size()-1):
-			var key: String=keys[i%keys.size()]
-			if not plan.has(key): plan[key]=[]
-			plan[key].append(float(_vfx.meteors[i].arrival))
-		stage.begin_multi_hit(plan,.4)
-	if action_kind=="meteors":
-		_sky=MeteorSky.new()
-		_sky.z_index=-1
-		add_child(_sky)
 	_advance(0)
 	stage._play_se("cast")
 	if not stage._guards.is_empty(): stage._sound.play_sound("cover_move",-5)
 	var tween:=create_tween()
-	# 戦闘テンポ（2026-10-16）: 終わりの止まっている所だけ詰める。完成トラックも同じ時刻へ合わせ直す。
-	TempoMap.tween_timeline(tween,_advance,duration,Motion.tempo(action_kind),_jump_track)
+	# 戦闘テンポ（2026-10-16）: 強化・回復は詰める区間なし（今までどおり）
+	tween.tween_method(_advance,0.0,duration,duration)
 	if stage._samurai_finish:
 		tween.tween_callback(_restore_transform)
 		var counter_duration: float=stage.SAMURAI_WIND_START_DELAY+stage.SamuraiWind.AFTERMATH_START+stage.SamuraiWind.AFTERMATH_DURATION+.05
@@ -146,10 +106,8 @@ func play(stage: Control) -> Tween:
 
 func _advance(t: float) -> void:
 	if not active or not is_instance_valid(_stage): return
-	_clear_shake()
 	age=t
-	var render_time:=t
-	var state: Dictionary=motion.sample(action_kind,render_time)
+	var state: Dictionary=motion.sample(action_kind,t)
 	_body.advance(state)
 	_stage._pose("boss",int(state.pose))
 	_stage._visuals["boss"].position=(Vector2(_stage._homes["boss"])+Vector2(state.foot)-motion.home).round()
@@ -157,93 +115,26 @@ func _advance(t: float) -> void:
 		var progress:=smoothstep(0,.5,t)*(1-smoothstep(duration-.50,duration,t))
 		_stage._visuals[key].position=(Vector2(_stage._homes[key])+Vector2(_stage._guard_offsets[key])*progress).round()
 		_stage._pose(key,10)
-	var release_time: float={"bite":1.34,"breath":.78,"focused_breath":.82,"meteors":.54}.get(action_kind,.26)
-	if t>=release_time and not _released:
+	if t>=Motion.SUPPORT_RELEASE and not _released:
 		_released=true
 		_stage._play_se("release")
-	if action_kind=="meteors": _stage.advance_multi_hit(t)
 	if t>=impact_time and not _hit:
 		_hit=true
 		_stage._strike()
 		if not active or not is_instance_valid(_stage): return
-	if kind in ["single","aoe"]:
-		for key in _stage._targets:
-			if _stage._guards.has(key): continue
-			var reaction:=t-impact_time-(.04 if action_kind=="bite" else 0.0)
-			var reaction_length:=.34 if action_kind=="bite" else .42
-			if action_kind=="meteors":
-				reaction_length=.16
-				var target_index: int=_stage._targets.find(key)
-				for i in range(_vfx.meteors.size()):
-					var arrival: float=_vfx.meteors[i].arrival
-					if t>=arrival and (i%_vfx.hits.size()==target_index or i==_vfx.meteors.size()-1): reaction=t-arrival
-			_stage._visuals[key].position=_stage._homes[key]
-			if reaction>=0 and reaction<reaction_length:
-				if _stage._counters.has(key): _stage._pose(key,10)
-				else:
-					_stage._pose(key,11)
-					_stage._visuals[key].position+=Vector2((-8 if action_kind=="bite" else -10)*sin(reaction/reaction_length*PI),0).round()
-			elif reaction>=reaction_length:
-				var unit: Dictionary=_stage._unit_state(key)
-				_stage._pose(key,11 if unit.get("is_downed",false) else (10 if unit.get("is_defending",false) or _stage._counters.has(key) else 0))
-	_vfx.advance(render_time)
-	if is_instance_valid(_sky): _sky.advance(render_time)
-	if action_kind in RANGED_SOUNDS:
-		_shake=_ranged_shake(t)
-	elif action_kind=="bite":
-		var shake_age:=t-impact_time
-		if shake_age>=0 and shake_age<.20:
-			_shake=(Vector2(sin(shake_age*113),cos(shake_age*89)*.5)*4.0*(1-shake_age/.20)).round()
-	if _shake!=Vector2.ZERO:
-		for visual in _stage._visuals.values(): visual.position+=_shake
-		position=_shake
+	_vfx.advance(t)
 
-func _ranged_shake(t: float) -> Vector2:
-	var result:=Vector2.ZERO
-	if action_kind=="meteors":
-		for meteor in _vfx.meteors:
-			var elapsed: float=t-meteor.arrival
-			var power:=46.0 if meteor.radius>60 else 4.5
-			var span:=1.1 if meteor.radius>60 else .23
-			if elapsed>=0 and elapsed<span: result+=Vector2(sin(elapsed*98)*power,cos(elapsed*117)*power*.65)*(1-elapsed/span)
-		result=result.limit_length(48)
-	elif action_kind=="focused_breath":
-		return Vector2.ZERO
-	elif t>=.82 and t<2.65:
-		var power:=2.0 if action_kind=="focused_breath" else .65
-		if action_kind=="focused_breath" and t<1.08: power+=6*(1-(t-.82)/.26)
-		result=Vector2(sin(t*97)*power,cos(t*113)*power*.7)
-	return result.round()
-
-## These approved clips include charge, release and impacts, independent of attribute.
-## The stage audio owner keeps mute, voice limits, cancellation and visibility cleanup.
-func _jump_track(t: float) -> void:
-	if action_kind in RANGED_SOUNDS and is_instance_valid(_stage) and is_instance_valid(_stage._sound):
-		_stage._sound.jump(RANGED_SOUNDS[action_kind],t)
-
+## 攻撃4種は再生役が完成トラックを鳴らす。強化・回復はステージの共通の音（false を返す）
 func play_sound_phase(phase: String) -> bool:
 	if is_instance_valid(_host): return _host.play_sound_phase(phase)
-	if not action_kind in RANGED_SOUNDS: return false
-	if phase=="cast" and not _sound_started:
-		_sound_started=true
-		_stage._sound.play_sound(RANGED_SOUNDS[action_kind])
-	return true
-
-func _clear_shake() -> void:
-	if _shake!=Vector2.ZERO and is_instance_valid(_stage):
-		for visual in _stage._visuals.values():
-			if is_instance_valid(visual): visual.position-=_shake
-	_shake=Vector2.ZERO
-	position=Vector2.ZERO
+	return false
 
 func _restore_transform() -> void:
-	_clear_shake()
 	if not is_instance_valid(_stage): return
 	_stage._visuals["boss"].visible=_boss_visible
 	_stage._visuals["boss"].position=_stage._homes["boss"]
 	_body.visible=false
 	_vfx.visible=false
-	if is_instance_valid(_sky): _sky.visible=false
 
 func stop() -> void:
 	if is_instance_valid(_host):

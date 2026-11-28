@@ -25,7 +25,7 @@ const RANGED_SOUNDS := {"breath": "dragon_normal_breath", "focused_breath": "dra
 ## 解放の合図（ステージの共通の "release" の音）。急降下は飛び立つ時
 const RELEASE := {"dive": 1.12, "breath": 0.78, "focused_breath": 0.82, "meteors": 0.54}
 ## 戦闘テンポ（rbm_tempo_map.gd）で詰める区間。2026-11-26 の新しい演出は、最後まで煙・火の粉・砂煙が消えていく途中で
-## 画面が止まっている区間が無いので、どの技も詰めない（前の演出の表 rbm_dragon_motion.gd の TEMPO は前の絵の止まった区間）。
+## 画面が止まっている区間が無いので、どの技も詰めない（前の演出の表は前の絵の止まった区間を詰めていた。2026-11-28 に前の演出ごと削除）。
 const TEMPO := {}
 ## エフェクトが使うシェーダー（事前読み込みで中身の準備まで済ませる。初めての再生の止まりを防ぐ）
 const SHADER_PATHS: Array[String] = [
